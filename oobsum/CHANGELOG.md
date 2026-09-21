@@ -1,5 +1,54 @@
 # CHANGELOG
 
+## v3.2 — 2026-09-21
+
+把"从零开始到编译完成"这条路补全。起因：使用方要从干净窗口重跑一遍，
+发现文档 `04-setup/01-restricted-network-build.md` 里那份「执行」命令序列**是不完整的**——
+缺条件步骤 25、缺 `OPAMROOT` 和 `DLJ`、结尾也没说怎么把自建的 infer 加进 `PATH`。
+
+### 新增
+
+* **`04-setup/scripts/run-all.sh`** —— 一把梭驱动脚本：
+
+  ```bash
+  cd <调研包>/04-setup/scripts
+  ./run-all.sh
+  ```
+
+  按顺序跑 00 → 10 → 20 →（25 条件）→ 30 → 取官方预编译包 → 40 → 50，
+  自己管好 `WORK` / `J` / `DLJ` / `PATH` / `OPAMROOT` / `PREBUILT`，不用手动 export 任何东西。
+
+  - `FROM=<00|10|20|25|30|40|50>` 断点续跑。任何一步挂了，修完直接再跑一次即可
+    （每个子脚本本身都可重跑、会跳过已完成的部分），失败时脚本会直接把续跑命令打出来。
+  - `PREFETCH=1` 才跑条件步骤 25 —— 它要串行 clone 一两百个仓库，默认不跑。
+    30 失败且日志里有 `Could not synchronize` 时，脚本会主动提示 `PREFETCH=1 FROM=25 ./run-all.sh`。
+  - `SKIP_CHECKER=1` 只构建 infer 本体，不装 MiniOobChecker。
+  - 预编译包下不下来时给出两条明确出路（拷贝到位续跑 / 从源码自举 LLVM），不是一句失败了事。
+
+### 变更
+
+* **`04-setup/01-restricted-network-build.md` 的「执行」章节重写**，拆成两条路线：
+  - **A（推荐）**：`./run-all.sh`，附可调环境变量表（`WORK`/`J`/`DLJ`/`PREFETCH`/`SKIP_CHECKER`/`FROM`）。
+  - **B（手动）**：完整到可以逐行复制的序列，8 个分段，
+    **补上了原先缺的**：`DLJ`、`. ./opam-env.sh`（取代旧的 `export PATH=...`）、
+    条件步骤 25 的触发条件与命令、`curl` 的 `-f --retry`、结尾的
+    `export PATH=$WORK/infer/infer/bin:$PATH` + `infer --version`。
+  - 新增提醒：**每开一个新窗口都要重跑 `. ./opam-env.sh`**。
+* **`10-install-opam.sh`** 结尾的下一步提示，从 `export PATH=$WORK/bin:$PATH`
+  改成 `. <绝对路径>/opam-env.sh` —— 后者同时设 `OPAMROOT`，少一个漏掉它的机会（v3.1 那个坑的源头）。
+* **`25-prefetch-git-sources.sh`** 的「0 个要拉源」不再含糊。现在分三种情况分别说明：
+  lock 没解析出包（正则对不上）/ 大半包找不到版本目录（20 没跑成功）/
+  确实没有 git 源（**那就说明你的 403 不是 git fetch 并发造成的，本脚本解决不了**）。
+  这条实测出现过，当时看着像"成功"，实际是条死路。
+* **`opam-env.sh`** 反复 source 不再重复往 `PATH` 里塞同一个目录。
+* **`04-setup/README.md`** 开头加上两行版的快速开始。
+
+### 没有变的
+
+分析结论、实验数据、方案 C 设计、工作量估算一个字没动。
+
+---
+
 ## v3.1 — 2026-09-21
 
 堵一条**错误提示把人带偏**的连环坑。没有功能变化，全是提示语、文档和守卫。

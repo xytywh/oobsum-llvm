@@ -21,7 +21,11 @@
 
 _oe_work="${WORK:-$HOME/infer-build}"
 export WORK="$_oe_work"
-export PATH="$_oe_work/bin:$PATH"
+# 反复 source 不让 PATH 越长越长
+case ":$PATH:" in
+  *":$_oe_work/bin:"*) : ;;
+  *) export PATH="$_oe_work/bin:$PATH" ;;
+esac
 export OPAMROOT="${OPAMROOT:-$_oe_work/opamroot}"
 export OPAMYES="${OPAMYES:-1}"
 export OPAMCOLOR="${OPAMCOLOR:-never}"

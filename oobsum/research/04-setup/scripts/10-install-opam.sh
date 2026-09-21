@@ -87,6 +87,9 @@ fi
 
 step_done
 
-echo "完成。请把这行加进你的 shell（后续脚本都需要）："
-echo "    export PATH=$WORK/bin:\$PATH"
+echo "完成。请在当前 shell 里执行这一行（后续脚本和手敲 opam 命令都需要）："
+echo "    . $HERE/opam-env.sh"
+echo "  它会设好 PATH 和 OPAMROOT。**每开一个新窗口都要先跑一次。**"
+echo "  （等价于 export PATH=$WORK/bin:\$PATH 加 export OPAMROOT=$WORK/opamroot，"
+echo "   但少一个漏掉 OPAMROOT 的机会——漏掉的话 opam 会报 has not been initialised。）"
 echo "下一步： ./20-prepare-opam-repo.sh"

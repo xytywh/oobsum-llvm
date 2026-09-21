@@ -1,4 +1,4 @@
-# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.1）
+# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.2）
 
 一句话：**这个包里只有一份"正文"（报告），其余全是为了让你能亲手复现、读懂、并在自己代码库上用起来的材料。**
 
@@ -40,6 +40,10 @@
 > `$WORK/opamroot` 而非 `~/.opam`，在交互 shell 里手敲 `opam` 会报
 > `Opam has not been initialised`，照字面去 `opam init` 又会撞上缺 bubblewrap ——
 > 这是一条**错误提示把人带偏**的连环坑，v3.1 从提示语、文档、脚本三处堵死。
+> **v3.2** 新增 `04-setup/scripts/run-all.sh`：干净窗口从零构建，`./run-all.sh` 一条命令跑完
+> 00→10→20→30→取预编译包→40→50，支持 `FROM=<步号>` 断点续跑。
+> 同时补全了文档里那份**不完整**的手动命令序列（缺条件步骤 25、缺 `OPAMROOT`/`DLJ`、
+> 缺最后把 infer 加进 PATH）。
 >
 > ⚠️ **v2.5 在 git 里是一次大规模重命名**（35 个条目 + 根目录）。
 > 提交时用 `git add -A`，让 git 的 rename detection 生效，
@@ -68,6 +72,7 @@ CHANGELOG.md   ← 版本变更清单
 
 04-setup/                               三条路：预编译二进制 / 源码构建 / Docker
    01-restricted-network-build.md              回答「卡在 initializing opam」
+   scripts/run-all.sh                          ★ 一把梭：一条命令从零跑到编译完成
    scripts/00…50                               受限网络下可直接执行的编号脚本
                                                25 是条件步骤：只在 30 报 HTTP 403 时才跑
    scripts/opam-env.sh                         ★ source 它（不是执行）再手敲 opam 命令

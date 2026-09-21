@@ -93,6 +93,21 @@ with open(out, "w") as fh:
         fh.write("\t".join(r) + "\n")
 print(f"   lock 里 {len(pkgs)} 个包；其中 {len(rows)} 个要从 github git 拉源"
       f"（{nosrc} 个在仓库里找不到对应版本，跳过）")
+
+# "0 个要拉" 有三种完全不同的含义，不说清楚的话看着都像"成功"。
+if len(rows) == 0:
+    print()
+    if len(pkgs) == 0:
+        print("   ⚠ lock 文件一个包都没解析出来 —— 多半是 lock 格式跟本脚本的正则对不上。")
+        print(f"     看一眼： head -30 {lock}")
+    elif nosrc >= len(pkgs) * 0.5:
+        print(f"   ⚠ {nosrc}/{len(pkgs)} 个包在 opam 仓库里找不到对应版本目录。")
+        print("     多半是脚本 20 还没跑成功，或者 $REPO 指错了。这时本脚本帮不上忙。")
+    else:
+        print("   ✓ 没有需要预取的 git 源 —— 说明这些包的源还是压缩包形式，")
+        print("     opam 会走下载缓存或 HTTP，不经过 git fetch。")
+        print("     也就是说：**你遇到的 403 不是 git fetch 并发导致的**，本脚本解决不了它。")
+        print("     回去看 30 的日志里 403 具体出现在哪个环节。")
 PY
 TOTAL=$(wc -l < "$LIST")
 

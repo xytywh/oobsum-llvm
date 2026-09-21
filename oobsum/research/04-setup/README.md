@@ -5,6 +5,15 @@
 > **受限网络环境（opam.ocaml.org 不可达、但能 git clone GitHub）请直接看
 > [`01-restricted-network-build.md`](01-restricted-network-build.md)** —— 那里有编号脚本 `scripts/00`…`scripts/50`，
 > 按顺序执行即可，并且解答了「`./build-infer.sh clang` 卡在 `initializing opam...`」这个问题。
+>
+> 从零开始、干净窗口，最省事的就两行：
+>
+> ```bash
+> cd 04-setup/scripts
+> ./run-all.sh          # 00→10→20→30→取预编译包→40→50，环境变量都包好了
+> ```
+>
+> 中途挂了修完再跑一次即可；跳过已完成的步骤用 `FROM=30 ./run-all.sh`。
 
 ---
 

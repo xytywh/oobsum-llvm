@@ -99,7 +99,9 @@ make -j$(nproc) BUILD_MODE=default infer
 本目录 `scripts/` 下是编号脚本，**按顺序执行即可**，每一步都能单独重跑。
 
 > **`25-prefetch-git-sources.sh` 是条件步骤**：正常情况跳过它，
-> 只有脚本 30 大面积报 `HTTP 403` 时才回头插进来跑一次。
+> 只有脚本 30 大面积报 `HTTP 403`、而你手工 `git clone` 又是通的时候，才回头插进来跑一次。
+>
+> 嫌麻烦就直接 `./run-all.sh`（下面「执行（A）」），它把顺序和环境变量都包好了。
 
 ### 原理一句话
 
@@ -114,34 +116,104 @@ make -j$(nproc) BUILD_MODE=default infer
 
 第 3 条是最干净的一招：不动 opam 元数据，不关校验。
 
-### 执行
+### 执行（A：一把梭，推荐）
+
+干净窗口、从零开始，只需要两条命令：
+
+```bash
+cd <本调研包>/04-setup/scripts
+./run-all.sh
+```
+
+`run-all.sh` 会依次跑 00 → 10 → 20 → 30 → 取预编译包 → 40 → 50，
+自己管好 `PATH` / `OPAMROOT` / `PREBUILT`，不需要你手动 export 任何东西。
+
+**任何一步挂了，修完之后直接再跑一次即可**——每个子脚本都能重跑、会跳过已完成的部分。
+想省掉前面已经跑通的步骤就指定断点：
+
+```bash
+FROM=30 ./run-all.sh        # 从装依赖这步继续（步号取 00/10/20/25/30/40/50）
+```
+
+可调的环境变量（都有默认值）：
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `WORK` | `$HOME/infer-build` | 所有产物的落地目录 |
+| `J` | `$(nproc)` | 编译并行度。内存 < 8 GB 时调小，如 `J=2` |
+| `DLJ` | `4` | opam 下载并发。**核多的机器别用默认核数**，几十个 `git fetch` 同时打到代理容易被限流成 403 |
+| `PREFETCH` | 空 | 设为 1 才跑条件步骤 25（见下） |
+| `SKIP_CHECKER` | 空 | 设为 1 则只构建 infer 本体，不装 MiniOobChecker |
+| `FROM` | `00` | 从哪一步开始 |
+
+比如一台 48 核、内存紧张的机器：
+
+```bash
+J=8 DLJ=2 ./run-all.sh
+```
+
+### 执行（B：手动一步步来）
+
+想看清每一步、或者只跑其中几步，就按下面这个顺序。
+**注意第三行的 `. ./opam-env.sh`**——它取代了旧版文档里的 `export PATH=...`，
+同时还设了 `OPAMROOT`；漏掉它的话后面手敲 `opam` 会报 `Opam has not been initialised`。
 
 ```bash
 cd <本调研包>/04-setup/scripts
 
-export WORK=$HOME/infer-build        # 所有产物都放这里，可随便改
-export J=$(nproc)                     # 并行度
+# ── 0. 环境变量（一个窗口设一次）────────────────────────────────
+export WORK=$HOME/infer-build         # 所有产物都放这里，可随便改
+export J=$(nproc)                     # 编译并行度；内存 < 8 GB 就调小
+export DLJ=4                          # opam 下载并发；核多的机器别调大
 
-./00-check-env.sh                      # 只检查，不改东西
-./10-install-opam.sh             # opam 本体 + GMP 头文件 + rsync 替身
-export PATH=$WORK/bin:$PATH           # ← 脚本 10 会提示你加这行
-./20-prepare-opam-repo.sh                  # clone opam 仓库 + 改写源 + 预填缓存（约 10 分钟）
-./30-install-deps.sh          # OCaml 5.4.1+flambda + 152 个依赖（★ 最慢，2 核约 55 分钟）
+# ── 1. 体检（只看不改，有 ✗ 是正常的）──────────────────────────
+./00-check-env.sh
 
-# 下预编译包借 clang 用（强烈建议，能省数小时）
-curl -L -o $WORK/infer-bin.tar.xz \
+# ── 2. 装 opam 本体 + GMP 头文件 + rsync 替身 ──────────────────
+./10-install-opam.sh
+. ./opam-env.sh                       # ★ 设好 PATH 和 OPAMROOT。新开窗口都要跑这行
+
+# ── 3. 准备 opam 仓库（clone + 改写源 + 打补丁 + init + 预填缓存）─
+./20-prepare-opam-repo.sh             # 约 10 分钟，顺带 clone infer 源码
+
+# ── 4. 装 OCaml 和全部依赖（★ 最慢：2 核约 55 分钟，8 核约 20 分钟）─
+./30-install-deps.sh
+#   ↑ 如果这一步大面积报 "Could not synchronize ... HTTP 403"，
+#     先跑条件步骤 25 把源预取到本地，再回来重跑 30：
+#         ./25-prefetch-git-sources.sh
+#         ./30-install-deps.sh
+#     还不行就再压并发： DLJ=1 ./30-install-deps.sh
+
+# ── 5. 取官方预编译包，借它编译好的 clang（省掉数小时 LLVM 自举）──
+curl -fL --retry 3 -o $WORK/infer-bin.tar.xz \
   https://github.com/facebook/infer/releases/download/v1.3.0/infer-linux-x86_64-v1.3.0.tar.xz
 tar xf $WORK/infer-bin.tar.xz -C $WORK
 export PREBUILT=$WORK/infer-linux-x86_64-v1.3.0
 
-./40-build-infer.sh                     # 构建 infer 本体（2 核约 13 分钟）
-./50-install-minioobchecker.sh            # 装上我们写的 checker 并跑 demo
+# ── 6. 构建 infer 本体（2 核约 13 分钟）────────────────────────
+./40-build-infer.sh
+
+# ── 7. 装上本包里的 MiniOobChecker 并跑 demo ───────────────────
+./50-install-minioobchecker.sh
+
+# ── 8. 用起来 ─────────────────────────────────────────────────
+export PATH=$WORK/infer/infer/bin:$PATH
+infer --version
 ```
+
+> **`25-prefetch-git-sources.sh` 是条件步骤，默认不跑。**
+> 它要串行 clone 一两百个仓库，本身很慢，只有在第 4 步大面积 403
+> **且你手工 `git clone` 同一个仓库是通的**时才有价值。
+> 走 A 路线时用 `PREFETCH=1 FROM=25 ./run-all.sh`。
+
+> **每开一个新窗口，都要重新跑 `. ./opam-env.sh`。**
+> 这些是环境变量，不会自己留在新 shell 里。
 
 ### 每个脚本干了什么
 
 | 脚本 | 干什么 | 关键点 |
 |---|---|---|
+| **`run-all.sh`** | **一把梭**：按顺序跑完 00→10→20→30→取预编译包→40→50，自己管 `PATH`/`OPAMROOT`/`PREBUILT` | 支持 `FROM=<步号>` 断点续跑；`PREFETCH=1` 才跑条件步骤 25；`SKIP_CHECKER=1` 只建 infer 本体 |
 | `00-check-env.sh` | 检查命令、头文件、**网络可达性**，给出走哪条路的结论 | 不改任何东西，可反复跑 |
 | **`opam-env.sh`** | **`source` 用，不是执行。**设好 `OPAMROOT` / `PATH` / switch，让你在交互 shell 里手敲的 `opam` 命令作用在对的 root 上 | 见下方「手敲 opam 命令前先 source 它」。任何时候你想自己敲 `opam ...`，先 `. ./opam-env.sh` |
 | `10-install-opam.sh` | ① 从 GitHub Releases 下 `opam` 二进制<br>② `gmp.h`（apt 不可用时从 `gmp-mirror/gmp-6.3` 取）<br>③ `rsync` 替身 | GMP 只需要**头文件**；系统若已有 `libgmp.so.10`（GMP 6.x）直接建软链，不用编译整个库 |
