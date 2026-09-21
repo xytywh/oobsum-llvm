@@ -37,6 +37,10 @@ curl -sS -o /dev/null -w 'opam.ocaml.org: %{http_code}\n' --max-time 25 \
 opam init --reinit --bare --no-setup --disable-sandboxing
 ```
 
+> **只有还没开始走受限路线时才这么敲。**一旦跑过 `scripts/20-prepare-opam-repo.sh`，
+> 你的 opam root 就在 `$WORK/opamroot` 而不是 `~/.opam` 了，这时再裸敲 `opam init`
+> 会建出第二个 root —— 见下面「手敲 opam 命令前先 source 它」。
+
 或者直接跑本目录的检查脚本，它会把上面这些连同别的一起测完并给出结论：
 
 ```bash
@@ -139,6 +143,7 @@ export PREBUILT=$WORK/infer-linux-x86_64-v1.3.0
 | 脚本 | 干什么 | 关键点 |
 |---|---|---|
 | `00-check-env.sh` | 检查命令、头文件、**网络可达性**，给出走哪条路的结论 | 不改任何东西，可反复跑 |
+| **`opam-env.sh`** | **`source` 用，不是执行。**设好 `OPAMROOT` / `PATH` / switch，让你在交互 shell 里手敲的 `opam` 命令作用在对的 root 上 | 见下方「手敲 opam 命令前先 source 它」。任何时候你想自己敲 `opam ...`，先 `. ./opam-env.sh` |
 | `10-install-opam.sh` | ① 从 GitHub Releases 下 `opam` 二进制<br>② `gmp.h`（apt 不可用时从 `gmp-mirror/gmp-6.3` 取）<br>③ `rsync` 替身 | GMP 只需要**头文件**；系统若已有 `libgmp.so.10`（GMP 6.x）直接建软链，不用编译整个库 |
 | `20-prepare-opam-repo.sh` | clone opam 仓库 → `rewrite_opam_urls.py`（改写 ~6900 个包）→ `rewrite_erratique.py`（改写 ~100 个）→ **`patch_git_source_quirks.py`**（修 git 源特有的构建问题）→ **`opam init`** → `populate_opam_cache.py`（预填缓存）→ `opam update` + 自检 | **`opam init` 必须在预填缓存之前**，见下方「v2.6 修复」；带 `--disable-sandboxing` 避开交互提问 |
 | **`25-prefetch-git-sources.sh`** | **串行**把 opam 要 git fetch 的源全部 clone 到本地镜像，再把仓库里的 URL 改写成 `file://` | **只在脚本 30 大面积报 `HTTP 403` 时才需要**。跑完之后 opam 装依赖一次网络都不走 |
@@ -161,11 +166,56 @@ export PREBUILT=$WORK/infer-linux-x86_64-v1.3.0
 
 ---
 
+## 手敲 opam 命令前先 source 它
+
+这一条单独拎出来讲，因为**实测踩过，而且踩下去之后的错误提示会把人引向完全错误的方向**。
+
+本套脚本把 opam root 建在 **`$WORK/opamroot`**（默认 `~/infer-build/opamroot`），
+不是 opam 默认的 `~/.opam`。脚本内部每个都有 `export OPAMROOT="${OPAMROOT:-$WORK/opamroot}"`，
+所以**跑脚本没问题**。出问题的是你自己开一个 shell 手敲命令的时候：
+
+```console
+$ opam update default
+[ERROR] Opam has not been initialised, please run `opam init'
+```
+
+这句话是**误导性的**——opam 早就初始化过了，只是你这个 shell 里 `OPAMROOT` 是空的，
+它去看了 `~/.opam`，那儿确实什么都没有。如果照字面去跑 `opam init`：
+
+```console
+$ opam init
+[ERROR] Missing dependencies -- the following commands are required for opam to operate:
+  - bwrap: Sandboxing tool bwrap was not found. You should install 'bubblewrap'.
+```
+
+于是很自然地以为"要装 bubblewrap"。**不是的。**
+`00-check-env.sh` 第一屏就标过这台机器没有 bubblewrap，而本套脚本的 `opam init`
+一直带着 `--disable-sandboxing`，**从头到尾都不需要它**。
+更麻烦的是，那个裸 `opam init` 一旦跑完，会在 `~/.opam` 建出**第二个 opam root**，
+之后两边看到的包、switch 完全不同，排查会非常难受。
+
+**正确做法**——任何时候想手敲 `opam ...`，先 source：
+
+```bash
+cd 04-setup/scripts
+. ./opam-env.sh        # 设好 OPAMROOT / PATH，switch 建好了也一并切过去
+opam update default    # 现在才是对的 root
+```
+
+`opam-env.sh` 还会顺手检查 `~/.opam` 在不在——在的话提醒你删掉。
+
+> 如果你已经让那个裸 `opam init` 跑完了：`rm -rf ~/.opam` 即可，
+> 里面没有任何有用的东西；你真正的 root 在 `$WORK/opamroot`，没被动过。
+
+---
+
 ## 常见故障与对策（都是实测踩过的）
 
 | 现象 | 原因 | 对策 |
 |---|---|---|
 | `initializing opam...` 后无输出 | `opam init` 在下 opam.ocaml.org 或等沙箱确认 | 先手跑 `opam init --bare --no-setup --disable-sandboxing -y` |
+| **手敲 `opam 任何命令` 报 `[ERROR] Opam has not been initialised, please run 'opam init'`** | **不是 opam 坏了，是找错 root 了。** 本套脚本把 opam root 建在 `$WORK/opamroot`（默认 `~/infer-build/opamroot`），每个脚本内部都 `export OPAMROOT=...`；而你在一个干净的交互 shell 里手敲时 `OPAMROOT` 是空的，opam 就去看默认的 `~/.opam` —— 那个从来没被初始化过 | **先 source 环境再敲**：<br>`. 04-setup/scripts/opam-env.sh`<br>`opam update default`<br>（v3.1 新增的 `opam-env.sh`，一并设好 `OPAMROOT`/`PATH`/switch）<br>**千万别真的去跑 `opam init`** —— 见下一行 |
+| **`[ERROR] Missing dependencies ... bwrap: Sandboxing tool bwrap was not found. You should install 'bubblewrap'.`** | **这是上一行的连锁反应，不是独立故障。** 看到 "has not been initialised" 后顺手跑了裸的 `opam init`，它在 `~/.opam` 建**第二个** root，且没带 `--disable-sandboxing`，于是撞上缺 bubblewrap。`00-check-env.sh` 第一屏就标过 `✗ bubblewrap` | **不需要装 bubblewrap**：脚本里的 `opam init` 一直带 `--disable-sandboxing`。正确动作是 Ctrl-C 掉那个 init，改成 `. 04-setup/scripts/opam-env.sh`。如果 `~/.opam` 已经建出来了，`rm -rf ~/.opam` 删掉（里面没有有用的东西，你真正的 root 在 `$WORK/opamroot`，不受影响） |
 | **`$OPAMROOT exists, but does not appear to be a valid opam root`** | **v2.5 及以前脚本 20 的顺序 bug**：预填缓存先建出了 `$OPAMROOT/download-cache`，于是 `[ -d "$OPAMROOT" ] \|\| opam init` 判断成立，**`opam init` 被整个跳过**，后面的 `opam update` 对着半成品 root 报错。而末尾的 `完成` 照样打印（`opam update ... \| tail` 让 `set -e` 失效），看着像成功 | v2.6 已修：顺序改成 init 在预填之前，并对已经踩坑的目录自动修复。**老环境直接重跑新版 20 即可**，它会把已预填的 `download-cache` 挪开、init 完再挪回来 |
 | `rewrote url blocks in 0 / 19125` | 多半是**重复执行**——第一次已经改写完了 | v2.6 起脚本会自己分辨：「之前已改写过」打 ✓，「正则没匹配上」才打 ✗ 并退出 |
 | **脚本 30 大面积报 `Could not synchronize ... "git fetch -q" exited with code 128 "RPC failed; HTTP 403"`，但手工 `git clone` 同一个仓库是通的** | 三种可能：① opam 按 CPU 核数**并发** git fetch（47 核就是 47 个并发），被代理限流成 403；② opam 调 git 时的环境/配置跟你交互 shell 不一样，没走到代理；③ 代理按仓库白名单放行 | 按顺序：先 `DLJ=1 ./30-install-deps.sh`（排除 ①）；不行就 `./25-prefetch-git-sources.sh` 把源串行拉到本地再跑 30（同时解决 ①②）；还不行就是 ③，看 `$WORK/.prefetch-failed.txt` 里的仓库清单找网管加白名单 |
@@ -174,7 +224,7 @@ export PREBUILT=$WORK/infer-linux-x86_64-v1.3.0
 | `"rsync": command not found` | opam 拷本地 pin 源要用 rsync | 用脚本 10 装的替身 |
 | `Missing dependency: camlzip = 1.12 / charon / unknown package` | 这些包在上游仓库里没有或已下架，Infer 用的是仓库内自带版本 | 脚本 30 里的 `opam pin add` 系列；charon 拿不到就走去 Rust 的 lock |
 | `Library "charon" not found` | `--disable-rust-analyzers` 不影响 dune 的依赖声明 | 跑 `45-strip-rust-frontend.sh` |
-| `fpath ... --dev-pkg=true: No value specified` | **把源改成 git 的副作用**：opam 内置变量 `dev` 从 false 变成 true，激活了上游 `"--dev-pkg=true" {dev}` 那条平时走不到的分支，而包自带的老 topkg 只认空格分隔的 `--dev-pkg true` | **v3.0 起脚本 20 自动修**（`patch_git_source_quirks.py`）。老环境手动补一次：<br>`python3 scripts/patch_git_source_quirks.py $WORK/opam-repository && opam update default` |
+| `fpath ... --dev-pkg=true: No value specified` | **把源改成 git 的副作用**：opam 内置变量 `dev` 从 false 变成 true，激活了上游 `"--dev-pkg=true" {dev}` 那条平时走不到的分支，而包自带的老 topkg 只认空格分隔的 `--dev-pkg true` | **v3.0 起脚本 20 自动修**（`patch_git_source_quirks.py`）。老环境手动补一次：<br>`python3 scripts/patch_git_source_quirks.py $WORK/opam-repository`<br>`. scripts/opam-env.sh && opam update default`<br>（第二行的 source 不能省，否则报 "Opam has not been initialised"） |
 | `menhir` / `visitors` / `unionFind` / `store` 拿不到 | 它们在 `gitlab.inria.fr` / `gitlab.com` | menhir 改用 GitHub 镜像 `LexiFi/menhir` 的 `20231231` 标签（满足 `>= 20220210`）；后三个是 charon 的依赖，走去 Rust 路线 |
 | `Assertion failed` in `opamRepository.ml` | 给 `file://` 的 extra-source 去掉了 checksum | **不要删 checksum**；改用"预填下载缓存"的办法（脚本 20 第 4 步） |
 | 编译到一半 OOM | 内存不够 | 降低 `J`，如 `export J=2` |

@@ -13,8 +13,17 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # 前置检查：20 没跑成功就别往下走，否则会在半路以各种奇怪的方式失败
 [ -f "$OPAMROOT/config" ] || {
   echo "✗ $OPAMROOT 不是有效的 opam root —— 先把 ./20-prepare-opam-repo.sh 跑成功。" >&2
+  echo "  （**不要**手工 opam init 去「修」它：裸跑的 init 会在 ~/.opam 建出第二个 root，" >&2
+  echo "    而且没带 --disable-sandboxing，缺 bubblewrap 的机器上还会再报一次错。）" >&2
   exit 2
 }
+
+# 有人在别的 shell 里裸敲过 opam init 的话，~/.opam 会冒出来。它不是我们的 root。
+# 不致命，但会让后续排查一头雾水（两个 root，看到的包完全不同），所以明确说一声。
+if [ -d "$HOME/.opam" ] && [ "$OPAMROOT" != "$HOME/.opam" ]; then
+  echo "! 注意：$HOME/.opam 存在，但本脚本用的是 $OPAMROOT。"
+  echo "  前者多半是某次裸跑 opam init 留下的半成品，确认没用后可 rm -rf 掉，免得混淆。"
+fi
 echo "这一步最慢：2 核约 55 分钟，8 核约 20 分钟。opam 自己会打每个包的进度。"
 echo "中途断了可以直接重跑，opam 会跳过已装好的包。"
 
@@ -113,11 +122,12 @@ if [ "$rc" -ne 0 ]; then
   这是**把源改成 git 之后才会出现**的问题：opam 的内置变量 dev 从 false 变成 true，
   激活了上游那条平时走不到、也没人测过的构建分支（老 topkg 不认 --dev-pkg=true 这种写法）。
 
-  一条命令修好：
+  三条命令修好（注意第二行：**不 source 这个环境，裸敲 opam 会报
+  "Opam has not been initialised"**，因为本套脚本的 root 不在 ~/.opam）：
 
-      python3 $HERE/patch_git_source_quirks.py "\$WORK/opam-repository"
-      opam update default
-      ./30-install-deps.sh
+      python3 $HERE/patch_git_source_quirks.py "$WORK/opam-repository"
+      . $HERE/opam-env.sh && opam update default
+      $HERE/30-install-deps.sh
 
   （v3.0 起脚本 20 会自动做这件事；你这个环境是在那之前建的，所以要手动补一次。）
 EOF

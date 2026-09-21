@@ -11,7 +11,10 @@ for c in git curl gcc g++ make cmake autoconf automake pkg-config m4 patch unzip
 done
 command -v opam >/dev/null && ok "opam $(opam --version 2>/dev/null)" || no "opam  ← 缺（脚本 10 会装）"
 command -v rsync >/dev/null && ok "rsync" || no "rsync  ← 缺（脚本 10 会装替身）"
-command -v bwrap >/dev/null && ok "bubblewrap" || no "bubblewrap  ← 缺，opam init 必须加 --disable-sandboxing"
+command -v bwrap >/dev/null && ok "bubblewrap" \
+  || no "bubblewrap  ← 缺。**不用装**：本套脚本的 opam init 一直带 --disable-sandboxing。
+       只有你自己手敲裸的 \`opam init\` 才会被它拦住（报 bwrap not found）——那种情况下
+       该做的是 \`. ./opam-env.sh\`，不是装 bubblewrap。"
 
 hd "2. 头文件 / 库"
 for h in /usr/include/gmp.h /usr/include/sqlite3.h /usr/include/zlib.h; do

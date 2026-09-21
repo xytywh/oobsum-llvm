@@ -50,7 +50,8 @@ python3 "$HERE/rewrite_erratique.py" "$REPO"
 # 一些平时走不到的构建分支被激活，个别包会露馅（实测：fpath 的 topkg --dev-pkg 写法）。
 # 这不是我们改错了，是上游那条分支本来就没人测过。统一在这里打补丁。
 step "修正「源改成 git 后才会暴露」的兼容性问题"
-python3 "$HERE/patch_git_source_quirks.py" "$REPO"
+# QUIET_NEXT：脚本 20 自己会在最后 opam update，不用再提示用户手动跑
+QUIET_NEXT=1 python3 "$HERE/patch_git_source_quirks.py" "$REPO"
 
 # ----------------------------------------------------------------------
 step "opam init（必须在预填缓存之前！见文件头的说明）"

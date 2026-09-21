@@ -76,9 +76,35 @@ def main():
         print(f"   ✓ 已经是修正后的写法（{already} 个），无需改动")
     else:
         print("   ✓ 没有需要修正的包")
-    if fixed:
-        print("   （改完记得 opam update default，否则 opam 用的还是旧索引）")
+    if fixed and not os.environ.get("QUIET_NEXT"):
+        print_next_steps()
     return 0
+
+
+def print_next_steps():
+    """改完索引必须 opam update。
+
+    这里**必须把 OPAMROOT 一起打出来**：本套脚本的 opam root 在 $WORK/opamroot，
+    不是 opam 默认的 ~/.opam。在一个干净 shell 里裸敲 `opam update default`
+    会报 `Opam has not been initialised`，然后很容易被误导去跑 `opam init`——
+    那会建出第二个 root，还会因为缺 bubblewrap 再报一次错。
+    （v3.1 修：之前这里只打了裸命令，实测把人带进了这个坑。）
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    envsh = os.path.join(here, "opam-env.sh")
+    # opam root 猜测：优先环境变量；否则按 <repo 的上级>/opamroot（脚本默认布局）
+    root = os.environ.get("OPAMROOT") or os.path.join(
+        os.path.dirname(os.path.abspath(ROOT)), "opamroot")
+    print()
+    print("   改完索引要让 opam 重新读一遍，否则它用的还是旧索引。")
+    print("   ⚠ 直接裸敲 `opam update default` 会报 “Opam has not been initialised”——")
+    print("     因为本套脚本的 opam root 不在默认的 ~/.opam。先 source 环境再敲：")
+    print()
+    print(f"       . {envsh}")
+    print("       opam update default")
+    print(f"       {os.path.join(here, '30-install-deps.sh')}")
+    print()
+    print(f"   （那个 root 是 {root}；**不要**手工 opam init，也不需要装 bubblewrap。）")
 
 
 if __name__ == "__main__":

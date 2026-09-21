@@ -60,6 +60,11 @@ infer --version
 `dependencies/{charon,ppx_show,pyml,camlzip}` → `opam install --deps-only opam/infer.opam.locked`
 → `facebook-clang-plugins/clang/setup.sh`（**从源码编译整套定制 LLVM/Clang，这一步最耗时**）→ `make`。
 
+> **走受限路线（`scripts/10…50`）的话，opam root 不在 `~/.opam`，而在 `$WORK/opamroot`。**
+> 想自己手敲 `opam ...` 命令时，先 `. scripts/opam-env.sh`，否则会报
+> `Opam has not been initialised` —— 那时**不要**去跑 `opam init`。
+> 详见 `01-restricted-network-build.md` 的「手敲 opam 命令前先 source 它」。
+
 ### 资源预估（实测，2 vCPU / 7.8 GB）
 
 | 阶段 | 耗时 | 产物 |

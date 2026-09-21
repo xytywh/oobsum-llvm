@@ -1,4 +1,4 @@
-# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.0）
+# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.1）
 
 一句话：**这个包里只有一份"正文"（报告），其余全是为了让你能亲手复现、读懂、并在自己代码库上用起来的材料。**
 
@@ -36,6 +36,10 @@
 > **v3.0** 新增 `patch_git_source_quirks.py`：把源改成 git 会让 opam 的 `dev` 变量
 > 从 false 翻成 true，激活上游没人测过的构建分支（实测 `fpath` 因此装不上）。
 > 脚本 20 现在会自动修这类问题。
+> **v3.1** 新增 `04-setup/scripts/opam-env.sh`（`source` 用）。本套脚本的 opam root 在
+> `$WORK/opamroot` 而非 `~/.opam`，在交互 shell 里手敲 `opam` 会报
+> `Opam has not been initialised`，照字面去 `opam init` 又会撞上缺 bubblewrap ——
+> 这是一条**错误提示把人带偏**的连环坑，v3.1 从提示语、文档、脚本三处堵死。
 >
 > ⚠️ **v2.5 在 git 里是一次大规模重命名**（35 个条目 + 根目录）。
 > 提交时用 `git add -A`，让 git 的 rename detection 生效，
@@ -66,6 +70,7 @@ CHANGELOG.md   ← 版本变更清单
    01-restricted-network-build.md              回答「卡在 initializing opam」
    scripts/00…50                               受限网络下可直接执行的编号脚本
                                                25 是条件步骤：只在 30 报 HTTP 403 时才跑
+   scripts/opam-env.sh                         ★ source 它（不是执行）再手敲 opam 命令
    Dockerfile-upstream                         官方 Dockerfile 原文
 
 05-experiments/                         报告 §13–§17 每张数据表对应的 C 用例

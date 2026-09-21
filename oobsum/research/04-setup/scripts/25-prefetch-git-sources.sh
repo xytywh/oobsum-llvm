@@ -157,8 +157,9 @@ if command -v opam >/dev/null 2>&1 && [ -f "$OPAMROOT/config" ]; then
   echo "   opam update default ..."
   opam update default 2>&1 | tail -2 | sed 's/^/   /'
 else
-  echo "   （没找到 opam 或 opam root，跳过 update；跑 30 之前记得先"
-  echo "     export PATH=$WORK/bin:\$PATH 并确认 20 已跑成功）"
+  echo "   （没找到 opam 或 opam root，跳过 update。跑 30 之前先确认 20 已跑成功；"
+  echo "     想手敲 opam 命令的话先 source 环境：  . $HERE/opam-env.sh"
+  echo "     ——裸敲会报 Opam has not been initialised，那时**不要**去 opam init）"
 fi
 
 step_done

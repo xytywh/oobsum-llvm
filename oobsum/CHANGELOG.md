@@ -1,5 +1,81 @@
 # CHANGELOG
 
+## v3.1 — 2026-09-21
+
+堵一条**错误提示把人带偏**的连环坑。没有功能变化，全是提示语、文档和守卫。
+
+### 背景（实测踩到的完整链条）
+
+1. 跑完 `patch_git_source_quirks.py` 后，需要 `opam update default` 让 opam 重读索引。
+   我在提示里写的是**裸命令**。
+2. 用户在一个干净的交互 shell 里敲 `opam update default`，得到：
+
+   ```
+   [ERROR] Opam has not been initialised, please run `opam init'
+   ```
+
+   这句话是**误导性的**。opam 早就初始化过了——本套脚本把 opam root 建在
+   `$WORK/opamroot`（默认 `~/infer-build/opamroot`），每个脚本内部都有
+   `export OPAMROOT="${OPAMROOT:-$WORK/opamroot}"`，所以脚本跑起来一切正常；
+   但交互 shell 里 `OPAMROOT` 是空的，opam 去看了默认的 `~/.opam`，那儿确实是空的。
+
+3. 用户照字面去跑 `opam init`，于是：
+
+   ```
+   [ERROR] Missing dependencies -- the following commands are required for opam to operate:
+     - bwrap: Sandboxing tool bwrap was not found. You should install 'bubblewrap'.
+   ```
+
+   提示又指向「去装 bubblewrap」。**也是错的**：本套脚本的 `opam init` 一直带着
+   `--disable-sandboxing`，从头到尾不需要 bwrap；`00-check-env.sh` 第一屏就标过这台机器缺它。
+   更糟的是，这个裸 `opam init` 一旦跑完会在 `~/.opam` 建出**第二个 opam root**，
+   之后两边看到的包和 switch 完全不同，排查难度陡增。
+
+**根因是提示语写漏了 `OPAMROOT`，不是任何一个包或脚本有 bug。**
+
+### 新增
+
+* **`04-setup/scripts/opam-env.sh`** —— `source` 用，不是执行：
+
+  ```bash
+  . ./opam-env.sh
+  opam update default
+  ```
+
+  设好 `OPAMROOT` / `PATH` / `OPAMDLJOBS`，switch 建好了就一并 `--set-switch` 切过去，
+  并打印当前生效的 root 和 switch。还会检查 `~/.opam` 在不在——在的话提醒删掉，
+  免得两个 root 并存。文件里刻意没有 `set -e` / `exit`，因为它会被交互 shell source。
+
+### 变更
+
+* **`patch_git_source_quirks.py` 的后续步骤提示改写。**这是本次事故的源头。
+  现在打的是 `. <绝对路径>/opam-env.sh` + `opam update default` + `30-install-deps.sh`，
+  并显式写明「不要手工 opam init，也不需要装 bubblewrap」，同时把推断出的 opam root 路径打出来。
+  脚本 20 调用它时传 `QUIET_NEXT=1`（20 自己会 update，不必再提示）。
+* **`30-install-deps.sh`**
+  - `--dev-pkg` 失败处理里的三条修复命令，第二条补上 `. $HERE/opam-env.sh &&`。
+  - root 无效时的报错补一句「**不要**手工 opam init 去『修』它」及原因。
+  - 新增守卫：`~/.opam` 存在且不是本脚本用的 root 时打一行提醒。
+* **`25-prefetch-git-sources.sh`** 结尾的兜底提示改成指向 `opam-env.sh`。
+* **`00-check-env.sh`** 的 bubblewrap 一行从「缺，opam init 必须加 --disable-sandboxing」
+  改成明确的「**不用装**」，并说明什么情况下才会撞上它、那时正确的动作是什么。
+
+### 文档
+
+* **`04-setup/01-restricted-network-build.md`**
+  - 新增独立一节「手敲 opam 命令前先 source 它」，把上面这条链路连同两段真实报错完整写出来。
+  - 故障表新增两行：`Opam has not been initialised`、`bwrap ... not found`，
+    并写明后者是前者的连锁反应、不是独立故障。
+  - `fpath --dev-pkg` 那一行的修复命令补上 source 步骤。
+  - 标准路线里的 `opam init --reinit ...` 加了适用范围说明（只在还没走受限路线时有效）。
+  - 脚本表新增 `opam-env.sh` 一行。
+
+### 没有变的
+
+分析结论、实验数据、方案 C 设计、工作量估算一个字没动。本版只影响构建流程的可用性。
+
+---
+
 ## v3.0 — 2026-09-21
 
 把"源改成 git 之后才会暴露"的兼容性问题自动化掉。实测在 `fpath` 上踩到。
