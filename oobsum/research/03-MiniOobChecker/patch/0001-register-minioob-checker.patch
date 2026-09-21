@@ -1,0 +1,185 @@
+diff --git a/infer/src/backend/Payloads.ml b/infer/src/backend/Payloads.ml
+index 47a0b1e5..2e78e78b 100644
+--- a/infer/src/backend/Payloads.ml
++++ b/infer/src/backend/Payloads.ml
+@@ -19,6 +19,7 @@ type t =
+   ; static_constructor_stall_checker: StaticConstructorStallChecker.Summary.t SafeLazy.t option
+   ; lab_resource_leaks: ResourceLeakDomain.summary SafeLazy.t option
+   ; litho_required_props: LithoDomain.summary SafeLazy.t option
++  ; mini_oob: MiniOobDomain.summary SafeLazy.t option
+   ; pulse: PulseSummary.t SafeLazy.t option
+   ; purity: PurityDomain.summary SafeLazy.t option
+   ; racerd: RacerDDomain.summary SafeLazy.t option
+@@ -66,6 +67,7 @@ let all_fields =
+     ~static_constructor_stall_checker:(fun f ->
+       mk f StaticConstructorStallChecker StaticConstructorStallChecker.Summary.pp )
+     ~litho_required_props:(fun f -> mk f LithoRequiredProps LithoDomain.pp_summary)
++    ~mini_oob:(fun f -> mk f MiniOob MiniOobDomain.pp_summary)
+     ~pulse:(fun f -> mk_full f Pulse PulseSummary.pp)
+     ~purity:(fun f -> mk f Purity PurityDomain.pp_summary)
+     ~racerd:(fun f -> mk f RacerD RacerDDomain.pp_summary)
+@@ -109,6 +111,7 @@ let empty =
+   ; static_constructor_stall_checker= None
+   ; lab_resource_leaks= None
+   ; litho_required_props= None
++  ; mini_oob= None
+   ; pulse= None
+   ; purity= None
+   ; racerd= None
+@@ -130,6 +133,7 @@ let freeze t =
+        ; static_constructor_stall_checker
+        ; lab_resource_leaks
+        ; litho_required_props
++       ; mini_oob
+        ; pulse
+        ; purity
+        ; racerd
+@@ -151,6 +155,7 @@ let freeze t =
+   freeze static_constructor_stall_checker ;
+   freeze lab_resource_leaks ;
+   freeze litho_required_props ;
++  freeze mini_oob ;
+   freeze pulse ;
+   freeze purity ;
+   freeze racerd ;
+@@ -279,6 +284,7 @@ module SQLite = struct
+     ; static_constructor_stall_checker= load ~proc_uid StaticConstructorStallChecker
+     ; lab_resource_leaks= load ~proc_uid LabResourceLeaks
+     ; litho_required_props= load ~proc_uid LithoRequiredProps
++    ; mini_oob= load ~proc_uid MiniOob
+     ; pulse= load ~proc_uid Pulse
+     ; purity= load ~proc_uid Purity
+     ; racerd= load ~proc_uid RacerD
+diff --git a/infer/src/backend/Payloads.mli b/infer/src/backend/Payloads.mli
+index 11a44e03..60e2aeb9 100644
+--- a/infer/src/backend/Payloads.mli
++++ b/infer/src/backend/Payloads.mli
+@@ -28,6 +28,7 @@ include sig
+     ; static_constructor_stall_checker: StaticConstructorStallChecker.Summary.t SafeLazy.t option
+     ; lab_resource_leaks: ResourceLeakDomain.summary SafeLazy.t option
+     ; litho_required_props: LithoDomain.summary SafeLazy.t option
++    ; mini_oob: MiniOobDomain.summary SafeLazy.t option
+     ; pulse: PulseSummary.t SafeLazy.t option
+     ; purity: PurityDomain.summary SafeLazy.t option
+     ; racerd: RacerDDomain.summary SafeLazy.t option
+diff --git a/infer/src/backend/registerCheckers.ml b/infer/src/backend/registerCheckers.ml
+index d4277032..3496d371 100644
+--- a/infer/src/backend/registerCheckers.ml
++++ b/infer/src/backend/registerCheckers.ml
+@@ -154,6 +154,8 @@ let all_checkers =
+                interprocedural later on *)
+             interprocedural Payloads.Fields.lab_resource_leaks ResourceLeaks.checker
+           , Java ) ] }
++  ; { checker= MiniOob
++    ; callbacks= [(interprocedural Payloads.Fields.mini_oob MiniOobChecker.checker, Clang)] }
+   ; { checker= RacerD
+     ; callbacks=
+         (let racerd_proc = interprocedural Payloads.Fields.racerd RacerDProcAnalysis.analyze in
+diff --git a/infer/src/base/Checker.ml b/infer/src/base/Checker.ml
+index 52b9f1c8..e0886779 100644
+--- a/infer/src/base/Checker.ml
++++ b/infer/src/base/Checker.ml
+@@ -26,6 +26,7 @@ type t =
+   | LithoRequiredProps
+   | Liveness
+   | LoopHoisting
++  | MiniOob
+   | ParameterNotNullChecked
+   | Pulse
+   | PurityAnalysis
+@@ -256,6 +257,21 @@ let config_unsafe checker =
+       ; cli_flags= Some {deprecated= []; show_in_help= true}
+       ; enabled_by_default= false
+       ; activates= [BufferOverrunAnalysis; PurityAnalysis] }
++  | MiniOob ->
++      { id= "mini-oob"
++      ; kind=
++          UserFacing
++            { title= "Mini Out-Of-Bounds (summary demo)"
++            ; markdown_body=
++                "A deliberately small, summary-based array out-of-bounds checker written to \
++                 demonstrate Infer's interprocedural machinery: callee safety conditions are \
++                 stored in the summary and instantiated at each call site, never inlined." }
++      ; support= mk_support_func ~clang:Support ()
++      ; short_documentation=
++          "Minimal summary-based detector for out-of-bounds array accesses (demo checker)."
++      ; cli_flags= Some {deprecated= []; show_in_help= true}
++      ; enabled_by_default= false
++      ; activates= [] }
+   | ParameterNotNullChecked ->
+       { id= "parameter-not-null-checked"
+       ; kind=
+diff --git a/infer/src/base/Checker.mli b/infer/src/base/Checker.mli
+index 8c74418e..f3a5b0c2 100644
+--- a/infer/src/base/Checker.mli
++++ b/infer/src/base/Checker.mli
+@@ -25,6 +25,7 @@ type t =
+   | LithoRequiredProps
+   | Liveness
+   | LoopHoisting
++  | MiniOob
+   | ParameterNotNullChecked
+   | Pulse
+   | PurityAnalysis
+diff --git a/infer/src/base/IssueType.ml b/infer/src/base/IssueType.ml
+index 1d2e975f..361ced96 100644
+--- a/infer/src/base/IssueType.ml
++++ b/infer/src/base/IssueType.ml
+@@ -659,6 +659,11 @@ let lab_resource_leak =
+     ~user_documentation:"Toy issue."
+ 
+ 
++let mini_oob =
++  register ~category:NoCategory ~id:"MINI_OOB" Error MiniOob
++    ~user_documentation:"Array or pointer access that the MiniOob demo checker proved out of bounds."
++
++
+ let lock_consistency_violation =
+   register Warning ~id:"LOCK_CONSISTENCY_VIOLATION" ~category:Concurrency RacerD
+     ~user_documentation:[%blob "./documentation/issues/LOCK_CONSISTENCY_VIOLATION.md"]
+diff --git a/infer/src/base/IssueType.mli b/infer/src/base/IssueType.mli
+index 5bddd4f5..4ee6afe5 100644
+--- a/infer/src/base/IssueType.mli
++++ b/infer/src/base/IssueType.mli
+@@ -209,6 +209,8 @@ val ipc_on_ui_thread : t
+ 
+ val lab_resource_leak : t
+ 
++val mini_oob : t
++
+ val lockless_violation : t
+ 
+ val lock_consistency_violation : t
+diff --git a/infer/src/base/PayloadId.ml b/infer/src/base/PayloadId.ml
+index d0c3bd90..49490970 100644
+--- a/infer/src/base/PayloadId.ml
++++ b/infer/src/base/PayloadId.ml
+@@ -17,6 +17,7 @@ type t =
+   | StaticConstructorStallChecker
+   | LabResourceLeaks
+   | LithoRequiredProps
++  | MiniOob
+   | Pulse
+   | Purity
+   | RacerD
+@@ -49,6 +50,8 @@ let to_checker payload_id : Checker.t =
+       ResourceLeakLabExercise
+   | LithoRequiredProps ->
+       LithoRequiredProps
++  | MiniOob ->
++      MiniOob
+   | Pulse ->
+       Pulse
+   | Purity ->
+diff --git a/infer/src/base/PayloadId.mli b/infer/src/base/PayloadId.mli
+index eea8e086..04e0cfc3 100644
+--- a/infer/src/base/PayloadId.mli
++++ b/infer/src/base/PayloadId.mli
+@@ -18,6 +18,7 @@ type t =
+   | StaticConstructorStallChecker
+   | LabResourceLeaks
+   | LithoRequiredProps
++  | MiniOob
+   | Pulse
+   | Purity
+   | RacerD

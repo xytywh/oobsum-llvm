@@ -1,0 +1,1133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body>
+<title>Infer 函数摘要调研</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600;700&display=swap">
+
+<style>
+:root{
+  --bg:#F2F3F0; --surface:#FBFBF9; --surface-2:#EAEBE6;
+  --ink:#1B1F1A; --ink-2:#3A403A; --muted:#61675E;
+  --rule:#D8DAD2; --rule-soft:#E6E8E1;
+  --accent:#2E5E4E; --accent-soft:#DDE8E2;
+  --ochre:#8A5A1B; --ochre-soft:#F2E7D5;
+  --crit:#9B2C2C; --crit-soft:#F4DEDC;
+  --ok:#2E5E4E;
+  --code-bg:#1D2320; --code-ink:#DDE3DB;
+  --shadow:0 1px 2px rgba(27,31,26,.06), 0 8px 24px -16px rgba(27,31,26,.28);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14171A; --surface:#1C2024; --surface-2:#22272B;
+    --ink:#E6E8E3; --ink-2:#C7CCC6; --muted:#97A09A;
+    --rule:#2E343A; --rule-soft:#262C31;
+    --accent:#6FB295; --accent-soft:#1E2C27;
+    --ochre:#D2A05A; --ochre-soft:#2B2519;
+    --crit:#E28080; --crit-soft:#2E1E1E;
+    --ok:#6FB295;
+    --code-bg:#10130F; --code-ink:#D5DCD2;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14171A; --surface:#1C2024; --surface-2:#22272B;
+  --ink:#E6E8E3; --ink-2:#C7CCC6; --muted:#97A09A;
+  --rule:#2E343A; --rule-soft:#262C31;
+  --accent:#6FB295; --accent-soft:#1E2C27;
+  --ochre:#D2A05A; --ochre-soft:#2B2519;
+  --crit:#E28080; --crit-soft:#2E1E1E;
+  --ok:#6FB295;
+  --code-bg:#10130F; --code-ink:#D5DCD2;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"IBM Plex Sans","Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  font-size:15.5px; line-height:1.72;
+  -webkit-font-smoothing:antialiased;
+}
+.shell{display:grid; grid-template-columns:232px minmax(0,1fr); gap:44px;
+  max-width:1240px; margin:0 auto; padding-inline:20px; padding-block:0 72px}
+@media (max-width:900px){ .shell{grid-template-columns:1fr; gap:0} }
+
+/* ---------- left rail ---------- */
+nav.rail{position:sticky; top:0; align-self:start; max-height:100vh; overflow-y:auto;
+  padding-block:32px 24px; border-right:1px solid var(--rule-soft)}
+@media (max-width:900px){ nav.rail{position:static; max-height:none; border-right:0;
+  border-bottom:1px solid var(--rule); padding-block:20px 16px} }
+.rail h2{font:600 10.5px/1.4 "IBM Plex Mono",monospace; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 12px}
+.rail ol{list-style:none; margin:0 0 22px; padding:0; display:flex; flex-direction:column; gap:1px}
+@media (max-width:900px){ .rail ol{flex-direction:row; flex-wrap:wrap; gap:6px} }
+.rail a{display:block; padding:3px 8px; border-radius:3px; text-decoration:none;
+  color:var(--ink-2); font-size:13.5px; border-left:2px solid transparent}
+.rail a:hover{background:var(--surface-2); color:var(--ink)}
+.rail a .n{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--muted); margin-right:7px}
+@media (max-width:900px){ .rail a{border:1px solid var(--rule); border-left-width:1px} }
+
+/* ---------- masthead ---------- */
+header.mast{padding-block:44px 0}
+.kicker{font:500 11px/1 "IBM Plex Mono",monospace; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--accent); margin-bottom:18px}
+h1{font-family:"IBM Plex Serif",Georgia,serif; font-weight:700; font-size:clamp(30px,4.4vw,46px);
+  line-height:1.12; margin:0 0 14px; text-wrap:balance; letter-spacing:-.01em}
+.dek{font-size:17px; color:var(--ink-2); max-width:62ch; margin:0 0 28px}
+.dek strong{color:var(--ink); font-weight:600}
+
+/* spec sheet */
+.spec{border:1px solid var(--rule); border-radius:4px; background:var(--surface);
+  box-shadow:var(--shadow); overflow:hidden; margin-bottom:8px}
+.spec-hd{padding:9px 14px; border-bottom:1px solid var(--rule); background:var(--surface-2);
+  font:600 10.5px/1 "IBM Plex Mono",monospace; letter-spacing:.13em; text-transform:uppercase; color:var(--muted)}
+.spec dl{margin:0; display:grid; grid-template-columns:max-content minmax(0,1fr)}
+.spec dt,.spec dd{margin:0; padding:7px 14px; border-bottom:1px solid var(--rule-soft); min-width:0}
+.spec dt{font:500 12.5px/1.5 "IBM Plex Mono",monospace; color:var(--muted); white-space:nowrap}
+.spec dd{font-family:"IBM Plex Mono",monospace; font-size:12.5px; overflow-wrap:anywhere}
+.spec dl>:nth-last-child(-n+2){border-bottom:0}
+
+/* ---------- sections ---------- */
+main{min-width:0}
+section{padding-block:40px 0; scroll-margin-top:16px}
+section>h2{font-family:"IBM Plex Serif",Georgia,serif; font-size:25px; font-weight:600;
+  margin:0 0 6px; line-height:1.25; text-wrap:balance;
+  display:flex; align-items:baseline; gap:12px}
+section>h2 .num{font:500 12px/1 "IBM Plex Mono",monospace; color:var(--accent);
+  border:1px solid var(--accent); border-radius:3px; padding:3px 5px; flex:none}
+.lede{color:var(--ink-2); margin:0 0 22px; max-width:66ch}
+h3{font-family:"IBM Plex Serif",Georgia,serif; font-size:17.5px; font-weight:600; margin:30px 0 8px}
+p{margin:0 0 14px; max-width:68ch}
+a{color:var(--accent)}
+code{font-family:"IBM Plex Mono",monospace; font-size:.88em; background:var(--surface-2);
+  padding:1px 4px; border-radius:3px; overflow-wrap:anywhere}
+
+/* evidence tag */
+.tag{display:inline-block; font:600 10px/1.5 "IBM Plex Mono",monospace; letter-spacing:.06em;
+  padding:2px 6px; border-radius:3px; vertical-align:1px; white-space:nowrap}
+.tag.src{background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent)}
+.tag.run{background:var(--ochre-soft); color:var(--ochre); border:1px solid var(--ochre)}
+.tag.doc{background:var(--surface-2); color:var(--muted); border:1px solid var(--rule)}
+
+/* findings */
+.findings{display:grid; grid-template-columns:repeat(auto-fit,minmax(248px,1fr)); gap:14px; margin:22px 0 4px}
+.finding{background:var(--surface); border:1px solid var(--rule); border-radius:4px; padding:16px 16px 18px;
+  display:flex; flex-direction:column; gap:8px}
+.finding .fno{font:600 10.5px/1 "IBM Plex Mono",monospace; letter-spacing:.1em; color:var(--muted)}
+.finding h4{margin:0; font-family:"IBM Plex Serif",Georgia,serif; font-size:16px; font-weight:600; line-height:1.35}
+.finding p{margin:0; font-size:14px; color:var(--ink-2); max-width:none}
+.finding.alarm{border-color:var(--crit); background:var(--crit-soft)}
+.finding.alarm h4{color:var(--crit)}
+
+/* code block */
+pre{margin:16px 0; background:var(--code-bg); color:var(--code-ink); border-radius:4px;
+  padding:14px 16px; overflow-x:auto; font-family:"IBM Plex Mono",monospace;
+  font-size:12.4px; line-height:1.6; border:1px solid var(--rule)}
+pre .hl{color:#E4B96B}
+pre .dim{color:#7E887C}
+pre .good{color:#8FD3AE}
+pre .bad{color:#F09A9A}
+.caption{font-size:12.5px; color:var(--muted); margin:-6px 0 18px; max-width:68ch}
+
+/* tables */
+.tw{overflow-x:auto; margin:16px 0 18px; border:1px solid var(--rule); border-radius:4px; background:var(--surface)}
+table{border-collapse:collapse; width:100%; font-size:13.6px; min-width:520px}
+th,td{text-align:left; padding:8px 12px; border-bottom:1px solid var(--rule-soft); vertical-align:top}
+thead th{background:var(--surface-2); font:600 11px/1.5 "IBM Plex Mono",monospace;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--muted); white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; white-space:nowrap}
+td.mono{font-family:"IBM Plex Mono",monospace; font-size:12.4px}
+.yes{color:var(--ok); font-weight:600}
+.no{color:var(--crit); font-weight:600}
+.part{color:var(--ochre); font-weight:600}
+
+/* callout */
+.call{border-left:3px solid var(--accent); background:var(--surface); padding:14px 16px;
+  margin:18px 0; border-radius:0 4px 4px 0}
+.call.warn{border-left-color:var(--crit); background:var(--crit-soft)}
+.call p:last-child{margin-bottom:0}
+.call .hdr{font:600 10.5px/1 "IBM Plex Mono",monospace; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--accent); margin-bottom:8px}
+.call.warn .hdr{color:var(--crit)}
+
+/* Q list */
+.qa{border-top:1px solid var(--rule); margin-top:20px}
+.q{border-bottom:1px solid var(--rule); padding:18px 0; display:grid;
+  grid-template-columns:52px minmax(0,1fr); gap:16px}
+.q .qid{font:600 13px/1.6 "IBM Plex Mono",monospace; color:var(--accent)}
+.q h4{margin:0 0 6px; font-family:"IBM Plex Serif",Georgia,serif; font-size:16.5px; font-weight:600; line-height:1.4}
+.q p{margin:0 0 6px; font-size:14.4px; max-width:none}
+.q .verdict{font-weight:600}
+.q .cite{font:400 12.4px/1.6 "IBM Plex Mono",monospace; color:var(--muted)}
+@media (max-width:560px){ .q{grid-template-columns:1fr; gap:4px} }
+
+/* route cards */
+.routes{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:18px 0}
+.route{border:1px solid var(--rule); border-radius:4px; background:var(--surface); padding:15px}
+.route.pick{border-color:var(--accent); border-width:2px; background:var(--accent-soft)}
+.route .rl{font:600 10.5px/1 "IBM Plex Mono",monospace; letter-spacing:.1em; color:var(--muted); margin-bottom:7px}
+.route.pick .rl{color:var(--accent)}
+.route h4{margin:0 0 7px; font-size:15.5px; font-family:"IBM Plex Serif",Georgia,serif; font-weight:600}
+.route p{margin:0; font-size:13.6px; color:var(--ink-2); max-width:none}
+
+/* timeline */
+.tl{display:flex; flex-direction:column; gap:0; margin:18px 0}
+.tl-row{display:grid; grid-template-columns:112px minmax(0,1fr); gap:16px;
+  padding:14px 0; border-top:1px solid var(--rule)}
+.tl-row:last-child{border-bottom:1px solid var(--rule)}
+.tl-when{font:600 12px/1.7 "IBM Plex Mono",monospace; color:var(--accent); letter-spacing:.03em}
+.tl-what{font-size:14.4px}
+.tl-what strong{font-weight:600}
+@media (max-width:560px){ .tl-row{grid-template-columns:1fr; gap:3px} }
+
+footer{margin-top:56px; padding-top:22px; border-top:1px solid var(--rule);
+  font-size:13px; color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+
+<div class="shell">
+
+<nav class="rail">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#env"><span class="n">00</span>调研基线</a></li>
+    <li><a href="#findings"><span class="n">01</span>四个决定性发现</a></li>
+    <li><a href="#summary"><span class="n">02</span>摘要是什么</a></li>
+    <li><a href="#subst"><span class="n">03</span>逐层代换实证</a></li>
+    <li><a href="#loop"><span class="n">04</span>循环与 widening</a></li>
+    <li><a href="#matrix"><span class="n">05</span>13 类场景矩阵</a></li>
+    <li><a href="#depth"><span class="n">06</span>调用深度实验</a></li>
+    <li><a href="#explode"><span class="n">07</span>路径爆炸真相</a></li>
+    <li><a href="#incr"><span class="n">08</span>增量分析</a></li>
+    <li><a href="#minioob"><span class="n">09</span>MiniOobChecker</a></li>
+    <li><a href="#verdict"><span class="n">10</span>技术路线</a></li>
+    <li><a href="#arch"><span class="n">11</span>Summary 2.0</a></li>
+    <li><a href="#poc"><span class="n">12</span>PoC 计划</a></li>
+    <li><a href="#qa"><span class="n">13</span>核心问题结论</a></li>
+    <li><a href="#risk"><span class="n">14</span>风险与误解</a></li>
+    <li><a href="#whole"><span class="n">15</span>全量工程与可观测点</a></li>
+    <li><a href="#bound"><span class="n">16</span>能力边界与误报漏报</a></li>
+    <li><a href="#plan"><span class="n">17</span>方案 C 落地设计与工作量</a></li>
+  </ol>
+  <h2>事实层次</h2>
+  <p style="font-size:12.6px;color:var(--muted);margin:0;line-height:1.7">
+    <span class="tag src">源码确认</span> 可在指定 commit 逐行核实<br>
+    <span class="tag run">实测数据</span> 本次真实运行的输出<br>
+    <span class="tag doc">文档</span> 官方文档 / Changelog
+  </p>
+</nav>
+
+<main>
+
+<header class="mast" id="top">
+  <div class="kicker">技术调研 · 面向专家评审</div>
+  <h1>Infer 跨过程分析与函数摘要机制</h1>
+  <p class="dek">
+    为回答一个决策问题而做：把基于 CSA 的 C/C++ 内存越界分析从<strong>有限层次 Inline</strong>
+    演进到<strong>可扩展跨过程分析</strong>，我们应该继续自建 Function Summary、直接使用 Infer，
+    还是借鉴 Infer 重新设计框架？
+  </p>
+  <div class="spec">
+    <div class="spec-hd">调研基线 · 可复现</div>
+    <dl id="env">
+      <dt>repository</dt><dd>github.com/facebook/infer</dd>
+      <dt>commit</dt><dd>3d38229b04b649024fee065621f6a4c838f6d029（main，2026-09-10 16:15:56 +0100）</dd>
+      <dt>binary</dt><dd>官方预编译 v1.3.0 · 自建 v1.3.0-3d38229b（含本报告的 MiniOobChecker）</dd>
+      <dt>bundled clang</dt><dd>clang 21.1.6（Meta 定制分支 e09d41e6）</dd>
+      <dt>host</dt><dd>Ubuntu 24.04 · 2 vCPU · 7.8 GB RAM</dd>
+      <dt>evidence</dt><dd>19 处【源码确认】 · 26 处【实测数据】 · 全部命令与原始输出见完整报告</dd>
+    </dl>
+  </div>
+  <p class="caption">本页是完整报告（3 204 行 / 176 KB，v2.3 含五个附录）的决策摘要，保留了全部关键实证输出。</p>
+</header>
+
+<section id="findings">
+  <h2><span class="num">01</span>四个决定性发现</h2>
+  <p class="lede">按对技术选型的影响排序。前三条是「Infer 确实做到了」，第四条是「但你不能靠它」。</p>
+  <div class="findings">
+    <div class="finding">
+      <div class="fno">FINDING 01 · <span class="tag run">实测数据</span></div>
+      <h4>摘要里真的写着 <code>requires</code></h4>
+      <p>BufferOverrun 的摘要主体是一组符号安全条件，真实文本是
+        <code>buf.offset + i &lt; buf.length</code>。这正是团队想要的
+        <code>0 &lt;= idx &lt; extent(p)</code>，且能沿调用链逐层代换。</p>
+    </div>
+    <div class="finding">
+      <div class="fno">FINDING 02 · <span class="tag run">实测数据</span></div>
+      <h4>200 层调用链，0.76 秒</h4>
+      <p>摘要条数严格等于过程数，峰值内存 178→189 MB。每个过程恰好分析一次。
+        「把有效深度从 2 层提到十几层」在直线链上已被证实。</p>
+    </div>
+    <div class="finding">
+      <div class="fno">FINDING 03 · <span class="tag src">源码确认</span></div>
+      <h4>循环的秘密只有 10 行</h4>
+      <p>Infer 不 <code>unsupported</code>，靠的是标准 widening ＋ 一个技巧：
+        把比较条件里的常量收进阈值集合，于是 <code>i</code> 外推成 <code>[0,10]</code> 而不是 <code>[0,+∞]</code>。</p>
+    </div>
+    <div class="finding alarm">
+      <div class="fno">FINDING 04 · <span class="tag doc">Changelog</span> <span class="tag src">源码确认</span></div>
+      <h4>BufferOverrun 已被官方废弃</h4>
+      <p>v1.3.0 Changelog 将其列入 deprecated，<code>Checker.ml</code> 写着
+        <em>“Use Pulse instead”</em>。但 Pulse 的 57 个 issue type
+        <strong>没有任何一个是数组越界类</strong>，实测 <code>--pulse-only</code> 一条越界都不报。</p>
+    </div>
+  </div>
+</section>
+
+<section id="summary">
+  <h2><span class="num">02</span>Infer 的 Function Summary 到底是什么</h2>
+  <p class="lede">不是统一 schema，而是「每种分析各自定义一个可序列化 payload，挂在同一张 SQLite 表的不同列上」。</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>问题</th><th>答案</th><th>证据</th></tr></thead>
+      <tbody>
+        <tr><td>数据结构</td><td class="mono">Payloads.t 的 17 个可选字段 ↔ PayloadId.t 的 17 个变体</td><td><span class="tag src">源码确认</span></td></tr>
+        <tr><td>存在哪里</td><td class="mono">SQLite <code>infer-out/results.db</code> 的 <code>specs</code> 表，21 列 = 4 固定 + 17 payload</td><td><span class="tag run">实测数据</span></td></tr>
+        <tr><td>序列化格式</td><td class="mono">OCaml Marshal 二进制，魔数 <code>0x8495a6be</code>（不是 JSON / Protobuf）</td><td><span class="tag run">实测数据</span></td></tr>
+        <tr><td>谁生成</td><td class="mono">Ondemand.analyze_proc_name → run_proc_analysis → Callbacks.iterate_procedure_callbacks</td><td><span class="tag src">源码确认</span></td></tr>
+        <tr><td>谁读取</td><td class="mono">Summary.OnDisk.get：两层内存 LRU → SELECT … FROM specs WHERE proc_uid = :k → 惰性反序列化</td><td><span class="tag src">源码确认</span></td></tr>
+        <tr><td>怎么组合</td><td class="mono">ConditionSet.subst（形参→实参代换）+ check（判级）+ for_summary（未判定的继续上传）</td><td><span class="tag src">源码确认</span></td></tr>
+        <tr><td>跨过程不动点</td><td>过程<strong>内</strong>有；过程<strong>间</strong>默认没有，按需一次性分析即固化</td><td><span class="tag src">源码确认</span></td></tr>
+        <tr><td>最大调用深度</td><td><code>ondemand_callchain_limit</code> 是可选项，<strong>无默认值 = 不限制</strong></td><td><span class="tag src">源码确认</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="call">
+    <div class="hdr">对我们的启示</div>
+    <p>不要设计一个「万能摘要 Schema」去同时覆盖参数范围、指针偏移、别名、路径约束、副作用。
+      Infer 自己把 BufferOverrun 都拆成了两个 payload（抽象内存 / 安全条件集合）。
+      <strong>为「内存越界」单独设计一个聚焦的摘要类型</strong>，物理上放同一张表的不同列即可。</p>
+  </div>
+</section>
+
+<section id="subst">
+  <h2><span class="num">03</span>逐层代换：把 Summary Composition 看清楚</h2>
+  <p class="lede"><span class="tag run">实测数据</span> 三层调用链，四份真实摘要。这是整份调研最核心的一张表。</p>
+
+<pre><span class="dim">// sub.c</span>
+int leaf(int *base, int idx) { return base[idx]; }
+int mid (int *arr,  int k)   { return leaf(arr, k + 1); }
+int top (int *p,    int n)   { return mid (p,   n * 2); }
+int caller(void) { int a[10]; return top(a, 7); }   <span class="dim">// n=7 → k=14 → idx=15 &gt; 10</span></pre>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>过程</th><th>Safety conditions（<code>infer debug --procedures-summary</code> 原样输出）</th><th>summary_loads</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">leaf</td><td class="mono">base.offset + idx &lt; base.length @ sub.c:1:39</td><td class="mono">—</td></tr>
+        <tr><td class="mono">mid</td><td class="mono">arr.offset + <strong>k + 1</strong> &lt; arr.length @ sub.c:1:39<br>(k + 1):signed32 @ sub.c:3:35</td><td class="mono">leaf</td></tr>
+        <tr><td class="mono">top</td><td class="mono">p.offset + <strong>2.n + 1</strong> &lt; p.length @ sub.c:1:39<br>(2.n + 1):signed32 @ sub.c:3:35<br>(n × 2):signed32 @ sub.c:5:33</td><td class="mono">mid</td></tr>
+        <tr><td class="mono">caller</td><td class="mono"><span class="dim">{ }</span> ← 全部判定完毕，转为报告</td><td class="mono">top</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>三件事同时发生，缺一不可：<strong>形参被实参代换</strong>（<code>base↦arr↦p</code>、<code>idx↦k+1↦2n+1</code>）；
+    <strong>源码位置始终指向 <code>leaf</code> 里那次真正的数组访问</strong>（<code>sub.c:1:39</code>），
+    所以最终报告能精确归因；<strong>非线性项 <code>n × 2</code> 被保留成符号而不是放弃</strong>。</p>
+
+  <p>最终报告：<code>sub.c:9: error: BUFFER_OVERRUN_L1  Offset: 15 Size: 10 by call to `top`.</code></p>
+</section>
+
+<section id="loop">
+  <h2><span class="num">04</span>循环为什么不需要 <code>unsupported</code></h2>
+  <p class="lede"><span class="tag run">实测数据</span> 从 <code>--debug</code> 的逐节点 HTML 里抓到的 widening 真实轨迹。</p>
+
+<pre><span class="dim">for (int i = 0; i &lt;= 10; ++i) s += a[i];   // a 只有 10 个元素</span>
+
+node5 (loop head) JOIN     i -> (0)  ⊔  (1)        =&gt; i -> [0, 1]
+node5 <span class="hl">WIDEN(num_iters = 1)</span>  prev [0,0]  next [0,1]  =&gt; i -> <span class="hl">[0, 9]</span>   <span class="dim">← 不是 +∞，是"阈值"</span>
+node5 JOIN                                          =&gt; i -> [0, 10]
+node5 <span class="hl">WIDEN(num_iters = 2)</span>  prev [0,9]  next [0,10] =&gt; i -> [0, 10]
+node5 [exec NARROWING]                                 <span class="good">Fixpoint reached.</span>
+
+同一节点上的数组始终是：
+  a -> (_|_, _|_, { f--746625832-1-1(a) -&gt; offset : 0, size : 10 })
+        <span class="dim">↑itv  ↑powloc ↑arrayblk：Allocsite → offset/size</span></pre>
+  <p class="caption">整个循环只访问 loop head 三四次，与真实迭代次数无关。最终 <code>i ∈ [0,10]</code> vs <code>size = 10</code> → 报 L2（部分重叠）。</p>
+
+  <h3><code>[0, 9]</code> 这个数从哪来</h3>
+  <p><span class="tag src">源码确认</span> <code>bufferOverrunDomain.ml:392-398</code>——每当一个值与常量 <code>z</code> 做比较（<code>Prune</code>），
+    就把 <code>z-1, z, z+1</code> 加进该值的 widening 阈值集合；widen 时外推到「不小于当前值的最小阈值」。</p>
+
+<pre>let itv_thresholds =
+  Option.value_map (Itv.get_const y.itv) ~default:x.itv_thresholds ~f:(fun z -&gt;
+      x.itv_thresholds
+      |&gt; ItvThresholds.add Z.(z - one)
+      |&gt; ItvThresholds.add z
+      |&gt; ItvThresholds.add Z.(z + one) )</pre>
+
+  <div class="call">
+    <div class="hdr">今天就能抄的一条</div>
+    <p>在「遇到循环就 unsupported」与「widen 到 Top 全丢精度」之间，还有一个成本极低的中间选项：
+      <strong>把分支与循环条件里出现的常量收集为 widening 阈值</strong>。不到 10 行，却是 Infer 在循环里
+      保住「<code>i</code> 恰好到 10 而不是到 +∞」的全部秘密。</p>
+  </div>
+</section>
+
+<section id="matrix">
+  <h2><span class="num">05</span>13 类复杂场景：Infer 的真实能力边界</h2>
+  <p class="lede"><span class="tag run">实测数据</span> 每类一段含真实越界的最小 C 程序，默认配置与最高灵敏度各跑一遍。
+    「CSA 原型」一列是转述团队自述，非本次实测。</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>#</th><th>场景</th><th>CSA 原型</th><th>Infer 默认</th><th>最高灵敏度</th><th>根因</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td>if 决定下标</td><td>可处理</td><td class="yes">L2 [0,12]/10</td><td>L2</td><td>区间 join</td></tr>
+        <tr><td class="num">2</td><td>for 差一错误</td><td class="no">unsupported</td><td class="yes">L2 [0,10]/10</td><td>L2</td><td>阈值 widening</td></tr>
+        <tr><td class="num">3</td><td>while 后越界读</td><td class="no">unsupported</td><td class="no">漏报</td><td class="yes">L4</td><td>符号条件默认「只传不报」，且无调用者</td></tr>
+        <tr><td class="num">4</td><td>switch 多分支</td><td>需逐分支</td><td class="yes">L2 [0,14]/10</td><td>L2</td><td>各 case join</td></tr>
+        <tr><td class="num">5</td><td>指针算术</td><td class="no">薄弱</td><td class="yes">L1 13/10</td><td>L1</td><td>ArrayBlk.offset 随算术平移</td></tr>
+        <tr><td class="num">6</td><td>结构体字段数组（基址是<strong>形参</strong>）</td><td class="no">复杂</td><td class="yes">L1 11/8</td><td>L1</td><td>形参按声明类型生成符号数组块</td></tr>
+        <tr><td class="num">6b</td><td><strong>结构体字段数组（局部/静态/全局基址）</strong></td><td class="no">复杂</td><td class="no">漏报</td><td class="no">仍漏报</td><td><strong>结构性缺口，见 §16</strong></td></tr>
+        <tr><td class="num">7</td><td>指针别名</td><td class="no">薄弱</td><td class="yes">L1 17/10</td><td>L1</td><td>PowLoc 集合抽象，无需路径分裂</td></tr>
+        <tr><td class="num">8</td><td><strong>全局数组</strong></td><td class="part">支持有限</td><td class="no">漏报</td><td class="no">仍漏报</td><td><strong>结构性缺口</strong>，见下</td></tr>
+        <tr><td class="num">9</td><td>3 层嵌套 + 结构体</td><td class="no">易 opaque</td><td class="yes">L1 33/10</td><td>L1 + 噪声</td><td>三层摘要链式组合</td></tr>
+        <tr><td class="num">10</td><td>20 层直线调用</td><td class="no">约 2 层</td><td class="yes">见 §06</td><td>—</td><td>—</td></tr>
+        <tr><td class="num">11</td><td>递归</td><td class="no">通常 opaque</td><td class="yes">L1 15/10</td><td>L1 + 噪声</td><td>ActiveProcedures 环检测</td></tr>
+        <tr><td class="num">12</td><td><strong>函数指针</strong></td><td class="no">不支持</td><td class="no">漏报</td><td class="part">只报符号噪声</td><td><strong>前端降级为内建调用</strong>，见下</td></tr>
+        <tr><td class="num">13a</td><td>循环 + goto 改写下标</td><td class="no">opaque</td><td class="no">漏报</td><td class="yes">L4 ×2，精确定位</td><td>同 #3</td></tr>
+        <tr><td class="num">13b</td><td>仅 goto（对照组）</td><td>—</td><td class="yes">L1 12/10</td><td>L1</td><td><strong>证明 goto 本身不影响分析</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>全局数组漏报的源码根因 <span class="tag src">源码确认</span> <span class="tag run">实测数据</span></h3>
+  <p>对照实验一句话说清：<strong>带初始化器的全局数组能检出，不带的漏报。</strong></p>
+<pre>int g_noinit[10];                            <span class="dim">/* 试探性定义，无初始化器 */</span>
+int g_init[10]   = {1,...,10};
+static int g_st_init[10] = {0};
+
+<span class="bad">g2.c:5: error: Buffer Overrun L1  Offset: 100 Size: 10.</span>   <span class="dim">← f_init     ✅</span>
+<span class="bad">g2.c:6: error: Buffer Overrun L1  Offset: 100 Size: 10.</span>   <span class="dim">← f_st_init  ✅</span>
+<span class="dim">（f_noinit 无任何报告，连一条 safety condition 都没生成）      ❌</span></pre>
+  <p>根因在 <code>bufferOverrunDomain.ml:2169-2190</code> 的 <code>find_global_array</code>：
+    它获知全局数组 <code>size</code> 的<strong>唯一通道</strong>是「该全局的初始化器过程
+    <code>__infer_globals_initializer_*</code> 的摘要」。C 的试探性定义没有初始化器 ⇒
+    <code>arrayblk</code> 为 ⊥ ⇒ 连条件都不生成。<strong>这不是阈值问题，是内存建模的结构性缺口——
+    在这一点上 Infer 弱于我们现有的 CSA。</strong></p>
+
+  <h3>函数指针漏报的根因 <span class="tag run">实测数据</span></h3>
+<pre><span class="dim">// fp = &amp;get; fp(a, 22);  的真实 SIL</span>
+node5: *&amp;fp:_fn_(*) = _fun_get
+node3: n$0 = *&amp;fp:_fn_(*)
+       n$1 = <span class="hl">_fun___call_c_function_ptr</span>(n$0:_fn_, &amp;a:int*, 22:int)   <span class="dim">← 不是 Call+Cfun</span>
+       抽象状态: fp -&gt; (1, { Unknown }, { Unknown -&gt; T })</pre>
+  <p>C 函数指针调用被前端降级成对<strong>内建函数</strong> <code>__call_c_function_ptr</code> 的调用，
+    BufferOverrun 未为其建模，整个调用退化为「未知调用」，<strong>根本不会去读 <code>get</code> 的摘要</strong>。</p>
+</section>
+
+<section id="depth">
+  <h2><span class="num">06</span>调用深度实验：团队核心诉求的直接验证</h2>
+  <p class="lede"><span class="tag run">实测数据</span> <code>f1 → f2 → … → fN</code>，最底层访问 <code>p[i]</code>，
+    最顶层传 <code>int arr[10]</code> 与 <code>i = 20</code>。</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th class="num">调用深度</th><th class="num">耗时 (s)</th><th class="num">specs 行数</th><th class="num">报告数</th><th class="num">峰值 RSS (MB)</th></tr></thead>
+      <tbody>
+        <tr><td class="num">2</td><td class="num">0.26</td><td class="num">3</td><td class="num">1</td><td class="num">178</td></tr>
+        <tr><td class="num">5</td><td class="num">0.25</td><td class="num">6</td><td class="num">1</td><td class="num">178</td></tr>
+        <tr><td class="num">10</td><td class="num">0.26</td><td class="num">11</td><td class="num">1</td><td class="num">178</td></tr>
+        <tr><td class="num"><strong>20</strong></td><td class="num"><strong>0.30</strong></td><td class="num"><strong>21</strong></td><td class="num">1</td><td class="num">179</td></tr>
+        <tr><td class="num">50</td><td class="num">0.33</td><td class="num">51</td><td class="num">1</td><td class="num">179</td></tr>
+        <tr><td class="num">100</td><td class="num">0.39</td><td class="num">101</td><td class="num">1</td><td class="num">181</td></tr>
+        <tr><td class="num"><strong>200</strong></td><td class="num"><strong>0.76</strong></td><td class="num"><strong>201</strong></td><td class="num">1</td><td class="num">189</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><code>ondemand_procs_analyzed: 201</code>——201 个过程各分析恰好一次，摘要条数与过程数严格线性。
+    深度 200 的报告仍然正确归因到最外层：<code>Offset: 20 Size: 10 by call to `f1`</code>。</p>
+</section>
+
+<section id="explode">
+  <h2><span class="num">07</span>路径爆炸：摘要解决了什么，没解决什么</h2>
+  <p class="lede">一个对选型极重要、且容易被讲错的结论。</p>
+
+  <h3>层与层之间：加法，不是乘法</h3>
+  <p><span class="tag run">实测数据</span> 每层 4 个分支、共 20 层（理论 4²⁰ ≈ 10¹² 条路径）：
+    BufferOverrun <strong>0.28 s</strong>，Pulse <strong>0.52 s</strong>。两者都没有爆炸，
+    因为每层摘要在离开该层时已被压缩。</p>
+
+  <h3>单个过程内部：Infer 靠「主动丢状态」兜底</h3>
+  <p><span class="tag src">源码确认</span> <code>Pulse.ml:1698-1701</code> 设了两道硬闸门：
+    <code>pulse_max_disjuncts</code> 默认 <strong>20</strong>、<code>pulse_widen_threshold</code> 默认 <strong>3</strong>。
+    超限即丢弃状态做欠近似——<strong>代价是漏报</strong>。</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th class="num">--pulse-max-disjuncts</th><th class="num">耗时</th><th class="num">丢弃的析取状态数</th><th>摘要析取数</th></tr></thead>
+      <tbody>
+        <tr><td class="num">5</td><td class="num">0.29 s</td><td class="num">48</td><td class="mono">{ 5: 2 }</td></tr>
+        <tr><td class="num">20（默认）</td><td class="num">0.31 s</td><td class="num">152</td><td class="mono">{ 20: 2 }</td></tr>
+        <tr><td class="num">50</td><td class="num">0.39 s</td><td class="num">314</td><td class="mono">{ 50: 2 }</td></tr>
+        <tr><td class="num">200</td><td class="num">0.59 s</td><td class="num">856</td><td class="mono">{ 200: 2 }</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="caption">同一个 4096 路径的函数交给非析取的 BufferOverrun：一次 join 得 <code>Offset: [0, 4095] Size: 10</code>，常数代价且检出。</p>
+
+  <div class="call warn">
+    <div class="hdr">必须正视的推论</div>
+    <p>「能不能扛住路径爆炸」主要由<strong>抽象域是否析取</strong>决定，而不是由「用不用摘要」决定。
+      Pulse 用了摘要，但因为域是析取的，仍要靠丢状态兜底。
+      <strong>如果我们坚持 CSA 的路径敏感（析取）模型做摘要，爆炸只会从「调用点组合」转移到
+      「单函数内析取数」，不会消失。</strong></p>
+  </div>
+</section>
+
+<section id="incr">
+  <h2><span class="num">08</span>增量分析：版本级 CI 最可迁移的一块</h2>
+  <p class="lede"><span class="tag src">源码确认</span> <span class="tag run">实测数据</span>
+    机制 = 运行分析时顺带记录「谁读了谁的摘要」的依赖边 → <code>changed_files</code> 驱动传递失效。</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>实验</th><th>输出</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td>源码完全没变，重跑</td>
+            <td class="mono">Invalidated 0 of 8 · Computed 0 · <strong>ondemand_procs_analyzed: 0</strong></td>
+            <td class="yes">摘要跨进程持久化并被真正复用</td></tr>
+        <tr><td>只改 leaf.c，index 覆盖 3 个文件</td>
+            <td class="mono">Invalidated 7 of 8 · Computed 7 · 顶层越界被正确报出</td>
+            <td class="part">传递失效生效；多失效的 2 个来自 tenv 依赖</td></tr>
+        <tr><td>只改 leaf.c，index 只写 leaf.c</td>
+            <td class="mono">Invalidated 5 of 8 · Computed 1 · <strong>顶层越界没报</strong></td>
+            <td class="no">失效了但没重算——CI 用法陷阱</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>三个必须知道的工程细节</h3>
+  <p><strong>①</strong> 默认 <code>infer analyze</code> 会先 <code>delete_all_specs()</code> 清空摘要——
+    只有 <code>--incremental-analysis</code> 或 <code>--continue-analysis</code> 才复用。
+    <strong>②</strong> <code>--incremental-analysis</code> 必须配 <code>--changed-files-index</code>，否则直接报错退出。
+    <strong>③</strong> 该 index <em>同时</em>决定「分析哪些文件」：capture 只捕获变更文件没问题，
+    但 analyze 的 index 要覆盖需要出结论的<strong>全部</strong>文件。</p>
+  <p>变更判定不是文件哈希，而是<strong>逐过程的 CFG 结构比对</strong>
+    （<code>Procdesc.mark_if_unchanged</code>：逐节点、逐指令比较）——改注释、改同文件里的别的函数都不会触发重算。</p>
+</section>
+
+<section id="minioob">
+  <h2><span class="num">09</span>MiniOobChecker：我们自己写的、真实跑通的 Demo</h2>
+  <p class="lede"><span class="tag run">实测数据</span> 本次在同一环境<strong>从源码编译了 Infer</strong>，
+    并加入一个自写的跨过程越界 Checker。下面全部是真实输出。</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>项目</th><th>实测值</th></tr></thead>
+      <tbody>
+        <tr><td>新增代码</td><td class="mono">4 个文件 442 行 OCaml（净代码约 300 行）</td></tr>
+        <tr><td>注册改动</td><td class="mono">9 个文件共 <strong>37 行</strong>（Checker / PayloadId / Payloads / registerCheckers / IssueType）</td></tr>
+        <tr><td>dune 改动</td><td class="mono"><strong>0</strong>——代码放进已有的 <code>infer/src/labs/</code> 库即可</td></tr>
+        <tr><td>specs 表新列</td><td class="mono">自动从 21 列变成 22 列（由 <code>PayloadId.database_fields</code> 生成）</td></tr>
+        <tr><td>构建耗时</td><td class="mono">≈ 72 min（复用预编译 clang，跳过 LLVM 自举；2 vCPU）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>四层调用链上的条件传播（真实日志）</h3>
+<pre><span class="dim">// leaf(p,i){return p[i];}  mid→leaf(q,k+5)  top→mid(r,m+2)  entry: int a[10]; top(a,20)</span>
+[MiniOOB] Analyze leaf
+[MiniOOB]   open condition <span class="hl">0 &lt;= arg1 &lt; extent(arg0)</span> at line 1, column 43
+[MiniOOB] Generate Summary leaf: 0 &lt;= arg1 &lt; extent(arg0) at line 1, column 43
+[MiniOOB] Analyze mid
+[MiniOOB] <span class="good">Load Summary leaf</span> (1 open condition(s))
+[MiniOOB] <span class="good">Apply Summary leaf</span>
+[MiniOOB]   still open, propagating: <span class="hl">0 &lt;= arg1+5 &lt; extent(arg0)</span> at line 1, column 43
+[MiniOOB] Analyze top
+[MiniOOB] Load Summary mid (1 open condition(s))
+[MiniOOB]   still open, propagating: <span class="hl">0 &lt;= arg1+7 &lt; extent(arg0)</span> at line 1, column 43
+[MiniOOB] Analyze entry
+[MiniOOB] Load Summary top (1 open condition(s))
+[MiniOOB]   <span class="bad">discharged (VIOLATED): 0 &lt;= 27 &lt; extent(a[0..10))</span> at line 1, column 43
+
+chain3.c:4: error: Mini Oob(MINI_OOB)
+  Out-of-bounds access inside `top`: 0 &lt;= 27 &lt; extent(a[0..10)) at line 1, column 43.
+<span class="dim">ondemand_procs_analyzed: 4</span>   <span class="dim">← 4 个过程各分析一次，没有任何 inline</span></pre>
+
+  <h3>20 层深链 + 阴性对照</h3>
+<pre>[MiniOOB] Generate Summary f20: 0 &lt;= arg1    &lt; extent(arg0)
+[MiniOOB] Generate Summary f2:  0 &lt;= arg1+18 &lt; extent(arg0)
+[MiniOOB] Generate Summary f1:  0 &lt;= arg1+19 &lt; extent(arg0)
+[MiniOOB]   <span class="bad">discharged (VIOLATED): 0 &lt;= 24 &lt; extent(a[0..10))</span>    <span class="dim">← entry_bad</span>
+[MiniOOB]   <span class="good">discharged (safe):     0 &lt;= 24 &lt; extent(a[0..64))</span>    <span class="dim">← entry_safe，正确不报</span>
+<span class="dim">time: 0.31s   Found 1 issue   ondemand_procs_analyzed: 22</span></pre>
+  <p class="caption">下标偏移被符号化累加 19 次，0.31 秒，1 个真阳性 0 个假阳性。摘要以 OCaml Marshal 落盘在 <code>specs.MiniOob</code> 列。</p>
+
+  <div class="call">
+    <div class="hdr">这个 Demo 证明了什么</div>
+    <p>处理 <code>Call</code> 的代码里<strong>没有任何一行</strong>加载被调者的 Procdesc 或遍历其 CFG；
+      唯一的跨过程操作是框架注入的 <code>analyze_dependency</code>。
+      也就是说：<strong>在 Infer 里复用它的跨过程框架、只写自己的 Domain 与 Transfer Function，
+      是完全可行的，成本大约是几百行。</strong></p>
+  </div>
+</section>
+
+<section id="verdict">
+  <h2><span class="num">10</span>技术路线：四个方案与推荐</h2>
+
+  <div class="routes">
+    <div class="route">
+      <div class="rl">方案 A</div>
+      <h4>继续当前 CSA Summary</h4>
+      <p>兼容性最好、学习成本最低，但结构性缺口会让成本持续走高而天花板不变。</p>
+    </div>
+    <div class="route">
+      <div class="rl">方案 B</div>
+      <h4>直接基于 Infer 二次开发</h4>
+      <p>技术可行（§09 已证明），但几十个 CSA Checker 需用 OCaml 重写，且前端是 Clang 21.1.6 与我们的 LLVM 14 fork 不一致。</p>
+    </div>
+    <div class="route pick">
+      <div class="rl">方案 C · 推荐</div>
+      <h4>借鉴 Infer 重设计 Summary 2.0</h4>
+      <p>Checker 层几乎不动、前端一致、自主可控；吸收被验证过的机制，新建与 CSA 引擎解耦的摘要层。</p>
+    </div>
+    <div class="route">
+      <div class="rl">方案 D</div>
+      <h4>Infer 跨过程 + CSA 规则</h4>
+      <p>不建议。源码与文档层面均未见 Infer 提供跨语言集成接口，自建集成层成本与收益不成正比。</p>
+    </div>
+  </div>
+
+  <h3>为什么不建议直接用 Infer</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>阻碍</th><th>性质</th></tr></thead>
+      <tbody>
+        <tr><td>唯一有数组越界能力的 BufferOverrun 已被官方 deprecated，Pulse 未补上替代能力</td><td class="no">产品风险</td></tr>
+        <tr><td>全局数组（无初始化器）结构性漏报，<strong>弱于我们现有 CSA</strong></td><td class="no">能力缺口</td></tr>
+        <tr><td>C 函数指针调用不解析，条件不会被实例化</td><td class="no">能力缺口</td></tr>
+        <tr><td>前端是 Meta 定制 Clang 21.1.6，与团队 LLVM 14 fork 不是同一套解析结果</td><td class="no">工程不一致</td></tr>
+        <tr><td>摘要磁盘格式是 OCaml Marshal，现有 C++ 工具无法直接消费</td><td class="part">集成成本</td></tr>
+        <tr><td>Domain / TransferFunctions / Checker 紧耦合于同一 OCaml 进程与 Sil IR，无跨语言可插拔接口</td><td class="no">架构约束</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>关于「CSA 生成摘要 + CSA 消费摘要」是否合理</h3>
+  <p><strong>团队的自我判断基本成立，但要分成两句话说。</strong></p>
+  <p><strong>不合理的部分：</strong>让 CSA 引擎<em>自己</em>在 ExplodedGraph 上做循环 widen/narrow、
+    跨路径 join、摘要不动点。CSA 的 <code>ProgramState</code> 是<strong>路径绑定</strong>的，
+    而摘要要求<strong>路径无关、可序列化、可任意实例化</strong>——这是两种不兼容的状态生命周期假设。
+    loop abstraction / join / fixpoint / widening / heap / alias / composition / SCC 这 8 项是
+    「把路径绑定状态变成路径无关摘要」的<strong>结构性必需品</strong>，换任何引擎都绕不开。
+    Infer 的选择恰好印证这一点：它<strong>没有</strong>在符号执行引擎上加摘要层，而是从零建了 92 个文件的独立抽象解释框架。</p>
+  <p><strong>合理的部分：</strong>用 CSA 做<strong>路径级事实采集</strong>是对的，而且是相对 Infer 的<em>优势</em>——
+    Infer 的 BufferOverrun 因为域非析取，拿不到「这条越界只在 <code>flag != 0</code> 时发生」这种路径级信息。</p>
+</section>
+
+<section id="arch">
+  <h2><span class="num">11</span>CSA Function Summary 2.0 架构建议</h2>
+  <p class="lede">核心原则：CSA 只做它结构上擅长的事，把「跨路径归并 / 跨函数组合 / 不动点」交给一个与 CSA 引擎解耦的新组件。</p>
+
+<pre>现有 CSA 引擎（几乎不动）
+   ExplodedGraph 符号执行（单函数，路径敏感）＋ Checker 回调
+        │  产出【<span class="hl">路径级事实 PathFact</span>】
+        │  { access, base: AccessPath(形参#k/全局/allocsite),
+        │    offset: SymExpr(可含 a*b), elemSize, pathConstraints, loc }
+        ▼
+<span class="good">★ 新建</span> FactCollector →  <span class="good">FixpointEngine</span>（独立小引擎，不依赖 ProgramState）
+        │  · AbstractRange：区间 + 符号 Bound（含非线性 MultB）
+        │  · 循环头 widen/narrow，<span class="hl">阈值 = 路径约束里出现的常量</span>
+        ▼
+<span class="good">★ 新建</span> <span class="good">SummaryIR</span>（可序列化，与 CSA 运行时对象无耦合）
+        ├─ PreCondition  : (base, offsetRange, elemSize) 安全条件 + 可达性
+        ├─ PostCondition : 返回值 / out 参数 / 全局
+        ├─ MemoryEffect / AliasEffect（集合近似即可）
+        └─ <span class="hl">GlobalEffect  : 全局变量一等公民单列</span>
+        ▼
+<span class="good">★ 新建</span> SummaryManager（On-Demand + 环检测 + 两层缓存）
+        SummaryDB（SQLite：每分析一列 + 依赖边表）
+        SummaryApplier（形参→实参代换；判定 / 再传播）
+        ▼
+现有 Checker 层（几乎不动）消费判定结果</pre>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>优先级</th><th>组件</th><th>对标 Infer</th><th>为什么先做</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">P0</td><td>SummaryDB + 依赖边失效</td><td class="mono">specs 表 + record_pname_dep + invalidate</td><td>几乎不触碰分析算法，直接支撑版本级 CI</td></tr>
+        <tr><td class="mono">P0</td><td>AbstractRange（符号/非线性 Bound）</td><td class="mono">Itv / Bound.mk_MultB</td><td>后面一切的地基；「能表示」比「能求解」重要</td></tr>
+        <tr><td class="mono">P1</td><td>SummaryIR + SummaryApplier</td><td class="mono">ConditionSet + subst + for_summary</td><td>有两份逐层代换的真实样例可直接对照实现</td></tr>
+        <tr><td class="mono">P1</td><td>SummaryManager</td><td class="mono">ondemand.ml + OnDisk.Cache</td><td>不需要全局拓扑排序，按需递归即可</td></tr>
+        <tr><td class="mono">P2</td><td>FixpointEngine</td><td class="mono">AbstractInterpreter + 阈值 widening</td><td>工作量最大；可先只覆盖「下标与循环变量线性相关」</td></tr>
+        <tr><td class="mono">P2</td><td>GlobalEffect</td><td class="mono">Infer 的反面教材</td><td>业务里全局数组常见，不能重蹈 Infer 的缺口</td></tr>
+        <tr><td class="mono">P3</td><td>库函数 / 工具函数模型表</td><td class="mono">bufferOverrunModels.ml</td><td>绕开大量 unsupported 最划算的手段</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Loop 怎么办</h3>
+  <p><strong>建议：CSA 只收集事实，不做不动点。</strong>
+    CSA 端对循环只做有限次展开（就是现在的做法），目的<em>不是</em>求循环不变式，
+    而是采集「下标表达式与循环变量的关系、初值、步长、循环条件里的常量」这些<strong>事实</strong>；
+    FixpointEngine 端拿这些事实做<strong>递推式外推</strong>——已知 <code>i₀=0</code>、<code>i_{n+1}=i_n+1</code>、
+    条件 <code>i≤10</code>，直接得到 <code>i ∈ [0,10]</code>，根本不需要在 ExplodedGraph 上迭代。
+    识别不了的循环退化为 Top，<strong>但仍然产出合法摘要，绝不 unsupported</strong>。</p>
+
+  <div class="call warn">
+    <div class="hdr">一条关于精度上限的重要提醒</div>
+    <p>不要把 Summary 2.0 的目标定成「精度不低于现有 CSA 规则」——这做不到，摘要的本质就是有损压缩。
+      正确目标是：<strong>在现有规则之外新增一条「跨函数」检出通道，两者并存、各报各的</strong>，
+      用 L1/L2 分级让消费方按等级决定拦不拦。如果硬要求「摘要路径不劣于 inline 路径」，这个项目大概率会失败。</p>
+  </div>
+</section>
+
+<section id="poc">
+  <h2><span class="num">12</span>下一步：可排期的动作</h2>
+
+  <div class="tl">
+    <div class="tl-row">
+      <div class="tl-when">本周</div>
+      <div class="tl-what"><strong>两个当天就能做的改进。</strong>
+        ① 把分支/循环条件里出现的常量收集为 widening 阈值；
+        ② 把越界告警改成 L1（确定）/ L2（可能）分级。加起来不到一天，收益立竿见影。</div>
+    </div>
+    <div class="tl-row">
+      <div class="tl-when">本月</div>
+      <div class="tl-what"><strong>10 天 PoC。</strong>
+        Day 1 下载官方预编译二进制 + 挑 20–50 个真实业务函数（<em>必须</em>包含全局数组与函数指针场景）；
+        Day 2–5 复现本调研的实验矩阵与深度实验，拿到团队代码库上的 Summary Coverage / FP / FN 定量数据；
+        Day 6–8 在一台网络正常的机器上从源码构建 Infer 并打上 MiniOobChecker（同时也是 OCaml 门槛的真实测量）；
+        Day 9–10 差异案例根因分析 + 数据整理。</div>
+    </div>
+    <div class="tl-row">
+      <div class="tl-when">本季度</div>
+      <div class="tl-what"><strong>落地 P0 两项。</strong>
+        SummaryDB + 依赖边记录与传递失效（投入产出比最高，几乎不碰分析算法）；
+        AbstractRange（区间 + 符号 Bound + 非线性项保留）。</div>
+    </div>
+    <div class="tl-row">
+      <div class="tl-when">下季度</div>
+      <div class="tl-what"><strong>SummaryIR + SummaryApplier + SummaryManager</strong>，
+        先只覆盖 TOP23 内存越界规则族，目标：这一类规则的有效分析深度做到 10 层以上，误报率不劣于当前原型。</div>
+    </div>
+    <div class="tl-row">
+      <div class="tl-when">持续</div>
+      <div class="tl-what">用官方预编译 Infer 做<strong>零成本交叉验证</strong>（第二意见 + 能力上限标尺），
+        不改任何生产链路；跟踪上游 BufferOverrun 是否被真正删除、Pulse 是否补上数组越界能力。</div>
+    </div>
+  </div>
+
+  <p><strong>PoC 必须统计的指标</strong>（建议做成一张表，每函数一行）：Summary 生成成功 /
+    Unsupported 原因分类 / 生成的条件数 / 条件中符号项占比 / 分析耗时 / 峰值内存 /
+    检出 TP / FP / FN / 所在调用链深度 / 是否涉及全局·函数指针·循环。</p>
+</section>
+
+<section id="qa">
+  <h2><span class="num">13</span>核心问题结论</h2>
+  <p class="lede">十个问题，每条给出明确结论与核心依据。</p>
+
+  <div class="qa">
+    <div class="q"><div class="qid">Q1</div><div>
+      <h4>Infer 的 Function Summary 本质上是什么？</h4>
+      <p><span class="verdict">每种分析各自定义一个可序列化 payload，挂在同一张 SQLite 表的不同列上。</span>
+        对内存越界最相关的形态是 BufferOverrun 的「安全条件集合」，真实文本形如
+        <code>buf.offset + i &lt; buf.length</code>。</p>
+      <p class="cite">依据：Payloads.mli / PayloadId.ml 源码 + specs 表实测 schema + 真实摘要 dump。
+        限制：不存在可照搬到所有规则族的万能格式；磁盘格式是 OCaml Marshal。</p>
+    </div></div>
+
+    <div class="q"><div class="qid">Q2</div><div>
+      <h4>Infer 为什么能处理我们处理不了的 Loop / 复杂 CFG？</h4>
+      <p><span class="verdict">因为失败模式是「精度可控降级」而不是「放弃生成摘要」。</span>
+        标准抽象解释 + widen/narrow + 把比较常量作为 widening 阈值。实测 loop head 只访问三四次即达不动点。</p>
+      <p class="cite">依据：AbstractInterpreter 源码 + 真实 widening 轨迹 + 13 类场景实测。
+        限制：保证终止不保证精确；case 3 / 13a 默认仍漏报，需调高灵敏度，代价是符号噪声。</p>
+    </div></div>
+
+    <div class="q"><div class="qid">Q3</div><div>
+      <h4>Summary 如何生成、存储、读取和组合？</h4>
+      <p><span class="verdict">生成：Call 时 analyze_dependency 按需递归分析。存储：Marshal 写入 specs 表对应列。
+        读取：两层内存 LRU → SQLite → 惰性反序列化。组合：subst 代换 + check 判级 + for_summary 续传。</span></p>
+      <p class="cite">依据：ondemand.ml / Summary.ml / CallbackOfChecker.ml 逐函数追踪（含行号）+ 三层代换实测。
+        限制：全局变量的摘要路径存在结构性缺口。</p>
+    </div></div>
+
+    <div class="q"><div class="qid">Q4</div><div>
+      <h4>是否真的避免了指数级路径爆炸？</h4>
+      <p><span class="verdict">层与层之间是；单个过程内部不是。</span>
+        层间是加法（每层摘要离开时被压缩）；层内 Pulse 有 20 条析取硬上限，超限即丢状态做欠近似。</p>
+      <p class="cite">依据：Pulse.ml 源码 + 丢弃计数实测（48/152/314/856）+ 20×4 分支压力实验。
+        推论：能否扛住爆炸主要由抽象域是否析取决定，而非用不用摘要。</p>
+    </div></div>
+
+    <div class="q"><div class="qid">Q5</div><div>
+      <h4>分析 10~20 层调用在工程上是否可行？</h4>
+      <p><span class="verdict">可行，且余量很大。</span>实测 200 层 0.76 s、摘要数线性、内存几乎不增长；
+        自写的 MiniOobChecker 同样做到 20 层 0.31 s。默认无最大深度限制。</p>
+      <p class="cite">依据：深度实验表 + MiniOob 深链实验。限制：需在真实业务函数上复测（深链常伴随循环/别名/全局）。</p>
+    </div></div>
+
+    <div class="q"><div class="qid">Q6</div><div>
+      <h4>能否像开发 CSA Checker 一样开发自己的越界规则？</h4>
+      <p><span class="verdict">可以，本调研已经做完并跑通。</span>但范式不同：不是挂回调，而是实现
+        Domain + TransferFunctions + checker 三件套再注册。实测成本 442 行 + 37 行注册，无需改任何 dune。</p>
+      <p class="cite">依据：完整源码 + 真实 diff + 真实运行日志。限制：补成生产级是数量级更大的工作。</p>
+    </div></div>
+
+    <div class="q"><div class="qid">Q7</div><div>
+      <h4>能否只复用框架、自己写 Domain 和 Transfer Function？</h4>
+      <p><span class="verdict">在 Infer 内部可以，这是官方唯一推荐方式；把框架抽出来接给 C++/CSA 用不可以。</span>
+        <code>analyze_dependency</code> 一个回调就封装掉了 Ondemand / SQLite / LRU。</p>
+      <p class="cite">依据：labs 官方 lab 源码 + 本次实现验证。限制：产出只服务「在 Infer 里重做一套」，无法反哺现有 CSA。</p>
+    </div></div>
+
+    <div class="q"><div class="qid">Q8</div><div>
+      <h4>「CSA 生成 + CSA 消费」这条路线是否合理？</h4>
+      <p><span class="verdict">部分不合理，团队的自我判断基本成立。</span>
+        不合理的是让 CSA 引擎自己做摘要的抽象解释——路径绑定状态与路径无关摘要是不兼容的生命周期假设。
+        合理的是用 CSA 做路径级事实采集，这反而是相对 Infer 的优势。</p>
+      <p class="cite">依据：CSA 状态模型分析 + Infer 另建 92 文件抽象解释框架的事实 + 析取域必须丢状态的实测。
+        性质：工程判断，非可证明定理。</p>
+    </div></div>
+
+    <div class="q"><div class="qid">Q9</div><div>
+      <h4>最应该借鉴哪 5~10 个机制？</h4>
+      <p><span class="verdict">按投入产出比：</span>① 依赖边 + changed_files 传递失效；
+        ② 比较常量→widening 阈值；③ L1/L2/S2/只传不报 的分级告警；④ Payload-per-Analysis；
+        ⑤ 安全条件作为摘要主体 + subst + for_summary；⑥ 含符号/非线性 Bound 的区间域；
+        ⑦ On-Demand + 两层缓存；⑧ 逐过程 CFG 结构比对判断变更；⑨ 库函数模型表；⑩ 独立轻量 FixpointEngine。</p>
+      <p class="cite">另有两条<strong>反面借鉴</strong>：全局变量必须一等公民建模；C 函数指针需专门建模——这两处 Infer 都有缺口。</p>
+    </div></div>
+
+    <div class="q"><div class="qid">Q10</div><div>
+      <h4>下一阶段最值得投入的技术路线？</h4>
+      <p><span class="verdict">方案 C——借鉴 Infer 核心机制、重新设计 CSA Summary 2.0</span>，
+        同时用官方预编译 Infer 做零成本交叉验证。不建议 B（迁移）、A（维持现状）、D（混合）。</p>
+      <p class="cite">前提：必须接受「摘要通道精度天然低于 inline 通道」，目标是新增一条跨函数检出通道而非取代现有规则。</p>
+    </div></div>
+  </div>
+</section>
+
+<section id="risk">
+  <h2><span class="num">14</span>风险、未确认项与常见误解澄清</h2>
+
+  <h3>本调研未能确认的事</h3>
+  <p>① 对 <code>extern</code> 声明、在另一 TU 定义的全局数组是否也漏报；
+     ② 高灵敏度配置在真实业务规模上的误报率；
+     ③ Pulse 析取上限调大到多少会在真实代码上不可接受；
+     ④ Infer 在大型真实工程（万级文件）下的端到端耗时与内存——
+     v2 已补上 <code>compile_commands.json</code> 全量分析的机制验证（见下一节），
+     但规模仍是三文件级，真实业务规模的耗时、内存与 capture 成功率必须在你们自己的代码库上测。</p>
+
+  <h3>本版澄清的常见误解</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>常见说法</th><th>本版结论</th></tr></thead>
+      <tbody>
+        <tr><td>「Infer 就是 Bi-Abduction」</td><td>对当前版本<strong>不准确</strong>：<code>biabduction/</code> 已整体移除，思想保留在 PulseAbductiveDomain</td></tr>
+        <tr><td>「Pulse 已取代 BufferOverrun」</td><td><strong>能力上没有</strong>：57 个 issue type 无任何数组越界类，实测一条都不报</td></tr>
+        <tr><td>「Infer 摘要是统一 schema」</td><td><strong>不是</strong>：17 个 analysis-specific payload</td></tr>
+        <tr><td>「摘要解决了所有路径爆炸」</td><td><strong>没有</strong>：爆炸从「调用点组合」转移到「单函数内析取数」，靠主动丢状态兜底</td></tr>
+        <tr><td>「第二次跑会自动复用摘要」</td><td><strong>默认不会</strong>：analyze 会先清空 specs，只有增量模式才复用</td></tr>
+        <tr><td>「循环里会 widen 到 ±∞」</td><td>不一定：比较常量成为阈值，实测 <code>[0,1] → [0,9] → [0,10]</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="call warn">
+    <div class="hdr">两条路都要面对的同一个风险</div>
+    <p>Infer 自己已经把 BufferOverrun 标成 deprecated，Pulse 又没接上数组越界能力——
+      这说明<strong>连 Meta 都没有在「工业级 C/C++ 数组越界」这条线上维持长期投入</strong>。
+      决定自建，要接受「这条路上没有可长期跟随的开源参照物」；
+      决定用 Infer，要接受「你依赖的这条分析随时可能被上游删掉」。</p>
+  </div>
+</section>
+
+<section id="whole">
+  <h2><span class="num">15</span>全量工程分析与可观测点<span class="tag doc" style="margin-left:10px">v2 增补</span></h2>
+  <p class="lede">
+    v2 补的两件事：① 用真实 <code>compile_commands.json</code> 做<strong>跨文件</strong>全量分析，
+    证明「逐文件 capture 不会丢跨文件信息」；② 把每一步能看到的东西全部列出来，
+    让原理可以用观察来验证，而不是只能读源码。
+  </p>
+
+  <h3>capture 按文件，analyze 一次全量</h3>
+  <p>这是最容易误解的一点。<code>infer capture --compilation-database compile_commands.json</code>
+    确实是一条命令一条命令地翻译（每个文件用它自己的 <code>-I</code> / <code>-D</code>），
+    但它只是<strong>把所有过程的 CFG 写进同一个 <code>capture.db</code></strong>；
+    随后的 <code>infer analyze</code> 是<strong>一次、全局、按需</strong>的，
+    调用点要用被调用者的摘要时直接跨文件去 <code>results.db</code> 取。
+    <span class="tag src">源码确认</span> <code>Cfg.t = Procdesc.t Procname.Hash.t</code>——
+    根本没有「文件级 CFG」这个东西，文件只是一个分组标签。</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>做法</th><th>命令</th><th>三文件 demo 的结果</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>全量</strong>（正确）</td>
+          <td><code>infer capture --compilation-database cc.json</code> 后 <code>infer analyze</code></td>
+          <td><strong>报出 1 条</strong> <code>BUFFER_OVERRUN_L1 · Offset: 17 Size: 10</code></td>
+        </tr>
+        <tr>
+          <td>逐文件（错误）</td>
+          <td>每个文件一个 <code>infer run -- clang -c x.c</code></td>
+          <td>三个 <code>infer-out</code>，<strong>各 0 条</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="caption">
+    <span class="tag run">实测数据</span>
+    demo 工程故意设计成越界只有跨三个文件才看得见：
+    <code>main.c</code> 传 <code>5</code> → <code>middle.c</code> 用它自己的 <code>-DIDX_BIAS=12</code> 加上 12 →
+    <code>access.c</code> 拿去索引容量 10 的数组。17 = 5 + 12，两个数字来自两个不同的编译单元、
+    其中一个还来自该文件独有的宏定义。
+  </p>
+
+<pre><span class="dim">// 全量分析时，真实的跨文件摘要链（infer debug --procedures-summary）</span>
+buf_get    { i &lt; 10 at src/access.c:3:44 }                  summary_loads=
+mid_fetch  { k + 12 &lt; 10 at src/access.c:3:44 }             summary_loads= buf_get
+           { (k + 12):signed32 at src/middle.c:6:46 }       tenv sources= include/buf.h
+main       { }  → ERRORS: Buffer Overrun L1                 summary_loads= mid_fetch</pre>
+  <p class="caption">
+    注意 <code>mid_fetch</code> 的条件里写的是 <code>k + 12 &lt; 10</code>，
+    位置却指向 <code>access.c</code>——这就是「条件被代换后带着原始位置向上传播」的直接证据。
+  </p>
+
+  <h3>四个最该知道的观测入口</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>想看什么</th><th>怎么看</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>摘要本身（可读文本）</strong></td>
+          <td><code>infer debug --procedures --procedures-summary --procedures-summary-skip-empty --select all</code><br>
+              <span class="tag run">实测</span>—— <strong>不是</strong> <code>--dump-json-summaries</code>，那个只导出 Pulse</td>
+        </tr>
+        <tr>
+          <td>IR（可读 SIL 文本）</td>
+          <td>capture 时加 <code>--store-textual</code>，再 <code>infer debug --export-textual</code></td>
+        </tr>
+        <tr>
+          <td>每个 CFG 节点的抽象状态</td>
+          <td><code>--debug</code> 后看 <code>infer-out/captured/*/*.html</code></td>
+        </tr>
+        <tr>
+          <td>数据库里真正存了什么</td>
+          <td><code>sqlite3 infer-out/results.db</code>，表 <code>specs</code> 共 21 列 = 4 元数据 + <strong>17 个 payload</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>从观测到借鉴</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>你会观察到</th><th>对应机制</th><th>CSA Summary 2.0 该抄什么</th></tr></thead>
+      <tbody>
+        <tr><td><code>specs</code> 表 17 个 payload 列各自独立</td><td>摘要按分析分栈，不是统一 schema</td><td>别设计「一个通用摘要」，按 checker 分 payload，各自演进</td></tr>
+        <tr><td><code>summary_loads=</code> 记录了谁读了谁</td><td><code>Dependencies.record_pname_dep</code></td><td>增量失效必须靠<strong>实际读取</strong>的依赖，不是静态调用图</td></tr>
+        <tr><td>摘要里是 <code>k + 12 &lt; 10</code> 这样的符号条件</td><td>Requires 式摘要 + <code>ConditionSet.subst</code></td><td>摘要主体存「未决条件」，在调用点代换，而不是存结论</td></tr>
+        <tr><td>同一改动失效 6 条或 7 条，不稳定</td><td>结构化 CFG 比较 + capture 历史</td><td>CI 里断言「顶层告警是否重现」，<strong>不要</strong>断言失效条数</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="call">
+    <div class="hdr">上真实代码库之前</div>
+    <p>先切一个 200–500 文件的子集，量化三件事：<strong>capture 成功率</strong>
+      （你们内部 LLVM 14 fork 的扩展语法 vs Infer 自带 clang 21.1.6，这是最可能先崩的地方）、
+      <strong>端到端耗时</strong>、<strong>infer-out 磁盘占用</strong>。
+      三项都在可接受范围内，再谈全量。调研包 <code>06-practice/</code> 里有可直接执行的脚本与 SQL。</p>
+  </div>
+</section>
+
+<section id="bound">
+  <h2><span class="num">16</span>能力边界与误报漏报<span class="tag doc" style="margin-left:10px">v2.2 增补</span></h2>
+  <p class="lede">
+    用 <strong>47 个文件的正交四象限语料</strong>（22 个真实越界 / 15 个绝对安全 /
+    10 个易误报）测出的定量边界。这一节直接服务选型：
+    每一处看不住，是<strong>机制决定的</strong>还是<strong>参数决定的</strong>。
+  </p>
+
+  <h3>混淆矩阵（文件级）</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th></th><th class="num">默认档</th><th class="num">高灵敏档</th></tr></thead>
+      <tbody>
+        <tr><td>TP 真越界被报</td><td class="num">18</td><td class="num">19</td></tr>
+        <tr><td>FN 真越界漏报</td><td class="num">4</td><td class="num">3</td></tr>
+        <tr><td>FP 安全代码被报</td><td class="num"><span class="yes">0</span></td><td class="num"><span class="no">13</span></td></tr>
+        <tr><td>TN 安全代码正确沉默</td><td class="num">25</td><td class="num">12</td></tr>
+        <tr><td><strong>精确率</strong></td><td class="num"><span class="yes">100 %</span></td><td class="num"><span class="no">59.4 %</span></td></tr>
+        <tr><td><strong>召回率</strong></td><td class="num">81.8 %</td><td class="num">86.4 %</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="caption">
+    <span class="tag run">实测数据</span>
+    高灵敏档 = <code>--bo-debug 4</code> + 打开 L4/L5/U5。
+    <strong>换 1 个真阳性，赔 13 个文件的噪声</strong>——即便在本来就有真 bug 的文件里，
+    告警也从 19 条膨胀到 30 条。默认档可以进 CI 拦门禁，高灵敏档只适合人工专项排查。
+  </p>
+  <p>
+    Pulse 对照：同样 22 个真实越界，<code>--pulse-only</code>
+    <strong>检出 0 个数组越界</strong>。这把 §01 的第四条发现从抽样观察提升为完整测量。
+  </p>
+
+  <h3>漏报的性质：机制 vs 参数</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>漏报场景</th><th>性质</th><th>调参能救吗</th><th>修复工作量</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>struct/union 字段数组</strong>（局部 / static / 全局基址）</td>
+          <td class="no">机制</td><td class="no">❌ 三个相关旋钮已逐一验证无效</td>
+          <td><strong>10–30 行</strong>：<code>decl_local_loc</code> 的 <code>Tstruct</code> 分支递归字段</td>
+        </tr>
+        <tr>
+          <td>全局数组（无初始化器）</td>
+          <td class="no">机制</td><td class="no">❌</td>
+          <td>20–50 行：<code>find_global_array</code> 回退到声明类型</td>
+        </tr>
+        <tr>
+          <td>C 函数指针调用</td>
+          <td class="no">机制</td><td class="no">❌</td>
+          <td class="no"><strong>人月级</strong>：需要指向集合分析</td>
+        </tr>
+        <tr>
+          <td>无调用者的符号条件</td>
+          <td class="part">参数</td><td>✅ <code>--bo-debug 4</code>，但代价见上表</td>
+          <td><strong>不要调参</strong>，改用全量分析（§15）</td>
+        </tr>
+        <tr>
+          <td>超大函数被静默跳过</td>
+          <td class="part">参数</td><td>✅ <code>--bo-max-cfg-size</code>（默认 15000）</td>
+          <td>先量化：<code>grep -c "Skipped large procedure" infer-out/logs</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="call warn">
+    <div class="hdr">本轮更正了自己的一条结论</div>
+    <p>§05 的场景 #6 原写作「结构体字段数组：支持」，因为只测了
+      <code>struct Buf *b; b-&gt;data[11]</code> 这一种写法。13 个变体的探针显示：
+      <strong>基址是形参或 malloc 才检出；局部 / static / 全局 struct 的字段数组全部漏报</strong>，
+      把 <code>.</code> 换成 <code>-&gt;</code> 也没用。
+      <span class="tag src">源码确认</span> <code>bufferOverrunUtils.ml:56-70</code> 的
+      <code>decl_local_loc</code> 对 <code>Typ.Tstruct</code> 原样返回内存、不递归进字段；
+      <span class="tag run">实测数据</span> 此时摘要里
+      <code>Safety conditions: { }</code>——<strong>一条条件都没生成</strong>。</p>
+    <p>方法论教训：<strong>只测一种写法就下「支持 / 不支持」的结论是危险的</strong>。
+      同一个 bug 换个写法，结论就反转。</p>
+  </div>
+
+  <h3>对架构建议的修正</h3>
+  <p>这组数据把 §11 的 P0 优先级往前推了一格。Infer 的区间域与 widening 是成熟的，
+    但它 4 个漏报里有 3 个（含最常见的 struct 字段数组）都出在
+    <strong>某类基址拿不到 size</strong>，而不是算法不够强。</p>
+  <div class="call">
+    <div class="hdr">修正后的第一优先级</div>
+    <p><strong>把「哪些基址能拿到 extent」做全</strong>——局部数组、局部/全局 struct 的字段数组、
+      全局、堆、形参，一个都不能少——排在 SummaryDB 与 AbstractRange <em>之前</em>。
+      <strong>内存建模的覆盖面比分析算法更决定召回率。</strong></p>
+    <p>随之新增一条反面借鉴：<strong>extent 必须是内存模型的一等属性，在声明处就建立</strong>，
+      不能绑在某个特殊过程（Infer 绑在全局初始化器）的摘要上，
+      也不能在声明处对聚合类型止步不前。</p>
+  </div>
+
+  <p class="caption">
+    全部数字可用调研包 <code>07-capability-boundary/run-boundary.sh</code> 一键复现，
+    60 个语料在 <code>07-capability-boundary/corpus/</code>，建议固化进 CI 做能力回归。
+  </p>
+</section>
+
+<section id="plan">
+  <h2><span class="num">17</span>方案 C 落地设计与工作量<span class="tag doc" style="margin-left:10px">v2.3 增补</span></h2>
+  <p class="lede">
+    把 §11 的架构建议细化成可以开工的设计。这一节给三样东西：
+    <strong>一处架构修正</strong>、<strong>工作量</strong>、以及
+    <strong>一个必须先验证的前提</strong>。
+  </p>
+
+  <h3>架构修正：谁是主要事实源</h3>
+  <p>§11 原来建议「CSA 采集路径级事实、FixpointEngine 做外推」。<strong>这条要改。</strong>
+    如果主要事实源是 CSA 的 ExplodedGraph，那么 CSA 每一个放弃探索的地方——
+    循环块访问次数到顶、路径预算耗尽、inline 深度到顶——都<strong>没有事实可采</strong>，
+    于是没有摘要，于是又回到 <code>unsupported</code>：
+    <strong>当前最痛的失败模式会被原封不动继承。</strong></p>
+
+<pre>主：独立 AI（对 clang::CFG，非路径敏感）
+      <span class="good">「全函数性」是硬约束</span>——任何函数都必须产出合法摘要
+      精度不够就降级为 Top，<span class="hl">绝不缺席</span>
+
+副：CSA 路径敏感信息
+      AI 判出 L2 之后，再去问 CSA「这次访问在什么路径约束下发生」
+      结果作为<span class="dim">解释与排序依据</span>附在告警上，<span class="hl">不参与「有没有摘要」的判定</span></pre>
+
+  <p>代价是显式的：AI 的区间域非析取，拿不到路径相关精度。
+    <code>if (f) i=20; if (!f) a[i];</code> 会 join 成 L2，而现有 CSA 规则能精确判安全。
+    <strong>这正是「摘要通道精度天然低于 inline 通道」，两条通道并存，各报各的。</strong></p>
+
+  <h3>工作量</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>里程碑</th><th>内容</th><th class="num">人日</th><th>验收</th></tr></thead>
+      <tbody>
+        <tr><td><strong>M0</strong> PoC</td><td>一条链走通（最小 ExtentModel + 直线代码 + DB/Manager/Applier）</td><td class="num">15–22</td><td>3 层调用链跨文件报出 L1</td></tr>
+        <tr><td><strong>M1</strong> 循环</td><td>阈值 widening + narrowing + WTO</td><td class="num">+18–26</td><td><strong>任何循环不产生 unsupported</strong></td></tr>
+        <tr><td><strong>M2</strong> 覆盖面</td><td>ExtentModel 20 种形态 + GlobalEffect + 模型表</td><td class="num">+22–32</td><td>通过 §16 的 25 行能力表，且在 struct 字段数组上优于 Infer</td></tr>
+        <tr><td><strong>M3</strong> 精确率</td><td>S2/StillOpen 分级、告警指纹、与现有规则去重</td><td class="num">+15–22</td><td>TN 语料上误报 0</td></tr>
+        <tr><td><strong>M4</strong> 增量与规模</td><td>依赖边失效、并行、性能</td><td class="num">+18–28</td><td>全量耗时可接受</td></tr>
+        <tr><td><strong>M5</strong> 生产化</td><td>CI、报表、门禁</td><td class="num">+10–21</td><td>进门禁</td></tr>
+        <tr><td colspan="2"><strong>合计</strong>（约 9400–13400 行代码）</td><td class="num"><strong>98–151</strong></td><td>约 5–7.5 人月</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="caption">
+    置信区间 ±40%。<strong>建议的第一个决策点是 M1 结束（33–48 人日）</strong>——
+    那时「能不能成」已有定论，再决定要不要投 M2 之后的。
+  </p>
+
+  <div class="call warn">
+    <div class="hdr">这条推荐有一个尚未验证的前提</div>
+    <p>「<strong>调用深度是主要瓶颈</strong>」来自团队自述，<strong>还没有被代码库上的数据验证过</strong>。
+      如果实测发现真实越界基本不跨 ≥3 层调用，那么有一个<strong>便宜一个数量级</strong>的路线：
+      只做 ExtentModel + 把现有 inline 深度从 2 提到 4–5，
+      <strong>约 15–20 人日拿到可能 70% 的收益</strong>——
+      因为 ExtentModel 同时能直接提升<em>现有规则</em>的召回率。</p>
+    <p>所以开工前先测四项（约半天），它们能推翻上面的设计：
+      ① CSA 的 <code>getStaticSize</code> 对 <code>FieldRegion</code> 是否可用；
+      ② 现有告警里「单函数内可判定」的比例；
+      ③ 真实越界的调用深度分布；
+      ④ <code>unsupported</code> 的根因分布（循环到底占多少）。
+      详见调研包 <code>08-summary2-design/03-assumptions-and-test-plan.md</code>。</p>
+  </div>
+
+  <h3>一个对我们有利的事实</h3>
+  <div class="call">
+    <div class="hdr">起点比 Infer 高</div>
+    <p>CSA 的 RegionStore <strong>天生</strong>把结构体字段建模为 <code>FieldRegion</code> 并带完整类型——
+      <strong>这正是 Infer 缺的那一块</strong>（§16 的结构性漏报）。
+      也就是说在「内存建模覆盖面」这个最决定召回率的维度上，我们的起点比 Infer 高，而不是低。
+      这是方案 C 成立的一条硬理由，但它依赖假设 A1，<strong>必须先验证</strong>。</p>
+  </div>
+</section>
+
+<footer>
+  <p>调研基线 commit <code>3d38229b04b649024fee065621f6a4c838f6d029</code>（2026-09-10）·
+     实验用 Infer v1.3.0 与自建 v1.3.0-3d38229b · 调研执行 2026-09-11 · v2 增补 2026-09-16 · v2.2 / v2.3 增补 2026-09-17。<br>
+     本页为完整报告（3 204 行）的决策摘要；所有命令、原始输出、MiniOobChecker 完整源码与注册 diff 见完整报告文件，
+     可运行的实验、前置知识、受限环境构建脚本与 <code>06-practice/</code> 见调研包 v2。</p>
+</footer>
+
+</main>
+</div>
+</body>
+</html>

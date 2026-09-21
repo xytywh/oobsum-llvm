@@ -1,0 +1,42 @@
+[
+  {
+    "directory": "@@PROJECT_ROOT@@/build",
+    "arguments": [
+      "gcc",
+      "-c",
+      "-O0",
+      "-I../include",
+      "-o",
+      "leaf.c.o",
+      "../src/leaf.c"
+    ],
+    "file": "../src/leaf.c"
+  },
+  {
+    "directory": "@@PROJECT_ROOT@@/build",
+    "arguments": [
+      "gcc",
+      "-c",
+      "-O0",
+      "-I../include",
+      "-DIDX_BIAS=12",
+      "-o",
+      "middle.c.o",
+      "../src/middle.c"
+    ],
+    "file": "../src/middle.c"
+  },
+  {
+    "directory": "@@PROJECT_ROOT@@/build",
+    "arguments": [
+      "gcc",
+      "-c",
+      "-O0",
+      "-I../include",
+      "-o",
+      "main.c.o",
+      "../src/main.c"
+    ],
+    "file": "../src/main.c"
+  }
+]

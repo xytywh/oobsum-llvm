@@ -1,0 +1,537 @@
+# CSA Function Summary 2.0 —— 总体设计
+
+> 这份文档把报告 §25 / §28 的"方案 C"从**架构建议**细化到**可以开工的设计**：
+> 组件边界、数据结构、关键算法、与现有 CSA 的接口、以及每条设计决策的**证伪条件**。
+>
+> **重要前提**：我看不到 `rb.enhance.core` / `rb.enhance.ipa` 的代码。
+> 文中凡是依赖"你们的 CSA 具备某能力"的地方，都标了 **【假设 An】**，
+> 并在 `03-assumptions-and-test-plan.md` 里给出了**推翻它的具体测法**。
+> **先测那些，再开工**——有几条假设一旦不成立，工作量会翻倍甚至换方案。
+
+---
+
+## 0. 一句话设计
+
+**把"生成摘要"做成一个与 ExplodedGraph 完全解耦、对 Clang CFG 做非路径敏感抽象解释的
+独立组件（它的"全函数性"是硬约束：任何函数都必须产出合法摘要）；
+CSA 的路径敏感能力退到两个位置——消费摘要出告警、以及为已判定的告警补路径解释。**
+
+---
+
+## 1. 对报告 §25.2 的一处修正（重要）
+
+报告 §25.2 原来写的是：
+
+> **CSA 端**对循环只做有限次展开，采集"下标与循环变量的关系"这类**事实**；
+> **FixpointEngine 端**拿这些事实做递推式外推。
+
+**这条现在要改。** 理由来自附录 D 的证据链：
+
+如果**主要事实源**是 CSA 的 ExplodedGraph，那么 CSA 放弃探索的每一个地方——
+循环块访问次数到顶、路径预算耗尽、inline 深度到顶、`ProgramState` 被 GC——
+都会**没有事实可采**，于是没有摘要，于是又回到 `unsupported`。
+**你们现在最痛的失败模式会被原封不动继承过来。**
+
+正确的结构是把主次倒过来：
+
+```
+主：独立 AI（对 Clang CFG，非路径敏感）  ——  全函数性是设计约束，任何函数都产出摘要
+                                             精度不够时降级为 Top，绝不缺席
+副：CSA 路径敏感信息                      ——  可选的精度增强，不参与"有没有摘要"的判定
+```
+
+**副的具体用法**：AI 判出一条 `L2（可能越界）`之后，再去问 CSA
+"这次访问发生在什么路径约束下"，把结果作为**解释与排序依据**附在告警上
+（"仅当 `flag != 0` 时发生"），而**不是**作为判定的必要输入。
+拿不到就不附，告警照报。
+
+这样做的代价是显式的：**AI 的区间域是非析取的，拿不到路径相关的精度**，
+所以像 `if (f) i = 20; if (!f) a[i];` 这种，AI 会 join 成 `i ∈ [3, 20]` 报 L2，
+而现有 CSA 规则能精确判定为安全。**这正是 §25.3 说的"摘要通道精度天然低于 inline 通道"**——
+两条通道并存，各报各的，不要试图让摘要通道取代现有规则。
+
+> **证伪条件**：如果实测发现你们的越界 unsupported 里，**循环导致的占比很低**
+> （比如 < 20%），那这条修正的前提就不成立，方案应该回到"CSA 主采、AI 辅助"，
+> 工作量也会显著下降。测法见 `03-assumptions-and-test-plan.md` 的 **T0-4**。
+
+---
+
+## 2. 组件图
+
+```
+                        ┌─────────────────────────────────────────┐
+                        │  ExtentModel  （P-1，最先做）             │
+                        │  AccessPath → 元素个数 / 字节大小          │
+                        │  只依赖 ASTContext + 声明类型 + 分配点表达式 │
+                        │  不依赖 ProgramState ⇒ AI 和 CSA 都能用     │
+                        └───────────────┬─────────────────────────┘
+                                        │
+   ┌────────────────────────────────────┴───────────────────────────────┐
+   │                                                                     │
+   ▼                                                                     ▼
+┌──────────────────────────────┐                        ┌──────────────────────────────┐
+│ SummaryGen（新建，独立 AI）    │                        │ 现有 CSA 引擎（几乎不动）       │
+│  · 输入：clang::CFG           │                        │  ExplodedGraph 路径敏感符号执行 │
+│  · BoundDomain：区间+符号Bound │                        │  现有几十个 Checker 原样工作    │
+│  · 阈值 widening / narrowing  │                        └──────────────┬───────────────┘
+│  · 全函数性：必产出摘要         │                                       │
+└──────────────┬───────────────┘                                       │
+               │ OobSummary                                             │
+               ▼                                                        │
+┌──────────────────────────────┐                                       │
+│ SummaryDB（SQLite）           │                                       │
+│  summaries 表：一分析一列       │                                       │
+│  deps 表：谁读了谁的摘要         │                                       │
+└──────────────┬───────────────┘                                       │
+               │                                                        │
+               ▼                                                        │
+┌──────────────────────────────┐        ┌──────────────────────────┐   │
+│ SummaryManager               │        │ SummaryApplier           │   │
+│  On-Demand 递归 + 环检测       │───────▶│  subst 形参→实参          │   │
+│  两层 LRU 缓存                 │        │  classify L1/L2/S2/Open  │   │
+└──────────────────────────────┘        └────────────┬─────────────┘   │
+                                                     │                  │
+                                                     ▼                  ▼
+                                        ┌────────────────────────────────────┐
+                                        │ OobSummaryChecker（新建，很薄）      │
+                                        │  checkPreCall：取被调摘要、代换、判定  │
+                                        │  出告警；可选向 CSA 要路径约束做解释   │
+                                        └────────────────────────────────────┘
+```
+
+---
+
+## 3. 逐组件设计
+
+### 3.1 ExtentModel —— 优先级 P-1，排在一切之前
+
+**这是附录 D 得出的最重要一条：内存建模的覆盖面比分析算法更决定召回率。**
+Infer 4 个漏报里有 3 个出在"某类基址拿不到 size"，不是算法不够强。
+
+**唯一对外接口**：
+
+```cpp
+/// 返回该访问路径所指数组的 extent（元素个数）；拿不到就是 Unknown，
+/// 但**必须明确区分** Unknown（不知道）与 Symbolic（知道是个符号）。
+ExtentResult getExtent(const AccessPath &Base, ASTContext &Ctx);
+
+struct ExtentResult {
+  enum class Kind { Concrete, Symbolic, Unknown } kind;
+  llvm::APSInt          concreteCount;   // Concrete
+  BoundExpr             symbolicCount;   // Symbolic（形参数组、malloc(n*sizeof)）
+  CharUnits             elemSize;
+  UnknownReason         why;             // Unknown 时必须填，用于统计覆盖率
+};
+```
+
+**必须覆盖的清单**（这张表就是验收标准，每一行一组测试用例）：
+
+| # | 形态 | extent 来源 | 备注 |
+|---|---|---|---|
+| 1 | 局部数组 `int a[10]` | 声明类型 `ConstantArrayType` | |
+| 2 | **局部 struct 的字段数组** `S s; s.d[i]` | 递归 `RecordDecl` 字段 | **Infer 在这里漏，我们不能漏** |
+| 3 | **`static` 局部 struct 字段数组** | 同上 | 同上 |
+| 4 | **全局 struct 字段数组**（有无初始化器都要） | 同上 | 同上 |
+| 5 | **嵌套 struct** `o.in.d[i]` | 递归 | 同上 |
+| 6 | **struct 数组的元素字段** `arr[1].d[i]` | 递归 | 同上 |
+| 7 | union 成员数组 | 递归 | 同上 |
+| 8 | 全局数组**无初始化器** `int g[10];` | 声明类型，**不依赖初始化器** | **Infer 在这里漏** |
+| 9 | `extern` 声明、别处定义的全局 | 跨 TU 查 USR；查不到 → Unknown(ExternNoDef) | |
+| 10 | 形参 `int *p` / `int a[10]` | 符号 extent `extent(param#k)` | 退化为指针，extent 是符号 |
+| 11 | 形参 `struct S *p` 的字段数组 | 符号基址 + 字段声明类型 → **具体** | |
+| 12 | `malloc(n * sizeof(T))` | 解析分配点实参表达式 | 常见形态优先：`n*sizeof(T)`、`sizeof(T)*n`、`sizeof(S)` |
+| 13 | `calloc(n, sizeof(T))` | 同上 | |
+| 14 | `realloc` | 重新绑定 | |
+| 15 | **你们内部的自定义分配器** | **配置表**（见 §3.7） | 工业代码里这条往往比 malloc 重要 |
+| 16 | VLA `int a[n]` | 符号 extent `n` | |
+| 17 | 柔性数组成员 `int d[]` / `int d[0]` / `int d[1]` | **只能 Unknown**，但要**显式标记** | 常见的"假数组"，误判会造成大量误报 |
+| 18 | 二维 / 多维 | 逐维 | |
+| 19 | 字符串字面量 `"abc"` | 长度 + 1 | |
+| 20 | 函数返回的指针 | 查被调摘要的 `ReturnEffect` | 跨过程，P1 才做 |
+
+**【假设 A1】你们的 CSA（LLVM 14 fork）里 `MemRegionManager::getStaticSize()` 可用，
+且对 `FieldRegion` 能给出正确 size。** 若成立，#1–#8、#11、#18 基本可以直接借用
+CSA 现成的 region 机制，ExtentModel 只需做 AccessPath ↔ MemRegion 的映射与
+#12–#17 的补充，工作量减半。**若不成立，这些要自己从 `ASTContext` 的声明类型重写。**
+→ 测法见 `03-assumptions-and-test-plan.md` **T0-1**。
+
+> **顺带一个对你们有利的事实**：CSA 的 RegionStore **天生**把结构体字段建模为
+> `FieldRegion`，带完整类型信息——**这正是 Infer 缺的那一块**。
+> 也就是说在"内存建模覆盖面"这个最决定召回率的维度上，
+> **你们的起点比 Infer 高**，而不是低。这是方案 C 成立的一条硬理由。
+
+---
+
+### 3.2 AccessPath —— 跨函数稳定的基址表示
+
+一切的地基。要求：**可序列化、跨 TU 稳定、可被实参代换**。
+
+```cpp
+struct AccessPath {
+  enum class Root : uint8_t { Param, Global, Alloc, Return, Unknown };
+
+  Root      root;
+  unsigned  paramIdx   = 0;    // Root::Param —— 形参序号，代换的锚点
+  StringRef globalUSR;         // Root::Global —— 用 USR 不用名字，跨 TU 才稳定
+  AllocSiteId allocSite;       // Root::Alloc  —— (procUID, stmtId) 二元组
+
+  // Field(name) | Deref | Index(BoundExpr)
+  SmallVector<Step, 4> steps;
+
+  uint64_t hash() const;       // hash-cons，DenseMap 的 key
+};
+```
+
+**关键决策：全局和函数都用 USR 做 key**，不用名字。
+Clang 有 `clang::index::generateUSRForDecl()`，这是跨 TU 唯一稳定的标识。
+用名字会在 `static` 同名符号、模板实例、匿名命名空间上出错。
+
+**代换（subst）就是在这个结构上做**：调用点 `f(a, k+1)` 处，
+把被调摘要里所有 `Param#0` 替换成实参 `a` 的 AccessPath，
+`Param#1` 替换成 `k+1` 的 BoundExpr。这正是 Infer
+`ConditionSet.subst` 做的事（报告 §12.1），也是 MiniOobChecker 里跑通过的那段。
+
+---
+
+### 3.3 BoundExpr / Range —— 表示能力优先于求解能力
+
+对标 Infer 的 `Itv` + `Bound.t`（含 `mk_MultB` 保留非线性项，报告 §5.3）。
+**设计原则：宁可"表示得出但算不动"，不可"表示不出只好丢弃"。**
+
+```cpp
+struct BoundExpr {
+  llvm::APSInt konst;                                  // 常数项
+  llvm::SmallDenseMap<SymbolId, llvm::APSInt, 4> lin;  // Σ cᵢ·symᵢ  线性主体
+  SmallVector<OpaqueTerm, 2> opaque;                   // a*b、a/b、a%b、a<<b、call(…)
+  bool top = false, bottom = false;
+};
+
+struct Range {
+  BoundExpr lo, hi;
+  bool loIsNegInf = false, hiIsPosInf = false;
+  SmallVector<llvm::APSInt, 4> wideningThresholds;     // ★ 见 §3.4
+};
+```
+
+`opaque` 那一项是关键：`n * 2` 不要算成 Top，要原样保留成一个不透明符号项，
+这样 `2·n + 1 < extent(p)` 这样的条件才能一路传到顶层再判定
+（报告 §13.3 的三层代换实测就是这个效果）。
+
+---
+
+### 3.4 SummaryGen —— 独立抽象解释器
+
+**输入** `clang::CFG`（`AnalysisDeclContext::getCFG()`），**不碰 `ExplodedGraph`**。
+
+**核心循环**（标准抽象解释，报告 §9）：
+
+```
+1. 计算 WTO（或退化为 RPO + 识别 loop header）
+2. 逐块 transfer，块间 join
+3. loop header 上：前 K 次 join，之后 widen
+4. widen 到不动点后，narrow 若干轮回收精度
+5. 无论如何在 max_iters 后停止 → 结果是合法的（可能很粗的）摘要
+```
+
+**必须抄的那 10 行 —— 阈值 widening**（报告 §9.3，`bufferOverrunDomain.ml:392-398`）：
+
+```cpp
+// 每当一个值与常量 z 做比较（CFG 的 terminator condition），
+// 就把 z-1, z, z+1 收进该值的 widening 阈值集合。
+// widen 时外推到"不小于当前值的最小阈值"，而不是直接到 +∞。
+void collectThreshold(Range &R, const llvm::APSInt &Z) {
+  R.wideningThresholds.push_back(Z - 1);
+  R.wideningThresholds.push_back(Z);
+  R.wideningThresholds.push_back(Z + 1);
+}
+```
+
+实测效果（报告 §9.2）：`i: 0 → [0,1] → [0,9] → [0,10] → 不动点`，
+而不是 `[0, +∞]`。**这是"循环不用 unsupported"的全部秘密，不到 10 行。**
+
+**全函数性（totality）是硬约束**。任何情况下都必须产出摘要：
+
+| 情况 | 产出 |
+|---|---|
+| 正常收敛 | `status = Analyzed`，条件集完整 |
+| 迭代超上限 | `status = Partial(IterLimit)`，条件集为已算出的部分 |
+| CFG 过大 | `status = Skipped(CfgTooLarge)`，**条件集为空但摘要存在** |
+| 超时 | `status = Skipped(Timeout)` |
+| 有不认识的构造 | 该表达式降为 Top，**其余照常**，`status = Analyzed` |
+
+**"没分析"和"分析了没问题"必须能区分**——这是附录 D 的第 4 条启示，
+也是 Infer 做得不好的地方（`--bo-max-cfg-size` 跳过的函数只在日志里留一行，
+`report.json` 里毫无痕迹）。`status` 字段落盘，CI 里把 `Skipped` 比例当质量指标跟踪。
+
+---
+
+### 3.5 SummaryIR
+
+```cpp
+struct SafetyCondition {          // "requires"：尚未判定的安全义务
+  AccessPath base;                // 被索引的数组
+  Range      offsetElems;         // 以元素为单位的下标范围
+  ExtentResult extent;            // 来自 ExtentModel
+  SourceLocation accessLoc;       // ★ 始终指向【真正那次访问】，代换时不变
+  ReachCond  reach;               // 可选：可达性/路径约束，用于分级与解释
+  uint8_t    provenance;          // 该条件经过了几层代换，便于排查
+};
+
+struct OobSummary {
+  ProcUID  uid;                   // 用 USR
+  std::vector<SafetyCondition> openConditions;   // 主体
+  ReturnEffect                 ret;              // 返回值范围 / 是否是形参别名
+  std::vector<OutParamEffect>  outParams;        // 通过指针形参写出去的
+  std::vector<GlobalEffect>    globals;          // ★ 全局一等公民（Infer 的反面教材）
+  AliasSummary                 alias;            // 粗集合近似即可
+  AnalysisStatus               status;           // ★ Analyzed/Partial/Skipped(reason)
+  uint64_t                     cfgStructHash;    // 增量失效判定
+};
+```
+
+**`accessLoc` 在代换过程中保持不变**——这是报告 §13.3 实测到的关键细节：
+`mid_fetch` 的条件写着 `k + 12 < 10`，位置却指向 `access.c:3:44`。
+没有这一条，跨三层的告警就无法精确归因。
+
+**`GlobalEffect` 单列**，不要塞进 `outParams`。这是 §25 反面借鉴的直接落地。
+
+---
+
+### 3.6 SummaryApplier —— 代换与分级
+
+```cpp
+// 调用点：f(a, k+1)
+SubstMap M = buildSubst(CallSite);       // Param#0 ↦ AccessPath(a), Param#1 ↦ BoundExpr(k+1)
+
+for (auto &C : CalleeSummary.openConditions) {
+  SafetyCondition C2 = subst(C, M);      // 代换；accessLoc 不变；provenance++
+  switch (classify(C2)) {
+    case Safe:      break;                            // 丢弃
+    case L1:        report(C2, Severity::Definite);   // 确定越界
+    case L2:        report(C2, Severity::Possible);   // 区间部分重叠
+    case S2:        report(C2, Severity::Symbolic);   // 符号可疑（谨慎开）
+    case StillOpen: CallerSummary.openConditions.push_back(C2);  // ★ 继续往上传
+  }
+}
+```
+
+**`StillOpen → 继续往上传` 这一条是精确率的命根子。** 附录 D 实测：
+Infer 默认档精确率 100%，靠的就是 `SymbolicIssue(propagate=true, 不报告)`——
+**拿不准的不是丢掉，是继续往上传，等上层有了实参再判**。
+这恰恰是"有限层次 inline"结构上做不到的事。
+
+**分级定义**（对标 Infer `bufferOverrunProofObligations.ml`，报告 §12.2）：
+
+| 级别 | 判据 | 默认 |
+|---|---|---|
+| `Safe` | `offset` 区间完全落在 `[0, extent)` 内 | 不报 |
+| `L1` | `offset` 区间**完全**落在 `[0, extent)` 外 | **报，可拦门禁** |
+| `L2` | 区间与 `[0, extent)` **部分重叠** | **报，不拦门禁** |
+| `S2` | 含符号项，代入后仍无法判定，但**有具体调用点** | 默认关，专项排查开 |
+| `StillOpen` | 含符号项且依赖更上层的实参 | **不报，上传** |
+
+---
+
+### 3.7 模型表（库函数 / 内部工具函数 / 自定义分配器）
+
+对标 `bufferOverrunModels.ml`（报告 §12.3）。**性价比最高的一块**：
+比让引擎"读懂"实现划算一个数量级，而且是纯配置，非核心开发者也能加。
+
+建议做成**外部配置文件**而不是硬编码：
+
+```yaml
+# models.yaml
+- name: memcpy
+  kind: c_lib
+  conditions:
+    - { base: param0, offset: "[0, param2/elemsize(param0) - 1]" }
+    - { base: param1, offset: "[0, param2/elemsize(param1) - 1]" }
+- name: VOS_MemAlloc            # 你们内部分配器
+  kind: allocator
+  sizeArg: 1                     # 第几个参数是字节数
+- name: RB_SafeStrCpy
+  kind: c_lib
+  conditions:
+    - { base: param0, offset: "[0, param2 - 1]" }
+```
+
+**【假设 A2】你们代码里对内存的访问有相当比例是经由内部封装函数
+（`VOS_MemCpy` / `RB_ArrayGet` 这类）而不是裸下标。**
+如果成立，模型表的收益会非常高，应该提前到 P1。→ 测法 **T1-3**。
+
+---
+
+### 3.8 SummaryDB
+
+```sql
+-- 对标 Infer 的 specs 表：一种分析一列，加新分析不改表结构、不影响旧分析
+CREATE TABLE summaries (
+  proc_uid       TEXT PRIMARY KEY,     -- clang USR
+  proc_name      TEXT,
+  source_usr     TEXT,
+  cfg_hash       INTEGER,              -- 逐过程 CFG 结构哈希，用于增量
+  status         INTEGER,              -- Analyzed/Partial/Skipped(reason)
+  oob_summary    BLOB,                 -- ← 本期只做这一列
+  taint_summary  BLOB,                 -- 以后加分析就加列
+  npd_summary    BLOB
+);
+
+-- 对标 Dependencies.record_pname_dep：记录【实际读取】关系，不是静态调用图
+CREATE TABLE deps (
+  caller_uid TEXT, callee_uid TEXT, kind INTEGER,
+  PRIMARY KEY (caller_uid, callee_uid, kind)
+);
+CREATE INDEX deps_callee ON deps(callee_uid);
+```
+
+**三条必须照抄的经验**（报告 §17 实测踩过的坑）：
+
+1. **依赖边记录的是"谁真的读了谁的摘要"**，不是静态调用图。静态调用图会
+   把大量实际没用上的边也算进去，失效范围爆炸。埋点位置只有一处：
+   `SummaryManager::get()` 成功返回时。
+2. **变更判定用逐过程 CFG 结构哈希**，不是文件哈希。改注释、改同文件里
+   别的函数都不该触发重算。对标 `Procdesc.mark_if_unchanged`。
+3. **CI 里不要断言"失效了几条"**。报告 §17.2 实测：同一份改动会得到
+   `6 of 8` 或 `7 of 8`，取决于历史。**要断言的是"顶层告警是否重现"。**
+
+**序列化格式建议用 FlatBuffers 或 Protobuf，不要用 `Marshal` 式的裸内存 dump。**
+Infer 用 OCaml `Marshal`（魔数 `0x8495A6BE`），结果是外部工具完全无法消费
+（报告 §7.2）。你们的摘要将来大概率要被 LLM pipeline、报表、IDE 插件读，
+**跨语言可读性值钱**。代价是几百行 schema 与转换代码。
+
+---
+
+### 3.9 SummaryManager
+
+对标 `ondemand.ml`（报告 §6）。**不需要全局拓扑排序**，按需递归即可：
+
+```cpp
+const OobSummary *SummaryManager::get(ProcUID Callee, ProcUID Caller) {
+  if (auto *S = L1Cache.lookup(Callee))  { recordDep(Caller, Callee); return S; }
+  if (auto *S = L2Cache.lookup(Callee))  { recordDep(Caller, Callee); return S; }
+  if (auto S = DB.load(Callee))          { cache(S); recordDep(Caller, Callee); return S; }
+
+  if (Active.contains(Callee))                       // ★ 环检测
+    return recursionFallback(Callee);                //   返回保守摘要，不递归
+  if (Active.size() >= MaxChainDepth)                // 可选的深度阀
+    return conservativeSummary(Callee);
+
+  Active.insert(Callee);
+  auto S = SummaryGen::run(Callee);                  // 递归分析
+  Active.erase(Callee);
+  DB.store(Callee, S); cache(S); recordDep(Caller, Callee);
+  return &S;
+}
+```
+
+**默认不设最大深度**。报告 §15 实测：Infer 的 `ondemand_callchain_limit` 是可选项、
+无默认值，200 层调用链 0.76 秒、摘要数与过程数严格线性、内存几乎不增长。
+**深度不是瓶颈，不要先入为主地加限制。**
+
+**递归（SCC）的处理**：第一版用最保守的办法——环上返回"什么都不保证"的摘要
+（所有条件 `StillOpen`、所有 effect 为 Top）。报告 §13 实测 Infer 在简单递归上
+能报 L1，靠的就是 `ActiveProcedures` 环检测 + 保守回退，**不需要求 SCC 的不动点**。
+
+---
+
+### 3.10 消费侧：OobSummaryChecker
+
+一个很薄的 CSA checker，**不改现有任何 checker**：
+
+```cpp
+class OobSummaryChecker : public Checker<check::PreCall, check::EndOfTranslationUnit> {
+  void checkPreCall(const CallEvent &Call, CheckerContext &C) const {
+    const auto *FD = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
+    if (!FD) return;                                     // 函数指针：见下
+    const auto *S = Mgr->get(usrOf(FD), currentProcUID(C));
+    if (!S) return;
+    auto Subst = buildSubst(Call, C);                    // 实参 → BoundExpr/AccessPath
+    for (auto &Cond : S->openConditions)
+      handle(subst(Cond, Subst), C);
+  }
+};
+```
+
+**为什么是 `checkPreCall` 而不是别的**：这里能同时拿到 `CallEvent`（实参的 `SVal`）
+和 `CheckerContext`（当前 `ProgramState`），既能做代换，又能顺手拿到路径约束
+去做 §1 说的"精度增强"。
+
+**函数指针**（Infer 的第三个机制性漏报，报告 §14.4）：
+第一版只做最保守的处理——**同一函数内被常量赋值的函数指针**，
+沿 `ProgramState` 反查 `SVal` 是不是 `FunctionTextRegion`，是就取那个 `FunctionDecl`。
+这能覆盖相当一部分实际代码，成本很低。真正的指向集合分析留到后面立项。
+
+**告警指纹**：报告附录 C 把"issue hash / reportdiff"列为**高优先级未展开项**。
+CI 落地必须有稳定指纹。建议 `hash = H(checkerName, 归一化后的 accessLoc, 归一化的消息模板, 函数 USR)`，
+**不含行号**（行号会因无关改动漂移），用"函数内第几个同类访问"代替。
+
+---
+
+## 4. 借鉴清单 —— 每条对应 Infer 的哪里
+
+| # | 借鉴什么 | Infer 出处 | 报告章节 | 优先级 |
+|---|---|---|---|---|
+| 1 | Requires 式摘要（安全条件作主体） | `ConditionSet` | §12.1 | **P0** |
+| 2 | 形参→实参代换 + 位置保持不变 | `ConditionSet.subst` | §13.3 | **P0** |
+| 3 | **StillOpen 继续上传，不丢弃** | `for_summary` / `SymbolicIssue` | §12.2 | **P0** |
+| 4 | 比较常量 → widening 阈值 | `bufferOverrunDomain.ml:392-398` | §9.3 | **P0** |
+| 5 | 含符号/非线性项的区间域 | `Itv` / `Bound.mk_MultB` | §5.3 | **P0** |
+| 6 | Payload-per-Analysis（一分析一列） | `PayloadId.database_fields` | §4.2 | P1 |
+| 7 | On-Demand + 环检测 + 两层缓存 | `ondemand.ml` | §6 | P1 |
+| 8 | 依赖边记录**实际读取** + 传递失效 | `record_pname_dep` | §17 | P1 |
+| 9 | 逐过程 CFG 结构比对判断变更 | `Procdesc.mark_if_unchanged` | §17.3 | P1 |
+| 10 | L1/L2/S2 分级告警 | `bufferOverrunProofObligations.ml` | §12.2 | P1 |
+| 11 | 库函数模型表 | `bufferOverrunModels.ml` | §12.3 | P1 |
+| 12 | 不设最大调用深度 | `ondemand_callchain_limit` 无默认 | §15 | P0（省事） |
+
+**反面借鉴**（Infer 做错的，我们不要重蹈）：
+
+| # | 教训 | 证据 |
+|---|---|---|
+| R1 | **extent 必须是内存模型的一等属性、在声明处建立**，不能绑在初始化器过程的摘要上 | 全局数组漏报，报告 §14.3 |
+| R2 | **声明处不能对聚合类型止步**，必须递归进 struct/union 字段 | `decl_local_loc` 的 `Tstruct` 分支，附录 D §3.1 |
+| R3 | 函数指针要专门建模，不能降级成"未知调用" | 报告 §14.4 |
+| R4 | **"没分析"要和"分析了没问题"在产物里分开**，不能只写日志 | `--bo-max-cfg-size` 静默跳过，附录 D |
+| R5 | 摘要磁盘格式要跨语言可读 | OCaml `Marshal`，报告 §7.2 |
+| R6 | 不要用放宽报告等级去换召回 | 附录 D：+1 TP 赔 13 个文件 FP |
+
+---
+
+## 5. 假设清单（每条都要先验证）
+
+| 编号 | 假设 | 若不成立 | 测法 |
+|---|---|---|---|
+| **A1** | CSA 的 `getStaticSize()` 对 `FieldRegion` 可用且正确 | ExtentModel 工作量 ×2 | T0-1 |
+| **A2** | 内存访问有相当比例经由内部封装函数 | 模型表收益下降，降到 P2 | T1-3 |
+| **A3** | 越界 unsupported 里循环占主要比例 | §1 的修正不成立，可回到"CSA 主采" | T0-4 |
+| **A4** | 真实越界有相当比例跨 ≥3 层调用 | 跨过程摘要的 ROI 要重估，可能只做 2–3 层足够 | T0-3 |
+| **A5** | 你们有稳定的 `compile_commands.json` 覆盖全量代码 | 全量分析路径受阻，要先解决构建集成 | ✅ **已验证且已跑通 capture**：10232 个唯一源文件 **100% 落库**、328602 个过程（T1-1） |
+| **A6** | 现有 CSA 告警可以按函数 USR 聚合并与摘要通道去重 | 两条通道会出重复告警，需要额外去重层 | T1-5 |
+
+---
+
+## 6. 明确不做的（第一版）
+
+写清楚边界，避免范围蔓延：
+
+* ❌ **不做 SCC 不动点**——递归环上直接保守回退。
+* ❌ **不做真正的指向集合分析**——函数指针只做同函数内常量赋值。
+* ❌ **不做 C++**——模板、容器、引用、虚函数全部不在第一版范围。
+  （附录 D 的全部实测也都是 C。）
+* ❌ **不做路径敏感的摘要**——摘要是非析取的。要路径精度就走现有 CSA 规则那条通道。
+* ❌ **不追求"摘要通道精度不低于现有规则"**——见 §25.3，这是设计前提不是遗憾。
+* ❌ **不替换现有 CTU**——先并存。CTU 是"跨 TU inline"，摘要是另一条路，
+  等摘要通道数据好看了再谈是否收掉 CTU。
+
+---
+
+## 7. 与现有 CSA 的关系（一句话版）
+
+| 现有的东西 | 会不会被动 |
+|---|---|
+| 几十个现有 Checker | **完全不动** |
+| `SVal` / `SymExpr` / `ConstraintManager` | 复用，不改 |
+| `MemRegion` / RegionStore | **复用，且是我们相对 Infer 的优势**（A1 待验证） |
+| ExplodedGraph / ExprEngine | 不改；摘要生成完全不走这里 |
+| `Checkers.td` / bxen / CI | 加一条新 checker 的注册，其余不动 |
+| CTU | 并存，暂不动 |
