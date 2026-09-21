@@ -1,5 +1,120 @@
 # CHANGELOG
 
+## v3.3 — 2026-09-21
+
+使用方按 v3.2 的手动步骤从零编译成功后，提出的三个问题。三个都成立，全部落地。
+
+### 1. infer 源码钉在调研基线 commit（使用方指出的隐患）
+
+**问题**：本包的实验数据和 MiniOobChecker 注册补丁都是在 `facebook/infer`
+`3d38229b04b649024fee065621f6a4c838f6d029` 上产出和验证的，但脚本 20 clone 的是**当时最新的 main**。
+补丁是 `git diff` 生成的上下文补丁，靠被改文件周边几行定位 —— 今天能打上，
+只说明基线到今天之间上游恰好没动这几个文件，不是保证。
+
+2026-09-21 实测漂移【实测数据】：main `63568044` 比基线多 2 个 commit，
+改的是 `pulse/`（taint 匹配、TreeBorrows）、`IR/Specialization.ml` 和 Rust 测试共 15 个文件；
+**补丁涉及的 9 个文件、`opam/infer.opam.locked`、BufferOverrun、`labs/` 均未改动** ——
+所以使用方在最新 main 上打补丁成功了。但这是"恰好"。
+
+**为什么必须在脚本 20 切、而不是 50 打补丁前才切**：20 之后每一步都读 infer 的 lock 文件
+（20 预填缓存、25 预取源、30 装依赖）。等到 50 才切，就是"按新 lock 装的依赖 + 旧源码"。
+
+**新增**
+
+* `04-setup/scripts/_baseline.sh` —— 统一定义基线 commit，20 / 30 / 50 / `run-all.sh` 都读它。
+  环境变量 `INFER_REF` 可覆盖（sha / tag / `main` / `HEAD`）。
+
+**变更**
+
+* `20-prepare-opam-repo.sh`：clone 之后立刻 `checkout` 到基线。已有 clone 时：
+  已在基线 → ✓；不在基线且工作区干净 → 自动切；不在基线且工作区有改动（跑过 45 或 50）
+  → **不替你动**，停下给三选一（`stash` 后切回基线 / `INFER_REF=HEAD` 维持现状 / 删了重来）。
+  顺带修了 `git clone ... | sed` 吞掉 clone 失败退出码的问题。
+* `30-install-deps.sh`：删掉兜底 `git clone`（兜底出来的是最新 main，跟 20 读的 lock 不一致），
+  改为要求先跑 20；开头打印 infer 源码是否在基线上。
+* `50-install-minioobchecker.sh` 重写成 4 步：
+  1. 核对版本；不在基线时列出**补丁涉及的文件里哪些在基线之后被上游改过**
+     （浅克隆里没有基线 commit 时如实说"无法比较"，不误报"都没改过"）；
+  2. 打补丁三级兜底：`git apply --check` → `--3way` 三方合并 → 失败则**回滚干净**
+     （`--3way` 冲突会留下半截合并和冲突标记，旧逻辑没处理）并给出回到基线的命令；
+  3. **可重跑**：9 个文件都已含 MiniOob 注册就跳过（旧版重跑会在 `git apply` 直接报错；
+     也不能只靠 `--reverse --check`，经 `--3way` 合并打上的补丁反向校验会失败）；
+     只打了一半时明确报出并给回滚命令；
+  4. 增量 make + 跑 demo（先清掉上次的 `out/`）。
+
+  在一个基线 worktree 上实测了 7 种情形：基线首次打 / 基线重跑 / main 上打 /
+  相邻冲突（回滚干净）/ 非相邻漂移（`--3way` 成功）/ `--3way` 后重跑 / 半截状态。全部符合预期。
+
+### 2. 预编译包下载：失效的 `SSL_CERT_FILE` 让 curl 报 (77)
+
+**问题**：v3.2 文档第 5 步是一条手敲的 `curl`，使用方实测报
+`curl: (77) error setting certificate file: /tmp/_MEI7vvHlN/certifi/cacert.pem`。
+根因：`SSL_CERT_FILE` 指向某个 PyInstaller 打包工具的临时目录，工具退出后目录被清掉。
+使用方的解法 `unset SSL_CERT_FILE` 是对的，且只影响当前窗口。
+
+说明：`run-all.sh` 里的那条 curl **其实已经受保护**—— `run-all.sh` 开头 source 了
+`_progress.sh`，它的 CA 自检会把失效变量 unset，子进程继承（已实测验证）。
+真正没保护的是**文档里让人手敲的那条**。
+
+**新增**
+
+* `04-setup/scripts/35-fetch-prebuilt.sh` —— 预编译包的下载 + 校验 + 解压挪进脚本：
+  - source `_progress.sh`，启动即完成 CA 自检；
+  - 先下到 `.part`，完整后改名；已有压缩包先 `xz -t` 校验，截断的会重下（已实测）；
+  - 已解压就跳过；
+  - 失败时按 curl 退出码给出原因（77 CA 文件 / 60 证书校验 / 22 HTTP 错误 / 6·7·28 连不上 / 35 TLS）；
+  - 下不了时可 `PREBUILT_TARBALL=<本地路径>` 用别处拷来的包。
+
+**变更**
+
+* `40-build-infer.sh`：没设 `PREBUILT` 时自动用 35 解压到的默认位置，手动流程里不再需要 `export PREBUILT`。
+* `opam-env.sh`：source 时顺手清掉**指向不存在文件**的 CA 变量（只影响当前窗口；
+  指向存在文件的，比如公司代理根证书，原样保留）。改用 `eval` 取值，bash / zsh 都能用。
+* `00-check-env.sh` 新增「0. CA 证书环境变量」一节。**这是个一直存在的隐藏 bug**：
+  失效的 CA 变量会让它第 3 节的网络探测全部失败，给出"全都不可达"的错误结论。
+  现在先查出来、在自己进程里忽略掉再探测，并告诉你手敲 curl 前怎么处理。
+* 所有文档里让人手敲的 `curl` 都改成 `curl -fL`，并加上 (77) 的一行提示。
+
+### 3. `run-all.sh` 重写：先打计划、逐步编号、失败即停
+
+* **开跑前打印执行计划**：每一步 `[i/N]` + 标题 + 预计耗时；跳过的步骤标 `——` 并写明原因
+  （`FROM` 之前 / 条件步骤 25 未开 / `SKIP_CHECKER`）；以及基线 commit、日志目录。
+* **每一步打 `[i/N]` 标题**，同时给出这一步单独执行的命令和日志文件位置。
+* **每一步的完整输出 tee 到** `$WORK/logs/run-all-<时间戳>/<脚本名>.log`。
+* **任何致命步骤失败立即停下**，红字报出第几步、哪个脚本、退出码、用时，并给三件事：
+  单独执行这一步的完整命令（含 `export WORK/J/DLJ` 和 `. ./opam-env.sh`）、
+  修好后 `FROM=<步号> ./run-all.sh` 接着跑、排障表位置。
+  30 日志里有 `Could not synchronize`、35 下载失败时另给针对性提示。
+* **结束或失败时打印汇总表**：每步 ✓ 成功 / ! 非致命失败 / ✗ 失败 / — 跳过 / · 未执行，及耗时。
+* 00 与 25 的失败是非致命的（体检有 ✗ 很正常；预取失败时 30 仍可尝试）。
+* 中文标题按终端显示宽度对齐（bash 的 `printf %-Ns` 按字节算宽度，中文会错位）。
+* `FROM` 新增可选值 `35`。
+
+### 文档
+
+* `04-setup/01-restricted-network-build.md`
+  - 「执行（A）」重写：说明计划 / 编号 / 日志 / 失败即停 / 汇总表的行为；变量表加 `INFER_REF`。
+  - 「执行（B）」第 5 步改为 `./35-fetch-prebuilt.sh`，去掉 `export PREBUILT`；
+    第 8 步写明预期版本号；新增 curl (77) 的原因与处理说明。
+  - **新增一节「为什么要钉在调研基线 commit」**：隐患、实测漂移表、为什么在 20 切、
+    v3.3 的做法、老环境如何切回基线、如何刻意用别的 commit。
+  - 标准路线的 `git clone` 之后加 `git checkout <基线>`；手敲 curl 加 (77) 提示。
+  - 脚本表：新增 `_baseline.sh`、`35-fetch-prebuilt.sh`；更新 `run-all.sh` / 00 / 20 / 40 / 50 各行。
+  - 故障表新增三行：curl (77)、脚本 20 因工作区有改动拒绝切基线、脚本 50 补丁打不上。
+* `03-MiniOobChecker/README.md`：安装步骤先切基线；**新增「在其他 commit 上安装」**：
+  如何查补丁文件是否被上游改过、`--3way` 何时能自动合并、合并不了时照着
+  `LithoRequiredProps` 那一项逐文件手工移植（附 9 个文件各加什么的对照表）。
+* `04-setup/README.md`：快速开始同步；标准流程加 `git checkout <基线>`；
+  Docker 片段补上**浅克隆**下的 `git fetch --depth 1 origin <基线 sha>`
+  （上游 Dockerfile 用 `--depth 1`，浅克隆里没有基线 commit；已实测 GitHub 支持按 sha 浅取）。
+* `README.md`：v3.3 条目；快速开始的 curl 加 (77) 提示。
+
+### 没有变的
+
+分析结论、实验数据、方案 C 设计、工作量估算一个字没动。
+
+---
+
 ## v3.2 — 2026-09-21
 
 把"从零开始到编译完成"这条路补全。起因：使用方要从干净窗口重跑一遍，

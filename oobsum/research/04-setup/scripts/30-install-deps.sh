@@ -47,7 +47,16 @@ fi
 echo "下载并发 OPAMDLJOBS=$DLJ（想再压就 DLJ=1 ./30-install-deps.sh）"
 
 
-[ -d "$INFER" ] || git clone https://github.com/facebook/infer.git "$INFER"
+# infer 源码由脚本 20 clone 并切到调研基线（v3.3）。这里不再兜底 clone——
+# 兜底 clone 出来的是最新 main，lock 文件跟 20 预填缓存时读的那份可能不一致。
+[ -e "$INFER/.git" ] || { echo "✗ 找不到 infer 源码：$INFER —— 先把 ./20-prepare-opam-repo.sh 跑成功。" >&2; exit 2; }
+. "$HERE/_baseline.sh"
+_head=$(git -C "$INFER" rev-parse HEAD)
+if [ "$_head" = "$INFER_BASELINE" ]; then
+  echo "infer 源码在调研基线 ${INFER_BASELINE:0:12} ✓"
+else
+  echo "! infer 源码在 ${_head:0:12}，不是调研基线 ${INFER_BASELINE:0:12}（依赖按这个 commit 的 lock 装）"
+fi
 
 echo "== 关掉 depext（它会去调 apt，受限环境下只会卡住）"
 opam option --global depext=false >/dev/null 2>&1 || true

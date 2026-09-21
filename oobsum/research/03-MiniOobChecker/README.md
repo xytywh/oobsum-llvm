@@ -31,10 +31,52 @@ demo/deep.c                     §19.7 的 20 层深链 + 阴性对照
 
 ## 安装
 
+**最省事**：走 `04-setup/scripts/`（`./run-all.sh` 或逐步到 `50-install-minioobchecker.sh`），
+它会把 infer 钉在调研基线、核对版本、打补丁、增量构建、跑 demo，全部自动。
+
+手动安装：
+
 ```bash
-cp src/MiniOob*.ml src/MiniOob*.mli <infer>/infer/src/labs/
-cd <infer> && git apply /path/to/patch/0001-register-minioob-checker.patch
+cd <infer>
+git checkout 3d38229b04b649024fee065621f6a4c838f6d029      # ★ 先切到调研基线
+cp /path/to/src/MiniOob*.ml /path/to/src/MiniOob*.mli infer/src/labs/
+git apply --check /path/to/patch/0001-register-minioob-checker.patch && \
+git apply         /path/to/patch/0001-register-minioob-checker.patch
 ```
+
+> **为什么一定要先切到基线**：补丁是 `git diff` 生成的**上下文补丁**，靠被改文件周边的几行定位。
+> 在基线上它一定能打上；在更新的 commit 上能不能打上，取决于上游在这之间有没有改动这 9 个文件。
+> 2026-09-21 实测：main 比基线多 2 个 commit，补丁涉及的 9 个文件一个没动，所以能直接打上 ——
+> 但这只是"恰好"，不是保证。
+
+### 在其他 commit 上安装
+
+想在更新的 infer 上用它（比如验证它在最新 main 上是否还成立）：
+
+```bash
+# 1) 先看补丁涉及的文件在基线之后被上游改过哪些
+git diff --stat 3d38229b04b649024fee065621f6a4c838f6d029 HEAD -- \
+    $(grep '^+++ b/' /path/to/patch/0001-register-minioob-checker.patch | sed 's|^+++ b/||')
+
+# 2) 输出为空 → 直接 git apply；有输出 → 试三方合并
+git apply --3way /path/to/patch/0001-register-minioob-checker.patch
+```
+
+`--3way` 在上游只改了补丁**周边**（不相邻）的行时能自动合并；
+改到**紧挨着插入点**的行就会冲突，这时需要手工移植。好在这 37 行改动的模式非常单一
+—— **每个文件都是往一个枚举或列表里加一项 `MiniOob` / `mini_oob`**，照着相邻的
+`LithoRequiredProps` / `litho_required_props` 那一项抄一行即可：
+
+| 文件 | 加什么 |
+|---|---|
+| `backend/Payloads.ml` / `.mli` | 记录字段 `mini_oob`，以及 `all_fields` / `empty` / `freeze` / 加载处各一项（共 6 处） |
+| `backend/registerCheckers.ml` | 登记 `{checker= MiniOob; callbacks= [(interprocedural Payloads.Fields.mini_oob MiniOobChecker.checker, Clang)]}` |
+| `base/Checker.ml` / `.mli` | 枚举成员 `MiniOob` 及其 `config`（名字、说明、支持的语言、默认关闭） |
+| `base/IssueType.ml` / `.mli` | issue 类型 `mini_oob`（报告里显示为 `MINI_OOB`） |
+| `base/PayloadId.ml` / `.mli` | payload 编号 `MiniOob`（`specs` 表的新列由它自动生成） |
+
+脚本 `50-install-minioobchecker.sh` 已经把这套流程自动化：
+`--check` → `--3way` → 失败则回滚干净并告诉你是哪几个文件被上游改过。
 
 **不需要新建或修改任何 dune 文件** —— `infer/src/labs/` 已经是库 `Labs`，
 而 `infer/src/backend/dune` 已经 `-open Labs` 并把 `Labs` 列入 `libraries`。

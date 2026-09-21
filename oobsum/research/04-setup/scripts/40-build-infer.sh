@@ -5,6 +5,11 @@ set -eu
 WORK="${WORK:-$HOME/infer-build}"
 INFER="${INFER:-$WORK/infer}"
 PREBUILT="${PREBUILT:-}"        # 指向解压后的 infer-linux-x86_64-v1.3.0 目录
+# 【v3.3】没设 PREBUILT 时，自动用脚本 35 解压到的默认位置
+if [ -z "$PREBUILT" ] && [ -d "$WORK/infer-linux-x86_64-v1.3.0/lib/infer/facebook-clang-plugins/clang/install" ]; then
+  PREBUILT="$WORK/infer-linux-x86_64-v1.3.0"
+  echo "自动找到预编译包：$PREBUILT"
+fi
 export PATH="$WORK/bin:$PATH"
 export OPAMROOT="${OPAMROOT:-$WORK/opamroot}"
 export OPAMYES=1
@@ -18,8 +23,8 @@ eval "$(opam env --switch=infer541 --set-switch)"
 
 if [ -z "$PREBUILT" ]; then
   echo "提示：没设 PREBUILT，将从源码编译 LLVM/Clang（数小时）。"
-  echo "     强烈建议先下官方预编译包，然后："
-  echo "       export PREBUILT=/path/to/infer-linux-x86_64-v1.3.0"
+  echo "     强烈建议先取官方预编译包（它会解压到 40 自动能找到的位置）："
+  echo "       ./35-fetch-prebuilt.sh"
   read -r -p "     继续从源码编译 LLVM/Clang？[y/N] " a; [ "$a" = y ] || exit 1
 else
   echo "== 复用预编译 clang"

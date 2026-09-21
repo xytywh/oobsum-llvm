@@ -10,10 +10,11 @@
 >
 > ```bash
 > cd 04-setup/scripts
-> ./run-all.sh          # 00→10→20→30→取预编译包→40→50，环境变量都包好了
+> ./run-all.sh          # 先打执行计划，再 00→10→20→30→35→40→50，环境变量都包好了
 > ```
 >
-> 中途挂了修完再跑一次即可；跳过已完成的步骤用 `FROM=30 ./run-all.sh`。
+> 任何一步失败会立即停下，告诉你是哪一步、怎么单独重跑它；修好后 `FROM=<步号> ./run-all.sh` 接着跑。
+> infer 源码会被钉在调研基线 `3d38229b`（MiniOobChecker 补丁就是在它上面验证的）。
 
 ---
 
@@ -23,7 +24,8 @@
 官方 `INSTALL.md` 自己也这么建议："compiling infer's dependencies is time-consuming"。
 
 ```bash
-curl -L -o infer.tar.xz \
+# 报 curl: (77) error setting certificate file 的话，先 unset SSL_CERT_FILE（只影响当前窗口）
+curl -fL -o infer.tar.xz \
   https://github.com/facebook/infer/releases/download/v1.3.0/infer-linux-x86_64-v1.3.0.tar.xz
 tar xf infer.tar.xz
 export PATH=$PWD/infer-linux-x86_64-v1.3.0/bin:$PATH
@@ -59,6 +61,7 @@ apt-get install --yes --no-install-recommends \
 ```bash
 git clone https://github.com/facebook/infer.git
 cd infer
+git checkout 3d38229b04b649024fee065621f6a4c838f6d029   # 调研基线（要跑 MiniOobChecker 就必须）
 ./build-infer.sh clang                       # 只构建 C/C++/ObjC 分析器
 # 或 ./build-infer.sh --local-opam-switch clang   （switch 建在仓库内 _opam/，不污染全局）
 sudo make install                            # 或 export PATH=$PWD/infer/bin:$PATH
@@ -115,5 +118,8 @@ docker run --rm -v "$PWD/testcode:/testcode" infer-from-source \
 COPY 03-MiniOobChecker/src/MiniOob*.ml  /infer/infer/src/labs/
 COPY 03-MiniOobChecker/src/MiniOob*.mli /infer/infer/src/labs/
 COPY 03-MiniOobChecker/patch/0001-register-minioob-checker.patch /infer/
-RUN cd /infer && git apply 0001-register-minioob-checker.patch
+# 上游 Dockerfile 用的是 git clone --depth 1，浅克隆里没有基线 commit，要单独 fetch 一次
+RUN cd /infer && git fetch --depth 1 origin 3d38229b04b649024fee065621f6a4c838f6d029 \
+ && git checkout 3d38229b04b649024fee065621f6a4c838f6d029 \
+ && git apply 0001-register-minioob-checker.patch
 ```

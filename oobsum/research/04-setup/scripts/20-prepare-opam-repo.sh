@@ -89,12 +89,63 @@ fi
 # 【v2.7 修复】预填缓存要读 infer 的 lock 文件才知道该预填哪些包，
 # 而 infer 源码原本是脚本 30 才 clone 的 —— 顺序又错了一次。
 # 现在把 clone 提到这里（它很快，而且 20 自此自洽，不依赖 30）。
-step "clone infer 源码（预填缓存要读它的 opam lock）"
+#
+# 【v3.3】clone 之后**立刻切到调研基线 commit**（见 _baseline.sh 的说明）。
+#   必须在这里切、不能等到 50 打补丁前才切：后面每一步都读 infer 的 lock 文件定依赖版本。
+step "clone infer 源码并切到调研基线（预填缓存要读它的 opam lock）"
+. "$HERE/_baseline.sh"
 INFER="${INFER:-$WORK/infer}"
-if [ -d "$INFER/.git" ]; then
-  echo "   已存在，跳过：$INFER"
+if [ -e "$INFER/.git" ]; then
+  echo "   已存在：$INFER"
 else
   git clone --progress https://github.com/facebook/infer.git "$INFER" 2>&1 | sed -u 's/^/   /'
+  # 上面的管道会吞掉 git 的退出码，所以用结果判断
+  [ -e "$INFER/.git" ] || { echo "   ✗ clone infer 失败" >&2; exit 1; }
+fi
+
+cur=$(git -C "$INFER" rev-parse HEAD)
+want=$(git -C "$INFER" rev-parse --verify -q "$INFER_REF^{commit}" 2>/dev/null || true)
+if [ -z "$want" ]; then
+  # 本地没有这个 commit（比如 INFER_REF 指向一个更新的 sha），尝试单独 fetch
+  echo "   本地没有 $INFER_REF，尝试 git fetch ..."
+  git -C "$INFER" fetch -q origin "$INFER_REF" 2>/dev/null || git -C "$INFER" fetch -q origin 2>/dev/null || true
+  want=$(git -C "$INFER" rev-parse --verify -q "$INFER_REF^{commit}" 2>/dev/null || \
+         git -C "$INFER" rev-parse --verify -q FETCH_HEAD 2>/dev/null || true)
+  [ -n "$want" ] || { echo "   ✗ 找不到 commit：$INFER_REF" >&2; exit 1; }
+fi
+
+if [ "$cur" = "$want" ]; then
+  echo "   ✓ 已在目标 commit：${want:0:12}$([ "$want" = "$INFER_BASELINE" ] && echo '（调研基线）')"
+elif [ -z "$(git -C "$INFER" status --porcelain)" ]; then
+  # 工作区干净 = 没有任何本地改动会丢，直接切
+  git -C "$INFER" -c advice.detachedHead=false checkout -q "$want"
+  echo "   ✓ 已切换：${cur:0:12} → ${want:0:12}$([ "$want" = "$INFER_BASELINE" ] && echo '（调研基线）')"
+else
+  # 工作区有改动（多半是之前跑过 45 摘 Rust 前端、或 50 打过补丁），不替你动
+  cat >&2 <<EOF
+
+   ✗ 已有的 infer 源码在 ${cur:0:12}，不是目标 commit ${want:0:12}，而且工作区有本地改动：
+$(git -C "$INFER" status --short | head -8 | sed 's/^/        /')
+     （通常是之前跑 45 摘掉 Rust 前端、或 50 打进 MiniOobChecker 补丁留下的）
+
+     本脚本不替你动有改动的工作区。三选一：
+
+     a) 切回基线（推荐；改动会收进 stash，不会丢）：
+          git -C $INFER stash -u
+          git -C $INFER checkout $want
+          FROM=20 $HERE/run-all.sh       # 20 之后的步骤都要按新 lock 重跑
+
+     b) 维持现状、就用当前这个 commit：
+          INFER_REF=HEAD $HERE/20-prepare-opam-repo.sh
+
+     c) 推倒重来：
+          rm -rf $INFER && $HERE/20-prepare-opam-repo.sh
+EOF
+  exit 1
+fi
+if [ "$want" != "$INFER_BASELINE" ]; then
+  echo "   ! 注意：当前不是调研基线 ${INFER_BASELINE:0:12}（INFER_REF=$INFER_REF）。"
+  echo "     MiniOobChecker 补丁和报告里的数据都是在基线上验证的，换 commit 后以实测为准。"
 fi
 LOCK="$INFER/opam/infer.opam.locked"
 if [ -f "$LOCK" ]; then

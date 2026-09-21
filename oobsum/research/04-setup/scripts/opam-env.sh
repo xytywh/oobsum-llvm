@@ -31,6 +31,19 @@ export OPAMYES="${OPAMYES:-1}"
 export OPAMCOLOR="${OPAMCOLOR:-never}"
 export OPAMDLJOBS="${OPAMDLJOBS:-4}"
 
+# 失效的 CA 证书环境变量：指向的文件不存在就 unset（只影响当前 shell，别的窗口不受影响）。
+# 实测：残留的 SSL_CERT_FILE=/tmp/_MEIxxxx/certifi/cacert.pem 会让手敲的 curl 报
+#   curl: (77) error setting certificate file
+# 指向**存在**的文件（比如公司代理的根证书）则原样保留，不碰。
+for _oe_v in SSL_CERT_FILE CURL_CA_BUNDLE REQUESTS_CA_BUNDLE; do
+  _oe_val=$(eval "printf '%s' \"\${$_oe_v:-}\"")
+  if [ -n "$_oe_val" ] && [ ! -f "$_oe_val" ]; then
+    unset "$_oe_v"
+    echo "  · 已 unset $_oe_v（原值 $_oe_val 不存在；只影响当前窗口）"
+  fi
+done
+unset _oe_v _oe_val
+
 # 有人不小心裸跑过 opam init 的话，~/.opam 会冒出来。它不是我们的 root，留着只会混淆。
 if [ -d "$HOME/.opam" ] && [ "$OPAMROOT" != "$HOME/.opam" ]; then
   echo "  ! 检测到 $HOME/.opam —— 这**不是**本套脚本用的 opam root。"

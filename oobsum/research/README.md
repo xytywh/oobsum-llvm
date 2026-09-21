@@ -1,4 +1,4 @@
-# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.2）
+# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.3）
 
 一句话：**这个包里只有一份"正文"（报告），其余全是为了让你能亲手复现、读懂、并在自己代码库上用起来的材料。**
 
@@ -44,6 +44,10 @@
 > 00→10→20→30→取预编译包→40→50，支持 `FROM=<步号>` 断点续跑。
 > 同时补全了文档里那份**不完整**的手动命令序列（缺条件步骤 25、缺 `OPAMROOT`/`DLJ`、
 > 缺最后把 infer 加进 PATH）。
+> **v3.3** 三项来自使用方实测的加固：① **infer 源码钉在调研基线 `3d38229b`**
+> （旧版 clone 的是最新 main，MiniOobChecker 补丁迟早会因上下文漂移打不上）；
+> ② 预编译包下载挪进新脚本 `35-fetch-prebuilt.sh`，失效的 `SSL_CERT_FILE` 不再让 curl 报 (77)；
+> ③ `run-all.sh` 先打执行计划、逐步 `[i/N]`、失败即停并告诉你怎么单独重跑那一步、最后出汇总表。
 >
 > ⚠️ **v2.5 在 git 里是一次大规模重命名**（35 个条目 + 根目录）。
 > 提交时用 `git add -A`，让 git 的 rename detection 生效，
@@ -131,7 +135,8 @@ CHANGELOG.md   ← 版本变更清单
 
 ```bash
 # 1) 装 infer（不要一上来就从源码编译）
-curl -L -o infer.tar.xz \
+#    报 curl: (77) error setting certificate file 的话，先 unset SSL_CERT_FILE（只影响当前窗口）
+curl -fL -o infer.tar.xz \
   https://github.com/facebook/infer/releases/download/v1.3.0/infer-linux-x86_64-v1.3.0.tar.xz
 tar xf infer.tar.xz && export PATH=$PWD/infer-linux-x86_64-v1.3.0/bin:$PATH
 infer --version                                  # 预期 Infer version v1.3.0
@@ -186,7 +191,8 @@ infer analyze --bufferoverrun-only
 ## 不在这个包里的东西
 
 * **Infer 源码本身**：请自行 `git clone https://github.com/facebook/infer.git`，
-  报告里所有源码引用都标了文件路径与行号，对着上面那个 commit 看即可。
+  然后 `git checkout 3d38229b04b649024fee065621f6a4c838f6d029`。
+  报告里所有源码引用的文件路径与行号、MiniOobChecker 的补丁，都以这个 commit 为准。
 * **官方预编译二进制**（276 MB）：下载命令见上。
 * **我们调研时对 Infer 工作树做的沙箱适配改动**（为绕开不可达的 charon 而摘掉 Rust 前端）：
   那是一次性环境 hack，不该进入你们的代码。需要时由

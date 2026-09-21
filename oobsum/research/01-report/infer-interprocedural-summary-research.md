@@ -2211,6 +2211,7 @@ apt-get install --yes --no-install-recommends \
 ```bash
 git clone https://github.com/facebook/infer.git
 cd infer
+git checkout 3d38229b04b649024fee065621f6a4c838f6d029   # 本报告的调研基线（v3.3 补）
 ./build-infer.sh clang        # 只构建 C/C++/ObjC 分析器
 # 或 ./build-infer.sh --local-opam-switch clang   （把 opam switch 建在仓库内的 _opam/，不污染全局）
 sudo make install             # 或 export PATH=$PWD/infer/bin:$PATH
