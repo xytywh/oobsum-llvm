@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body>
+<title>Summary 2.0 实施计划</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap">
+<style>
+:root{
+  --bg:#F3F5F8; --surface:#FFFFFF; --surface-2:#E9EDF3; --ink:#17202B; --ink-2:#465164; --muted:#6A7585;
+  --line:#D4DBE5; --line-2:#E4E9F0;
+  --accent:#1C5DAE; --accent-soft:#E2ECF9;
+  --gate:#9C5B07; --gate-soft:#FAEFDC;
+  --crit:#AE2A20; --crit-soft:#FBE8E6;
+  --ok:#2C7A4C; --ok-soft:#E3F2E9;
+  --ph-prep:#8C96A7; --ph-core:#1C5DAE; --ph-cov:#4A86CF; --ph-real:#6A58B4; --ph-fin:#2C7A4C;
+  --bar-ink:#FFFFFF; --holiday:#E7D6BC;
+  --serif:"Noto Serif SC","Songti SC","SimSun",serif;
+  --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif;
+  --mono:"IBM Plex Mono","SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F131A; --surface:#161B24; --surface-2:#1E2530; --ink:#E2E7EE; --ink-2:#B2BBC8; --muted:#8A94A3;
+    --line:#2B3441; --line-2:#222A35;
+    --accent:#6FA8EC; --accent-soft:#1A2A3F;
+    --gate:#E2A94E; --gate-soft:#30261A;
+    --crit:#EF8B81; --crit-soft:#3A201E;
+    --ok:#6CC491; --ok-soft:#1A2E23;
+    --ph-prep:#5D6778; --ph-core:#3E78C4; --ph-cov:#5A93D6; --ph-real:#7B6AC6; --ph-fin:#3C8E5E;
+    --bar-ink:#FFFFFF; --holiday:#4A3B26;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F131A; --surface:#161B24; --surface-2:#1E2530; --ink:#E2E7EE; --ink-2:#B2BBC8; --muted:#8A94A3;
+  --line:#2B3441; --line-2:#222A35;
+  --accent:#6FA8EC; --accent-soft:#1A2A3F;
+  --gate:#E2A94E; --gate-soft:#30261A;
+  --crit:#EF8B81; --crit-soft:#3A201E;
+  --ok:#6CC491; --ok-soft:#1A2E23;
+  --ph-prep:#5D6778; --ph-core:#3E78C4; --ph-cov:#5A93D6; --ph-real:#7B6AC6; --ph-fin:#3C8E5E;
+  --bar-ink:#FFFFFF; --holiday:#4A3B26;
+}
+*{box-sizing:border-box}
+body{background:var(--bg); color:var(--ink); font:15px/1.75 var(--sans); padding-inline:18px; padding-block:0 64px;}
+.wrap{max-width:980px; margin:0 auto}
+a{color:var(--accent)}
+code,.mono{font-family:var(--mono); font-size:.88em}
+code{background:var(--surface-2); padding:1px 5px; border-radius:3px; overflow-wrap:anywhere}
+h1,h2{font-family:var(--serif); text-wrap:balance; letter-spacing:.01em}
+h2{font-size:22px; line-height:1.35; margin:0 0 6px}
+h3{font-size:15px; margin:22px 0 8px; font-weight:700}
+p{margin:0 0 12px; max-width:68ch}
+.lede{color:var(--ink-2); margin-bottom:18px}
+strong{font-weight:700}
+
+/* masthead */
+.mast{padding-block:40px 28px; border-bottom:1px solid var(--line); margin-bottom:8px}
+.eyebrow{font:500 11.5px/1.4 var(--mono); letter-spacing:.06em; color:var(--muted); margin-bottom:14px}
+.mast h1{font-size:clamp(26px,4.4vw,38px); line-height:1.25; margin:0 0 16px}
+.mast h1 .due{color:var(--gate)}
+.thesis{font-size:16.5px; line-height:1.8; max-width:62ch; margin-bottom:22px}
+.facts{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:0; border:1px solid var(--line); background:var(--surface)}
+.facts div{padding:12px 14px; border-right:1px solid var(--line-2)}
+.facts div:last-child{border-right:0}
+.facts dt{font:500 10.5px/1.3 var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:4px}
+.facts dd{margin:0; font:600 17px/1.35 var(--mono); font-variant-numeric:tabular-nums}
+.facts dd small{display:block; font:400 12px/1.5 var(--sans); color:var(--ink-2); margin-top:2px}
+@media (max-width:620px){ .facts div{border-right:0; border-bottom:1px solid var(--line-2)} .facts div:last-child{border-bottom:0} }
+
+section{padding-block:34px 6px}
+.sec-hd{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:6px}
+.sec-hd .tag{font:500 11px/1 var(--mono); letter-spacing:.1em; color:var(--muted); text-transform:uppercase}
+
+/* tables */
+.tw{overflow-x:auto; border:1px solid var(--line); background:var(--surface); margin:12px 0 8px}
+table{border-collapse:collapse; width:100%; font-size:14px; line-height:1.6}
+th,td{padding:9px 12px; text-align:left; vertical-align:top; border-bottom:1px solid var(--line-2)}
+thead th{font:500 11px/1.4 var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--muted); background:var(--surface-2); border-bottom:1px solid var(--line); white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+td.id{font:600 13px/1.6 var(--mono); white-space:nowrap}
+td.date{font-family:var(--mono); font-size:13px; white-space:nowrap; font-variant-numeric:tabular-nums}
+td.num{font-family:var(--mono); text-align:right; font-variant-numeric:tabular-nums}
+td.src{font-size:12.5px; color:var(--muted); white-space:nowrap}
+tr.gate-row td{background:var(--gate-soft)}
+.pill{display:inline-block; font:600 11px/1 var(--mono); padding:4px 7px; border-radius:3px; letter-spacing:.04em; white-space:nowrap}
+.pill.gate{background:var(--gate); color:var(--surface)}
+.pill.p0{background:var(--accent); color:var(--surface)}
+.pill.keep{background:var(--crit-soft); color:var(--crit); border:1px solid var(--crit)}
+.blank{display:inline-block; min-width:3.2em; border-bottom:1.5px solid var(--gate); color:var(--gate); font-family:var(--mono); text-align:center}
+
+/* timeline */
+.tl-wrap{overflow-x:auto; border:1px solid var(--line); background:var(--surface); padding:16px 16px 12px; margin:14px 0 6px}
+.tl{min-width:880px; display:grid; grid-template-columns:repeat(85,1fr); row-gap:6px; position:relative}
+.tl .mo{grid-row:1; font:500 11px/1 var(--mono); color:var(--muted); border-left:1px solid var(--line); padding-left:4px; white-space:nowrap; align-self:end; height:16px}
+.tl .frz-lbl{grid-row:4; font:500 11px/1 var(--mono); color:var(--crit); white-space:nowrap; justify-self:end; border-right:2px dashed var(--crit); padding:2px 6px 2px 0; margin-right:-1px}
+.tl .hol{grid-row:2; background:repeating-linear-gradient(135deg,var(--holiday) 0 4px,transparent 4px 8px); border-radius:2px; z-index:0}
+.tl .wk{grid-row:2; z-index:1; height:30px; margin:0 1px; border-radius:3px; color:var(--bar-ink); font:600 10.5px/30px var(--mono); text-align:center; overflow:hidden; white-space:nowrap}
+.tl .frz{grid-row:2; z-index:2; border-left:2px dashed var(--crit); margin-left:-1px; pointer-events:none}
+.tl .gt{grid-row:3; position:relative; height:44px}
+.tl .gt i{position:absolute; left:50%; top:2px; width:10px; height:10px; background:var(--gate); transform:translateX(-50%) rotate(45deg)}
+.tl .gt span{position:absolute; top:16px; left:50%; transform:translateX(-50%); font:600 11px/1.3 var(--mono); color:var(--gate); text-align:center; white-space:nowrap}
+.tl .gt.last span{left:auto; right:0; transform:none; text-align:right}
+.tl .gt.last i{left:auto; right:0; transform:rotate(45deg)}
+.ph-prep{background:var(--ph-prep)} .ph-core{background:var(--ph-core)} .ph-cov{background:var(--ph-cov)} .ph-real{background:var(--ph-real)} .ph-fin{background:var(--ph-fin)}
+.legend{display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12.5px; color:var(--ink-2); margin:6px 0 0}
+.legend span{display:inline-flex; align-items:center; gap:6px}
+.legend b{width:12px; height:12px; border-radius:2px; display:inline-block}
+.legend b.hol-sw{background:repeating-linear-gradient(135deg,var(--holiday) 0 3px,transparent 3px 6px); border:1px solid var(--line)}
+
+/* callouts */
+.note{border:1px solid var(--line); background:var(--surface); padding:14px 16px; margin:14px 0}
+.note.warn{border-color:var(--crit); background:var(--crit-soft)}
+.note .hdr{font:600 11px/1.3 var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:6px}
+.note.warn .hdr{color:var(--crit)}
+.note p:last-child{margin-bottom:0}
+
+/* allocator diagram */
+.flow{display:grid; grid-template-columns:1fr auto 1fr; gap:10px; align-items:stretch; margin:14px 0}
+.flow .box{border:1px solid var(--line); background:var(--surface); padding:12px 14px; font-size:13.5px}
+.flow .box h4{margin:0 0 6px; font:600 12px/1.3 var(--mono); letter-spacing:.06em; color:var(--muted); text-transform:uppercase}
+.flow .box pre{margin:0; font:12.5px/1.65 var(--mono); white-space:pre-wrap; overflow-wrap:anywhere; color:var(--ink)}
+.flow .arrow{align-self:center; font:600 18px/1 var(--mono); color:var(--accent)}
+.flow .out{grid-column:1 / -1; border-color:var(--accent); background:var(--accent-soft)}
+@media (max-width:700px){ .flow{grid-template-columns:1fr} .flow .arrow{justify-self:center; transform:rotate(90deg)} }
+
+.cols{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px}
+.cols ul{margin:6px 0 0; padding-left:1.2em}
+.cols li{margin:3px 0}
+ol.cut{margin:8px 0 12px; padding-left:1.4em}
+ol.cut li{margin:4px 0}
+.ev{font:500 10.5px/1 var(--mono); color:var(--muted); border:1px solid var(--line); padding:2px 5px; border-radius:3px; white-space:nowrap; vertical-align:1px}
+footer{margin-top:40px; padding-top:16px; border-top:1px solid var(--line); font-size:12.5px; color:var(--muted)}
+footer p{max-width:none}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">CSA Summary 2.0 · rb.enhance.ipa.OobSummary · 调研包 v3.7 · 2026-09-22</div>
+  <h1>跨多层调用越界检测：<span class="due">12 月 15 日</span>交付计划</h1>
+  <p class="thesis">在现有 CSA 规则之外新建一条<strong>摘要通道</strong>：一个不走 ExprEngine 的抽象解释引擎，
+    给每个函数算出“越界安全条件”摘要，在调用点把形参代换成实参、逐层往上传，传到数组大小和下标都已知的那一层再判定。
+    专门补现有规则因<strong>路径爆炸</strong>而漏掉的 ≥ 3 层调用越界；1–2 层仍由现有规则负责。</p>
+  <dl class="facts">
+    <div><dt>交付</dt><dd>2026-12-15<small>12-11 代码冻结</small></dd></div>
+    <div><dt>可用工作日</dt><dd>56 天<small>扣除中秋、国庆，含 <span style="white-space:nowrap">10-10</span> 调休</small></dd></div>
+    <div><dt>检查点</dt><dd>G0 – G4<small>10-10 · 10-30 · 11-20 · 12-04 · 12-15</small></dd></div>
+    <div><dt>深度目标</dt><dd>2–17 层<small>不设上限，验收到 20 层</small></dd></div>
+    <div><dt>P0 工作量</dt><dd>42–64 人日<small>Claude 写码 + 你调试跑测 <span class="ev">推断</span></small></dd></div>
+  </dl>
+</header>
+
+<section id="why">
+  <div class="sec-hd"><h2>为什么是这条路</h2><span class="tag">已立项 · D0 / D1</span></div>
+  <p>inline 每深一层，路径数成倍增长；摘要让层与层之间变成<strong>相加</strong>——每个函数只分析一次，
+    Infer 实测 200 层链 0.76 秒，MiniOob 20 层 0.31 秒 <span class="ev">实测数据</span>。
+    引擎不走 ExprEngine，才不会在 CSA 放弃探索的地方跟着缺席：立项输入的根因“路径爆炸”，说的正是 CSA 在那儿没有事实可采。</p>
+  <p><strong>层数不限制成本，限制精度的是链上每一层做了什么</strong>：线性传递无损；分支合并、循环会让区间变宽（L1 可能降为 L2）；
+    调用没有摘要也没有模型的函数、函数指针、递归会让条件断链；链顶不在分析范围内则一路 StillOpen 不报。</p>
+  <div class="tw"><table>
+    <thead><tr><th></th><th>12 月 15 日交付</th><th>不在本期</th></tr></thead>
+    <tbody>
+      <tr><td class="id">问题</td><td>跨多层调用的内存越界漏报（立项统计 2–17 层）</td><td>空指针、泄漏、UAF 等其它规则族</td></tr>
+      <tr><td class="id">与现有规则</td><td>摘要通道只报 &gt; <code>inlineDepth</code>（默认 2）层；CSA 已知盲区不受此限</td><td>不改任何现有 checker</td></tr>
+      <tr><td class="id">语言</td><td>C</td><td>C++（模板、虚函数、引用）</td></tr>
+      <tr><td class="id">运行方式</td><td>bxen 全量模式批量跑，出与现有规则同格式的告警</td><td>增量分析、CI 门禁</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="schedule">
+  <div class="sec-hd"><h2>倒排计划</h2><span class="tag">2026-09-22 → 12-15 · 按日历日绘制</span></div>
+  <p class="lede">前三周被中秋和国庆切碎，只放低耦合的准备工作；主干从 W04 开始连续推进。</p>
+  <div class="tl-wrap" role="img" aria-label="W01 到 W13 的周计划甘特图，标出中秋与国庆假期、五个检查点和 12 月 11 日代码冻结">
+    <div class="tl" id="tl"></div>
+  </div>
+  <div class="legend">
+    <span><b class="ph-prep"></b>准备</span><span><b class="ph-core"></b>多层主干</span><span><b class="ph-cov"></b>覆盖面</span>
+    <span><b class="ph-real"></b>真实代码</span><span><b class="ph-fin"></b>收尾交付</span><span><b class="hol-sw"></b>法定假日</span>
+  </div>
+
+  <div class="tw"><table>
+    <thead><tr><th>周</th><th>日期</th><th>天</th><th>做什么</th><th>这周结束时拿得出来的东西</th></tr></thead>
+    <tbody>
+      <tr><td class="id">W01</td><td class="date">09-22 ~ 09-24</td><td class="num">3</td><td>收输入；新 checker <code>rb.enhance.ipa.OobSummary</code> 在 <code>Checkers.td</code> 注册，<code>check::ASTCodeBody</code> 空跑</td><td>空 checker 能在 fork 里编译、bxen 能调起来</td></tr>
+      <tr><td class="id">W02</td><td class="date">09-28 ~ 09-30</td><td class="num">3</td><td>SummaryDB 表结构；驱动脚本雏形（生成过滤后的 <code>compile_commands.json</code> 喂给 bxen）；合成链语料 3/5/10/17/20 层</td><td>语料 + 空跑流水线</td></tr>
+      <tr class="gate-row"><td class="id">W03</td><td class="date">10-08 ~ 10-10</td><td class="num">3</td><td><strong>量一次“只建 CFG 的全量空跑”耗时</strong>（定多轮上限）；真实多层漏报样例脱敏入库</td><td><span class="pill gate">G0 · 10-10</span></td></tr>
+      <tr><td class="id">W04</td><td class="date">10-12 ~ 10-16</td><td class="num">5</td><td>BoundExpr / Range；AccessPath（形参 / 局部 / 全局 / 字段 / 偏移）</td><td>单测通过</td></tr>
+      <tr><td class="id">W05</td><td class="date">10-19 ~ 10-23</td><td class="num">5</td><td>ExtentModel 基础形态；SummaryGen 直线代码 + 分支合并；Applier（代换、分级、层数过滤）</td><td>单 TU 内 3 层链报出</td></tr>
+      <tr class="gate-row"><td class="id">W06</td><td class="date">10-26 ~ 10-30</td><td class="num">5</td><td>同 TU 按需递归 + 跨 TU 多轮工作表；告警导出</td><td><span class="pill gate">G1 · 10-30</span></td></tr>
+      <tr><td class="id">W07</td><td class="date">11-02 ~ 11-06</td><td class="num">5</td><td>循环：WTO + 阈值 widening + narrowing</td><td>循环语料通过</td></tr>
+      <tr><td class="id">W08</td><td class="date">11-09 ~ 11-13</td><td class="num">5</td><td>分配器：<code>config.ini</code> + JSON 加载、底层字节数下标、<code>ReturnEffect</code> 推封装大小、<code>para</code> / <code>offset</code></td><td>堆封装语料通过</td></tr>
+      <tr class="gate-row"><td class="id">W09</td><td class="date">11-16 ~ 11-20</td><td class="num">5</td><td>安全函数族模型；跨 TU 全局 extent 表；柔性数组标记；#21 基址偏移</td><td><span class="pill gate">G2 · 11-20</span></td></tr>
+      <tr><td class="id">W10</td><td class="date">11-23 ~ 11-27</td><td class="num">5</td><td>真实代码子集跑测（几个顶层目录）；误报分析与收敛；断链原因统计 → 补模型</td><td>误报清单 + 修正</td></tr>
+      <tr class="gate-row"><td class="id">W11</td><td class="date">11-30 ~ 12-04</td><td class="num">5</td><td><strong>全量 cdb 跑通</strong>；量耗时 / 内存；抽样精度</td><td><span class="pill gate">G3 · 12-04</span></td></tr>
+      <tr><td class="id">W12</td><td class="date">12-07 ~ 12-11</td><td class="num">5</td><td>修 G3 暴露的问题；<strong>12-11 代码冻结</strong></td><td>冻结版本</td></tr>
+      <tr class="gate-row"><td class="id">W13</td><td class="date">12-14 ~ 12-15</td><td class="num">2</td><td>合入、配置说明、验收报告、使用文档</td><td><span class="pill gate">G4 · 交付</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="gates">
+  <div class="sec-hd"><h2>五个检查点</h2><span class="tag">过关标准 · 退路</span></div>
+  <div class="tw"><table>
+    <thead><tr><th>检查点</th><th>日期</th><th>过关标准</th><th>过不了怎么办</th></tr></thead>
+    <tbody>
+      <tr><td class="id">G0 准备就绪</td><td class="date">10-10</td><td>下文“需要你提供的输入”齐；空 checker 在 fork 里编译运行；全量空跑耗时已知</td><td>缺样例就先用合成语料开工，样例最晚 G1 前补上</td></tr>
+      <tr><td class="id">G1 多层主干</td><td class="date">10-30</td><td>合成直线链 3/5/10/17/20 层<strong>全部报出、每条 &lt; 1 秒</strong>；≤ 2 层<strong>不报</strong>；三文件跨 TU 用例报出；真实样例里的直线型报出</td><td>先只支持同 TU、保 G2，跨 TU 顺延一周</td></tr>
+      <tr><td class="id">G2 覆盖面</td><td class="date">11-20</td><td>2–17 层变体（链上夹循环 / 字段数组 / 全局 / 堆封装 / <code>memcpy_s</code>）在 ≥ 3 层时<strong>全部报出</strong>；TN 语料 <strong>0 误报</strong>；真实样例报出率达到约定值</td><td>按下文砍项顺序砍</td></tr>
+      <tr><td class="id">G3 真实代码</td><td class="date">12-04</td><td>全量 cdb 跑通；耗时 / 内存在约定范围内；抽样 L1 精度达到约定值</td><td>精度不够先只出 L1；耗时不够先按子系统分批跑</td></tr>
+      <tr><td class="id">G4 交付</td><td class="date">12-15</td><td>验收标准全部满足</td><td>——</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="priority">
+  <div class="sec-hd"><h2>做什么、先做什么</h2><span class="tag">P0 必交 · P1 有余量 · P2 明年</span></div>
+  <div class="tw"><table>
+    <thead><tr><th>编号</th><th>内容</th><th>排在</th><th>设计出处</th></tr></thead>
+    <tbody>
+      <tr><td class="id">P0-1</td><td><strong>多层传播主干</strong>：BoundExpr / Range（线性 + 不透明项）、AccessPath、SummaryGen（直线 + 分支合并）、Applier（代换、L1/L2/StillOpen、层数过滤与盲区例外） <span class="pill keep">不砍</span></td><td class="date">W04–W05</td><td class="src">01- §3.2–3.6、§0.1</td></tr>
+      <tr><td class="id">P0-2</td><td><strong>跨 TU 执行</strong>：同 TU 按需递归 + 跨 TU 多轮工作表（方案 A）、SummaryDB <span class="pill keep">不砍</span></td><td class="date">W02、W06</td><td class="src">01- §3.8、3.9、3.11</td></tr>
+      <tr><td class="id">P0-3</td><td><strong>循环</strong>：WTO + 阈值 widening + narrowing，任何循环都不 unsupported</td><td class="date">W07</td><td class="src">01- §3.4</td></tr>
+      <tr><td class="id">P0-4</td><td><strong>ExtentModel 高频形态</strong>：局部 / static / 全局数组（含无初始化器、跨 TU 全局）、结构体字段数组（含形参结构体指针）、#21 基址偏移、柔性数组显式标 Unknown</td><td class="date">W05、W09</td><td class="src">01- §3.1</td></tr>
+      <tr><td class="id">P0-5</td><td><strong>分配器</strong>：读 <code>config.ini</code> + <code>alloc_free_identity</code> JSON；底层分配器字节数下标；封装函数大小由 <code>ReturnEffect</code> 推出；<code>para</code> 为形参 / 带 <code>offset</code> 的场景</td><td class="date">W08</td><td class="src">01- §3.7.1–3.7.2</td></tr>
+      <tr><td class="id">P0-6</td><td><strong>安全函数族模型</strong>：<code>memcpy_s</code> / <code>memmove_s</code> / <code>memset_s</code></td><td class="date">W09</td><td class="src">01- §3.7.3</td></tr>
+      <tr><td class="id">P0-7</td><td><strong>告警输出</strong>：bxen 现有格式、稳定指纹、逐层 trace（每穿过一层一行） <span class="pill keep">不砍</span></td><td class="date">W06</td><td class="src">01- §3.10、3.11</td></tr>
+      <tr><td class="id">P0-8</td><td><strong>验收语料与报告</strong>：合成链 3/5/10/17/20 层及变体、真实多层漏报样例、TN 语料、真实代码跑测</td><td class="date">贯穿</td><td class="src">验收标准</td></tr>
+    </tbody>
+  </table></div>
+  <div class="cols">
+    <div class="note">
+      <div class="hdr">P1 · 有余量就做，否则 2027Q1</div>
+      <ul>
+        <li>二维数组行级越界（#18）</li>
+        <li><code>strcpy_s</code> 族（要字符串长度建模）</li>
+        <li>封装分配器函数体不可见时，按形参名 / 大模型补大小</li>
+        <li>一般返回值区间（#20 的非分配部分）</li>
+        <li>CSA 侧给告警补路径解释（<code>OobSummaryChecker</code>）</li>
+        <li>评估模式下与现有规则逐条对比（T1-5）</li>
+        <li>同函数内常量赋值的函数指针</li>
+      </ul>
+    </div>
+    <div class="note">
+      <div class="hdr">P2 · 2027 年</div>
+      <ul>
+        <li>增量分析（依赖边传递失效，配合方案 B 的 IR 导出）</li>
+        <li>CI 门禁</li>
+        <li>函数指针的指向分析；递归的 SCC 不动点</li>
+        <li>C++</li>
+        <li>“在 init 里申请、在别处使用”的字段级 extent 不变式</li>
+        <li>释放信息与申请 / 释放配对（给 UAF / 泄漏类规则）</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="alloc">
+  <div class="sec-hd"><h2>申请函数怎么接</h2><span class="tag">P0-5 · 复用现有输入</span></div>
+  <p>两份现成的输入只说了“哪个位置是申请到的内存”，没说“哪个参数是长度”。
+    解法是<strong>不逐个识别封装函数的长度参数</strong>，只给最底层分配器补一个字节数下标，其余由摘要分析函数体时自底向上推出——
+    多层封装逐层推上去，本身就是“多层”问题。</p>
+  <div class="flow">
+    <div class="box">
+      <h4>config.ini · 开发配置</h4>
+<pre>MEM_ALLOC=VOS_MemAlloc,-1
+MEM_FREE=VOS_MemFree,1
+; 形参从 0 编号，-1 = 返回值
+; v3.7 新增（只给底层几个）
+MEM_ALLOC_SIZE=VOS_MemAlloc,2 ; 下标待确认
+MEM_ALLOC_SIZE=malloc,0
+MEM_ALLOC_SIZE=calloc,0*1</pre>
+    </div>
+    <div class="arrow" aria-hidden="true">+</div>
+    <div class="box">
+      <h4>alloc_free_identity · 识别结果 JSON</h4>
+<pre>func_name   VISPADP_IFMNG_Malloc
+func_type   alloc   para -1
+inner_wrapped_func  VOS_MemAlloc
+offset      []  ← 非空 = 挂在结构体成员上
+reason      调用栈（每层带 para / offset）</pre>
+    </div>
+    <div class="box out">
+      <h4>SummaryGen 分析封装函数体 → ReturnEffect</h4>
+<pre>void *VISPADP_IFMNG_Malloc(UINT32 ulLen) { return VOS_MemAlloc(PID, 0, ulLen); }
+    → fresh heap，extent = param#0 字节
+void *XX_AllocWithHdr(UINT32 n) { char *p = VOS_MemAlloc(PID, 0, n + sizeof(HDR)); return p + sizeof(HDR); }
+    → fresh heap，extent = param#0 + sizeof(HDR)，返回指针偏移 sizeof(HDR)
+      （带头部的内存池写法：靠参数名猜长度在这里必错）</pre>
+    </div>
+  </div>
+  <div class="tw"><table>
+    <thead><tr><th>情形</th><th>处理</th></tr></thead>
+    <tbody>
+      <tr><td>封装函数的函数体在分析范围内</td><td><strong>以摘要推导为准</strong>；JSON 结果用来交叉校验，不一致记校验日志</td></tr>
+      <tr><td>函数体不在范围内，但在配置或 JSON 里</td><td>当作申请函数，extent 记为符号未知：知道是堆、不知道多大，<strong>不会误报</strong></td></tr>
+      <tr><td>同上，且想要大小</td><td>P1：形参名启发 / 大模型识别，结果标来源，人工确认后才参与 L1</td></tr>
+      <tr><td>JSON 的 <code>offset</code></td><td>按被分析代码同一目标 ABI 换成字段路径；<strong>ILP32 与 LP64 的成员偏移不同</strong>，建议识别结果同时带字段名路径</td></tr>
+      <tr><td>释放信息、申请 / 释放配对</td><td>越界分析用不到，留给以后的 UAF / 泄漏类规则（P2）</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="people">
+  <div class="sec-hd"><h2>人力与砍项</h2><span class="tag">P0 纯人工 84–122 人日</span></div>
+  <p>按“Claude 写大部分代码，你负责 review、在 fork 里编译调试、跑真实代码”算，P0 约 <strong>42–64 人日</strong> <span class="ev">推断</span>。
+    56 个工作日、一个人加 Claude：<strong>中位数能落在期限内，但几乎没有缓冲</strong>。
+    建议从 W04 起补 <strong>0.5 个人</strong>，专做语料、真实代码跑测和误报分析——这几件事集中在后半段，也是 Claude 帮不上的部分。</p>
+  <div class="cols">
+    <div>
+      <h3>落后时的砍项顺序（先砍在前）</h3>
+      <ol class="cut">
+        <li>P0-4 的跨 TU 全局 extent 表 → 先只支持同 TU 定义的全局</li>
+        <li>P0-6 只保留 <code>memcpy_s</code> / <code>memset_s</code></li>
+        <li>P0-5 的 <code>para</code> 为形参、带 <code>offset</code> 的场景 → 先只做返回值型分配器</li>
+        <li>P0-3 的 narrowing（保留 widening，精度差一点但不会 unsupported）</li>
+      </ol>
+      <p><span class="pill keep">不砍</span> P0-1、P0-2、P0-7——它们就是“多层”本身。</p>
+    </div>
+    <div>
+      <h3>分工</h3>
+      <div class="tw" style="margin-top:0"><table>
+        <thead><tr><th>Claude</th><th>你</th></tr></thead>
+        <tbody>
+          <tr><td>按模块写代码 + 单测 + 四象限语料，每个模块交一次完整包 + 提交信息</td><td>在 fork 里编译、跑 bxen、把报错和输出贴回来</td></tr>
+          <tr><td>BoundExpr、AccessPath、SummaryGen、Applier、DB、驱动脚本、模型加载、告警导出</td><td>真实代码跑测、误报判定、与现有规则对比</td></tr>
+          <tr><td>每个检查点前整理验收报告</td><td>提供输入；定验收数值</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<section id="accept">
+  <div class="sec-hd"><h2>12 月 15 日验收标准</h2><span class="tag">建议值 · 空格处请定数</span></div>
+  <div class="tw"><table>
+    <thead><tr><th>维度</th><th>标准</th></tr></thead>
+    <tbody>
+      <tr><td class="id">深度</td><td>合成直线链 3 / 5 / 10 / 17 / 20 层：<strong>100% 报出</strong>，每条 &lt; 1 秒</td></tr>
+      <tr><td class="id">多层变体</td><td>2–17 层链上夹循环 / 字段数组 / 全局 / 堆封装 / 安全函数：≥ 3 层的 <strong>100% 报出</strong>（循环类允许 L2）</td></tr>
+      <tr><td class="id">真实样例</td><td>提供的多层漏报样例报出率 ≥ <span class="blank">__%</span>（建议 80%，不达标的逐条给出断链原因）</td></tr>
+      <tr><td class="id">精确率</td><td>TN 语料 0 误报；真实代码抽样 50 条 L1，精确率 ≥ <span class="blank">__%</span></td></tr>
+      <tr><td class="id">不重复</td><td>≤ 2 层不报（盲区例外）；与现有规则在同一访问点上不出重复告警</td></tr>
+      <tr><td class="id">规模</td><td>全量 cdb（约 1 万个源文件）≤ <span class="blank">__</span> 小时、峰值内存 ≤ <span class="blank">__</span> GB（47 核 / 251 GB 机器）</td></tr>
+      <tr><td class="id">可解释</td><td>每条告警带逐层 trace；每个函数的摘要状态可查，<code>Partial</code> / <code>Pending</code> 有原因统计</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="inputs">
+  <div class="sec-hd"><h2>需要你提供的输入</h2><span class="tag">10-10（G0）前</span></div>
+  <div class="tw"><table>
+    <thead><tr><th>#</th><th>输入</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td><strong>3–5 个真实多层漏报样例</strong>（≥ 3 层，脱敏，最好有一个接近 17 层）</td><td>G1 / G2 验收锚点</td></tr>
+      <tr><td class="num">2</td><td>一个现有越界 checker 的完整源码 + 一条它的告警原样输出</td><td>代码风格、注册方式、告警格式对齐</td></tr>
+      <tr><td class="num">3</td><td>现有规则实际的 <code>inlineDepth</code></td><td>层数过滤阈值</td></tr>
+      <tr><td class="num">4</td><td><code>config.ini</code> 的 <code>MEM_ALLOC</code> / <code>MEM_FREE</code>、完整的 <code>alloc_free_identity</code> JSON、<strong><code>VOS_MemAlloc</code> 等底层分配器的原型</strong></td><td>P0-5</td></tr>
+      <tr><td class="num">5</td><td><code>config.ini</code> 解析器是否容忍新键 <code>MEM_ALLOC_SIZE</code>；JSON 里 <code>offset</code> 按哪个 ABI 算</td><td>P0-5 配置格式</td></tr>
+      <tr><td class="num">6</td><td>一次现有全量 CSA 运行的耗时</td><td>多轮扫描的时间预算上界</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="decisions">
+  <div class="sec-hd"><h2>关键决策</h2><span class="tag">D0–D4 已定 · D5–D7 待确认</span></div>
+  <div class="tw"><table>
+    <thead><tr><th>#</th><th>决策</th><th>状态</th><th>依据 / 建议</th></tr></thead>
+    <tbody>
+      <tr><td class="id">D0</td><td>目标：跨多层调用越界（2–17 层），不设深度上限</td><td><span class="pill p0">已定</span></td><td>立项</td></tr>
+      <tr><td class="id">D1</td><td>摘要的事实源是独立的 CFG 抽象解释，不是 ExprEngine</td><td><span class="pill p0">已定</span></td><td>“路径爆炸”即“CSA 放弃探索、无事实可采”</td></tr>
+      <tr><td class="id">D2</td><td>通道分工：摘要通道只报 &gt; <code>inlineDepth</code> 层，CSA 已知盲区例外</td><td><span class="pill p0">已定</span></td><td>盲区经 T0-1b 在 fork 上实测</td></tr>
+      <tr><td class="id">D3</td><td>ExtentModel 借 CSA 的“按类型算大小”，不借 ExprEngine 的地址</td><td><span class="pill p0">已定</span></td><td>T0-1 / T0-1b：A1 成立，#21 在 fork 上复现</td></tr>
+      <tr><td class="id">D4</td><td>封装分配器的大小由摘要自底向上推出，不靠参数名</td><td><span class="pill p0">已定</span></td><td>带头部的分配写法下参数名必错</td></tr>
+      <tr><td class="id">D5</td><td>跨 TU 执行模型</td><td><span class="pill gate">待确认</span></td><td><strong>方案 A</strong>：多轮 TU 扫描 + 工作表；方案 B（IR 导出 + 离线求解）放 2027 与增量一起做</td></tr>
+      <tr><td class="id">D6</td><td>告警在哪判定</td><td><span class="pill gate">待确认</span></td><td>在摘要生成这一遍判定并入库；CSA 侧 checker 只做路径解释（P1）</td></tr>
+      <tr><td class="id">D7</td><td>新 checker 归属</td><td><span class="pill gate">待确认</span></td><td><code>rb.enhance.ipa.OobSummary</code>（跨过程，归 <code>ipa</code> 包）</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="report">
+  <div class="sec-hd"><h2>与调研报告的关系</h2><span class="tag">01-report 写于立项前</span></div>
+  <p>调研报告全文和它的决策摘要网页回答的是“选哪条路”，不是“怎么实施”。与本计划冲突时以本计划为准：</p>
+  <div class="tw"><table>
+    <thead><tr><th>报告里的说法</th><th>现在</th></tr></thead>
+    <tbody>
+      <tr><td>§25 / §28：CSA 采集路径级事实 → 独立 FixpointEngine 归并</td><td>独立抽象解释为主，不走 ExprEngine（D1）</td></tr>
+      <tr><td>§25.1 / §28：P0 = SummaryDB + 依赖边增量失效、AbstractRange</td><td>P0 = 多层传播主干；增量放 2027</td></tr>
+      <tr><td>§28 中期目标“有效深度 10 层以上”</td><td>2–17 层，验收到 20 层</td></tr>
+      <tr><td>§29 的 10 天 PoC；网页 §12 的“本周 / 本月 / 本季度”</td><td>本计划的倒排表</td></tr>
+      <tr><td>§28 短期“用官方 Infer 做零成本交叉验证”</td><td>可选对照，不占主线人力</td></tr>
+    </tbody>
+  </table></div>
+  <p>实施时仍会反复查的：§5–§7（摘要数据结构与存储）、§9（widening）、§12（越界分析机制）、§13（三层代换实例）、§15（深度实验）、附录 D（能力边界，也是验收语料来源）。</p>
+</section>
+
+<section id="risks">
+  <div class="sec-hd"><h2>风险</h2><span class="tag">前五条</span></div>
+  <div class="tw"><table>
+    <thead><tr><th>风险</th><th>应对</th></tr></thead>
+    <tbody>
+      <tr><td>链上调了没摘要也没模型的函数，条件断掉（层数越多越容易遇到）</td><td>模型表 W08 起步；每个函数的摘要记断链原因，W10 按统计补模型</td></tr>
+      <tr><td>人力只有一个人，P0 上沿超出期限</td><td>W04 起补 0.5 人；按砍项顺序砍</td></tr>
+      <tr><td>多轮扫描耗时超预期</td><td>W03 先量空跑耗时；超了就按子系统分批，或把方案 B 的 IR 导出提前</td></tr>
+      <tr><td>真实代码误报高于语料</td><td>W10 就上真实代码，不等到最后；先只出 L1</td></tr>
+      <tr><td>ILP32 布局：上游 clang 14 把目标按 LP64 算，<code>offset</code> 也可能按另一种 ABI 算</td><td>G0 前确认 fork 的 ABI（T0-1c）与 <code>offset</code> 的来源；识别结果带字段名路径</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<footer>
+  <p>出处：调研包 v3.7 <code>08-summary2-design/00-implementation-plan.md</code>（本页的文本版）；设计细节见 <code>01-architecture.md</code>，工作量明细见 <code>02-effort-and-milestones.md</code>，输入与验证清单见 <code>03-assumptions-and-test-plan.md</code>。
+    假期依据《国务院办公厅关于 2026 年部分节假日安排的通知》。标注 <span class="ev">推断</span> 的数字是估算，<span class="ev">实测数据</span> 来自调研包里可复现的实验。</p>
+</footer>
+</div>
+
+<script>
+(function(){
+  var tl = document.getElementById('tl');
+  if(!tl) return;
+  var base = Date.UTC(2026, 8, 22);
+  function idx(md){ var p = md.split('-'); return Math.round((Date.UTC(2026, +p[0]-1, +p[1]) - base) / 86400000); }
+  function el(cls, start, span, html, extra){
+    var d = document.createElement('div'); d.className = cls;
+    d.style.gridColumn = (start + 1) + ' / span ' + span;
+    if(html) d.innerHTML = html;
+    if(extra) for(var k in extra) d.setAttribute(k, extra[k]);
+    tl.appendChild(d); return d;
+  }
+  // months
+  [['09-22','9 月'],['10-01','10 月'],['11-01','11 月'],['12-01','12 月']].forEach(function(m, i, a){
+    var s = idx(m[0]), e = i + 1 < a.length ? idx(a[i+1][0]) : 85;
+    el('mo', s, e - s, m[1]);
+  });
+  // freeze label (row 1, ends at 12-11)
+  var fz = idx('12-11');
+  el('frz-lbl', fz - 12, 13, '代码冻结 12-11');
+  // holidays
+  [['09-25','09-25','中秋'],['10-01','10-07','国庆']].forEach(function(h){
+    var s = idx(h[0]), e = idx(h[1]);
+    el('hol', s, e - s + 1, '', {title: h[2] + '假期'});
+  });
+  // weeks
+  var W = [['W01','09-22','09-24','prep'],['W02','09-28','09-30','prep'],['W03','10-08','10-10','prep'],
+           ['W04','10-12','10-16','core'],['W05','10-19','10-23','core'],['W06','10-26','10-30','core'],
+           ['W07','11-02','11-06','cov'],['W08','11-09','11-13','cov'],['W09','11-16','11-20','cov'],
+           ['W10','11-23','11-27','real'],['W11','11-30','12-04','real'],
+           ['W12','12-07','12-11','fin'],['W13','12-14','12-15','fin']];
+  W.forEach(function(w){
+    var s = idx(w[1]), e = idx(w[2]);
+    el('wk ph-' + w[3], s, e - s + 1, w[0], {title: w[0] + '  ' + w[1] + ' ~ ' + w[2]});
+  });
+  // freeze line: right edge of 12-11
+  el('frz', fz + 1, 1, '', {'aria-hidden':'true'});
+  // gates
+  [['G0','10-10'],['G1','10-30'],['G2','11-20'],['G3','12-04'],['G4','12-15']].forEach(function(g, i, a){
+    var d = el('gt' + (i === a.length - 1 ? ' last' : ''), idx(g[1]), 1, '<i></i><span>' + g[0] + '<br>' + g[1] + '</span>');
+  });
+})();
+</script>
+
+</body>
+</html>

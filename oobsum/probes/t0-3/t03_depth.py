@@ -22,10 +22,8 @@
 
   depth = max(down, origin) 是"至少要看穿几层"；决策主要看 down，origin 单独列出。
 
-判读阈值（与 03-assumptions-and-test-plan.md T0-3 一致）：
-  depth ≥ 2 的占比 > 30%  → A4 成立，方案 C 的核心前提成立
-  depth ≤ 1 的占比 > 85%  → A4 不成立，改走 02-effort-and-milestones.md §5 的省钱路线
-  介于两者之间            → 看 T0-2 与 T0-4 一起定
+v3.6 起项目已立项（目标 2–17 层），本脚本不再用于判断"做不做"，
+改为从告警 / DTS 单里挑出 ≥ 3 层的真实样例，作为 Summary 2.0 的验收语料。
 
 只依赖 Python 3 标准库。
 """
@@ -63,13 +61,8 @@ def verdict(depths, label):
     ge3 = sum(1 for d in depths if d >= 3) / n
     print(f"\n判读（{label}，n={n}）：")
     print(f"  depth ≥ 2：{ge2 * 100:5.1f}%     depth ≥ 3：{ge3 * 100:5.1f}%     depth ≤ 1：{le1 * 100:5.1f}%")
-    if ge2 > 0.30:
-        print("  → A4 成立：有相当比例需要看穿 ≥2 层，方案 C 的核心前提成立。")
-    elif le1 > 0.85:
-        print("  → A4 不成立：绝大多数 ≤1 层。建议改走 02-effort-and-milestones.md §5 的省钱路线"
-              "（ExtentModel + inline 加深，15–20 人日）。")
-    else:
-        print("  → 介于两者之间：结合 T0-2（单函数内可判定比例）与 T0-4（unsupported 根因）一起定。")
+    # v3.6 起项目已立项（目标 2–17 层），这里只给分布，不再据此判断"做不做"
+    print("  （v3.6 起不再据此决定方案；用途是挑 ≥3 层的样例做验收语料 —— 见 --csv 明细里 down ≥ 3 的行）")
     if n < 30:
         print(f"  ！样本只有 {n} 条，少于 30，结论只能当方向参考。")
 
@@ -243,15 +236,8 @@ def cmd_dts(args):
         c = collections.Counter((r.get(col) or "?").strip() or "?" for r in rows)
         print(f"\n{title}：" + "  ".join(f"{k}={v}（{v / len(rows) * 100:.0f}%）" for k, v in c.most_common()))
 
-    a = sum(1 for r in rows if (r.get("t02_class") or "").strip().upper() == "A") / len(rows)
-    bc = sum(1 for r in rows if (r.get("t02_class") or "").strip().upper() in ("B", "C")) / len(rows)
-    print(f"\nT0-2 判读：A 占 {a * 100:.0f}%，B+C 占 {bc * 100:.0f}%")
-    if a > 0.70:
-        print("  → A > 70%：跨过程摘要的增量收益有限，应优先做 ExtentModel，摘要框架降级。")
-    elif bc > 0.40:
-        print("  → B+C > 40%：方案 C 的 ROI 成立。")
-    else:
-        print("  → 介于两者之间：看 T0-3 深度分布。")
+    deep = [r["dts"] for r in rows if r["_depth"] >= 3]
+    print(f"\n≥ 3 层的样例 {len(deep)} 条（可直接作为验收语料）：{', '.join(deep[:20])}")
     return 0
 
 

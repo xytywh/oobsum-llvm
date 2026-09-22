@@ -247,6 +247,15 @@ footer{margin-top:56px; padding-top:22px; border-top:1px solid var(--rule);
     </dl>
   </div>
   <p class="caption">本页是完整报告（3 204 行 / 176 KB，v2.3 含五个附录）的决策摘要，保留了全部关键实证输出。</p>
+  <div class="call" style="margin-top:18px">
+    <div class="hdr">v3.7 阅读指引 · 已立项，按 12-15 交付倒排</div>
+    <p>本页与完整报告保留调研过程与证据，<strong>不是执行计划</strong>。
+      后续做什么、分几步、什么优先级、每周交付什么，以 <code>08-summary2-design/00-implementation-plan.md</code>
+      为准（P0 八项、W01–W13 共 56 个工作日、G0–G4 五个关口，交付 2026-12-15）。</p>
+    <p>本页第 12 节「下一步：可排期的动作」里的排期已被该计划取代；
+      申请函数的输入改为 <code>config.ini</code> 的 <code>MEM_ALLOC</code> 配置 + <code>alloc_free_identity</code> 识别结果，
+      长度参数由摘要从底层申请函数自底向上推导（见 <code>01-architecture.md</code> §3.7）。</p>
+  </div>
 </header>
 
 <section id="findings">
@@ -687,6 +696,12 @@ chain3.c:4: error: Mini Oob(MINI_OOB)
 
 <section id="poc">
   <h2><span class="num">12</span>下一步：可排期的动作</h2>
+  <div class="call warn">
+    <div class="hdr">v3.7 · 本节已被实施计划取代</div>
+    <p>下面是立项前写的「本周 / 本月 / 本季度」排期，保留作记录。现行计划见
+      <code>08-summary2-design/00-implementation-plan.md</code>：2026-09-22 起 W01–W13，
+      G0 10-10 输入齐全 · G1 10-30 多层核心跑通 · G2 11-20 跨 TU 与循环 · G3 12-04 真实样例验收 · G4 12-15 交付。</p>
+  </div>
 
   <div class="tl">
     <div class="tl-row">
@@ -1156,7 +1171,7 @@ main       { }  → ERRORS: Buffer Overrun L1                 summary_loads= mid
 
 <footer>
   <p>调研基线 commit <code>3d38229b04b649024fee065621f6a4c838f6d029</code>（2026-09-10）·
-     实验用 Infer v1.3.0 与自建 v1.3.0-3d38229b · 调研执行 2026-09-11 · v2 增补 2026-09-16 · v2.2 / v2.3 增补 2026-09-17 · v3.4 / v3.5 回填 T0-1、T0-1b 实测 · v3.6 已立项、转入实施 2026-09-22。<br>
+     实验用 Infer v1.3.0 与自建 v1.3.0-3d38229b · 调研执行 2026-09-11 · v2 增补 2026-09-16 · v2.2 / v2.3 增补 2026-09-17 · v3.4 / v3.5 回填 T0-1、T0-1b 实测 · v3.6 已立项、转入实施 2026-09-22 · v3.7 实施计划按 2026-12-15 倒排。<br>
      本页为完整报告（3 204 行）的决策摘要；所有命令、原始输出、MiniOobChecker 完整源码与注册 diff 见完整报告文件，
      可运行的实验、前置知识、受限环境构建脚本与 <code>06-practice/</code> 见调研包 v2。</p>
 </footer>

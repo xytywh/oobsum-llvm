@@ -1,5 +1,7 @@
 # CSA Function Summary 2.0 —— 总体设计
 
+> **先看 `00-implementation-plan.md`**：方案一句话、分几步、优先级、倒排到 12 月 15 日的计划都在那里；本文件是它的设计展开。
+
 > 这份文档把报告 §25 / §28 的"方案 C"从**架构建议**细化到**可以开工的设计**：
 > 组件边界、数据结构、关键算法、与现有 CSA 的接口、以及每条设计决策的**证伪条件**。
 >
@@ -211,12 +213,12 @@ struct ExtentResult {
 | 12 | `malloc(n * sizeof(T))` | 解析分配点实参表达式 | 常见形态优先：`n*sizeof(T)`、`sizeof(T)*n`、`sizeof(S)`。**CSA 要开 `unix.DynamicMemoryModeling` 才把大小放进状态**（T0-1 那次运行没开，T0-1b ②） |
 | 13 | `calloc(n, sizeof(T))` | 同上 | |
 | 14 | `realloc` | 重新绑定 | |
-| 15 | **你们内部的自定义分配器** | **配置表**（见 §3.7） | 工业代码里这条往往比 malloc 重要 |
+| 15 | **你们内部的自定义分配器**（`VOS_MemAlloc` 及其封装） | **现有 `config.ini` 的 `MEM_ALLOC` + `alloc_free_identity` 识别结果**（v3.7，见 §3.7）；封装函数的**大小参数由摘要自底向上推出**，不靠参数名 | 工业代码里这条往往比 malloc 重要。**只需给最底层分配器补一个"第几个参数是字节数"** |
 | 16 | VLA `int a[n]` | 符号 extent `n` | |
 | 17 | 柔性数组成员 `int d[]` / `int d[0]` / `int d[1]` | 单函数内**只能 Unknown**，但要**显式标记**；真实长度通常在**调用者**的 `malloc(sizeof(S)+n*sizeof(T))` 里 → 摘要可补 | 常见的"假数组"，误判会造成大量误报。**CSA 14 现状**【实测】：`[]`/`[0]` → Unknown；`[1]` 默认按 1 个元素算（count=1），需 `consider-single-element-arrays-as-flexible-array-members=true` 才变 Unknown —— 要定一个显式策略 |
 | 18 | 二维 / 多维 | 逐维 | **只能自己做**【实测】：CSA 14 的比较基准是整个数组（`x.m[0][5]` 越出第 0 行不报）；内层下标是符号时连地址都没有（见 #21） |
 | 19 | 字符串字面量 `"abc"` | 长度 + 1 | |
-| 20 | 函数返回的指针 | 查被调摘要的 `ReturnEffect` | 跨过程，P1 才做 |
+| 20 | 函数返回的指针 | 查被调摘要的 `ReturnEffect` | 跨过程。**v3.7：分配语义这一半（"返回的是新申请的堆内存，大小 = 某个形参的表达式"）提前到 P0**，是 #15 封装分配器的前提；一般返回值区间仍 P1 |
 | **21** | **指向数组中间的指针再用符号下标** `p = &a[2]; p[j]`、`p = a + k; p[j]`、`x.m[1][j]` | 由 **AccessPath** 表示成 `(a, 偏移 2)` / `(a, 偏移 k)`，再与下标相加 | **v3.4 新增，T0-1b 实测（上游 14.0.6 与 fork 均复现）**：CSA 14 在这里返回 `UnknownVal`（`StoreManager::getLValueElement`），`checkLocation` **根本不被调用**；语义相同的 `*(p + j)` 却正常。受影响的恰好是"下标还是符号"的情形 —— 正是摘要要推 `requires` 的情形。**不能读 ExprEngine 的地址，必须自己算** |
 
 **【假设 A1】你们的 CSA（LLVM 14 fork）里 `MemRegionManager::getStaticSize()` 可用，
@@ -429,28 +431,116 @@ Infer 默认档精确率 100%，靠的就是 `SymbolicIssue(propagate=true, 不�
 
 对标 `bufferOverrunModels.ml`（报告 §12.3）。**性价比最高的一块**：
 比让引擎"读懂"实现划算一个数量级，而且是纯配置，非核心开发者也能加。
+**v3.6 §0.1 的结论让它更重要了**：多层链上最常见的断链原因就是"调了一个没摘要也没模型的函数"。
 
-建议做成**外部配置文件**而不是硬编码：
+#### 3.7.1 v3.7：申请 / 释放函数 —— 直接复用你们已有的两份输入【立项输入】
 
-```yaml
-# models.yaml
-- name: memcpy
-  kind: c_lib
-  conditions:
-    - { base: param0, offset: "[0, param2/elemsize(param0) - 1]" }
-    - { base: param1, offset: "[0, param2/elemsize(param1) - 1]" }
-- name: VOS_MemAlloc            # 你们内部分配器
-  kind: allocator
-  sizeArg: 1                     # 第几个参数是字节数
-- name: RB_SafeStrCpy
-  kind: c_lib
-  conditions:
-    - { base: param0, offset: "[0, param2 - 1]" }
+**输入 ①：开发配置 `config.ini`**（就是 bxen `-rbchecker-config` 指向的那份）
+
+```ini
+MEM_ALLOC=VOS_MemAlloc,-1      ; 函数名,哪个位置是申请到的内存：-1 = 返回值（只有申请函数会用 -1）
+MEM_FREE=VOS_MemFree,1         ; 形参从 0 开始编号：1 = 第 2 个形参是被释放的内存
 ```
 
-**【假设 A2】你们代码里对内存的访问有相当比例是经由内部封装函数
-（`VOS_MemCpy` / `RB_ArrayGet` 这类）而不是裸下标。**
-如果成立，模型表的收益会非常高，应该提前到 P1。→ 测法 **T1-3**。
+**输入 ②：规则 `alloc_free_identity` 自动识别出的封装函数**（对开发配置查缺补漏，JSON）
+
+```json
+{ "func_name": "VISPADP_IFMNG_Malloc", "func_type": "alloc", "inner_wrapped_func": "VOS_MemAlloc",
+  "para": -1, "offset": [], "file": ".../adp_vispadp_ifnet.c", "line": 985,
+  "reason": "... call stack is: VOS_MemAlloc(return value is alloc memory)" }
+{ "func_name": "BurstPktCntFeature::ReportResult", "func_type": "free", "inner_wrapped_func": "VOS_MemFree",
+  "para": 0, "offset": [228],
+  "reason": "... PeakTrafficFeature::ClearStatus(in para: 0 ..., offset is 228) --> LRO_MemPool::clear(...offset is 228)
+             --> VOS_MemFree(in para: 1 is free memory, offset is 36)" }
+```
+
+| 字段 | 在越界摘要里怎么用 |
+|---|---|
+| `func_name` + `func_type=alloc` | 这是一个申请函数：调用结果是**新的堆对象**，AccessPath 根为 `AllocSite(调用点)` |
+| `para` | `-1` → 返回值是新内存（`ReturnEffect`）；`k` → 第 k 个形参带出新内存（`OutParamEffect`，如 `Alloc(void **pp, …)`） |
+| `offset` | 新内存挂在**结构体成员**上：`para` 所指对象偏移 `offset` 字节处的字段。转换成字段路径（`Param#k → field`）后，同一调用链下游对 `p->buf[i]` 的访问就能拿到它的大小 |
+| `inner_wrapped_func` | 最终落到哪个底层分配器 —— 用来**交叉校验**摘要推出来的结果（见 3.7.2） |
+| `func_type=free` / 配对关系 | **越界分析用不到**。释放信息和申请 / 释放配对留给以后的 UAF / 泄漏 / 重复释放类规则（SummaryDB 已经为其它分析预留了列，§3.8）；配对识别需要时再结合大模型 Agent |
+
+**缺的那一块：申请了多大。** 两份输入都只说了"哪个位置是内存"，没说"哪个参数是长度"。
+**我们的解法是不去逐个识别封装函数的长度参数，而是只给最底层分配器补这一条，其余由摘要自底向上推出来：**
+
+```
+底层模型（人工，全工程只有少数几个）：
+    VOS_MemAlloc(…, size)          →  返回 fresh heap，extent = size 字节
+    （需确认：VOS_MemAlloc 的第几个形参是字节数。从 MEM_FREE=VOS_MemFree,1 看，
+      第 0 个形参很可能是 PID；以头文件为准）【推断】
+
+封装函数（不用配，SummaryGen 分析它的函数体时自动得到）：
+    void *VISPADP_IFMNG_Malloc(UINT32 ulLen) { return VOS_MemAlloc(PID, 0, ulLen); }
+        →  ReturnEffect: fresh heap，extent = param#0 字节
+    void *XX_AllocWithHdr(UINT32 n) { char *p = VOS_MemAlloc(PID, 0, n + sizeof(HDR)); return p + sizeof(HDR); }
+        →  ReturnEffect: fresh heap，extent = param#0 + sizeof(HDR)，返回指针偏移 sizeof(HDR)
+           （带头部的内存池分配常见这种写法；靠参数名猜长度在这里必错，靠摘要推是对的）
+```
+
+这就是 §3.4 的 `ReturnEffect` 和 §3.3 的 `BoundExpr` 本来就要做的事，**多层封装（封装的封装）自动逐层推上去**，
+正好也是立项要解决的"多层"——只不过这里多层的是分配而不是访问。
+
+#### 3.7.2 两份输入与摘要推导的关系
+
+| 情形 | 处理 | 置信度 |
+|---|---|---|
+| 封装函数的函数体在分析范围内 | **以摘要推导为准**；`alloc_free_identity` 的结果用来**交叉校验**：JSON 说是申请函数、摘要却没推出 fresh heap（或反过来），记一条校验日志 | 高 |
+| 函数体不在分析范围内（库、未进 cdb），但在 `config.ini` 或 JSON 里 | 当作申请函数，**extent 记为符号 `extent(ret)`（未知大小）**：知道它是堆、不知道多大，**不会误报** | —— |
+| 同上，且想要大小 | **P1**：① 按形参名启发（`ulSize` / `ulLen` / `uiLength`…）；② 交给大模型 Agent 识别。结果写进单独的补充配置、标注来源（`heuristic` / `llm`），**人工确认后才参与 L1 判定**，未确认的只用于 L2 | 中 / 低 |
+| JSON 的 `offset` | 按**被分析代码同一目标 ABI** 的结构体布局，把字节偏移换成字段路径 | 见下 |
+
+**一个要提前对齐的坑：`offset` 是按哪个 ABI 算的？**【推断】目标是 aarch64_be + ILP32，
+上游 clang 14 会把这个目标按 LP64 布局（T0-1c）。结构体里只要有指针或 `long`，
+ILP32 与 LP64 下的成员偏移就不同。如果 `alloc_free_identity` 与摘要引擎用的布局不一致，
+字节偏移会对到错误的字段上。**建议识别结果里同时带上字段名路径**（如 `"field": "->stPool.pBuf"`），
+字节偏移只作校验。
+
+#### 3.7.3 访问类模型：安全函数族（P0）
+
+你们业务代码统一使用 `memcpy_s` / `memset_s` / `memmove_s` 这类安全函数，
+**越界访问经常就发生在它们内部，而且缓冲区和长度往往是被一层层传下来的**——正是多层场景。
+所以它们的模型是 P0，不是 P1：
+
+| 函数 | 安全条件（字节） | 说明 |
+|---|---|---|
+| `memcpy_s(dest, destMax, src, count)` | `destMax ≤ extent(dest)`；`count ≤ extent(src)` | `count > destMax` 运行时会被拦下返回错误，**真正的越界是 `destMax` 报大了**，或读 `src` 读过头 |
+| `memmove_s` | 同上 | |
+| `memset_s(dest, destMax, c, count)` | `destMax ≤ extent(dest)` | |
+| `strcpy_s` / `strncpy_s` / `strcat_s` | `destMax ≤ extent(dest)`（`src` 需字符串长度建模，P1） | |
+| 你们内部的封装（如有） | 同上，按参数位置配置 | 由 T1-3 的统计决定补哪些 |
+
+#### 3.7.4 配置格式
+
+**不另起一套配置**，读现有 `config.ini`，只为底层分配器新增一种键（旧解析器若不认识未知键会报错，需先确认）：
+
+```ini
+; 已有
+MEM_ALLOC=VOS_MemAlloc,-1
+MEM_FREE=VOS_MemFree,1
+; v3.7 新增：底层分配器的"字节数"在第几个形参（只需给最底层的几个，封装函数由摘要推出）
+MEM_ALLOC_SIZE=VOS_MemAlloc,2          ; 下标待确认
+MEM_ALLOC_SIZE=malloc,0
+MEM_ALLOC_SIZE=calloc,0*1              ; 两个形参相乘
+```
+
+访问类模型（3.7.3）和其它库函数模型条目较多，放单独的 `summary_models.yaml`：
+
+```yaml
+- name: memcpy_s
+  kind: access
+  conditions:
+    - { base: param0, bytes: "param1" }          # destMax ≤ extent(dest)
+    - { base: param2, bytes: "param3" }          # count   ≤ extent(src)
+- name: memset_s
+  kind: access
+  conditions:
+    - { base: param0, bytes: "param1" }
+```
+
+**【假设 A2】你们代码里对内存的访问有相当比例是经由内部封装函数 / 安全函数而不是裸下标。**
+安全函数这一半已由编码规范确认；内部封装的比例仍可用 **T1-3** 统计，用来决定补哪些模型。
 
 ---
 
@@ -557,6 +647,44 @@ class OobSummaryChecker : public Checker<check::PreCall, check::EndOfTranslation
 **告警指纹**：报告附录 C 把"issue hash / reportdiff"列为**高优先级未展开项**。
 CI 落地必须有稳定指纹。建议 `hash = H(checkerName, 归一化后的 accessLoc, 归一化的消息模板, 函数 USR)`，
 **不含行号**（行号会因无关改动漂移），用"函数内第几个同类访问"代替。
+
+---
+
+### 3.11 跨 TU 怎么跑（v3.7 补：落地时绕不开的执行模型）
+
+§3.9 的按需递归有一个隐含前提：**分析调用者时，被调者的函数体拿得到**。
+在一个 TU 里成立；但 Clang 是一个 TU 一个 TU 解析的，**被调者在另一个 `.c` 里时，它的 AST 根本不在内存里**。
+多层链跨文件是常态（本包三文件 demo 就是），这件事必须在 M0 定下来。两条路：
+
+| | 方案 A：多轮 TU 扫描 + 摘要库驱动的工作表 | 方案 B：先导出中间表示，再离线求解 |
+|---|---|---|
+| 做法 | 每轮对"待算"的 TU 跑一遍（`check::ASTCodeBody` 型 checker，只建 CFG 不走 ExprEngine）；同 TU 的被调者按需递归，**跨 TU 的被调者查 SummaryDB**，查不到就把调用者记为 `Pending(callee)`；一轮结束后，从 DB 算出"被调者已就绪的 Pending 函数所在的 TU"作为下一轮的工作表，直到清空或达到轮数上限 | 第一遍逐 TU 把每个函数的简化 IR（访问、形参流向、调用及实参表达式、循环头）序列化进库；第二遍一个独立进程读库、建全局调用图、按后序自底向上求解，不再碰 Clang |
+| 对标 | 相当于把 Infer 的按需分析按 TU 边界拆成多轮 | 就是 Infer 的 capture → analyze |
+| 新增工作 | 一个驱动脚本（生成过滤后的 `compile_commands.json` 喂给 bxen 全量模式）+ DB 里的 `Pending` 状态 | 一套 IR schema、序列化 / 反序列化、离线求解器 |
+| 轮数 / 代价 | 轮数 ≈ 链上**跨 TU 的**层数（17 层链里通常只有一部分跨文件）；第 2 轮起只跑工作表里的 TU，规模快速收缩 | 解析只一遍；求解纯内存 |
+| 能复用什么 | bxen、`Checkers.td` 注册、现有全量运行流水线全部复用 | 需要新的运行入口 |
+| 与增量（M4）的关系 | 够用，但每次都从解析开始 | 天然适合增量（只重导出改过的 TU） |
+
+**建议：12 月 15 日前走方案 A，方案 B 放到 2027 年和增量分析一起做。**【推断】
+理由是方案 A 几乎不需要新基础设施，能最快让"跨文件多层"跑起来；它的代价（多轮解析）可以先量出来——
+你们现在一次全量 CSA 运行的耗时就是上界（摘要这一遍只建 CFG、不做路径敏感探索，只会更快）。
+**W04 第一件事就是量一次"只建 CFG 的全量空跑"要多久**，据此确定轮数上限。
+
+**报告从哪出**：由 §3.6 的 Applier 在**摘要生成这一遍**里判定、写入 DB 的 `reports` 表（按 §3.10 的指纹去重，
+多轮里重复判出的同一条只留一份），最后一步统一导出成 bxen 现有告警格式。
+§3.10 的 CSA 侧 `OobSummaryChecker`（`checkPreCall`）退到 P1：只用来给已报出的告警补路径解释，
+**不参与"报不报"** —— 否则顶层调用者自己路径爆炸时，调用点根本走不到，又回到老问题。
+
+```sql
+-- §3.8 的 SummaryDB 为方案 A 增加的两处
+ALTER TABLE summaries ADD COLUMN pending_callees TEXT;   -- status = Pending 时，等的是谁（USR 列表）
+ALTER TABLE summaries ADD COLUMN tu_file TEXT;           -- 这个函数定义在哪个 TU，用来生成下一轮工作表
+CREATE TABLE reports (
+  fingerprint TEXT PRIMARY KEY,  -- §3.10 的告警指纹
+  severity INTEGER, depth INTEGER, csa_blind_spot INTEGER,
+  access_loc TEXT, report_proc TEXT, trace BLOB, first_round INTEGER
+);
+```
 
 ---
 

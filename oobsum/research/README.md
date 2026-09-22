@@ -1,6 +1,11 @@
-# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.6）
+# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.7）
 
 一句话：**这个包里只有一份"正文"（报告），其余全是为了让你能亲手复现、读懂、并在自己代码库上用起来的材料。**
+
+> **v3.7 起，项目已立项、进入实施阶段。先看这一份：
+> [`08-summary2-design/00-implementation-plan.md`](08-summary2-design/00-implementation-plan.md)**
+> —— 方案一句话、P0/P1/P2 优先级、倒排到 **2026-12-15** 的周计划与五个检查点、人力、验收标准、需要你提供的输入。
+> `01-report/` 是调研阶段的报告（回答"为什么选这条路"），其中 §25/§28 的路线与 §29 的 PoC 已被那份计划取代。
 
 调研基线：`facebook/infer` commit `3d38229b04b649024fee065621f6a4c838f6d029`（main，2026-09-10）；
 实验用官方预编译 `infer v1.3.0`，以及从源码自建的 `v1.3.0-3d38229b`（含本包里的 MiniOobChecker）。
@@ -59,6 +64,9 @@
 > **v3.6** **已立项，转入实施阶段**：目标确定为支持现有工具因路径爆炸而不支持的跨多层调用越界场景
 > （立项统计 2–17 层，不设上限，验收到 20 层）。T0-2/3/4 不再作为前置条件，省钱路线标为不采用；
 > 新增"摘要方式受不受层数限制"的说明与"通道分工"（摘要通道只报 > 2 层的，CSA 已知盲区例外）。
+> **v3.7** 新增 **`08-summary2-design/00-implementation-plan.md`**：唯一的"方案与计划"，倒排到 2026-12-15（56 个工作日）。
+> 设计补两块：申请函数直接复用现有 `config.ini` 的 `MEM_ALLOC`/`MEM_FREE` 与 `alloc_free_identity` 识别结果，
+> 封装函数的申请大小由摘要自底向上推出（`01-` §3.7）；跨 TU 的执行模型（`01-` §3.11）。
 >
 > ⚠️ **v2.5 在 git 里是一次大规模重命名**（35 个条目 + 根目录）。
 > 提交时用 `git add -A`，让 git 的 rename detection 生效，
@@ -116,7 +124,9 @@ CHANGELOG.md   ← 版本变更清单
    run-boundary.sh                             一键复现全部数字
    corpus/tp tn fp probe                       60 个正交语料（真越界 / 绝对安全 / 易误报 / 探针）
 
-08-summary2-design/                     ★ 方案 C 从"建议"到"可开工"
+08-summary2-design/                     ★ 方案 C 的实施（已立项）
+   00-implementation-plan.md                   ★★ 先看这个：方案、步骤、优先级、倒排到 12-15 的计划
+   00-implementation-plan-offline.html         同一份计划的网页版（含甘特图，内网可直接用浏览器打开）
    01-architecture.md                          组件/数据结构/算法/接口，每条决策挂证伪条件
    02-effort-and-milestones.md                 99–149 人日，分 M0–M5；含"让 Claude 写代码"的估算
    03-assumptions-and-test-plan.md             实施阶段需要的输入 + 验证清单（T0-1 ✅ A1 成立；其余 Tier-0 已不需要）
@@ -136,7 +146,7 @@ CHANGELOG.md   ← 版本变更清单
 | **★ 在你们自己代码库上跑** | `06-practice/01-whole-program-analysis.md` | 半天（含切子集试水） |
 | **★ 搞清楚每一步在干什么** | `06-practice/02-observability-handbook.md` + `./observe.sh` | 1 小时 |
 | **★ 做选型权衡（能看住什么/看不住什么）** | `07-capability-boundary/01-capability-boundary-fp-fn.md` | 40 分钟 |
-| **★ 实施排期（已立项）** | `08-summary2-design/01-architecture.md` §0.1 → `02-effort-and-milestones.md` → `03-…`「实施阶段需要的输入」 | 读 1.5 小时 |
+| **★ 实施排期（已立项）** | **`08-summary2-design/00-implementation-plan.md`**，细节再看 `01-architecture.md` | 读 30 分钟 |
 | **交叉编译工程 capture 一片红** | `06-practice/03-cross-toolchain-capture-fix.md` | 视工具链而定 |
 | **★ 第一次在真实代码库上跑** | `06-practice/04-end-to-end-runbook.md`，① 到 ⑧ 照着敲 | 半天 |
 | **`infer analyze` 跑完了想知道成没成** | `cd 06-practice && ./diagnose-analyze.sh <infer-out> <analyze.log>` | 2 分钟 |
