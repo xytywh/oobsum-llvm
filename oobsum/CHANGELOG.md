@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## v3.8 — 2026-09-22
+
+**同步使用方修订的跨编译 capture 脚本：C++ 标准头改用 gcc 自带 libstdc++。**
+
+### `06-practice/capture-cross-toolchain.sh`（使用方修订，原样收录）
+
+* 去掉 `INFER_LIBCXX_INC`（infer 自带 libc++/v1），改为 `GCC_CXX_INC_BASE=/opt/buildtools/gcc-14.3.0/include/c++/14.3.0`，
+  注入三个 `-I`：主头目录、平台相关头 `x86_64-pc-linux-gnu/32`、`backward`。
+* 理由（脚本注释）：`--clang-libcxx-include-to-override-regex` 不会把 cdb 里的 `-I c++/14.3.0` 重定向到 `c++/v1`；
+  源码按 libstdc++ 编写，直接复用 gcc 自带 libstdc++ 更贴合原工具链。
+* 目录不存在时的警告改为"C++ 文件会 capture 失败"。其余逻辑不变。
+
+### `06-practice/03-cross-toolchain-capture-fix.md` 同步
+
+* 顶部加 v3.8 说明；§三「方案 A」命令与参数表改为三个 `-I`，`--clang-isystem-to-override-regex` 一行的括注改为 libstdc++。
+* 新增"为什么又从 libc++/v1 换成 libstdc++"：libstdc++ 特有的头与 `__gnu_cxx::` 扩展、头之间的隐式包含，
+  三个目录与 gcc 驱动默认搜索顺序一致。
+* 新增提醒【推断】：`x86_64-pc-linux-gnu/32` 是 x86-64 主机 gcc 的 i386 多库配置，不是目标自己的；
+  一般不影响，若 BiSheng b009 带目标自己的 libstdc++ 更贴近原编译，给出 `find` 命令。
+* 遗留风险补一条：`__SIZEOF_POINTER__=8` 造成的 `cast from pointer to smaller type` 在 libstdc++ 下仍在
+  （如 `bits/align.h` 里 `std::align` 的 `reinterpret_cast<uintptr_t>`），包含 `<memory>` 的 C++ TU 都会多一条，计入 19 条上限。
+* §三「验证」、§七「全量执行结果」标为 libc++/v1 方案时的数据；新增 §7.4 重跑命令与对照表（待回填）。
+* §四 默认输出目录更正为 `./infer-out-cross`（与脚本一致）。
+
 ## v3.7 — 2026-09-22
 
 **实施方案与计划定稿，按 2026-12-15 倒排；申请函数改为复用现有输入。**

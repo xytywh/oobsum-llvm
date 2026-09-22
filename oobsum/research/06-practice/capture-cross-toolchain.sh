@@ -69,13 +69,15 @@ fi
 # 失效路径前缀（需要被 infer 的 clang 内部头替换掉的 -isystem 前缀）
 STALE_PATH_REGEX="/opt/buildtools/bisheng_embedded_cpu"
 
-# infer 自带 libc++/v1 头路径（提供 <algorithm> <map> <set> <cstddef> <cstdint> <string> 等）
-# 实测 --clang-libcxx-include-to-override-regex 不会把 -I c++/14.3.0 重定向到 c++/v1，
-# 改用 --Xclang "-I <libcxx>/v1" 显式注入，对所有文件（含 C 文件，无副作用）生效。
-INFER_LIBCXX_INC="/usr1/BXPlugin/xir/FunctionSummary/infer-linux-x86_64-v1.3.0/lib/infer/facebook-clang-plugins/clang/install/include/c++/v1"
-if [[ ! -d "$INFER_LIBCXX_INC" ]]; then
-  echo "警告: infer 自带 libc++/v1 不存在: $INFER_LIBCXX_INC" >&2
-  echo "      C++ 标准头将无法找到，3651 个 C++ 文件会全部 capture 失败" >&2
+# C++ 标准头来源：改用 gcc-14.3.0 自带 libstdc++（而非 infer 自带 libc++/v1）。
+# 原因：实测 --clang-libcxx-include-to-override-regex 不会把 cdb 里的
+# -I c++/14.3.0 重定向到 c++/v1；而源码本身按 libstdc++ 编写，直接复用
+# gcc 自带 libstdc++ 头路径更贴合原工具链，无需额外改写。
+# 下方三个 -I 依次为：主头目录、平台相关头（32 位 ABI）、向后兼容头。
+GCC_CXX_INC_BASE="/opt/buildtools/gcc-14.3.0/include/c++/14.3.0"
+if [[ ! -d "$GCC_CXX_INC_BASE" ]]; then
+  echo "警告: gcc libstdc++ 头目录不存在: $GCC_CXX_INC_BASE" >&2
+  echo "      C++ 标准头将无法找到，C++ 文件会 capture 失败" >&2
 fi
 
 # ----------------------------------------------------------------------
@@ -116,10 +118,14 @@ rm -f "$LOG_FILE" "$SUMMARY_FILE"
 #   --Xclang "-U__LP64__"            撤销自带 clang 默认的 LP64（ilp32 不能是 LP64）
 #   --Xclang "-D__ILP32__=1"         手动定义 ILP32（自带 clang 不支持该 ABI）
 #   --Xclang "--sysroot=..."         ilp32 sysroot，提供 bits/wordsize-32.h 等
-#   --Xclang "-I .../c++/v1"         显式注入 infer 自带 libc++/v1，提供 C++ 标准头
-#                                   （实测 --clang-libcxx-include-to-override-regex
-#                                    不会把 cdb 里的 -I c++/14.3.0 重定向到 c++/v1，
-#                                    改用 --Xclang -I 显式注入）
+#   --Xclang -I.../c++/14.3.0                          libstdc++ 主头目录
+#                                                      （提供 <algorithm> <map> <set>
+#                                                       <cstddef> <cstdint> <string> 等）
+#   --Xclang -I.../c++/14.3.0/x86_64-pc-linux-gnu/32  平台相关头（32 位 ABI，
+#                                                      提供 bits/c++config.h 等）
+#   --Xclang -I.../c++/14.3.0/backward                 向后兼容头
+#                                                      （提供 <backward/strtok_r.h> 等
+#                                                       老式 GNU 扩展）
 #   --clang-isystem-to-override-regex  失效 -isystem → infer 自带 clang 内部头
 #                                      （提供 stddef.h / stdint.h 等，c++/v1 的
 #                                       #include_next <stddef.h> 也靠它补全）
@@ -141,7 +147,9 @@ set +e
   --Xclang "-U__LP64__" \
   --Xclang "-D__ILP32__=1" \
   --Xclang "--sysroot=$SYSROOT" \
-  --Xclang "-I$INFER_LIBCXX_INC" \
+  --Xclang "-I$GCC_CXX_INC_BASE" \
+  --Xclang "-I$GCC_CXX_INC_BASE/x86_64-pc-linux-gnu/32" \
+  --Xclang "-I$GCC_CXX_INC_BASE/backward" \
   --clang-isystem-to-override-regex "$STALE_PATH_REGEX" \
   2>&1 | tee "$LOG_FILE"
 RC=${PIPESTATUS[0]}

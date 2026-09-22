@@ -9,6 +9,10 @@
 > 也是本包 `01-whole-program-analysis.md` 里"体检 cdb"那一节的下一道坎：
 > 路径都解析得到了，不代表编译得动。
 
+> **v3.8 更新（使用方修订脚本）：C++ 标准头改为 gcc-14.3.0 自带的 libstdc++，不再注入 infer 自带的 libc++/v1。**
+> §三「方案 A」的命令与参数表已同步；§三「验证」和 §七「全量执行结果」是 libc++/v1 方案时测的，
+> 换成 libstdc++ 后需要重跑回填（命令见 §七 末尾）。
+
 > 回答的问题：**`infer capture --compilation-database .../compile_commands.json`
 > 在一个 aarch64_be + ilp32 的 RTOS 工程上直接报
 > `error: "__WORDSIZE is not defined"` 一片红，怎么定位、怎么修？**
@@ -162,7 +166,7 @@ cdb 里的 `-isystem` 与 C++ 包含路径都指向
 不重新生成 cdb，靠 infer 自带的 flag 改写能力绕开缺口：
 
 ```bash
-INFER_LIBCXX_INC="/usr1/BXPlugin/xir/FunctionSummary/infer-linux-x86_64-v1.3.0/lib/infer/facebook-clang-plugins/clang/install/include/c++/v1"
+GCC_CXX_INC_BASE="/opt/buildtools/gcc-14.3.0/include/c++/14.3.0"   # v3.8：gcc 自带 libstdc++
 
 infer capture \
   --compilation-database /usr1/518C10/HERT_BBU/project/makesoter/compdb/1383/all/compile_commands.json \
@@ -172,7 +176,9 @@ infer capture \
   --Xclang "-U__LP64__" \
   --Xclang "-D__ILP32__=1" \
   --Xclang "--sysroot=/opt/buildtools/rtos/opt/RTOS/208.12.0/arm64be_5.10_ek_llvm/sdkilp32/" \
-  --Xclang "-I$INFER_LIBCXX_INC" \
+  --Xclang "-I$GCC_CXX_INC_BASE" \
+  --Xclang "-I$GCC_CXX_INC_BASE/x86_64-pc-linux-gnu/32" \
+  --Xclang "-I$GCC_CXX_INC_BASE/backward" \
   --clang-isystem-to-override-regex "/opt/buildtools/bisheng_embedded_cpu"
 ```
 
@@ -182,8 +188,10 @@ infer capture \
 | `--Xclang "-mbig-endian"` | 大端模式 |
 | `--Xclang "-U__LP64__"` + `-D__ILP32__=1` | 强制 wordsize.h 走 32 位分支，绕过自带 clang 不支持 ilp32 ABI 的缺口 |
 | `--Xclang "--sysroot=.../arm64be_5.10_ek_llvm/sdkilp32/"` | 提供与 ilp32 匹配的 libc 头 |
-| `--Xclang "-I$INFER_LIBCXX_INC"` | 显式注入 infer 自带 libc++/v1，提供 `<algorithm>` / `<map>` / `<set>` / `<cstddef>` / `<cstdint>` / `<string>` 等 C++ 标准头 |
-| `--clang-isystem-to-override-regex "/opt/buildtools/bisheng_embedded_cpu"` | 把 cdb 中失效的 `-isystem .../b003/.../include` 替换为 infer 自带 clang 的 `lib/clang/21/include`，提供 `stddef.h` / `stdint.h` 等（libc++ 的 `#include_next <stddef.h>` 也靠它补全） |
+| `--Xclang "-I$GCC_CXX_INC_BASE"` | libstdc++ 主头目录，提供 `<algorithm>` / `<map>` / `<set>` / `<cstddef>` / `<cstdint>` / `<string>` 等 C++ 标准头（v3.8） |
+| `--Xclang "-I$GCC_CXX_INC_BASE/x86_64-pc-linux-gnu/32"` | 平台相关头（32 位 ABI），提供 `bits/c++config.h` 等（v3.8） |
+| `--Xclang "-I$GCC_CXX_INC_BASE/backward"` | 向后兼容头，提供 `<hash_map>` / `<hash_set>` / `<strstream>` 等老式 GNU 扩展（v3.8） |
+| `--clang-isystem-to-override-regex "/opt/buildtools/bisheng_embedded_cpu"` | 把 cdb 中失效的 `-isystem .../b003/.../include` 替换为 infer 自带 clang 的 `lib/clang/21/include`，提供 `stddef.h` / `stdint.h` 等（libstdc++ 的 `<cstddef>` 要的编译器自带 `stddef.h` 也靠它补全） |
 | `--keep-going` | 单个文件 capture 失败不中断，最终仍能产出可分析的 `infer-out` |
 
 > **为什么不用 `--clang-libcxx-include-to-override-regex`？**
@@ -196,7 +204,24 @@ infer capture \
 > `grep -c 'c++/v1' capture.log` 才有命中，C++ 文件的 `'algorithm' file not found`
 > 等 fatal error 也消失了。
 
-#### 验证
+> **为什么又从 libc++/v1 换成 gcc 自带的 libstdc++？（v3.8，使用方修订）**
+> 业务代码是按 libstdc++ 写、用 libstdc++ 编的（原工具链的 C++ 头就是 `c++/14.3.0`）。
+> 换成 libc++ 等于换了一套标准库实现：libstdc++ 特有的头和扩展（如 `<bits/stdc++.h>`、
+> `__gnu_cxx::` 下的扩展）在 libc++ 里没有；代码若依赖 libstdc++ 头之间的隐式包含，
+> 在 libc++ 下也会编不过。直接用 gcc-14.3.0 的 libstdc++ 更贴近原工具链。
+> 三个 `-I` 的顺序与 gcc 驱动默认的 C++ 头搜索顺序一致：主目录 → 平台目录 → `backward`。
+>
+> **注意平台目录用的是哪一套**【推断】：`x86_64-pc-linux-gnu/32` 是 x86-64 主机 gcc 的
+> **i386 多库**配置，不是 aarch64_be ilp32 自己的。两者在 `bits/c++config.h` 的特性宏、
+> `atomic_word.h`、`cxxabi_tweaks.h` 等处有差别，对 capture 和越界分析一般无影响；
+> 如果 BiSheng b009 工具链里带有目标自己的 libstdc++（平台目录名里含 `aarch64_be` / `ilp32`），
+> 换成它会更贴近原编译。查找命令：
+>
+> ```bash
+> find /opt/buildtools -path '*c++/14.3.0*' -name c++config.h 2>/dev/null | grep -iE 'aarch64|ilp32'
+> ```
+
+#### 验证（libc++/v1 方案时的记录，libstdc++ 方案待回填）
 
 用 cdb 中两条原本报错的记录手工跑自带 clang，叠加方案 A 的参数后：
 
@@ -216,6 +241,10 @@ infer capture \
   `reinterpret_cast<uintptr_t>(&__x)` 产生 `cast from pointer to smaller type`
   的 error，靠 `-ferror-limit 19` 容忍；若某个 C++ TU 里这种 error 超过 19 条，
   会触发 `fatal error: too many errors emitted` 导致该文件 capture 失败。
+  **v3.8 换成 libstdc++ 后这条仍在**：libstdc++ 里有同类写法，例如 `<memory>` 包含的
+  `bits/align.h` 中 `std::align` 的 `reinterpret_cast<uintptr_t>(__ptr)`（libstdc++ 13 的头文件如此，
+  14.3.0 以本机头文件为准）。它是非模板的内联函数，包含 `<memory>` 的 C++ TU 都会多出这一条 error，
+  也计入 19 条上限。
 - `Frontend error: Assert_failure src/clang/cAst_utils.ml:249:53` 是 infer 自带
   clang 前端在某些 C++ 构造（如 `ForStmt`）上的崩溃，与目标配置无关，
   `--keep-going` 会跳过，受影响文件不进 `capture.db`。
@@ -257,7 +286,7 @@ infer 的 clang 路径硬编码在 `facebook-clang-plugins/clang/install/bin/cla
 配套脚本：`capture-cross-toolchain.sh`（与本文件同目录）。
 
 脚本职责：
-1. 接收 cdb 路径作为参数（必填），输出目录可选（默认 `./infer-out`）。
+1. 接收 cdb 路径作为参数（必填），输出目录可选（默认 `./infer-out-cross`，结果在其下的 `infer-out/`）。
 2. 内置方案 A 的全部参数。
 3. 自检 cdb 是否存在、是否非空。
 4. 调用 `infer capture`，把 stdout/stderr 全量保存到日志文件。
@@ -325,7 +354,10 @@ cd /usr1/BXPlugin/xir/FunctionSummary/infer-research-kit/06-practice
 
 ---
 
-## 七、全量执行结果（2026-09-20）
+## 七、全量执行结果（2026-09-20，libc++/v1 方案）
+
+> **v3.8**：本节数字是 C++ 头还用 infer 自带 libc++/v1 时跑的。换成 libstdc++ 后请按本节末尾的命令重跑，
+> 把新数字补成一列对照（C 文件不受这次改动影响，变化只会出现在 C++ 文件上）。
 
 对 1383 全量 cdb（10640 条记录）跑完方案 A，实际结果如下：
 
@@ -404,3 +436,36 @@ infer report --results-dir result/infer-out
 - `__SIZEOF_POINTER__=8` 与真实 ilp32（4 字节指针）不一致，
   涉及指针宽度敏感的检查（如指针截断、指针算术溢出）可能漏报。
 - 17 个文件的部分方法被 infer 前端跳过，这些方法的分析结果是空的。
+
+### 7.4 v3.8 换成 libstdc++ 后的重跑与对照（待回填）
+
+```bash
+cd /usr1/BXPlugin/xir/FunctionSummary/infer-research-kit/06-practice
+./capture-cross-toolchain.sh \
+    /usr1/518C10/HERT_BBU/project/makesoter/compdb/1383/all/compile_commands.json \
+    /usr1/BXPlugin/xir/FunctionSummary/capture-libstdcxx
+cd /usr1/BXPlugin/xir/FunctionSummary/capture-libstdcxx
+
+# ① 确认三个 -I 真的进了编译命令、没有残留 c++/v1
+grep -c 'gcc-14.3.0/include/c++/14.3.0' capture.log
+grep -c 'c++/v1' capture.log                                    # 预期 0
+# ② 与上表逐项对照
+sqlite3 infer-out/capture.db "SELECT COUNT(*) FROM source_files;"   # 上表 10232
+sqlite3 infer-out/capture.db "SELECT COUNT(*) FROM procedures;"     # 上表 328602
+grep -c "cast from pointer to smaller type" capture.log             # 上表 6638
+grep -c 'too many errors emitted' capture.log                       # 上表 129
+grep -c 'Frontend error:' capture.log                               # 上表 136
+# ③ 新出现的 C++ 头相关 fatal error（换库后最可能出问题的地方）
+grep 'fatal error:' capture.log | grep -oE "'[^']+' file not found" | sort | uniq -c | sort -rn | head
+```
+
+① 的第一个命令如果是 0，说明 infer 没把这些 `--Xclang` 打印进日志，改用单文件
+`clang -###` 看最终命令行（与 §三「为什么不用 `--clang-libcxx-include-to-override-regex`」里的方法相同）。
+
+| 指标 | libc++/v1（2026-09-20） | libstdc++（v3.8） |
+|---|---|---|
+| capture.db 源文件数 | 10232 | |
+| capture.db 过程数 | 328602 | |
+| `cast from pointer to smaller type` | 6638 | |
+| `too many errors emitted`（涉及文件） | 129（1） | |
+| `Frontend error`（涉及文件） | 136（17） | |

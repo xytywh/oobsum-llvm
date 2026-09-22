@@ -1,4 +1,4 @@
-# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.7）
+# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.8）
 
 一句话：**这个包里只有一份"正文"（报告），其余全是为了让你能亲手复现、读懂、并在自己代码库上用起来的材料。**
 
@@ -67,6 +67,9 @@
 > **v3.7** 新增 **`08-summary2-design/00-implementation-plan.md`**：唯一的"方案与计划"，倒排到 2026-12-15（56 个工作日）。
 > 设计补两块：申请函数直接复用现有 `config.ini` 的 `MEM_ALLOC`/`MEM_FREE` 与 `alloc_free_identity` 识别结果，
 > 封装函数的申请大小由摘要自底向上推出（`01-` §3.7）；跨 TU 的执行模型（`01-` §3.11）。
+> **v3.8** 同步使用方修订的 `06-practice/capture-cross-toolchain.sh`：C++ 标准头改用 gcc-14.3.0 自带 libstdc++
+> （主目录 / 平台目录 / `backward` 三个 `-I`），不再注入 infer 自带 libc++/v1；`03-cross-toolchain-capture-fix.md` 同步，
+> 其中 2026-09-20 的全量数字是 libc++ 方案测的，附了重跑对照表待回填。
 >
 > ⚠️ **v2.5 在 git 里是一次大规模重命名**（35 个条目 + 根目录）。
 > 提交时用 `git add -A`，让 git 的 rename detection 生效，
