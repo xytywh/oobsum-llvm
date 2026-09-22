@@ -1091,23 +1091,32 @@ main       { }  → ERRORS: Buffer Overrun L1                 summary_loads= mid
     </table>
   </div>
   <p class="caption">
-    置信区间 ±40%。<strong>建议的第一个决策点是 M1 结束（33–48 人日）</strong>——
-    那时「能不能成」已有定论，再决定要不要投 M2 之后的。
+    置信区间 ±40%。<strong>M1 结束（33–48 人日）是第一个技术检查点</strong>——
+    多层与循环两件最硬的事都跑通，用实际耗时校准 M2–M5 的区间（v3.6 起不再是「做不做」的决策点）。
   </p>
 
-  <div class="call warn">
-    <div class="hdr">这条推荐有一个尚未验证的前提</div>
-    <p>「<strong>调用深度是主要瓶颈</strong>」来自团队自述，<strong>还没有被代码库上的数据验证过</strong>。
-      如果实测发现真实越界基本不跨 ≥3 层调用，那么有一个<strong>便宜一个数量级</strong>的路线：
-      只做 ExtentModel + 把现有 inline 深度从 2 提到 4–5，
-      <strong>约 15–20 人日拿到可能 70% 的收益</strong>——
-      因为 ExtentModel 同时能直接提升<em>现有规则</em>的召回率。</p>
-    <p>所以开工前先测四项（约半天），它们能推翻上面的设计：
-      ① CSA 的 <code>getStaticSize</code> 对 <code>FieldRegion</code> 是否可用（<strong>v3.5：已验证成立</strong>，见下）；
-      ② 现有告警里「单函数内可判定」的比例；
-      ③ 真实越界的调用深度分布；
-      ④ <code>unsupported</code> 的根因分布（循环到底占多少）。
-      详见调研包 <code>08-summary2-design/03-assumptions-and-test-plan.md</code>。</p>
+  <div class="call">
+    <div class="hdr">v3.6 · 已立项，进入实施阶段</div>
+    <p><strong>目标已定</strong>：支持现有工具因<strong>路径爆炸</strong>而不支持的跨多层调用越界场景，
+      立项统计 <strong>2–17 层</strong>，不设深度上限，验收覆盖到 20 层。
+      1–2 层现有工具已支持，摘要通道<strong>只报更深的</strong>（CSA 已知盲区例外，因为现有规则在那儿收不到回调）。</p>
+    <p>原来这里的「更省的路线」（只把 inline 加深到 4–5 层，15–20 人日）<strong>不采用</strong>：
+      它够不到 17 层，而且 inline 每深一层路径数就成倍增长——加深 inline 恰恰是在放大立项要解决的那个问题。
+      立项前用来判断「值不值得做」的测量（单函数可判定比例、深度分布、unsupported 根因）不再是前置条件；
+      唯一影响「怎么做」的 A1 已在 fork 上验证成立。</p>
+  </div>
+
+  <h3>摘要方式受不受层数限制</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>维度</th><th>受不受层数影响</th><th>依据</th></tr></thead>
+      <tbody>
+        <tr><td>成本</td><td class="yes">不受</td><td>每个函数只分析一次，调用点代换被调者的摘要，层间是加法；Infer 200 层 0.76 秒、摘要数 = 函数数 <span class="tag run">实测数据</span></td></tr>
+        <tr><td>精度：线性传递（<code>i+1</code>、<code>2n+1</code>）</td><td class="yes">无损</td><td>常数合并、非线性项保留为符号；MiniOob 20 层条件长度不变 <span class="tag run">实测数据</span></td></tr>
+        <tr><td>精度：分支合并 / 循环</td><td class="part">每层区间变宽，会累积</td><td>L1 可能降为 L2（仍会报，不拦门禁）</td></tr>
+        <tr><td>精度：调用没建模的外部函数 / 函数指针 / 递归</td><td class="no">条件在这一层断掉</td><td>与第几层无关，与链上有没有它有关 → 模型表比「加深度」更重要</td></tr>
+      </tbody>
+    </table>
   </div>
 
   <h3>一个对我们有利的事实</h3>
@@ -1147,7 +1156,7 @@ main       { }  → ERRORS: Buffer Overrun L1                 summary_loads= mid
 
 <footer>
   <p>调研基线 commit <code>3d38229b04b649024fee065621f6a4c838f6d029</code>（2026-09-10）·
-     实验用 Infer v1.3.0 与自建 v1.3.0-3d38229b · 调研执行 2026-09-11 · v2 增补 2026-09-16 · v2.2 / v2.3 增补 2026-09-17 · v3.4 / v3.5 回填 T0-1、T0-1b 实测 2026-09-22。<br>
+     实验用 Infer v1.3.0 与自建 v1.3.0-3d38229b · 调研执行 2026-09-11 · v2 增补 2026-09-16 · v2.2 / v2.3 增补 2026-09-17 · v3.4 / v3.5 回填 T0-1、T0-1b 实测 · v3.6 已立项、转入实施 2026-09-22。<br>
      本页为完整报告（3 204 行）的决策摘要；所有命令、原始输出、MiniOobChecker 完整源码与注册 diff 见完整报告文件，
      可运行的实验、前置知识、受限环境构建脚本与 <code>06-practice/</code> 见调研包 v2。</p>
 </footer>

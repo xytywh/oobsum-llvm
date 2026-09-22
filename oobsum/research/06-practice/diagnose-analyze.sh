@@ -202,18 +202,9 @@ PY
     [ "${sk:-0}" -gt 0 ] && echo "     → 这些函数的 CFG 超过 --bo-max-cfg-size（默认 15000），完全没分析"
   fi
   echo
-  echo "  ③ ★ 跨过程深度分布 —— 这是 T0-3，直接决定方案 C 要不要降级"
-  cat <<EOF
-     python3 - <<'PY'
-     import json, collections
-     r = json.load(open("$OUT/report.json"))
-     c = collections.Counter()
-     for x in r:
-         if "BUFFER_OVERRUN" not in x["bug_type"]: continue
-         c[max((t.get("level", 0) for t in x.get("bug_trace", [])), default=0)] += 1
-     print("跨过程深度分布:", sorted(c.items()))
-     PY
-EOF
+  echo "  ③ 跨过程深度分布（挑 ≥3 层的样例做 Summary 2.0 验收语料用；v3.6 起不再决定做不做）"
+  _kit="$(cd "$(dirname "$0")/.." && pwd)"
+  echo "     python3 $_kit/08-summary2-design/probes/t0-3/t03_depth.py infer $OUT/report.json --csv depth.csv"
   echo
   echo "  ④ 把这次运行的全部可观测点 dump 出来"
   echo "     ./observe.sh $OUT"

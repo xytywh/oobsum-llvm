@@ -196,24 +196,21 @@ sqlite3 result/infer-out/results.db "SELECT COUNT(*) FROM specs;"
 
 达不到 100% 正常：按需分析，没人调用又不自己出告警的过程可能根本没算过。
 
-### 4）★ 跨过程深度分布 —— 这就是 T0-3
+### 4）跨过程深度分布（v3.6：不再决定方案 C 做不做）
+
+项目已立项、目标定为 2–17 层的多层场景，这一项不再是"要不要做"的判据。它仍然有两个用处：
+**看 Infer 在你们代码上看到的深链长什么样**，以及**从告警里挑 ≥ 3 层的样例当 Summary 2.0 的验收语料**。
 
 ```bash
-python3 - <<'PY'
-import json, collections
-r = json.load(open("result/infer-out/report.json"))
-c = collections.Counter()
-for x in r:
-    if "BUFFER_OVERRUN" not in x["bug_type"]: continue
-    c[max((t.get("level", 0) for t in x.get("bug_trace", [])), default=0)] += 1
-print("跨过程深度分布:", sorted(c.items()))
-PY
+KIT=/usr1/BXPlugin/xir/FunctionSummary/infer-research-kit
+python3 $KIT/08-summary2-design/probes/t0-3/t03_depth.py infer result/infer-out/report.json --csv depth.csv
+# 挑 ≥ 3 层的：depth.csv 里 down 列 ≥ 3 的行，access_site 列就是真正的数组访问点
 ```
 
-**这一项直接决定方案 C 要不要降级。**
+> v3.5 之前这里是一段取 `max(level)` 的内联脚本，它会把"下标值来自被调函数返回值"误算成跨层；
+> 脚本版把 **down**（访问点在几层之下）和 **origin**（值在几层之下算出）分开数，见 `08-summary2-design/03-…` T0-3。
 
-| 结果 | 含义 |
-|---|---|
+---|---|
 | 深度 ≥ 2 占 > 30% | 假设 A4 成立，方案 C 的核心前提成立，按 `08-summary2-design/02-effort-and-milestones.md` 的 M0–M5 走 |
 | 深度 ≤ 1 占 > 85% | **A4 不成立**。改走那份文档 §5 的便宜选项：只做 ExtentModel + 把 inline 深度从 2 提到 4–5，**15–20 人日拿约 70% 收益** |
 

@@ -1,4 +1,4 @@
-# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.5）
+# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.6）
 
 一句话：**这个包里只有一份"正文"（报告），其余全是为了让你能亲手复现、读懂、并在自己代码库上用起来的材料。**
 
@@ -56,6 +56,9 @@
 > **v3.5** 回填 **T0-1b**：fork 上 19 行探针输出与上游逐行一致，**A1 成立**（字段数组 extent 7/7 正确），
 > 三处盲区在 fork 上同样复现。新增 `08-summary2-design/probes/t0-3/t03_depth.py`，
 > 从 Infer 告警或历史 DTS 单统计跨过程深度（同时给出 T0-2 的判读），并修正了旧版把两种深度混成一个数的问题。
+> **v3.6** **已立项，转入实施阶段**：目标确定为支持现有工具因路径爆炸而不支持的跨多层调用越界场景
+> （立项统计 2–17 层，不设上限，验收到 20 层）。T0-2/3/4 不再作为前置条件，省钱路线标为不采用；
+> 新增"摘要方式受不受层数限制"的说明与"通道分工"（摘要通道只报 > 2 层的，CSA 已知盲区例外）。
 >
 > ⚠️ **v2.5 在 git 里是一次大规模重命名**（35 个条目 + 根目录）。
 > 提交时用 `git add -A`，让 git 的 rename detection 生效，
@@ -116,9 +119,9 @@ CHANGELOG.md   ← 版本变更清单
 08-summary2-design/                     ★ 方案 C 从"建议"到"可开工"
    01-architecture.md                          组件/数据结构/算法/接口，每条决策挂证伪条件
    02-effort-and-milestones.md                 99–149 人日，分 M0–M5；含"让 Claude 写代码"的估算
-   03-assumptions-and-test-plan.md             ★ 先测这个。Tier-0 四项半天，能推翻设计（T0-1 ✅ A1 成立）
+   03-assumptions-and-test-plan.md             实施阶段需要的输入 + 验证清单（T0-1 ✅ A1 成立；其余 Tier-0 已不需要）
    probes/t0-1b/                               T0-1b 字段层复核探针：checker + 用例，直接覆盖即可
-   probes/t0-3/t03_depth.py                    ★ 下一项：跨过程深度分布（Infer 告警 / DTS 单两种数据源）
+   probes/t0-3/t03_depth.py                    跨过程深度统计（v3.6 起备用：从告警/DTS 里挑多层验收样例）
 ```
 
 ---
@@ -133,7 +136,7 @@ CHANGELOG.md   ← 版本变更清单
 | **★ 在你们自己代码库上跑** | `06-practice/01-whole-program-analysis.md` | 半天（含切子集试水） |
 | **★ 搞清楚每一步在干什么** | `06-practice/02-observability-handbook.md` + `./observe.sh` | 1 小时 |
 | **★ 做选型权衡（能看住什么/看不住什么）** | `07-capability-boundary/01-capability-boundary-fp-fn.md` | 40 分钟 |
-| **★ 准备立项 / 排期** | `08-summary2-design/` 三篇，**但先跑 `03-assumptions-and-test-plan.md` 的 Tier-0** | 读 1.5 小时 + 测半天 |
+| **★ 实施排期（已立项）** | `08-summary2-design/01-architecture.md` §0.1 → `02-effort-and-milestones.md` → `03-…`「实施阶段需要的输入」 | 读 1.5 小时 |
 | **交叉编译工程 capture 一片红** | `06-practice/03-cross-toolchain-capture-fix.md` | 视工具链而定 |
 | **★ 第一次在真实代码库上跑** | `06-practice/04-end-to-end-runbook.md`，① 到 ⑧ 照着敲 | 半天 |
 | **`infer analyze` 跑完了想知道成没成** | `cd 06-practice && ./diagnose-analyze.sh <infer-out> <analyze.log>` | 2 分钟 |
@@ -191,10 +194,10 @@ infer analyze --bufferoverrun-only
 推荐路线是**方案 C：借鉴 Infer 重新设计 CSA Summary 2.0**，详见报告 §25 / §27 / §28，
 落地设计与工作量在 `08-summary2-design/`。
 
-> **但这条推荐有一个尚未验证的前提**：「调用深度是主要瓶颈」来自团队自述，
-> 还没有被你们代码库上的数据验证过。`08-summary2-design/03-assumptions-and-test-plan.md`
-> 的 **T0-3 / T0-4** 就是验证它的（半天）。若验证不通过，方案 C 应当降级，
-> 改走 `02-effort-and-milestones.md` §5 那个 **15–20 人日拿 70% 收益**的选项。
+> **v3.6：已立项，进入实施阶段。** 目标是支持现有工具因路径爆炸而不支持的跨多层调用越界场景
+> （立项统计 2–17 层）。立项前"先验证深度是不是主要瓶颈"的那组测量不再需要，
+> 只加深 inline 的省钱路线不采用（够不到 17 层，且会放大路径爆炸）。
+> 摘要方式受不受层数限制、摘要通道与现有规则怎么分工，见 `08-summary2-design/01-architecture.md` §0.1。
 
 ---
 
