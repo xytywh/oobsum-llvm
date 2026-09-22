@@ -148,7 +148,7 @@ struct ExtentResult {
 | 18 | 二维 / 多维 | 逐维 | **只能自己做**【实测】：CSA 14 的比较基准是整个数组（`x.m[0][5]` 越出第 0 行不报）；内层下标是符号时连地址都没有（见 #21） |
 | 19 | 字符串字面量 `"abc"` | 长度 + 1 | |
 | 20 | 函数返回的指针 | 查被调摘要的 `ReturnEffect` | 跨过程，P1 才做 |
-| **21** | **指向数组中间的指针再用符号下标** `p = &a[2]; p[j]`、`p = a + k; p[j]`、`x.m[1][j]` | 由 **AccessPath** 表示成 `(a, 偏移 2)` / `(a, 偏移 k)`，再与下标相加 | **v3.4 新增，T0-1b 实测**：CSA 14 在这里返回 `UnknownVal`（`StoreManager::getLValueElement`），`checkLocation` **根本不被调用**；语义相同的 `*(p + j)` 却正常。受影响的恰好是"下标还是符号"的情形 —— 正是摘要要推 `requires` 的情形。**不能读 ExprEngine 的地址，必须自己算** |
+| **21** | **指向数组中间的指针再用符号下标** `p = &a[2]; p[j]`、`p = a + k; p[j]`、`x.m[1][j]` | 由 **AccessPath** 表示成 `(a, 偏移 2)` / `(a, 偏移 k)`，再与下标相加 | **v3.4 新增，T0-1b 实测（上游 14.0.6 与 fork 均复现）**：CSA 14 在这里返回 `UnknownVal`（`StoreManager::getLValueElement`），`checkLocation` **根本不被调用**；语义相同的 `*(p + j)` 却正常。受影响的恰好是"下标还是符号"的情形 —— 正是摘要要推 `requires` 的情形。**不能读 ExprEngine 的地址，必须自己算** |
 
 **【假设 A1】你们的 CSA（LLVM 14 fork）里 `MemRegionManager::getStaticSize()` 可用，
 且对 `FieldRegion` 能给出正确 size。** 若成立，#1–#8、#11 基本可以直接借用
@@ -159,9 +159,9 @@ CSA 现成的规则（声明类型 → 大小、柔性数组识别），ExtentMo
 > **T0-1 进展（2026-09-22）**【实测数据 + 源码确认】：
 > * `getStaticSize` 在 fork 里**存在**、签名与上游一致；对象层 **8/8 具体值正确**（含 Infer 漏报的全局无初始化器），
 >   fork 的输出与上游 LLVM 14.0.6 **逐行一致**。
-> * 字段层（A1 本身）在上游 14.0.6 上**已实测成立**：7 种字段数组形态（局部 / static / 全局 / 嵌套 /
->   struct 数组元素 / 形参 struct 指针 / 非末尾字段）全部返回 `FieldRegion`、32 字节、8 个元素。
->   fork 上待 T0-1b 复核。
+> * 字段层（A1 本身）**已在 fork 上实测成立**（T0-1b，2026-09-22）：7 种字段数组形态（局部 / static / 全局 / 嵌套 /
+>   struct 数组元素 / 形参 struct 指针 / 非末尾字段）全部返回 `FieldRegion`、32 字节、8 个元素；
+>   fork 的 19 行探针输出与上游 LLVM 14.0.6 逐行一致。
 > * 同时暴露了 **CSA 借不上的三处**：#18 多维只到整数组级；#21 指向数组中间的指针 + 符号下标连地址都没有；
 >   #17 柔性数组 `[1]` 的默认处理会引发误报。三处都已写进上表"备注"列。
 > * **边界要写清楚**：这里"借用 CSA"指的是借它**从类型算大小的规则**（`getStaticSize` 的逻辑与柔性数组识别），
@@ -514,7 +514,7 @@ CI 落地必须有稳定指纹。建议 `hash = H(checkerName, 归一化后的 a
 
 | 编号 | 假设 | 若不成立 | 测法 |
 |---|---|---|---|
-| **A1** | CSA 的 `getStaticSize()` 对 `FieldRegion` 可用且正确 | ExtentModel 工作量 ×2 | T0-1 ✅ 对象层 8/8 且与上游逐行一致；**字段层上游已实测成立，fork 待 T0-1b 复核** |
+| **A1** | CSA 的 `getStaticSize()` 对 `FieldRegion` 可用且正确 | ExtentModel 工作量 ×2 | ✅ **已验证**（T0-1 + T0-1b，2026-09-22）：fork 上对象层 8/8、字段层 7/7 正确，19 行输出与上游 LLVM 14.0.6 逐行一致 |
 | **A2** | 内存访问有相当比例经由内部封装函数 | 模型表收益下降，降到 P2 | T1-3 |
 | **A3** | 越界 unsupported 里循环占主要比例 | §1 的修正不成立，可回到"CSA 主采" | T0-4 |
 | **A4** | 真实越界有相当比例跨 ≥3 层调用 | 跨过程摘要的 ROI 要重估，可能只做 2–3 层足够 | T0-3 |
@@ -544,7 +544,7 @@ CI 落地必须有稳定指纹。建议 `hash = H(checkerName, 归一化后的 a
 |---|---|
 | 几十个现有 Checker | **完全不动** |
 | `SVal` / `SymExpr` / `ConstraintManager` | 复用，不改 |
-| `MemRegion` / RegionStore | **复用"从类型算大小"的规则，且是我们相对 Infer 的优势**（T0-1：对象层 fork 已验证、字段层上游已验证）；**不复用 ExprEngine 算出的地址**（#21：指向数组中间的指针 + 符号下标时是 Unknown） |
+| `MemRegion` / RegionStore | **复用"从类型算大小"的规则，且是我们相对 Infer 的优势**（T0-1 / T0-1b：fork 上对象层与字段层均已验证）；**不复用 ExprEngine 算出的地址**（#21：指向数组中间的指针 + 符号下标时是 Unknown） |
 | ExplodedGraph / ExprEngine | 不改；摘要生成完全不走这里 |
 | `Checkers.td` / bxen / CI | 加一条新 checker 的注册，其余不动 |
 | CTU | 并存，暂不动 |

@@ -1103,7 +1103,7 @@ main       { }  → ERRORS: Buffer Overrun L1                 summary_loads= mid
       <strong>约 15–20 人日拿到可能 70% 的收益</strong>——
       因为 ExtentModel 同时能直接提升<em>现有规则</em>的召回率。</p>
     <p>所以开工前先测四项（约半天），它们能推翻上面的设计：
-      ① CSA 的 <code>getStaticSize</code> 对 <code>FieldRegion</code> 是否可用（<strong>v3.4：对象层已测完</strong>，见下）；
+      ① CSA 的 <code>getStaticSize</code> 对 <code>FieldRegion</code> 是否可用（<strong>v3.5：已验证成立</strong>，见下）；
       ② 现有告警里「单函数内可判定」的比例；
       ③ 真实越界的调用深度分布；
       ④ <code>unsupported</code> 的根因分布（循环到底占多少）。
@@ -1119,12 +1119,12 @@ main       { }  → ERRORS: Buffer Overrun L1                 summary_loads= mid
       这是方案 C 成立的一条硬理由，但它依赖假设 A1，<strong>必须先验证</strong>。</p>
   </div>
 
-  <h3>T0-1 进展：A1 基本站住，但暴露了三处 CSA 借不上的地方 <span class="tag run">实测数据</span> <span class="tag src">源码确认</span></h3>
+  <h3>T0-1 进展：A1 成立，同时暴露了三处 CSA 借不上的地方 <span class="tag run">实测数据</span> <span class="tag src">源码确认</span></h3>
   <p>在团队的 LLVM 14 fork 上跑了第一个 Tier-0 探针：<code>getStaticSize</code> 存在、签名与上游一致；
     对象层 <strong>8/8 具体值正确</strong>，包括 Infer 漏报的「全局无初始化器」，
     且 10 行输出与上游 LLVM 14.0.6 <strong>逐行一致</strong>。
     字段层（A1 本身）在上游 14.0.6 上已实测成立——7 种字段数组写法全部返回 <code>FieldRegion</code>、32 字节、8 个元素；
-    fork 上待 5 分钟的复核探针 T0-1b 确认。</p>
+    fork 上的复核探针 T0-1b 已确认：<strong>19 行输出与上游逐行一致，A1 成立</strong>；下面三处盲区在 fork 上同样复现。</p>
   <div class="tw">
     <table>
       <thead><tr><th>CSA 14 借不上的地方</th><th>现象</th><th>对设计的影响</th></tr></thead>
@@ -1147,7 +1147,7 @@ main       { }  → ERRORS: Buffer Overrun L1                 summary_loads= mid
 
 <footer>
   <p>调研基线 commit <code>3d38229b04b649024fee065621f6a4c838f6d029</code>（2026-09-10）·
-     实验用 Infer v1.3.0 与自建 v1.3.0-3d38229b · 调研执行 2026-09-11 · v2 增补 2026-09-16 · v2.2 / v2.3 增补 2026-09-17 · v3.4 回填 T0-1 实测 2026-09-22。<br>
+     实验用 Infer v1.3.0 与自建 v1.3.0-3d38229b · 调研执行 2026-09-11 · v2 增补 2026-09-16 · v2.2 / v2.3 增补 2026-09-17 · v3.4 / v3.5 回填 T0-1、T0-1b 实测 2026-09-22。<br>
      本页为完整报告（3 204 行）的决策摘要；所有命令、原始输出、MiniOobChecker 完整源码与注册 diff 见完整报告文件，
      可运行的实验、前置知识、受限环境构建脚本与 <code>06-practice/</code> 见调研包 v2。</p>
 </footer>

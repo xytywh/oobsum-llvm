@@ -1,4 +1,4 @@
-# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.4）
+# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.5）
 
 一句话：**这个包里只有一份"正文"（报告），其余全是为了让你能亲手复现、读懂、并在自己代码库上用起来的材料。**
 
@@ -53,6 +53,9 @@
 > 新增 `08-summary2-design/probes/t0-1b/` 字段层复核探针，并在上游实测出 CSA 14 的三处盲区
 > （指向数组中间的指针 + 符号下标连地址都没有、多维只到整数组级、柔性数组 `[1]`）。
 > 工作量 98–151 → **99–149 人日**。
+> **v3.5** 回填 **T0-1b**：fork 上 19 行探针输出与上游逐行一致，**A1 成立**（字段数组 extent 7/7 正确），
+> 三处盲区在 fork 上同样复现。新增 `08-summary2-design/probes/t0-3/t03_depth.py`，
+> 从 Infer 告警或历史 DTS 单统计跨过程深度（同时给出 T0-2 的判读），并修正了旧版把两种深度混成一个数的问题。
 >
 > ⚠️ **v2.5 在 git 里是一次大规模重命名**（35 个条目 + 根目录）。
 > 提交时用 `git add -A`，让 git 的 rename detection 生效，
@@ -113,8 +116,9 @@ CHANGELOG.md   ← 版本变更清单
 08-summary2-design/                     ★ 方案 C 从"建议"到"可开工"
    01-architecture.md                          组件/数据结构/算法/接口，每条决策挂证伪条件
    02-effort-and-milestones.md                 99–149 人日，分 M0–M5；含"让 Claude 写代码"的估算
-   03-assumptions-and-test-plan.md             ★ 先测这个。Tier-0 四项半天，能推翻设计（T0-1 已测对象层）
+   03-assumptions-and-test-plan.md             ★ 先测这个。Tier-0 四项半天，能推翻设计（T0-1 ✅ A1 成立）
    probes/t0-1b/                               T0-1b 字段层复核探针：checker + 用例，直接覆盖即可
+   probes/t0-3/t03_depth.py                    ★ 下一项：跨过程深度分布（Infer 告警 / DTS 单两种数据源）
 ```
 
 ---
