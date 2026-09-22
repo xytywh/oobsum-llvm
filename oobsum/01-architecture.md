@@ -139,21 +139,34 @@ struct ExtentResult {
 | 9 | `extern` 声明、别处定义的全局 | 跨 TU 查 USR；查不到 → Unknown(ExternNoDef) | |
 | 10 | 形参 `int *p` / `int a[10]` | 符号 extent `extent(param#k)` | 退化为指针，extent 是符号 |
 | 11 | 形参 `struct S *p` 的字段数组 | 符号基址 + 字段声明类型 → **具体** | |
-| 12 | `malloc(n * sizeof(T))` | 解析分配点实参表达式 | 常见形态优先：`n*sizeof(T)`、`sizeof(T)*n`、`sizeof(S)` |
+| 12 | `malloc(n * sizeof(T))` | 解析分配点实参表达式 | 常见形态优先：`n*sizeof(T)`、`sizeof(T)*n`、`sizeof(S)`。**CSA 要开 `unix.DynamicMemoryModeling` 才把大小放进状态**（T0-1 那次运行没开，T0-1b ②） |
 | 13 | `calloc(n, sizeof(T))` | 同上 | |
 | 14 | `realloc` | 重新绑定 | |
 | 15 | **你们内部的自定义分配器** | **配置表**（见 §3.7） | 工业代码里这条往往比 malloc 重要 |
 | 16 | VLA `int a[n]` | 符号 extent `n` | |
-| 17 | 柔性数组成员 `int d[]` / `int d[0]` / `int d[1]` | **只能 Unknown**，但要**显式标记** | 常见的"假数组"，误判会造成大量误报 |
-| 18 | 二维 / 多维 | 逐维 | |
+| 17 | 柔性数组成员 `int d[]` / `int d[0]` / `int d[1]` | 单函数内**只能 Unknown**，但要**显式标记**；真实长度通常在**调用者**的 `malloc(sizeof(S)+n*sizeof(T))` 里 → 摘要可补 | 常见的"假数组"，误判会造成大量误报。**CSA 14 现状**【实测】：`[]`/`[0]` → Unknown；`[1]` 默认按 1 个元素算（count=1），需 `consider-single-element-arrays-as-flexible-array-members=true` 才变 Unknown —— 要定一个显式策略 |
+| 18 | 二维 / 多维 | 逐维 | **只能自己做**【实测】：CSA 14 的比较基准是整个数组（`x.m[0][5]` 越出第 0 行不报）；内层下标是符号时连地址都没有（见 #21） |
 | 19 | 字符串字面量 `"abc"` | 长度 + 1 | |
 | 20 | 函数返回的指针 | 查被调摘要的 `ReturnEffect` | 跨过程，P1 才做 |
+| **21** | **指向数组中间的指针再用符号下标** `p = &a[2]; p[j]`、`p = a + k; p[j]`、`x.m[1][j]` | 由 **AccessPath** 表示成 `(a, 偏移 2)` / `(a, 偏移 k)`，再与下标相加 | **v3.4 新增，T0-1b 实测**：CSA 14 在这里返回 `UnknownVal`（`StoreManager::getLValueElement`），`checkLocation` **根本不被调用**；语义相同的 `*(p + j)` 却正常。受影响的恰好是"下标还是符号"的情形 —— 正是摘要要推 `requires` 的情形。**不能读 ExprEngine 的地址，必须自己算** |
 
 **【假设 A1】你们的 CSA（LLVM 14 fork）里 `MemRegionManager::getStaticSize()` 可用，
-且对 `FieldRegion` 能给出正确 size。** 若成立，#1–#8、#11、#18 基本可以直接借用
-CSA 现成的 region 机制，ExtentModel 只需做 AccessPath ↔ MemRegion 的映射与
-#12–#17 的补充，工作量减半。**若不成立，这些要自己从 `ASTContext` 的声明类型重写。**
-→ 测法见 `03-assumptions-and-test-plan.md` **T0-1**。
+且对 `FieldRegion` 能给出正确 size。** 若成立，#1–#8、#11 基本可以直接借用
+CSA 现成的规则（声明类型 → 大小、柔性数组识别），ExtentModel 只需做 AccessPath ↔ MemRegion 的映射与
+#12–#17、#21 的补充，工作量减半。**若不成立，这些要自己从 `ASTContext` 的声明类型重写。**
+→ 测法见 `03-assumptions-and-test-plan.md` **T0-1 / T0-1b**。
+
+> **T0-1 进展（2026-09-22）**【实测数据 + 源码确认】：
+> * `getStaticSize` 在 fork 里**存在**、签名与上游一致；对象层 **8/8 具体值正确**（含 Infer 漏报的全局无初始化器），
+>   fork 的输出与上游 LLVM 14.0.6 **逐行一致**。
+> * 字段层（A1 本身）在上游 14.0.6 上**已实测成立**：7 种字段数组形态（局部 / static / 全局 / 嵌套 /
+>   struct 数组元素 / 形参 struct 指针 / 非末尾字段）全部返回 `FieldRegion`、32 字节、8 个元素。
+>   fork 上待 T0-1b 复核。
+> * 同时暴露了 **CSA 借不上的三处**：#18 多维只到整数组级；#21 指向数组中间的指针 + 符号下标连地址都没有；
+>   #17 柔性数组 `[1]` 的默认处理会引发误报。三处都已写进上表"备注"列。
+> * **边界要写清楚**：这里"借用 CSA"指的是借它**从类型算大小的规则**（`getStaticSize` 的逻辑与柔性数组识别），
+>   **不是**借 ExprEngine 算出来的地址 —— #21 说明后者在关键场景下是 Unknown。
+>   SummaryGen 本来就不走 ExprEngine（§7），这条边界跟它是一致的。
 
 > **顺带一个对你们有利的事实**：CSA 的 RegionStore **天生**把结构体字段建模为
 > `FieldRegion`，带完整类型信息——**这正是 Infer 缺的那一块**。
@@ -501,7 +514,7 @@ CI 落地必须有稳定指纹。建议 `hash = H(checkerName, 归一化后的 a
 
 | 编号 | 假设 | 若不成立 | 测法 |
 |---|---|---|---|
-| **A1** | CSA 的 `getStaticSize()` 对 `FieldRegion` 可用且正确 | ExtentModel 工作量 ×2 | T0-1 |
+| **A1** | CSA 的 `getStaticSize()` 对 `FieldRegion` 可用且正确 | ExtentModel 工作量 ×2 | T0-1 ✅ 对象层 8/8 且与上游逐行一致；**字段层上游已实测成立，fork 待 T0-1b 复核** |
 | **A2** | 内存访问有相当比例经由内部封装函数 | 模型表收益下降，降到 P2 | T1-3 |
 | **A3** | 越界 unsupported 里循环占主要比例 | §1 的修正不成立，可回到"CSA 主采" | T0-4 |
 | **A4** | 真实越界有相当比例跨 ≥3 层调用 | 跨过程摘要的 ROI 要重估，可能只做 2–3 层足够 | T0-3 |
@@ -531,7 +544,7 @@ CI 落地必须有稳定指纹。建议 `hash = H(checkerName, 归一化后的 a
 |---|---|
 | 几十个现有 Checker | **完全不动** |
 | `SVal` / `SymExpr` / `ConstraintManager` | 复用，不改 |
-| `MemRegion` / RegionStore | **复用，且是我们相对 Infer 的优势**（A1 待验证） |
+| `MemRegion` / RegionStore | **复用"从类型算大小"的规则，且是我们相对 Infer 的优势**（T0-1：对象层 fork 已验证、字段层上游已验证）；**不复用 ExprEngine 算出的地址**（#21：指向数组中间的指针 + 符号下标时是 Unknown） |
 | ExplodedGraph / ExprEngine | 不改；摘要生成完全不走这里 |
 | `Checkers.td` / bxen / CI | 加一条新 checker 的注册，其余不动 |
 | CTU | 并存，暂不动 |

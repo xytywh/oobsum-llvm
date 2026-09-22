@@ -23,12 +23,12 @@ T0-2: ...
 
 # Tier 0 —— 能推翻设计的，先测（半天～一天）
 
-## T0-1 · CSA 的 extent 能力基线【验证假设 A1】
+## T0-1 · CSA 的 extent 能力基线【验证假设 A1】 ✅ **对象层已完成（2026-09-22）** · 字段层见 T0-1b
 
 **要回答**：你们的 LLVM 14 fork 里，CSA 能不能对**结构体字段数组、全局、堆**
 拿到正确的 extent？这决定 `ExtentModel` 是"做映射"（10 人日）还是"重写"（16 人日）。
 
-**怎么测**：写一个最小的一次性 checker（或改一个现有的），在 `checkLocation` 里打印：
+### 原始探针（v3.3 及以前的写法，保留作对照）
 
 ```cpp
 void checkLocation(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) const {
@@ -41,7 +41,7 @@ void checkLocation(SVal Loc, bool IsLoad, const Stmt *S, CheckerContext &C) cons
   DefinedOrUnknownSVal Size =
       MR->getMemRegionManager().getStaticSize(Base, SVB);
 
-  llvm::errs() << "[EXT] " << MR->getKindStr()
+  llvm::errs() << "[EXT] " << MR->getKindStr()        // ← LLVM 14 没有这个函数，见下
                << "  base=" << Base->getKindStr()
                << "  size=" << Size << "\n";
 }
@@ -65,27 +65,214 @@ int f(int i, struct S *p) {
 }
 ```
 
-**要回答的具体问题**：
+### 实测结果（使用方 fork，2026-09-22）
 
-| 问 | 记录什么 |
+**编译**：`MemRegion::getKindStr()` 在你们的 fork 里不存在。**上游 LLVM 14 也没有**
+（`release/14.x` 的 `MemRegion.h` 里没有这个函数，上游 main 里才有），是我写探针时用了新版 API。
+使用方改成从 `Regions.def` 用 X-macro 生成名字 —— 这个改法是对的，而且不依赖版本，已并入 T0-1b 的探针。
+【源码确认】
+
+**`getStaticSize` 存在**，签名与上游一致（`MemRegionManager::getStaticSize(const MemRegion *, SValBuilder &)`）。【实测数据】
+
+输出 22 行，其中 12 行是标量读取（`NonParamVarRegion size=4` 是读 `i`，`size=8` 是读 `p` / `heap` 这两个指针变量本身），
+10 行是数组访问。把 10 个数组访问按顺序对上：
+
+| 访问 | 打印的是哪一层 | fork 实测 | 上游 14.0.6 实测 | 判读 |
+|---|---|---|---|---|
+| `a[i]` | 变量 `a` | 40 | 40 | ✓ |
+| `s.d[i]` | 变量 `s`（**整个 struct**） | 36 | 36 | 对象层 ✓；**不是字段 `d` 的 32** |
+| `st.d[i]` | 变量 `st` | 36 | 36 | 同上 |
+| `gs.d[i]` | 变量 `gs` | 36 | 36 | 同上 |
+| `arr[1].d[i]` | 变量 `arr` | 144 | 144 | 同上 |
+| `o.in.d[i]` | 变量 `o` | 36 | 36 | 同上 |
+| `p->d[i]` | `p` 指向的符号区域 | `extent_$4{SymRegion{reg_$3<struct S * p>}}` | 同（仅编号不同） | 符号，符合预期 |
+| `g_noinit[i]` | 变量 `g_noinit` | 40 | 40 | ✓ **Infer 漏的那一项，CSA 拿到了** |
+| `g_init[i]` | 变量 `g_init` | 40 | 40 | ✓ |
+| `heap[i]` | malloc 返回的符号区域 | `extent_$5{SymRegion{conj_$1{void *, …}}}` | 同 | 符号；**而且是 `SymRegion` 不是 `HeapSymRegion`** → 这次运行里 malloc **没有被建模** |
+
+两个顺带的判读：
+
+* **为什么形参 `i` / `p` 显示成 `NonParamVarRegion`**：`ipa=none` 下每个函数都是顶层分析，没有调用点；
+  LLVM 14 的 `MemRegionManager::getVarRegion` 只在有调用点时才给形参建 `ParamVarRegion`，
+  否则走普通 `VarRegion`。不是 bug。【源码确认】
+* **`heap` 为什么是 `SymRegion{conj…}`**：`SymbolicRegion::dumpToStream` 在区域属于堆空间时会打印
+  `HeapSymRegion{…}`。打的是 `SymRegion` 说明 malloc 的返回值只是个普通的 conjured 指针，
+  **大小（16 字节）根本没进状态**。要让它进状态，得开 `unix.DynamicMemoryModeling`（见 T0-1b 对照组 1）。
+  【源码确认 + 实测数据】
+
+### 结论
+
+1. **对象层 8/8 具体值全部正确**，包括 Infer 漏报的"全局无初始化器"。
+   **fork 的 10 行输出与上游 LLVM 14.0.6 逐行一致**（除了符号编号）。【实测数据】
+2. **但这个探针测错了层 —— 这是我写探针的问题。** 假设 A1 问的是 **`FieldRegion`**，
+   而探针打印的是 `getBaseRegion()`：它会一路剥到最外层变量，所以对 `s.d[i]` 打出来的是
+   整个 `struct S` 的 36，而不是字段数组 `d` 的 32。
+   CSA 自己的 `ArrayBoundCheckerV2` 用的是"只剥掉 `ElementRegion` 之后的第一层"
+   （LLVM 14 `RegionRawOffsetV2::computeOffset`），对 `s.d[i]` 就是 `FieldRegion d`。【源码确认】
+   这两层的差别在 `struct S { int n; int d[8]; }` 上看不出来（`d` 恰好是末尾字段，
+   `d[8]` 越出 `d` 也就越出了 `s`），**但字段不在末尾时就是"检得出"和"检不出"的区别**（T0-1b 的 B1）。
+3. 所以 **A1 本身还没有在 fork 上测到**。上游 14.0.6 上已经实测成立（见下面 T0-1b 的期望输出），
+   而 fork 在对象层与上游逐行一致 —— **大概率同样成立，但需要 T0-1b 花 5 分钟复核。**
+
+---
+
+## T0-1b · 字段层 extent，以及 CSA 的几处盲区【复核假设 A1】 ⏳ 待在 fork 上跑
+
+**两个文件直接覆盖，注册名不变，`Checkers.td` / `CMakeLists` 都不用动**：
+
+| 本包文件 | 覆盖到 |
 |---|---|
-| `getStaticSize` 这个名字在你们 fork 里存在吗？ | 存在 / 叫 `getExtent` / 都没有 |
-| 对 `s.d[i]`（局部 struct 字段）返回什么？ | 具体值 8 / Unknown |
-| 对 `gs.d[i]`（全局 struct 字段）？ | |
-| 对 `g_noinit[i]`（全局无初始化器）？ | **这是 Infer 漏报的那一项** |
-| 对 `arr[1].d[i]`、`o.in.d[i]`？ | |
-| 对 `p->d[i]`（形参 struct 指针）？ | |
-| 对 `heap[i]`？ | |
+| `08-summary2-design/probes/t0-1b/StructArrayHeapTestChecker.cpp` | `/usr1/BXPlugin/xir/llvm_ast/StaticAnalyzer/Checkers/StructArrayHeapTestChecker.cpp` |
+| `08-summary2-design/probes/t0-1b/TC_StructArrayHeapTestChecker.c` | `/usr1/BXPlugin/xir/llvm_ast/TestCase/StructArrayHeapTestChecker/TC_StructArrayHeapTestChecker.c` |
+
+探针相对 T0-1 的改动：
+
+* 同时打印**两层**：`array=`（剥掉 `ElementRegion` 后的第一层，= `ArrayBoundCheckerV2` 的比较基准）
+  和 `outer=`（`getBaseRegion()`，= T0-1 打印的那层）；
+* 用 `getDynamicExtent` 取大小（先查状态里的 `DynamicExtentMap`，malloc 的大小只存在这里；
+  查不到再退回 `getStaticSize`）——**`ArrayBoundCheckerV2` 用的就是它**；
+* 打印元素个数（`getDynamicElementCount`）、内存空间、源码行列号与表达式原文；
+* **只打印数组访问**，`i` / `p` 这类标量读取不再输出，一行对应一个访问。
+
+测试用例 = **T0-1 原样的 A 部分** + 新增 B1–B12，覆盖：非末尾字段数组、二维数组字段、
+柔性数组成员三种写法、形参裸指针、`extern` 不完整数组、`long` 数组、malloc、指向数组中间的指针再下标。
+
+**跑三次**（命令就是你 T0-1 用的那条，后两次在 `-extra_args` 里多加一个参数）：
+
+```bash
+BXEN=/usr1/BXPlugin/cmake-build-release-release/bxen
+TC=/usr1/BXPlugin/xir/llvm_ast/TestCase/StructArrayHeapTestChecker/TC_StructArrayHeapTestChecker.c
+EXTRA="-analyzer-config ipa=none -analyzer-max-loop 3 -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+
+# ① 基线
+$BXEN -exec_mode=onlySa -cc_json=/usr1/BXPlugin/cmake-build-release-release/ -analysis_file=$TC \
+      -checker=rb.enhance.core.StructArrayHeapTest "-extra_args=$EXTRA" 2>&1 | grep '^\[EXT\]' > t01b-base.txt
+
+# ② 打开 malloc 建模：看 B9 / heap 的大小能不能进状态
+$BXEN -exec_mode=onlySa -cc_json=/usr1/BXPlugin/cmake-build-release-release/ -analysis_file=$TC \
+      -checker=rb.enhance.core.StructArrayHeapTest "-extra_args=$EXTRA -analyzer-checker=unix.DynamicMemoryModeling" 2>&1 \
+      | grep '^\[EXT\]' > t01b-malloc.txt
+
+# ③ 把单元素末尾数组当柔性数组：看 B5
+$BXEN -exec_mode=onlySa -cc_json=/usr1/BXPlugin/cmake-build-release-release/ -analysis_file=$TC \
+      -checker=rb.enhance.core.StructArrayHeapTest "-extra_args=$EXTRA -analyzer-config consider-single-element-arrays-as-flexible-array-members=true" 2>&1 \
+      | grep '^\[EXT\]' > t01b-fam.txt
+
+wc -l t01b-*.txt        # 上游：每个都是 19 行
+```
+
+> ② 如果 bxen 不接受 `-analyzer-checker` 这种追加方式【推断：bxen 的 `-extra_args` 是透传给前端的】，
+> 就看输出里 `heap[i]` / `h[i]` 那两行：出现 `HeapSymRegion` 和 `dynamic=16` 就说明 malloc 建模已生效，
+> 仍是 `SymRegion` 就说明没生效。
+
+### 期望输出（上游 LLVM 14.0.6 实测，x86-64 目标）【实测数据】
+
+我用 LLVM 14.0.6 官方发布版，把上面**同一份** checker 源码编成插件跑了这份用例。
+为了好读，下表省略了 `S64b` 类型后缀和符号编号：
+
+| # | 访问 | `array=`（比较基准） | static | count | `outer=` | outer static | space |
+|---|---|---|---|---|---|---|---|
+| A | `a[i]` | VarRegion | 40 | 10 | VarRegion | 40 | StackLocals |
+| A | `s.d[i]` | **FieldRegion** | **32** | **8** | VarRegion | 36 | StackLocals |
+| A | `st.d[i]` | **FieldRegion** | **32** | **8** | VarRegion | 36 | StaticGlobal |
+| A | `gs.d[i]` | **FieldRegion** | **32** | **8** | VarRegion | 36 | GlobalInternal |
+| A | `arr[1].d[i]` | **FieldRegion** | **32** | **8** | VarRegion | 144 | StackLocals |
+| A | `o.in.d[i]` | **FieldRegion** | **32** | **8** | VarRegion | 36 | StackLocals |
+| A | `p->d[i]` | **FieldRegion** | **32** | **8** | SymbolicRegion | `extent{p}` | Unknown |
+| A | `g_noinit[i]` | VarRegion | 40 | 10 | VarRegion | 40 | GlobalInternal |
+| A | `g_init[i]` | VarRegion | 40 | 10 | VarRegion | 40 | GlobalInternal |
+| A | `heap[i]` | SymbolicRegion | `extent{conj}` | `extent/4` | SymbolicRegion | 同左 | Unknown |
+| B1 | `t.d[i]`（非末尾字段） | **FieldRegion** | **32** | **8** | VarRegion | 36 | StackLocals |
+| B2 | `x.m[1][j]`（二维字段） | — | — | — | — | — | **没有输出** |
+| B3 | `f0->d[i]`（`d[]`） | FieldRegion | **Unknown** | Unknown | SymbolicRegion | `extent{f0}` | Unknown |
+| B4 | `fz->d[i]`（`d[0]`） | FieldRegion | **Unknown** | Unknown | SymbolicRegion | `extent{fz}` | Unknown |
+| B5 | `f1->d[i]`（`d[1]`） | FieldRegion | **4** | **1** | SymbolicRegion | `extent{f1}` | Unknown |
+| B6 | `q[i]`（`int *q`） | SymbolicRegion | `extent{q}` | `extent/4` | 同左 | 同左 | Unknown |
+| B7 | `ext_arr[i]`（`extern int []`） | VarRegion | **Unknown** | Unknown | VarRegion | Unknown | GlobalInternal |
+| B8 | `lg[i]`（`long`） | VarRegion | 32 | 4 | VarRegion | 32 | StackLocals（`elem=long/8B`） |
+| B9 | `h[i]`（malloc） | SymbolicRegion | `extent{conj}` | `extent/4` | 同左 | 同左 | Unknown |
+| B10 | `p = &a[2]; p[j]` | — | — | — | — | — | **没有输出** |
+| B11 | `p = a + k; p[j]` | — | — | — | — | — | **没有输出** |
+| B12 | `p = &a[2]; *(p + j)` | VarRegion | 40 | 10 | VarRegion | 40 | StackLocals |
+
+两个对照组只改变这几行：
+
+| 对照组 | 变化 |
+|---|---|
+| ② `unix.DynamicMemoryModeling` | `heap[i]`、`h[i]`：`HeapSymRegion{…}`、**`dynamic=16 count=4`**、space=`HeapSpaceRegion` |
+| ③ `consider-single-element-arrays-as-flexible-array-members=true` | `f1->d[i]`：`static=Unknown count=Unknown` |
+
+### 你只需要回我四件事
+
+```
+T0-1b: ① 7 行字段数组（A 组 6 行 + B1）的 array= 是否都是 FieldRegion / 32 / 8
+       ② B2、B10、B11 是否也没有输出
+       ③ 对照组 ② 里 heap 是否变成 dynamic=16
+       ④ 其余行与上表是否一致（不一致的贴原文）
+```
 
 **解读**：
 
-* **大部分返回具体值** → A1 成立。**这是方案 C 最有力的支撑**：
-  你们在"内存建模覆盖面"这个最决定召回率的维度上**起点比 Infer 高**，
-  ExtentModel 变成"包一层 + 补 #12–#17"，省 4–6 人日。
-* **多数 Unknown** → A1 不成立。ExtentModel 要从 `ASTContext` 的声明类型自己算，
-  +4–6 人日，且 `01-architecture.md` §3.1 的"可以借用 CSA region 机制"那段要删掉。
+* **① 全是 FieldRegion / 32 / 8** → **A1 成立**。ExtentModel 走"借 CSA 的规则、包一层"路线，
+  按 `02-` 的新数字（10–12 人日）执行。
+* **① 出现 Unknown 或打的是 36** → A1 在你们 fork 上不成立（fork 改过 `getStaticSize` 的
+  `FieldRegion` 分支）。ExtentModel 回到 16 人日上限，`01-` §3.1 的"借用 CSA"那段要删。
+* **② 与上游一致** → 下面三处盲区在你们 fork 上同样存在，设计里必须自己补（已写进 `01-` §3.1 的表）。
 
----
+### 上游实测已经暴露的四处盲区（不管 fork 结果如何，设计都要处理）
+
+**(a) 指向数组中间的指针，再用符号下标：CSA 连"访问的是哪块内存"都给不出。**【实测数据 + 源码确认】
+
+B10 `p = &a[2]; p[j]` 和 B11 `p = a + k; p[j]` **一行输出都没有**——不是 extent 拿不到，
+而是 checker 的 `checkLocation` 根本没被调用。根因在 LLVM 14 `StoreManager::getLValueElement`
+（`Store.cpp`）：基址已经是一个 `ElementRegion`（`&a[2]` 就是 `Element{a,2}`），再加一个**非常量**偏移时，
+直接返回 `UnknownVal()`；而 `ExprEngine::evalLocation` 对 Unknown 地址开头就 `return`，**不通知任何 checker**。
+语义完全相同的 B12 `*(p + j)` 却正常——因为指针算术走的是 `SValBuilder::evalBinOp`，那条路会把两个下标加起来。
+
+用 CSA 自带的 `alpha.security.ArrayBoundV2` 交叉验证：当 `j` 被约束成具体值（`if (j != 9) return 0;`）时
+`p[j]` **能报**——所以受影响的恰恰是"下标还是符号"的情形。
+**而那正是摘要要做的事**：`int g(int j) { int *p = &a[2]; return p[j]; }` 需要推出 `requires j ≤ 7`，
+CSA 在这里什么也没给。→ AccessPath 必须自己把 `p = &a[2]` 表示成 `(a, +2)`，不能读 ExprEngine 的地址。
+
+**(b) 二维数组：只到"整个数组"这一级，行级越界检不出；符号内层下标连地址都没有。**【实测数据】
+
+B2 `x.m[1][j]` 也没有输出（同 (a) 的根因：`x.m[1]` 是 `Element{m,1}`，再加符号 `j`）。
+内层下标是常量时有地址，但比较基准是整个 `m`（48 字节）：`ArrayBoundV2` 对 `x.m[0][5]`
+（越出第 0 行、没越出整个 `m`）**不报**，对 `t.d[8]`（非末尾字段越界）**能报**。【实测数据】
+→ `01-` §3.1 表里 #18"多维：逐维"这一行，**只能自己做，不能借 CSA**。
+
+**(c) 柔性数组成员：三种写法三种结果。**【实测数据 + 源码确认】
+
+`d[]` 和 `d[0]` → Unknown；`d[1]` 默认按"真的只有 1 个元素"处理（count=1），
+只有打开 `consider-single-element-arrays-as-flexible-array-members` 才变 Unknown。
+嵌入式老代码里用 `d[1]` 当变长尾巴的写法并不少见【推断】：默认配置下每个 `d[k>0]` 都会被当越界 → 误报；
+打开选项 → 真正只有 1 个元素的数组又检不出。**更根本的是**：柔性数组的真实长度写在**调用者**的
+`malloc(sizeof(S) + n * sizeof(T))` 里 —— 这是一个天然的跨过程问题，恰好是摘要能补、单函数分析补不了的。
+
+**(d) malloc 的大小要开 `unix.DynamicMemoryModeling` 才进状态。** 你 T0-1 那次运行里没开（见上面 `SymRegion` 的判读）。
+如果你们现有的越界规则想用到堆大小，先确认生产配置里这个 modeling checker 是开着的。
+
+### T0-1c · 顺带确认一下：你们 fork 的 clang 认不认识 aarch64 ILP32（1 分钟，可选）
+
+T0-1 输出里读指针 `p` 的那行是 `size=8`——那是因为 `-cc_json` 指向的是 BXPlugin 自己的构建目录（x86-64 主机）。
+**真正分析业务代码时**，extent 是按 cdb 里的目标 ABI 算的。我在上游 clang 14.0.6 上实测：
+
+```
+-triple aarch64_be-unknown-linux-gnu_ilp32   →  __SIZEOF_LONG__ 8, __SIZEOF_POINTER__ 8   （按 LP64 处理）
+```
+
+也就是说**上游 LLVM 14 不认识 aarch64 的 ILP32 数据模型**——跟你在 `06-practice/03-…` §2.3 里
+对 Infer 自带 clang-21 的结论一样。如果你们的 fork 构建出了 clang 可执行文件，跑一行：
+
+```bash
+<fork 的 clang> --target=aarch64_be-linux-gnu_ilp32 -E -dM -x c /dev/null | grep -E '__SIZEOF_(LONG|POINTER)__'
+```
+
+* 是 `4 / 4` → fork 带了 ILP32 补丁，没问题。
+* 是 `8 / 8` → 你们**现有的** CSA 规则分析业务代码时也是按 LP64 布局算的。
+  **影响面比听上去小**【推断】：数组下标 vs 元素个数的比较不受影响（两边都按同一个错误布局算，比值不变）；
+  受影响的是**含指针 / `long` / `size_t` 的结构体字节布局**，以及源码里写死字节数、
+  经 `char *` 按字节偏移访问、`memcpy_s(dst, 20, …)` 这类场景。这件事跟方案 C 无关，但值得知道。
 
 ## T0-2 · 现有越界告警的"单函数内可判定"比例
 
@@ -273,7 +460,8 @@ grep -rInE '\w+\s*\[\s*\w+\s*\]' --include=*.c . | wc -l
 
 | 你给我 | 我会改 |
 |---|---|
-| T0-1 | `01-` §3.1 的实现路径（借用 CSA region vs 自己从 AST 算）；`02-` 的 ExtentModel 人日 |
+| T0-1 | ✅ **对象层已完成**：已改 `01-` §3.1（新增 #21–#22、改写 #12/#17/#18 的 CSA 现状）、§5 A1 状态、§7；`02-` ExtentModel 10–16 → **10–12**、AccessPath 5–7 → **6–9** |
+| T0-1b | 字段层复核。若 ① 不成立，ExtentModel 回到 16 人日、`01-` §3.1 借用 CSA 那段删除 |
 | T0-2 | 推荐结论的强度；可能把 ExtentModel 从"P-1 组件"提升为"独立立项" |
 | T0-3 | **可能整体降级方案 C**，改推 `02-` §5 那个 15–20 人日的选项 |
 | T0-4 | `01-` §1 的架构主副关系；SummaryGen 的规模与 M1 人日 |

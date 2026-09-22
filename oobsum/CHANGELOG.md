@@ -1,5 +1,86 @@
 # CHANGELOG
 
+## v3.4 — 2026-09-22
+
+回填**方案 C 的第一个 Tier-0 实测数据（T0-1）**。使用方在自己的 LLVM 14 fork 上跑了 T0-1 探针。
+
+### T0-1 结果
+
+* **编译问题**：探针用了 `MemRegion::getKindStr()`，fork 里没有。**上游 LLVM 14 也没有**
+  （`release/14.x` 的 `MemRegion.h` 里没有，上游 main 里才有）—— 是我写探针时用了新版 API。
+  使用方改为从 `Regions.def` 用 X-macro 生成名字，做法正确且不依赖版本，已并入新探针。
+* **`getStaticSize` 存在**，签名与上游一致。
+* **对象层 8/8 具体值正确**，包括 Infer 漏报的"全局无初始化器"（`g_noinit` → 40）。
+* 我用 LLVM 14.0.6 官方发布版把同一份探针编成插件跑了同一份用例：
+  **fork 的 10 行数组访问输出与上游逐行一致**（除了符号编号）。
+* 从 fork 输出还能直接读出：`heap[i]` 打的是 `SymRegion{conj…}` 而不是 `HeapSymRegion{…}`
+  → 那次运行里 **malloc 没有被建模**，大小没进状态（需要 `unix.DynamicMemoryModeling`）。
+
+### 我的错：原探针测错了层
+
+假设 A1 问的是 **`FieldRegion`** 的大小，而 T0-1 探针打印的是 `getBaseRegion()` —— 它一路剥到最外层变量，
+对 `s.d[i]` 打出来的是整个 `struct S` 的 36，不是字段数组 `d` 的 32。
+CSA 自己的 `ArrayBoundCheckerV2` 用的是"只剥 `ElementRegion` 的第一层"（`RegionRawOffsetV2::computeOffset`）。
+两层在 `struct S { int n; int d[8]; }` 上看不出差别（`d` 恰好在末尾），**字段不在末尾时就是检得出和检不出的差别**。
+所以 **A1 本身在 fork 上还没测到**，需要 T0-1b 复核（5 分钟）。
+
+### 新增
+
+* **`08-summary2-design/probes/t0-1b/`** —— 字段层复核探针，两个文件直接覆盖，注册名不变：
+  - `StructArrayHeapTestChecker.cpp`：同时打印 `array=`（ArrayBoundV2 的比较基准）与 `outer=`（T0-1 那层）；
+    用 `getDynamicExtent` 取大小（malloc 的大小只在这里）；打印元素个数、内存空间、行列号、表达式原文；
+    只打印数组访问。按使用方的代码规范写（4 空格、函数大括号换行、单语句 if 带大括号、变量 lowerCamelCase），
+    保留了使用方原文件的全部注释。**已在上游 LLVM 14.0.6 头文件上编译通过**（`-Wall -Wextra` 无本文件告警）。
+  - `TC_StructArrayHeapTestChecker.c`：T0-1 原样的 A 组 + 新增 B1–B12
+    （非末尾字段、二维字段、柔性数组三种写法、形参裸指针、`extern` 不完整数组、`long` 数组、malloc、
+    指向数组中间的指针再下标及其指针算术对照组）。按规范带四段文件头。
+* **`03-assumptions-and-test-plan.md`**
+  - T0-1 标为"对象层已完成"，回填实测表、逐行判读、结论。
+  - **新增 T0-1b**：文件覆盖表、三次运行命令（基线 / `unix.DynamicMemoryModeling` /
+    `consider-single-element-arrays-as-flexible-array-members=true`）、**上游 14.0.6 实测的期望输出表**、
+    "只需回我四件事"、解读分支。
+  - **新增"上游实测已经暴露的四处盲区"**：
+    (a) `p = &a[2]; p[j]`、`p = a + k; p[j]`：CSA 14 在 `StoreManager::getLValueElement` 返回 `UnknownVal`，
+        `ExprEngine::evalLocation` 对 Unknown 地址直接 `return`，**checker 根本收不到回调**；
+        语义相同的 `*(p + j)` 正常。用 `alpha.security.ArrayBoundV2` 交叉验证：下标被约束成具体值时能报 ——
+        受影响的恰好是"下标还是符号"的情形，也就是摘要要推 `requires` 的情形。【实测数据 + 源码确认】
+    (b) 二维数组只到整数组级：`x.m[0][5]` 越出第 0 行不报；`x.m[1][j]` 连地址都没有。【实测数据】
+    (c) 柔性数组 `d[]` / `d[0]` → Unknown；`d[1]` 默认按 1 个元素算。【实测数据 + 源码确认】
+    (d) malloc 大小要开 `unix.DynamicMemoryModeling`。
+  - **新增 T0-1c（可选）**：上游 clang 14 把 `aarch64_be-linux-gnu_ilp32` 按 LP64 处理
+    （`__SIZEOF_LONG__ 8`、`__SIZEOF_POINTER__ 8`，实测）；给出一行命令确认 fork 是否带 ILP32 补丁，
+    以及影响面的判断（下标 vs 元素个数不受影响；含指针/`long` 的结构体字节布局、写死字节数的场景受影响）。
+  - 承诺表中 T0-1 标为已完成并列出改动，新增 T0-1b 一行。
+
+### 变更
+
+* **`01-architecture.md`**
+  - §3.1 ExtentModel 表：#12 注明 malloc 建模前提；#17 写明 CSA 14 对三种柔性数组写法的实际行为与
+    "真实长度在调用者 malloc 里 → 摘要可补"；#18 注明多维只能自己做；**新增 #21 "指向数组中间的指针再用符号下标"**。
+  - A1 段落：补 T0-1 进展，并**写清"借用 CSA"的边界** —— 借的是"从类型算大小"的规则，
+    不是 ExprEngine 算出来的地址（#21 说明后者在关键场景下是 Unknown）。
+  - §5 A1 行、§7 `MemRegion` 行更新状态。
+* **`02-effort-and-milestones.md`**
+  - ExtentModel **10–16 → 10–12** 人日（对象层 fork 已验证、字段层上游已验证 → 走"借 CSA 规则"路线）。
+  - AccessPath **5–7 → 6–9** 人日（#21：基址偏移要自己表示）。
+  - M2 **+22–32 → +23–30**；合计 **98–151 → 99–149** 人日（仍约 5–7.5 人月）。M0+M1 不变（33–48）。
+  - A1 风险从"中"降到"低"。
+  - §5 省钱路线补一条：走"ExtentModel + inline 加深"时现有规则会撞上 #21，
+    要么接受这块漏报，要么在 fork 里改 `getLValueElement`【推断：1–3 人日含回归】，已含在 15–20 人日内。
+* 报告附录 E、`report-web-offline.html`、README 的工作量数字同步；报告 E.2 与离线网页补 T0-1 进展。
+
+### 同步
+
+* claude.ai 项目文档 `CSA-Summary2.0-总体设计.md`、`CSA-Summary2.0-工作量估算与实测清单.md`
+  用本版 `01-` 与 `02-`+`03-` 替换（原先是 v2.3 时的旧稿）。
+* 可分享网页（Artifact）同步工作量数字，并新增"T0-1 进展"一节。
+
+### 没有变的
+
+Infer 侧的全部结论与实验数据、构建脚本一个字没动。
+
+---
+
 ## v3.3 — 2026-09-21
 
 使用方按 v3.2 的手动步骤从零编译成功后，提出的三个问题。三个都成立，全部落地。
