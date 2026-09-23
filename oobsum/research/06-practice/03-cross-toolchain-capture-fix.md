@@ -9,6 +9,12 @@
 > 也是本包 `01-whole-program-analysis.md` 里"体检 cdb"那一节的下一道坎：
 > 路径都解析得到了，不代表编译得动。
 
+> **v3.9 更新（使用方修订脚本）：指针宽度用 `-m32` 从根上修好，不再靠 `-U__LP64__` / `-D__ILP32__` 骗头文件。**
+> 目标改为 `--target=aarch64_be-linux-gnu -m32`，另加 `-D__AARCH64EB__`、`-D__uint128_t=unsigned long long`；
+> 脚本加了查 `capture.db` 的后台进度监控。旧方案下那 6638 条
+> `cast from pointer to smaller type` 随之消失（使用方实测约 2300+ 条硬错误一次清掉）。
+> 代价是分析目标从"aarch64 ilp32"变成"32 位 ARM"，差异见 §3.0。
+
 > **v3.8 更新（使用方修订脚本）：C++ 标准头改为 gcc-14.3.0 自带的 libstdc++，不再注入 infer 自带的 libc++/v1。**
 > §三「方案 A」的命令与参数表已同步；§三「验证」和 §七「全量执行结果」是 libc++/v1 方案时测的，
 > 换成 libstdc++ 后需要重跑回填（命令见 §七 末尾）。
@@ -27,7 +33,8 @@ cdb 里 `-isystem` / `-I` 还指向已卸载的 `bisheng_embedded_cpu-305.1.0.b0
 即便补上目标宏，C++ 标准头也找不到。
 
 修复无需改 cdb，给 infer 加一组 `--Xclang` / `--clang-isystem-to-override-regex`
-参数即可（见下文「方案 A」）。
+参数即可（见下文「方案 A」）。v3.9 起其中的关键一条是 **`-m32`**：直接把数据模型换成 32 位，
+而不是用 `-U__LP64__` / `-D__ILP32__` 去骗头文件——后者只改了宏，指针仍是 8 字节。
 
 ---
 
@@ -101,6 +108,23 @@ In file included from .../ltrc_innertrace.c:7:
   #define __aarch64__ 1
   ```
   这才是该 RTOS 期望的目标语义。
+- **v3.9 实测**（infer 自带 clang 21.1.6，`-dM -E -x c /dev/null`）：加上 `-m32` 后，
+  自带 clang 会切到 32 位 ARM 数据模型，指针真的变成 4 字节——这才是"改数据模型"，
+  而 `-U__LP64__ -D__ILP32__=1` 只改了头文件看到的宏，指针仍是 8 字节。【实测数据】
+
+  | 宏 | `--target=...ilp32`（旧） | `--target=aarch64_be-linux-gnu -m32`（v3.9） | BiSheng clang（真 ILP32） |
+  |---|---|---|---|
+  | `__SIZEOF_POINTER__` | 8 | **4** | 4 |
+  | `__UINTPTR_TYPE__` | `long unsigned int` | **`unsigned int`** | `unsigned int` |
+  | `__ILP32__` / `__LP64__` | 未定义 / 1 | **1 / 未定义** | 1 / 未定义 |
+  | `__aarch64__` / `__arm__` | 1 / 未定义 | 未定义 / **1** | 1 / 未定义 |
+  | `__SIZE_TYPE__` | `long unsigned int` | `unsigned int` | `long unsigned int` |
+  | `__PTRDIFF_TYPE__` | `long int` | `int` | `long int` |
+  | `__SIZEOF_LONG_DOUBLE__` | 16 | **8** | 16 |
+  | `__BIGGEST_ALIGNMENT__` | 16 | **8** | 16 |
+  | `__ARM_ARCH` | —— | **4**（`__ARM_ARCH_4T__`） | —— |
+  | 大端宏 | —— | `__ARMEB__` / `__ARM_BIG_ENDIAN` / `__BYTE_ORDER__=BIG`（**`__AARCH64EB__` 要自己补**） | `__AARCH64EB__` |
+  | `__SIZEOF_INT128__` | 16 | **未定义**（`__uint128_t` 不可用，要自己伪定义） | 16 |
 
 ### 2.4 华为自定义 `bits/wordsize.h` 严格依赖目标宏
 
@@ -171,10 +195,11 @@ GCC_CXX_INC_BASE="/opt/buildtools/gcc-14.3.0/include/c++/14.3.0"   # v3.8：gcc 
 infer capture \
   --compilation-database /usr1/518C10/HERT_BBU/project/makesoter/compdb/1383/all/compile_commands.json \
   --keep-going \
-  --Xclang "--target=aarch64_be-target-linux-gnu_ilp32" \
+  --Xclang "--target=aarch64_be-linux-gnu" \
   --Xclang "-mbig-endian" \
-  --Xclang "-U__LP64__" \
-  --Xclang "-D__ILP32__=1" \
+  --Xclang "-m32" \
+  --Xclang "-D__AARCH64EB__" \
+  --Xclang "-D__uint128_t=unsigned long long" \
   --Xclang "--sysroot=/opt/buildtools/rtos/opt/RTOS/208.12.0/arm64be_5.10_ek_llvm/sdkilp32/" \
   --Xclang "-I$GCC_CXX_INC_BASE" \
   --Xclang "-I$GCC_CXX_INC_BASE/x86_64-pc-linux-gnu/32" \
@@ -184,9 +209,11 @@ infer capture \
 
 | 参数 | 作用 |
 |---|---|
-| `--Xclang "--target=aarch64_be-target-linux-gnu_ilp32"` | 让自带 clang 定义 `__aarch64__`、按 aarch64_be 处理 |
+| `--Xclang "--target=aarch64_be-linux-gnu"` | aarch64 大端 target（**不带 `_ilp32` 后缀**，带了也只会被当 LP64，见 §2.3）（v3.9） |
 | `--Xclang "-mbig-endian"` | 大端模式 |
-| `--Xclang "-U__LP64__"` + `-D__ILP32__=1` | 强制 wordsize.h 走 32 位分支，绕过自带 clang 不支持 ilp32 ABI 的缺口 |
+| `--Xclang "-m32"` | **根因修复**：切到 32 位数据模型，指针真的变 4 字节，`__ILP32__` 自动定义、`__LP64__` 自动撤销。`cast from pointer to smaller type` 这类硬错误从源头消失（v3.9，取代旧的 `-U__LP64__ -D__ILP32__=1`） |
+| `--Xclang "-D__AARCH64EB__"` | `-m32` 后 clang 定义的是 `__ARMEB__` / `__ARM_BIG_ENDIAN`，而 sysroot 的 `gnu/stubs-32.h`、glibc 的 `bits/endian.h` 认的是 `__AARCH64EB__`，需要补上（v3.9） |
+| `--Xclang "-D__uint128_t=unsigned long long"` | `-m32` 后没有 128 位整数内建类型，而 sysroot 的 `asm/sigcontext.h` / `sys/user-32.h` 仍引用 `__uint128_t`，用替身让 AST 解析通过（v3.9） |
 | `--Xclang "--sysroot=.../arm64be_5.10_ek_llvm/sdkilp32/"` | 提供与 ilp32 匹配的 libc 头 |
 | `--Xclang "-I$GCC_CXX_INC_BASE"` | libstdc++ 主头目录，提供 `<algorithm>` / `<map>` / `<set>` / `<cstddef>` / `<cstdint>` / `<string>` 等 C++ 标准头（v3.8） |
 | `--Xclang "-I$GCC_CXX_INC_BASE/x86_64-pc-linux-gnu/32"` | 平台相关头（32 位 ABI），提供 `bits/c++config.h` 等（v3.8） |
@@ -221,7 +248,7 @@ infer capture \
 > find /opt/buildtools -path '*c++/14.3.0*' -name c++config.h 2>/dev/null | grep -iE 'aarch64|ilp32'
 > ```
 
-#### 验证（libc++/v1 方案时的记录，libstdc++ 方案待回填）
+#### 验证（libc++/v1 + LP64 时期的记录，v3.9 方案待回填）
 
 用 cdb 中两条原本报错的记录手工跑自带 clang，叠加方案 A 的参数后：
 
@@ -234,17 +261,32 @@ infer capture \
 
 #### 已知遗留风险
 
-- 自带 clang 仍把 `__SIZEOF_POINTER__` 按 8 字节算（builtin，无法用 `-D` 改）。
-  若被分析的代码强依赖指针 4 字节（如 `sizeof(void*)`、`intptr_t` 宽度），
-  分析结果可能偏。本工程的 `VOS_UINTPTR` 已被 typedef 为 `unsigned int`，
-  业务层通常不受影响，但需关注。同时这个 builtin 会让 libc++/v1 内部的
-  `reinterpret_cast<uintptr_t>(&__x)` 产生 `cast from pointer to smaller type`
-  的 error，靠 `-ferror-limit 19` 容忍；若某个 C++ TU 里这种 error 超过 19 条，
-  会触发 `fatal error: too many errors emitted` 导致该文件 capture 失败。
-  **v3.8 换成 libstdc++ 后这条仍在**：libstdc++ 里有同类写法，例如 `<memory>` 包含的
-  `bits/align.h` 中 `std::align` 的 `reinterpret_cast<uintptr_t>(__ptr)`（libstdc++ 13 的头文件如此，
-  14.3.0 以本机头文件为准）。它是非模板的内联函数，包含 `<memory>` 的 C++ TU 都会多出这一条 error，
-  也计入 19 条上限。
+**v3.9 已解决的（记录在此，便于对照历史数据）：** 指针宽度。旧方案里自带 clang 的
+`__SIZEOF_POINTER__` 是 8，而 ilp32 sysroot 的 `uintptr_t` / `VOS_UINTPTR` 是 4 字节，
+`reinterpret_cast` 两边不等宽在 C++ 里是硬 error（`-W` 无法降级），一跑就是 6638 条，
+还会顶到 `-ferror-limit 19`；libstdc++ 的 `bits/align.h`（`std::align`）也有同类写法。
+`-m32` 之后指针本身就是 4 字节，这一整类错误从源头消失，
+`sizeof(void*)` 参与的分析结论也终于和真实目标一致。
+
+**v3.9 新引入的（代价）**【实测数据 + 推断】：分析目标从 "aarch64 ilp32" 变成了
+"32 位 ARM"，两者数据模型一致（int/long/指针都是 4 字节）但不是同一个架构：
+
+- **`__aarch64__` 不再定义，改为 `__arm__`**。业务代码或第三方头里若有
+  `#ifdef __aarch64__` 分支，会走到另一条路上。开工前扫一遍：
+  `grep -rn '__aarch64__' --include='*.c' --include='*.cpp' --include='*.h' <源码根> | wc -l`。
+- **`__ARM_ARCH` 是 4（`__ARM_ARCH_4T__`）**，不是 8。依赖 `__ARM_ARCH >= 7/8`、
+  `__ARM_NEON`、`arm_neon.h`、ARMv8 原子 / CRC 内建的代码会被跳过或编不过。
+  扫一遍：`grep -rn '__ARM_ARCH\|arm_neon\|__ARM_FEATURE' --include='*.c' --include='*.cpp' --include='*.h' <源码根> | wc -l`；
+  有命中再加 `--Xclang "-march=armv8-a"` 重跑对照。
+- **`long double` 是 8 字节（真 ILP32 是 16）、`__BIGGEST_ALIGNMENT__` 是 8（真 ILP32 是 16）**。
+  含 `long double` 或按最大对齐排布的结构体，成员偏移会和真实目标不同——
+  这条对"按字节偏移定位结构体成员"的分析（如 `alloc_free_identity` 的 `offset`）有直接影响。
+- **`__uint128_t` 是伪定义的 `unsigned long long`（8 字节，真实 16 字节）**。
+  只出现在 sysroot 的信号 / 寄存器结构里时无害；若业务结构体里有 128 位整数，布局会偏。
+  另外 `__int128_t` 和 `unsigned __int128` 这两种写法没有被替身覆盖，
+  用到会直接报错：`grep -c '__int128' capture.log`。
+- `__SIZE_TYPE__` / `__PTRDIFF_TYPE__` 的类型身份不同（`unsigned int` vs `long unsigned int`），
+  宽度一样，对 capture 与越界分析无影响（使用方已试过纠正，会连带 `operator new` 签名报错，不划算）。
 - `Frontend error: Assert_failure src/clang/cAst_utils.ml:249:53` 是 infer 自带
   clang 前端在某些 C++ 构造（如 `ForStmt`）上的崩溃，与目标配置无关，
   `--keep-going` 会跳过，受影响文件不进 `capture.db`。
@@ -292,6 +334,26 @@ infer 的 clang 路径硬编码在 `facebook-clang-plugins/clang/install/bin/cla
 4. 调用 `infer capture`，把 stdout/stderr 全量保存到日志文件。
 5. 跑完打印 `infer-out` 大小、`capture.db` 大小、日志中 `error:` 与
    `fatal error:` 的计数、前 20 条不同 fatal error 的去重样例，便于后续按需追加修复。
+6. （v3.9）跑的过程中每 10 秒查一次 `capture.db` 的 `source_files` 行数，
+   打印"已落库 / 总数 / 百分比 / 速率 / 预计剩余"。全量一万个文件时这是唯一
+   靠得住的进度信号。
+
+> **日志必须收 stderr，不能只收 stdout**【实测数据】。infer capture 的全部输出——
+> 开场信息、clang 诊断、`Error: the following clang command did not run successfully` 的
+> 失败命令转储——都走 **stderr**，stdout 一行都没有：
+>
+> ```bash
+> infer capture --compilation-database cdb.json --results-dir out \
+>   --keep-going --progress-bar-style plain >so.txt 2>se.txt
+> wc -l so.txt   # 0
+> wc -l se.txt   # 45（含 error: 与失败命令）
+> ```
+>
+> 所以脚本里用的是 `2>&1 | tee "$LOG_FILE"`，退出码取 `${PIPESTATUS[0]}`。
+> 如果改成只重定向 stdout（例如为了让 infer 的进度条保留 tty），
+> `capture.log` 会是空的，第 4 步的错误统计会全是 0——**看起来像零错误，其实是没收到日志**。
+> infer 的 `--progress-bar-style plain` 在非 tty 下也只打印两行开场信息，没有逐文件进度，
+> 保留 tty 换不来什么，进度看脚本自己的监控即可。
 
 用法：
 
@@ -345,7 +407,9 @@ cd /usr1/BXPlugin/xir/FunctionSummary/infer-research-kit/06-practice
 
    如果探针结果跟 `07-capability-boundary/01-capability-boundary-fp-fn.md` 里记录的
    18/22 对不上，说明目标模型的改写影响到了分析本身
-   （最可能是 `__SIZEOF_POINTER__` 那条遗留风险），此时全量结果的漏报要打折看。
+   （v3.9 前最可能是 `__SIZEOF_POINTER__=8`；v3.9 起指针宽度已经对了，
+   要看的是 `-m32` 带来的 `__arm__` / `__ARM_ARCH=4` / `long double` 差异），
+   此时全量结果的漏报要打折看。
 
 > **更新**：`capture.summary.txt` 早期版本用 cdb 记录数做分母，得出"96.2%"。
 > 实际 cdb 的 10640 条里有 408 条是同文件多 flag 的重复条目，infer 按源文件去重
@@ -354,10 +418,12 @@ cd /usr1/BXPlugin/xir/FunctionSummary/infer-research-kit/06-practice
 
 ---
 
-## 七、全量执行结果（2026-09-20，libc++/v1 方案）
+## 七、全量执行结果（2026-09-20，libc++/v1 + LP64 方案）
 
-> **v3.8**：本节数字是 C++ 头还用 infer 自带 libc++/v1 时跑的。换成 libstdc++ 后请按本节末尾的命令重跑，
-> 把新数字补成一列对照（C 文件不受这次改动影响，变化只会出现在 C++ 文件上）。
+> **v3.8 / v3.9**：本节数字是 C++ 头还用 infer 自带 libc++/v1、指针还是 8 字节时跑的。
+> 现行参数（libstdc++ + `-m32`）请按本节末尾重跑，把新数字补成一列对照。
+> 预期变化：`cast from pointer to smaller type` 归零、`too many errors emitted` 归零；
+> 新的风险点在 `__arm__` / `__ARM_ARCH=4` 分支和 `__int128` 上。
 
 对 1383 全量 cdb（10640 条记录）跑完方案 A，实际结果如下：
 
@@ -469,3 +535,38 @@ grep 'fatal error:' capture.log | grep -oE "'[^']+' file not found" | sort | uni
 | `cast from pointer to smaller type` | 6638 | |
 | `too many errors emitted`（涉及文件） | 129（1） | |
 | `Frontend error`（涉及文件） | 136（17） | |
+
+### 7.5 v3.9（libstdc++ + `-m32`）重跑与对照（待回填）
+
+```bash
+cd /usr1/BXPlugin/xir/FunctionSummary/infer-research-kit/06-practice
+./capture-cross-toolchain.sh \
+    /usr1/518C10/HERT_BBU/project/makesoter/compdb/1383/all/compile_commands.json \
+    /usr1/BXPlugin/xir/FunctionSummary/capture-m32
+cd /usr1/BXPlugin/xir/FunctionSummary/capture-m32
+
+wc -l capture.log                                                   # 不能是 0（见 §四 的提醒）
+grep -c 'cast from pointer to smaller type' capture.log             # 旧 6638，预期 0
+grep -c 'too many errors emitted' capture.log                       # 旧 129，预期 0
+grep -c 'Frontend error:' capture.log                               # 旧 136（infer 自身 bug，与目标无关）
+grep -c '__int128' capture.log                                      # 预期 0；非 0 说明替身没覆盖到
+grep 'error:' capture.log | grep -oE 'error: .*' | sort | uniq -c | sort -rn | head -20
+sqlite3 infer-out/capture.db "SELECT COUNT(*) FROM source_files;"   # 旧 10232
+sqlite3 infer-out/capture.db "SELECT COUNT(*) FROM procedures;"     # 旧 328602
+```
+
+| 指标 | libc++/v1 + LP64（2026-09-20） | libstdc++ + `-m32`（v3.9） |
+|---|---|---|
+| capture.db 源文件数 | 10232 | |
+| capture.db 过程数 | 328602 | |
+| `cast from pointer to smaller type` | 6638 | |
+| `too many errors emitted`（涉及文件） | 129（1） | |
+| `Frontend error`（涉及文件） | 136（17） | |
+| 剩余 error 的 top 类型 | —— | |
+
+过程数这一行值得重点看：指针从 8 字节变 4 字节、`__aarch64__` 变 `__arm__` 之后，
+条件编译选择的代码分支变了，`procedures` 的数量也会跟着变。**变多变少都正常，但如果明显变少**
+（比如少了几千个），说明有一批 `#ifdef __aarch64__` 下的函数被编没了，
+这时按 §三「已知遗留风险」里的 grep 去定位，必要时加 `-march=armv8-a` 或给业务代码补 `-D__aarch64__`
+（注意：补 `__aarch64__` 会让 `bits/wordsize.h` 走 `__aarch64__ && __LP64__` 之外的 32 位分支，
+先小范围试一个 TU 再全量）。

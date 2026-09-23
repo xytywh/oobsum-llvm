@@ -1,5 +1,45 @@
 # CHANGELOG
 
+## v3.9 — 2026-09-23
+
+**跨编译 capture 的指针宽度用 `-m32` 从根上修好（使用方修订）；修了一个会让日志变空的重定向问题。**
+
+### `06-practice/capture-cross-toolchain.sh`
+
+使用方修订部分（原样收录）：
+
+* 目标参数从 `--target=aarch64_be-target-linux-gnu_ilp32 -U__LP64__ -D__ILP32__=1`
+  改为 **`--target=aarch64_be-linux-gnu -mbig-endian -m32`**：clang-21 不认 aarch64_be 的 ilp32 ABI，
+  旧参数只改了头文件看到的宏、指针仍是 8 字节；`-m32` 换的是数据模型，指针真的是 4 字节，
+  `cast from pointer to smaller type` / initializer-constant / LIRAF_OFFSET 三类硬错误（约 2300+ 条）一次清掉。
+* 新增 `-D__AARCH64EB__`（`-m32` 后 clang 定义的是 `__ARMEB__`，而 sysroot 的 `gnu/stubs-32.h` 认 `__AARCH64EB__`）
+  与 `-D__uint128_t=unsigned long long`（`-m32` 后没有 128 位内建类型，sysroot 的 `asm/sigcontext.h` 仍引用）。
+* 新增后台进度监控：每 10 秒查 `capture.db` 的 `source_files` 行数，打印已落库 / 总数 / 百分比 / 速率 / ETA。
+* 失败统计改用 `did not run successfully` 分段提取失败源文件，`fatal error` 的路径前缀匹配加了兜底分支。
+
+本版修正的部分：
+
+* **日志重定向**：使用方版本改成了 `> >(tee "$LOG_FILE")`（只收 stdout，想保住 infer 进度条的 tty）。
+  实测 infer capture 的全部输出（开场信息、clang 诊断、失败命令转储）都走 **stderr**，stdout 一行没有，
+  这样 `capture.log` 会是空文件、第 4 步统计全为 0，看起来像"零错误"。改回
+  `2>&1 | tee "$LOG_FILE"` + `RC=${PIPESTATUS[0]}`；进度由新增的后台监控提供
+  （`--progress-bar-style plain` 在非 tty 下也只打印两行开场信息）。
+* 后台监控加 `trap ... EXIT INT TERM`，脚本异常退出时不会留下 `while true` 的监控进程。
+* 参数注释里 `--progress-bar-style plain` 一行按实际行为改写。
+
+### `06-practice/03-cross-toolchain-capture-fix.md`
+
+* 顶部加 v3.9 说明；§2.3 补一张**实测宏对照表**（旧 ilp32 triple / `-m32` / BiSheng 真 ILP32），
+  数据用 infer 自带 clang 21.1.6 `-dM -E` 实测。
+* §三 方案 A 的命令与参数表换成 v3.9 参数组。
+* 「已知遗留风险」重写：指针宽度这条标为**已解决**并保留历史；新增 `-m32` 的代价
+  —— `__aarch64__` → `__arm__`、`__ARM_ARCH=4`（不是 8，NEON / ARMv8 内建会被跳过）、
+  `long double` 8 vs 16、`__BIGGEST_ALIGNMENT__` 8 vs 16、`__uint128_t` 是 8 字节替身
+  （`__int128_t` / `unsigned __int128` 两种写法没被覆盖），并给出排查用的 grep。
+* §四 新增「日志必须收 stderr，不能只收 stdout」的实测记录与命令。
+* §六 的"探针对不上时先怀疑什么"按 v3.9 更新；§七 标为旧方案数据，新增 §7.5 重跑对照表（待回填），
+  并提醒重点看 `procedures` 数量的变化（条件编译分支变了）。
+
 ## v3.8 — 2026-09-22
 
 **同步使用方修订的跨编译 capture 脚本：C++ 标准头改用 gcc 自带 libstdc++。**

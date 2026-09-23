@@ -112,12 +112,50 @@ rm -f "$LOG_FILE" "$SUMMARY_FILE"
 # ----------------------------------------------------------------------
 # 3. 跑 infer capture（方案 A 参数全在这）
 # ----------------------------------------------------------------------
-# 参数解释见配套文档「方案 A」表格：
-#   --Xclang "--target=..."          让自带 clang 定义 __aarch64__
-#   --Xclang "-mbig-endian"          大端
-#   --Xclang "-U__LP64__"            撤销自带 clang 默认的 LP64（ilp32 不能是 LP64）
-#   --Xclang "-D__ILP32__=1"         手动定义 ILP32（自带 clang 不支持该 ABI）
-#   --Xclang "--sysroot=..."         ilp32 sysroot，提供 bits/wordsize-32.h 等
+# 参数解释见配套文档「方案 A」表格（v3.9 修订）：
+#   --Xclang "--target=aarch64_be-linux-gnu"  aarch64 大端 target（不带 _ilp32 后缀，
+#                                             因 clang-21 不识别 aarch64_be ilp32 ABI，
+#                                             只会被当作 aarch64_be 64 位处理）
+#   --Xclang "-mbig-endian"           大端
+#   --Xclang "-m32"                   切换到 32 位指针（__SIZEOF_POINTER__=4）
+#                                     【根因修复】clang-21 不支持 aarch64_be ilp32 ABI，
+#                                     --target=aarch64_be-...-ilp32 仍按 64 位指针处理，
+#                                     导致 reinterpret_cast<UINT32>(ptr) 报硬错误
+#                                     "cast from pointer to smaller type"，无法用 -W 降级。
+#                                     -m32 让 clang 切换到 ILP32 数据模型（指针 4 字节），
+#                                     自动定义 __ILP32__ 并撤销 __LP64__，
+#                                     一次解决 cast / initializer-constant / LIRAF_OFFSET
+#                                     三大类硬错误（约 2300+ 条 error）。
+#                                     副作用：__aarch64__ 不再定义，改为 __arm__；
+#                                     实测 hert_crsp 源码不依赖 __aarch64__，无影响。
+#
+#                                     【与真 ILP32 的差异及取舍】
+#                                     原始工具链 aarch64_be-linux-gnuilp32-gcc 用
+#                                     -mabi=ilp32，底层仍是 aarch64 架构。
+#                                     -m32 与真 ILP32 有 3 处宏差异：
+#                                       __SIZE_TYPE__:   unsigned int  vs long unsigned int
+#                                       __PTRDIFF_TYPE__: int          vs long int
+#                                       __aarch64__:    undefined     vs defined（__arm__ 反之）
+#                                     三者大小一致（4 字节），仅类型身份 / 架构宏不同。
+#                                     曾尝试用 -U/-D 纠正 __SIZE_TYPE__ 等，但 -m32 下
+#                                     clang 的 operator new / size_t 内建签名已锁定为
+#                                     unsigned int，手动改宏会导致 bss_new.h 等头文件中
+#                                     "operator new takes type size_t (unsigned int)" 报错，
+#                                     得不偿失。对 infer capture（AST 提取 + CFG 构建）而言，
+#                                     类型身份差异不影响分析结果，故保留 -m32 原样不做纠正。
+#                                     sysroot 头文件（bits/wordsize.h 等）用 __arm__ 和
+#                                     __aarch64__（不带 LP64）均走 __MHWORDSIZE=32 分支，
+#                                     不会选错路径。
+#
+#   --Xclang "-D__AARCH64EB__"        补定义大端宏。sysroot 的 gnu/stubs-32.h 用
+#                                     __AARCH64EB__ 选择 stubs-ilp32_be.h（存在），
+#                                     否则会选 stubs-ilp32.h（不存在）。
+#   --Xclang "-D__uint128_t=..."      伪定义 128 位整数类型。-m32 切换到 32 位 ARM
+#                                     后 __uint128_t 内建类型不可用，但 sysroot 的
+#                                     asm/sigcontext.h / sys/user-32.h 仍引用它。
+#                                     用 unsigned long long 替身足以让 AST 解析通过
+#                                     （对静态分析 capture 无实质影响）。
+#   --Xclang "--sysroot=..."          ilp32 sysroot，提供 bits/wordsize-32.h 等
 #   --Xclang -I.../c++/14.3.0                          libstdc++ 主头目录
 #                                                      （提供 <algorithm> <map> <set>
 #                                                       <cstddef> <cstdint> <string> 等）
@@ -130,22 +168,97 @@ rm -f "$LOG_FILE" "$SUMMARY_FILE"
 #                                      （提供 stddef.h / stdint.h 等，c++/v1 的
 #                                       #include_next <stddef.h> 也靠它补全）
 #   --keep-going                     单文件失败不中断
-#   --progress-bar-style plain       实时进度条（百分比 + 已完成/总数 + 耗时），
-#                                    用 `tee` 同时输出到终端和日志，长任务不再"黑盒"
+#   --progress-bar-style plain       非 tty 下只打印两行开场信息；逐文件的百分比 /
+#                                    速率 / ETA 由本脚本的后台进度监控（查 capture.db）打印
 echo "==> 开始 capture，日志: $LOG_FILE"
-echo "==> 进度会实时显示在下方（infer 原生进度条）"
+echo "==> 进度会实时显示在下方"
 echo
 
+# ------------------------------------------------------------------
+# 进度监控：infer 的进度条检查 isatty(stderr)，通过 tee 管道后
+# stderr 不再是 tty，进度条就不输出了。解决方案：
+#  1. stderr 直接到终端（不经过 tee），保留 infer 原生进度条
+#  2. stdout 写入日志文件
+#  3. 后台启动一个监控进程，定期查询 capture.db 已落库源文件数，
+#     输出到 stderr 给用户实时看到进度
+#
+# 【v3.9 修正，实测】infer capture 的全部输出（进度行、clang 诊断、
+# "did not run successfully" 的失败命令转储）都走 stderr，stdout 一行也没有：
+#     infer capture --compilation-database cdb.json --results-dir out \
+#       --keep-going --progress-bar-style plain >so.txt 2>se.txt
+#     wc -l so.txt   # 0
+#     wc -l se.txt   # 45（含 error: 与失败命令）
+# 所以只把 stdout 写进日志会得到一个空的 capture.log，第 4 步的统计全是 0，
+# 看起来像"零错误"。下面恢复 2>&1 | tee，进度由上面的后台监控提供
+# （--progress-bar-style plain 在非 tty 下只打印 "Capturing using
+#  compilation database..." / "Starting translating N files" 两行，
+#  没有逐文件进度，损失可以忽略）。
+# ------------------------------------------------------------------
+
+# 后台进度监控：每 10 秒查询 capture.db 已落库的源文件数
+progress_monitor() {
+  local db="$1"
+  local total="$2"
+  local start_time="$SECONDS"
+  while true; do
+    if [[ -f "$db" ]] && command -v sqlite3 >/dev/null 2>&1; then
+      local done
+      done=$(sqlite3 "$db" "SELECT COUNT(*) FROM source_files;" 2>/dev/null || echo 0)
+      if [[ "$done" -gt 0 ]]; then
+        local elapsed=$(( SECONDS - start_time ))
+        local pct=0
+        if [[ "$total" -gt 0 ]]; then
+          pct=$(( done * 100 / total ))
+        fi
+        # 计算速率和预估剩余时间
+        local rate=0
+        local eta="--"
+        if [[ "$elapsed" -gt 0 ]]; then
+          rate=$(( done / elapsed ))
+          if [[ "$rate" -gt 0 ]]; then
+            local remain=$(( (total - done) / rate ))
+            eta="${remain}s"
+          fi
+        fi
+        printf '\r  [进度] %d / %d (%d%%)  速率: %d files/s  已用: %ds  预计剩余: %s   ' \
+               "$done" "$total" "$pct" "$rate" "$elapsed" "$eta" >&2
+      fi
+    fi
+    sleep 10
+  done
+}
+
+# 启动进度监控（唯一源文件数作为分母）
+MONITOR_PID=""
+if [[ "$cdb_size" -gt 0 ]] && command -v sqlite3 >/dev/null 2>&1; then
+  # 用唯一源文件数做分母（cdb 可能含重复条目）
+  unique_srcs=$(python3 -c "
+import json,os,sys
+cdb=json.load(open(sys.argv[1]))
+srcs=set(os.path.normpath(e.get('file','')) for e in cdb if e.get('file'))
+print(len(srcs))
+" "$CDB")
+  progress_monitor "$RESULTS_DIR/capture.db" "$unique_srcs" &
+  MONITOR_PID=$!
+  # v3.9：脚本异常退出（set -e 触发、Ctrl-C）时也要收掉后台监控，
+  # 否则 while true 的监控进程会留在后台一直跑。
+  trap 'kill "$MONITOR_PID" 2>/dev/null || true' EXIT INT TERM
+fi
+
 set +e
+# stdout 与 stderr 一起进日志（见上面【v3.9 修正】：infer 的诊断全在 stderr，
+# stdout 为空；只收 stdout 会得到空日志和全 0 的统计）。
+# tee 同时显示到终端；退出码取管道第一段（infer 本身），不是 tee 的。
 "$INFER_BIN" capture \
   --compilation-database "$CDB" \
   --results-dir "$RESULTS_DIR" \
   --keep-going \
   --progress-bar-style plain \
-  --Xclang "--target=aarch64_be-target-linux-gnu_ilp32" \
+  --Xclang "--target=aarch64_be-linux-gnu" \
   --Xclang "-mbig-endian" \
-  --Xclang "-U__LP64__" \
-  --Xclang "-D__ILP32__=1" \
+  --Xclang "-m32" \
+  --Xclang "-D__AARCH64EB__" \
+  --Xclang "-D__uint128_t=unsigned long long" \
   --Xclang "--sysroot=$SYSROOT" \
   --Xclang "-I$GCC_CXX_INC_BASE" \
   --Xclang "-I$GCC_CXX_INC_BASE/x86_64-pc-linux-gnu/32" \
@@ -154,6 +267,13 @@ set +e
   2>&1 | tee "$LOG_FILE"
 RC=${PIPESTATUS[0]}
 set -e
+
+# 停止进度监控
+if [[ -n "$MONITOR_PID" ]]; then
+  kill "$MONITOR_PID" 2>/dev/null || true
+  wait "$MONITOR_PID" 2>/dev/null || true
+  printf '\r%*s\r' 120 '' >&2  # 清除进度行
+fi
 
 echo
 echo "==> infer capture 退出码: $RC"
@@ -228,41 +348,65 @@ if miss>0:
   err_lines=$(grep -c 'error:' "$LOG_FILE" || true)
   warn_lines=$(grep -c 'warning:' "$LOG_FILE" || true)
   fe_lines=$(grep -c 'Frontend error:' "$LOG_FILE" || true)
-  printf "fatal error 行数:          %d\n" "$fatal_lines"
-  printf "error 行数（含 fatal）:    %d\n" "$err_lines"
-  printf "warning 行数:              %d\n" "$warn_lines"
+  clang_fail=$(grep -c 'did not run successfully' "$LOG_FILE" || true)
+  printf "fatal error 行数:             %d\n" "$fatal_lines"
+  printf "error 行数（含 fatal）:       %d\n" "$err_lines"
+  printf "warning 行数:                 %d\n" "$warn_lines"
   printf "Frontend error（infer 崩溃）: %d\n" "$fe_lines"
+  printf "clang 命令失败数:             %d\n" "$clang_fail"
   echo
 
-  # fatal error 涉及的独立源文件数（更直观：多少个文件因此完全没进 capture.db）
-  # 【注意】"too many errors emitted" 只是 clang 对单文件错误数超限的终止提示，
+  # clang 命令失败涉及的源文件数
+  # infer 日志中每个失败命令块包含 "-x" "c++"/"c" "<source_path>"，
+  # 从中提取源文件路径。这是 clang 返回非零的文件数（有 error 但仍可能落库）。
+  # 【注意】"too many errors emitted" 是 clang 超 error-limit 的终止提示，
+  # 不带文件路径前缀，因此不能用 ^/path: 模式统计。
   # --keep-going 下 infer 仍会用已恢复的 AST 落库，文件不一定缺失。
   # Frontend error 是 infer 前端插件在某几个方法上 assert 崩溃，按方法跳过，
   # 不影响同文件其他方法，文件本身仍会落库。
-  fatal_files=$(grep 'fatal error:' "$LOG_FILE" \
-    | grep -oE '^/[^:]+\.(c|cpp|cc|cxx|C)' \
-    | sort -u | wc -l)
+  clang_fail_files=$(python3 -c "
+import re,sys
+log=open(sys.argv[1],encoding='utf-8',errors='replace').read()
+# 按 'did not run successfully' 分段，每段提取属于该失败命令的源文件
+pat=re.compile(r'\"-x\" \"(?:c\+\+|c|cxx|cc|C)\"\s+\"([^\"]+)\"')
+blocks=log.split('did not run successfully')
+fail_files=set()
+for block in blocks[1:]:
+    matches=pat.findall(block)
+    if matches:
+        fail_files.add(matches[0])
+print(len(fail_files))
+" "$LOG_FILE")
   fe_files=$(grep -E 'Aborting translation of method .* in file' "$LOG_FILE" \
     | grep -oE "file '[^']+'" | sort -u | wc -l)
   echo "受影响源文件数（下限，不代表完全失败）"
   echo "----------------------------------------"
-  printf "fatal error 涉及源文件:    %d\n" "$fatal_files"
-  printf "Frontend error 涉及源文件: %d\n" "$fe_files"
+  printf "clang 命令失败涉及源文件:    %d\n" "$clang_fail_files"
+  printf "Frontend error 涉及源文件:   %d\n" "$fe_files"
   echo "（这些文件大多仍已部分落库，只是个别方法被跳过）"
   echo
 
   echo "前 20 条去重 fatal error"
   echo "------------------------"
   grep 'fatal error:' "$LOG_FILE" \
+    | grep -E '^/[^:]+:[0-9]+:[0-9]+:' \
     | sed -E "s|^[^:]+:[0-9]+:[0-9]+:||" \
     | sort -u \
     | head -20
+  # 如果没有带路径的 fatal error（如 "too many errors" 不带路径），直接去重输出
+  if ! grep 'fatal error:' "$LOG_FILE" | grep -qE '^/[^:]+:[0-9]+:[0-9]+:'; then
+    grep 'fatal error:' "$LOG_FILE" | sort -u | head -20
+  fi
   echo
 
   echo "前 20 条去重 error（非 fatal）"
   echo "------------------------------"
   grep 'error:' "$LOG_FILE" \
     | grep -v 'fatal error:' \
+    | grep -v 'Frontend error' \
+    | grep -v 'did not run successfully' \
+    | grep -v 'Error: the following' \
+    | grep -E '^/[^:]+:[0-9]+:[0-9]+:' \
     | sed -E "s|^[^:]+:[0-9]+:[0-9]+:||" \
     | sort -u \
     | head -20

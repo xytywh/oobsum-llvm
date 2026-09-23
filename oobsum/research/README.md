@@ -1,4 +1,4 @@
-# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.8）
+# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.9）
 
 一句话：**这个包里只有一份"正文"（报告），其余全是为了让你能亲手复现、读懂、并在自己代码库上用起来的材料。**
 
@@ -70,6 +70,10 @@
 > **v3.8** 同步使用方修订的 `06-practice/capture-cross-toolchain.sh`：C++ 标准头改用 gcc-14.3.0 自带 libstdc++
 > （主目录 / 平台目录 / `backward` 三个 `-I`），不再注入 infer 自带 libc++/v1；`03-cross-toolchain-capture-fix.md` 同步，
 > 其中 2026-09-20 的全量数字是 libc++ 方案测的，附了重跑对照表待回填。
+> **v3.9** 同步使用方对同一脚本的第二轮修订：目标参数改为 `--target=aarch64_be-linux-gnu -mbig-endian -m32`
+> （指针真的 4 字节，旧的 `-U__LP64__ -D__ILP32__` 只改了宏），加 `-D__AARCH64EB__` 与 `__uint128_t` 替身，
+> 新增查 `capture.db` 的进度监控。本版另修了一处会让 `capture.log` 变空的重定向
+> （infer 的输出全走 stderr，**实测** stdout 为空），并把 `-m32` 的代价写进文档。
 >
 > ⚠️ **v2.5 在 git 里是一次大规模重命名**（35 个条目 + 根目录）。
 > 提交时用 `git add -A`，让 git 的 rename detection 生效，
