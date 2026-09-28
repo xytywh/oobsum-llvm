@@ -1,0 +1,1335 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body>
+<title>越界场景分级</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap">
+<style>
+:root{
+  --bg:#F3F5F8; --surface:#FFFFFF; --surface-2:#E9EDF3; --ink:#17202B; --ink-2:#465164; --muted:#6A7585;
+  --line:#D4DBE5; --line-2:#E4E9F0;
+  --accent:#1C5DAE; --accent-soft:#E2ECF9; --on-accent:#FFFFFF;
+  --gate:#9C5B07; --gate-soft:#FAEFDC;
+  --pa27:#4E6278; --on-pa27:#FFFFFF;
+  --ai:#6A4FB0; --ai-soft:#EEE9F8; --on-ai:#FFFFFF;
+  --code-bg:#EEF1F6;
+  --serif:"Noto Serif SC","Songti SC","SimSun",serif;
+  --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif;
+  --mono:"IBM Plex Mono","SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0F131A; --surface:#161B24; --surface-2:#1E2530; --ink:#E2E7EE; --ink-2:#B2BBC8; --muted:#8A94A3;
+    --line:#2B3441; --line-2:#222A35;
+    --accent:#6FA8EC; --accent-soft:#1A2A3F; --on-accent:#0F131A;
+    --gate:#E2A94E; --gate-soft:#30261A;
+    --pa27:#8FA3BA; --on-pa27:#0F131A;
+    --ai:#A992E8; --ai-soft:#271F3A; --on-ai:#0F131A;
+    --code-bg:#1B212B;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0F131A; --surface:#161B24; --surface-2:#1E2530; --ink:#E2E7EE; --ink-2:#B2BBC8; --muted:#8A94A3;
+  --line:#2B3441; --line-2:#222A35;
+  --accent:#6FA8EC; --accent-soft:#1A2A3F; --on-accent:#0F131A;
+  --gate:#E2A94E; --gate-soft:#30261A;
+  --pa27:#8FA3BA; --on-pa27:#0F131A;
+  --ai:#A992E8; --ai-soft:#271F3A; --on-ai:#0F131A;
+  --code-bg:#1B212B;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+body{background:var(--bg); color:var(--ink); font:15px/1.75 var(--sans); padding-inline:18px; padding-block:0 64px}
+.wrap{max-width:1040px; margin:0 auto}
+a{color:var(--accent)}
+code{font-family:var(--mono); font-size:.86em; background:var(--surface-2); padding:1px 5px; border-radius:3px; overflow-wrap:anywhere}
+pre{background:var(--code-bg); border:1px solid var(--line); padding:12px 14px; overflow-x:auto; margin:10px 0 14px; border-radius:3px}
+pre code{background:none; padding:0; font-size:12.5px; line-height:1.65; overflow-wrap:normal; white-space:pre}
+h1,h2{font-family:var(--serif); text-wrap:balance; letter-spacing:.01em}
+h2{font-size:22px; line-height:1.35; margin:0}
+h3{font-size:17px; margin:30px 0 8px; font-weight:700; text-wrap:balance}
+h4{font-size:15px; margin:20px 0 6px}
+p,li{max-width:74ch}
+p{margin:0 0 12px}
+ul,ol{padding-left:1.3em; margin:0 0 12px}
+li{margin:3px 0}
+blockquote{margin:12px 0; padding:10px 14px; border-left:3px solid var(--line); background:var(--surface); color:var(--ink-2)}
+blockquote p:last-child{margin-bottom:0}
+hr{border:0; border-top:1px solid var(--line); margin:22px 0}
+.lede{color:var(--ink-2)}
+.ev{font:500 10.5px/1 var(--mono); color:var(--muted); border:1px solid var(--line); padding:2px 5px; border-radius:3px; white-space:nowrap; vertical-align:1px}
+
+.mast{padding-block:40px 28px; border-bottom:1px solid var(--line)}
+.eyebrow{font:500 11.5px/1.4 var(--mono); letter-spacing:.06em; color:var(--muted); margin-bottom:14px}
+.mast h1{font-size:clamp(24px,4vw,34px); line-height:1.3; margin:0 0 16px}
+.thesis{font-size:16px; line-height:1.8; max-width:66ch; margin-bottom:22px}
+.facts{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); border:1px solid var(--line); background:var(--surface); margin:0}
+.facts div{padding:12px 14px; border-right:1px solid var(--line-2)}
+.facts div:last-child{border-right:0}
+.facts dt{font:500 10.5px/1.3 var(--mono); letter-spacing:.08em; color:var(--muted); margin-bottom:4px}
+.facts dd{margin:0; font:600 20px/1.3 var(--mono); font-variant-numeric:tabular-nums}
+.facts dd small{display:block; font:400 12px/1.5 var(--sans); color:var(--ink-2); margin-top:2px}
+@media (max-width:640px){ .facts div{border-right:0; border-bottom:1px solid var(--line-2)} }
+
+section{padding-block:38px 4px}
+.sec-hd{display:flex; align-items:baseline; gap:12px; margin-bottom:10px; flex-wrap:wrap}
+.secno{font:600 12px/1 var(--mono); color:var(--muted)}
+
+.tw{overflow-x:auto; border:1px solid var(--line); background:var(--surface); margin:12px 0 14px}
+table{border-collapse:collapse; width:100%; font-size:13.5px; line-height:1.6}
+th,td{padding:8px 11px; text-align:left; vertical-align:top; border-bottom:1px solid var(--line-2)}
+thead th{font:500 11px/1.4 var(--mono); letter-spacing:.06em; color:var(--muted); background:var(--surface-2); border-bottom:1px solid var(--line); white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+td.id{font:600 12.5px/1.6 var(--mono); white-space:nowrap}
+td.num{font-family:var(--mono); text-align:right; font-variant-numeric:tabular-nums; color:var(--muted)}
+td.sig{font:12px/1.6 var(--mono); color:var(--ink-2); white-space:nowrap}
+td.own{color:var(--ink-2)}
+
+/* categories */
+.c-commit{background:var(--accent); color:var(--on-accent); border:1px solid var(--accent)}
+.c-best{background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent)}
+.c-rule{background:var(--surface-2); color:var(--ink-2); border:1px dashed var(--muted)}
+.c-pa27{background:var(--pa27); color:var(--on-pa27); border:1px solid var(--pa27)}
+.c-ai{background:var(--ai); color:var(--on-ai); border:1px solid var(--ai)}
+.c-no{background:transparent; color:var(--muted); border:1px dashed var(--muted); text-decoration:line-through}
+.pill{display:inline-block; font:600 11px/1 var(--mono); padding:4px 7px; border-radius:3px; white-space:nowrap; vertical-align:1px}
+.sw{display:inline-block; width:12px; height:12px; border-radius:2px; text-decoration:none}
+
+.legend{display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12.5px; color:var(--ink-2); margin:4px 0 12px}
+.legend span{display:inline-flex; align-items:center; gap:6px}
+
+/* ladder */
+.ladder{border:1px solid var(--line); background:var(--surface)}
+.rung{display:grid; grid-template-columns:58px minmax(0,1.25fr) minmax(0,1.5fr) 150px; gap:14px; padding:12px 14px; border-bottom:1px solid var(--line-2); align-items:start}
+.rung:last-child{border-bottom:0}
+.rung-id{font:600 15px/1.4 var(--mono); color:var(--accent)}
+.rung-one{font-weight:500; line-height:1.55}
+.rung-cap{font-size:12.5px; color:var(--muted); line-height:1.55; margin-top:3px}
+.rung-chips{display:flex; flex-wrap:wrap; gap:5px}
+.chip{font:600 11px/1 var(--mono); padding:5px 6px; border-radius:3px; text-decoration:none; font-variant-numeric:tabular-nums}
+.chip:hover{filter:brightness(1.08)}
+.chip.c-no:hover{filter:none; color:var(--ink)}
+.rung-year{font-size:12.5px; line-height:1.55; color:var(--ink-2)}
+.divider{padding:6px 14px; font:600 11.5px/1.5 var(--mono); letter-spacing:.02em; border-bottom:1px solid var(--line-2)}
+.divider.year{background:var(--gate-soft); color:var(--gate)}
+.divider.ceiling{background:var(--surface-2); color:var(--ink-2)}
+@media (max-width:760px){
+  .rung{grid-template-columns:48px minmax(0,1fr)}
+  .rung-chips,.rung-year{grid-column:2}
+}
+.answers{margin-top:22px}
+.answers ol li{margin:8px 0}
+
+/* scenario paragraphs */
+p.scn{margin:22px 0 6px; padding:8px 12px; background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--accent); font-size:14px}
+p.scn .pill{margin-left:6px}
+p.scn:target{outline:2px solid var(--gate); outline-offset:2px}
+tr:target td{background:var(--gate-soft)}
+.lvtag{display:inline-block; font:600 12px/1 var(--mono); background:var(--accent); color:var(--on-accent); padding:5px 7px; border-radius:3px; margin-right:10px; vertical-align:2px}
+
+/* master table */
+.filters{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0 4px}
+.fbtn{font:500 12.5px/1 var(--sans); color:var(--ink); background:var(--surface); border:1px solid var(--line); padding:7px 10px; border-radius:3px; cursor:pointer; display:inline-flex; align-items:center; gap:6px}
+.fbtn b{font:600 11.5px/1 var(--mono); color:var(--muted)}
+.fbtn[aria-pressed="true"]{border-color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink)}
+.fbtn.reset{color:var(--muted)}
+.lvsel{font-size:12.5px; color:var(--ink-2); display:inline-flex; align-items:center; gap:6px}
+.lvsel select{font:12.5px var(--mono); background:var(--surface); color:var(--ink); border:1px solid var(--line); padding:5px 6px; border-radius:3px}
+.count{font:12px var(--mono); color:var(--muted)}
+.master tr[hidden]{display:none}
+
+footer{margin-top:44px; padding-top:16px; border-top:1px solid var(--line); font-size:12.5px; color:var(--muted)}
+footer p{max-width:none}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+</style>
+<div class="wrap">
+<header class="mast">
+  <div class="eyebrow">CSA Summary 2.0 · 多层调用内存越界 · 调研包 v3.10 · 2026-09-28</div>
+  <h1>多层越界场景分级：年内承诺什么、程序分析做到哪、哪些交给 AI</h1>
+  <p class="thesis">按 8 个正交维度把"内存信息或访问信息至少一侧跨 ≥ 3 层"的越界分成 <strong>Lv1–Lv10</strong>，
+    每升一级只多要一种分析能力。<strong>年内承诺前四级加第五级的第一个场景，共 26 个</strong>；
+    程序分析最终做到 Lv7，Lv8、Lv9 做一部分；业务语义和几类"缺事实"的场景交给 AI + 程序分析。</p>
+  <dl class="facts">
+    <div><dt>场景</dt><dd>56<small>Lv1–Lv10，从简单到复杂</small></dd></div>
+    <div><dt>年内承诺</dt><dd>26<small>TP 全报、TN 零误报，链长 3–20 层</small></dd></div>
+    <div><dt>年内尽力</dt><dd>6<small>统计报出率，不设门槛</small></dd></div>
+    <div><dt>AI + 程序分析</dt><dd>9<small>AI 补事实，程序分析验证与传播</small></dd></div>
+    <div><dt>Infer 标尺</dt><dd>15 / 26<small>承诺场景里 Infer 报出数，级别全一致 <span class="ev">实测</span></small></dd></div>
+  </dl>
+</header>
+
+<section id="ladder">
+  <div class="sec-hd"><span class="secno">§0</span><h2>十级阶梯</h2></div>
+  <p class="lede">每一行是一级：左边是这一级的场景形态和新增的分析能力，中间是这一级的场景（颜色表示归属，点击跳到详情），右边是年内安排。</p>
+  <div class="legend"><span><i class="sw c-commit"></i>年内承诺</span><span><i class="sw c-best"></i>年内尽力</span><span><i class="sw c-rule"></i>规则性处理</span><span><i class="sw c-pa27"></i>2027 程序分析</span><span><i class="sw c-ai"></i>AI + 程序分析</span><span><i class="sw c-no"></i>不承诺</span></div>
+  <div class="ladder">
+<div class="rung" data-lv="Lv1">
+  <div class="rung-id">Lv1</div>
+  <div class="rung-body"><div class="rung-one">一侧跨层、原样传递，另一侧在访问点就是常量</div><div class="rung-cap">形参代换；常量界；数组 / 常量长度堆 / 全局数组的大小</div></div>
+  <div class="rung-chips"><a class="chip c-commit" href="#s1-1" title="定长数组下传，访问点常量下标 · 年内承诺">S1.1</a><a class="chip c-commit" href="#s1-2" title="定长数组下传，访问点常量界循环 · 年内承诺">S1.2</a><a class="chip c-commit" href="#s1-3" title="常量长度堆内存下传 · 年内承诺">S1.3</a><a class="chip c-commit" href="#s1-4" title="结构体数组成员的地址下传 · 年内承诺">S1.4</a><a class="chip c-commit" href="#s1-5" title="链顶常量下标下传，访问函数自己的数组 · 年内承诺">S1.5</a><a class="chip c-commit" href="#s1-6" title="定义可见的全局数组，下标下传 · 年内承诺">S1.6</a><a class="chip c-commit" href="#s1-7" title="`memcpy_s` 目的缓冲区下传，`destMax` 报大 · 年内承诺">S1.7</a></div>
+  <div class="rung-year"><strong>承诺</strong></div>
+</div>
+<div class="rung" data-lv="Lv2">
+  <div class="rung-id">Lv2</div>
+  <div class="rung-body"><div class="rung-one">两侧沿同一条链下传，带线性变换、指针偏移、标量强转、掩码 / 取模</div><div class="rung-cap">线性表达式；带偏移的基址；按字节归一</div></div>
+  <div class="rung-chips"><a class="chip c-commit" href="#s2-1" title="缓冲区与长度同链下传 · 年内承诺">S2.1</a><a class="chip c-commit" href="#s2-2" title="长度线性变换 · 年内承诺">S2.2</a><a class="chip c-commit" href="#s2-3" title="指针偏移后下传 · 年内承诺">S2.3</a><a class="chip c-commit" href="#s2-4" title="`memcpy_s(dst + off, 整体大小)` · 年内承诺">S2.4</a><a class="chip c-commit" href="#s2-5" title="变量长度堆，申请与访问同源 · 年内承诺">S2.5</a><a class="chip c-commit" href="#s2-6" title="标量指针强转 · 年内承诺">S2.6</a><a class="chip c-commit" href="#s2-7" title="掩码 / 取模 / 有界移位 · 年内承诺">S2.7</a></div>
+  <div class="rung-year"><strong>承诺</strong></div>
+</div>
+<div class="rung" data-lv="Lv3">
+  <div class="rung-id">Lv3</div>
+  <div class="rung-body"><div class="rung-one">链上有校验、分支、典型循环</div><div class="rung-cap">按条件收窄取值范围；合并；阈值 widening + narrowing；<strong>条件带守卫</strong>；<strong>访问点先符号化简</strong></div></div>
+  <div class="rung-chips"><a class="chip c-commit" href="#s3-1" title="外层校验后下传 · 年内承诺">S3.1</a><a class="chip c-commit" href="#s3-2" title="访问函数校验界大于实际大小 · 年内承诺">S3.2</a><a class="chip c-best" href="#s3-3" title="分支合并后一支越界 · 年内尽力">S3.3</a><a class="chip c-commit" href="#s3-4" title="典型循环，界来自多层之上 · 年内承诺">S3.4</a><a class="chip c-commit" href="#s3-5" title="循环退出后使用计数器 · 年内承诺">S3.5</a><a class="chip c-commit" href="#s3-6" title="规则嵌套循环 · 年内承诺">S3.6</a><a class="chip c-commit" href="#s3-7" title="循环按剩余长度拷贝（TN） · 年内承诺">S3.7</a><a class="chip c-best" href="#s3-8" title="循环累积偏移，`destMax` 用整体大小 · 年内尽力">S3.8</a><a class="chip c-commit" href="#s3-9" title="调用链在循环里 · 年内承诺">S3.9</a></div>
+  <div class="rung-year"><strong>承诺</strong>（2 项尽力）</div>
+</div>
+<div class="rung" data-lv="Lv4">
+  <div class="rung-id">Lv4</div>
+  <div class="rung-body"><div class="rung-one">内存来自下层：多层封装的分配器、出参、getter 返回的长度</div><div class="rung-cap">返回值 / 出参效应；返回值取值范围</div></div>
+  <div class="rung-chips"><a class="chip c-commit" href="#s4-1" title="多层封装分配器（返回值） · 年内承诺">S4.1</a><a class="chip c-commit" href="#s4-2" title="带头部的分配器 · 年内承诺">S4.2</a><a class="chip c-commit" href="#s4-3" title="出参分配器 · 年内承诺">S4.3</a><a class="chip c-commit" href="#s4-4" title="长度来自 getter 返回值 · 年内承诺">S4.4</a><a class="chip c-rule" href="#s4-5" title="分配器函数体不可见 · 规则性处理">S4.5</a></div>
+  <div class="rung-year"><strong>承诺</strong></div>
+</div>
+<div class="rung" data-lv="Lv5">
+  <div class="rung-id">Lv5</div>
+  <div class="rung-body"><div class="rung-one">内存或长度装在结构体字段里跨层；两侧沿不同链汇合</div><div class="rung-cap">字段级基址；帧内字段存储；写效应摘要</div></div>
+  <div class="rung-chips"><a class="chip c-commit" href="#s5-1" title="上下文结构体在链顶填好后下传 · 年内承诺">S5.1</a><a class="chip c-pa27" href="#s5-2" title="上下文在 Init 函数里填（写效应） · 2027 程序分析">S5.2</a><a class="chip c-best" href="#s5-3" title="长度沿另一条链多层返回后汇合 · 年内尽力">S5.3</a><a class="chip c-pa27" href="#s5-4" title="字段在不同层被改写 · 2027 程序分析">S5.4</a><a class="chip c-best" href="#s5-5" title="带 `offset` 的字段级申请 · 年内尽力">S5.5</a></div>
+  <div class="rung-year">S5.1 <strong>承诺</strong>，2 项尽力，其余 2027H1</div>
+</div>
+<div class="divider year">▲ 年内承诺到这里（Lv5 只含 S5.1）· 下面的级别年内至多尽力</div>
+<div class="rung" data-lv="Lv6">
+  <div class="rung-id">Lv6</div>
+  <div class="rung-body"><div class="rung-one">全局状态：跨文件全局数组、全局长度变量、运行期申请的全局资源</div><div class="rung-cap">全局大小表；全局取值集合；全局不变式</div></div>
+  <div class="rung-chips"><a class="chip c-best" href="#s6-1" title="`extern` 不完整声明的全局数组 · 年内尽力">S6.1</a><a class="chip c-pa27" href="#s6-2" title="全局长度变量（初始化写常量） · 2027 程序分析">S6.2</a><a class="chip c-ai" href="#s6-3" title="运行期申请的全局资源 · AI + 程序分析">S6.3</a><a class="chip c-ai" href="#s6-4" title="运行期可配置的全局值 · AI + 程序分析">S6.4</a></div>
+  <div class="rung-year">1 项尽力，其余 2027</div>
+</div>
+<div class="rung" data-lv="Lv7">
+  <div class="rung-id">Lv7</div>
+  <div class="rung-body"><div class="rung-one">内存建模精度：柔性数组、多维行级、字节缓冲按结构体解释、指针步进、字符串</div><div class="rung-cap">分配大小减偏移；逐维界；字节偏移；字符串长度</div></div>
+  <div class="rung-chips"><a class="chip c-pa27" href="#s7-1" title="柔性数组成员 · 2027 程序分析">S7.1</a><a class="chip c-pa27" href="#s7-2" title="多维数组行级越界 · 2027 程序分析">S7.2</a><a class="chip c-pa27" href="#s7-3" title="字节缓冲按结构体解释 · 2027 程序分析">S7.3</a><a class="chip c-pa27" href="#s7-4" title="循环中指针步进 · 2027 程序分析">S7.4</a><a class="chip c-pa27" href="#s7-5" title="字符串类安全函数 · 2027 程序分析">S7.5</a><a class="chip c-no" href="#s7-6" title="变量操作数的非线性下标 · 不承诺">S7.6</a><a class="chip c-no" href="#s7-7" title="联合体 / 真别名 · 不承诺">S7.7</a></div>
+  <div class="rung-year">——（P1 余量）</div>
+</div>
+<div class="divider ceiling">▲ 程序分析的主体覆盖到这里（Lv6、Lv7 有少数例外）· Lv8、Lv9 只做静态可解析的部分，Lv10 交 AI + 程序分析</div>
+<div class="rung" data-lv="Lv8">
+  <div class="rung-id">Lv8</div>
+  <div class="rung-body"><div class="rung-one">复杂循环：数据驱动步长的解析循环、非典型循环、多变量非线性下标</div><div class="rung-cap">关系型不变式</div></div>
+  <div class="rung-chips"><a class="chip c-ai" href="#s8-1" title="数据驱动步长的解析循环 · AI + 程序分析">S8.1</a><a class="chip c-pa27" href="#s8-2" title="非典型循环 · 2027 程序分析">S8.2</a><a class="chip c-no" href="#s8-3" title="多变量非线性下标的嵌套循环 · 不承诺">S8.3</a></div>
+  <div class="rung-year">——</div>
+</div>
+<div class="rung" data-lv="Lv9">
+  <div class="rung-id">Lv9</div>
+  <div class="rung-body"><div class="rung-one">断链：函数指针、外部 / 未定义函数、递归</div><div class="rung-cap">调用边解析；模型表；强连通分量不动点</div></div>
+  <div class="rung-chips"><a class="chip c-best" href="#s9-1" title="同函数内常量赋值的函数指针 · 年内尽力">S9.1</a><a class="chip c-pa27" href="#s9-2" title="静态操作表 · 2027 程序分析">S9.2</a><a class="chip c-ai" href="#s9-3" title="运行期注册的回调 · AI + 程序分析">S9.3</a><a class="chip c-ai" href="#s9-4" title="未定义 / 外部函数 · AI + 程序分析">S9.4</a><a class="chip c-pa27" href="#s9-5" title="递归 · 2027 程序分析">S9.5</a></div>
+  <div class="rung-year">1 项尽力</div>
+</div>
+<div class="rung" data-lv="Lv10">
+  <div class="rung-id">Lv10</div>
+  <div class="rung-body"><div class="rung-one">业务语义与隐式契约</div><div class="rung-cap">规格推断</div></div>
+  <div class="rung-chips"><a class="chip c-ai" href="#s10-1" title="缓冲区与长度字段配对用错 · AI + 程序分析">S10.1</a><a class="chip c-ai" href="#s10-2" title="指针入参与长度入参不匹配 · AI + 程序分析">S10.2</a><a class="chip c-ai" href="#s10-3" title="注释 / 文档约束未满足 · AI + 程序分析">S10.3</a><a class="chip c-ai" href="#s10-4" title="外部输入长度未经校验 · AI + 程序分析">S10.4</a></div>
+  <div class="rung-year">——</div>
+</div>
+  </div>
+  <div class="answers"><p><strong>四个问题的回答：</strong></p>
+<ol>
+<li><strong>年内优先</strong>：Lv1–Lv4 全部 + Lv5 的 S5.1，共 <strong>26 个承诺场景</strong>（§5.1）。
+   承诺的含义：合成语料里这一类的 TP 全部报出、TN 零误报，并在 3 / 5 / 10 / 17 / 20 层链长上都成立。
+   另有 6 个尽力场景（S3.3、S3.8、S5.3、S5.5、S6.1、S9.1），报出率统计但不设硬门槛。</li>
+<li><strong>实现顺序</strong>：Lv1 → Lv2 → 跨文件执行 → Lv3 → Lv4 → S5.1 与安全函数族收尾 → 真实代码（§5.2，对应计划 W04–W11）。
+   每一级都是下一级的前置条件，所以顺序就是级别顺序；Lv3 排在 Lv4 前面，是因为真实代码几乎处处有校验，
+   没有 Lv3 就上真实代码会误报成片。</li>
+<li><strong>程序分析的覆盖上限</strong>是四个条件同时成立的场景（§6）：
+   ① 大小、访问量、校验都来自被分析的代码或已建模的函数；② 取值能用线性表达式和区间表达；
+   ③ 链上的调用边能静态确定；④ 循环的影响能用区间 widening 概括。
+   按级别说：Lv1–Lv5 全部，Lv6、Lv7 的大部分，Lv8 的一项尽力，Lv9 的三项。</li>
+<li><strong>AI + 程序分析</strong>：Lv10 全部，以及 Lv9 的运行期注册回调与外部函数行为、Lv8 的数据驱动解析循环、
+   Lv6 的运行期全局不变式与配置值、所有"证明不了安全但来源不可信"的候选研判（§7）。
+   分工是 <strong>AI 补事实，程序分析做验证和多层传播</strong>——在这些场景里摘要引擎仍然是主干，AI 提供的是它缺的那几条事实。</li>
+</ol>
+<p><strong>实测校准</strong>：§3 的 36 段最小代码都用 Infer 当标尺跑过（§3 末尾）。26 个承诺场景里 Infer 报出 15 个，
+级别与本文的期望逐个一致；它漏掉的 10 个正好是安全函数、结构体成员、全局数组、掩码、带守卫的校验——本设计比 Infer 多做的部分。【实测数据】</p>
+<hr /></div>
+</section>
+
+<section id="caliber"><div class="sec-hd"><span class="secno">§1</span><h2>口径</h2></div>
+<h3>1.1 基本要求</h3>
+<ul>
+<li><strong>内存信息或访问信息至少有一侧跨 ≥ 3 层</strong>（即超过现有规则的 inline 深度，默认 2）。两侧都在 2 层以内的是 <strong>Lv0</strong>，归现有规则。
+  例外：CSA 已知盲区（<code>01-</code> §3.1 #18 行级、#21 指向数组中间的指针加符号下标，T0-1b 在 fork 上实测）1–2 层也报。</li>
+<li><strong>层数本身不算复杂度</strong>。摘要方式下每个函数只分析一次，层与层之间是相加（Infer 实测 200 层 0.76 秒【实测数据】）；
+  复杂度来自"链上每一层做了什么"。所以每个承诺场景都在 <strong>3 / 5 / 10 / 17 / 20 层</strong>上验收，层数不作为分级维度。</li>
+</ul>
+<h3>1.2 越界判定式与"两侧"</h3>
+<p>所有场景都换算成字节后归一到一个式子：</p>
+<pre><code class="language-text">0 ≤ off   且   off + size ≤ extent(base)
+</code></pre>
+<ul>
+<li><strong>内存侧</strong>：<code>base</code> 以及它有多大（<code>extent</code>）。</li>
+<li><strong>访问侧</strong>：<code>off</code>（下标 × 元素大小、指针偏移）与 <code>size</code>（一次访问的字节数、拷贝长度）。</li>
+<li><strong>安全函数</strong> <code>memcpy_s(dst, destMax, src, count)</code>：越界条件是 <code>destMax &gt; extent(dst)</code> 或 <code>count &gt; extent(src)</code>。
+  <code>count &gt; destMax</code> 会被运行时拦下，但出错路径上安全函数库会按 <code>destMax</code> 清零目的缓冲区（<code>ERANGE_AND_RESET</code>），
+  所以 <strong><code>destMax</code> 报大了本身就是越界写风险</strong>【推断，以你们使用的安全函数库源码为准】。</li>
+</ul>
+<p><strong>汇合点</strong>：两侧都变成已知、或者能相互比较的那一层函数。摘要做的事，就是把条件从访问点一层层搬到汇合点再判定。</p>
+<h3>1.3 分级与承诺等级</h3>
+<p>告警级别沿用 <code>01-</code> §3.6：<code>L1</code> 访问范围完全越界（确定），<code>L2</code> 部分重叠（可能），<code>S2</code> 含未知符号（默认不报），<code>StillOpen</code> 继续上传。
+补一条口径：<strong>取值完全没有约束的外部输入（消息字段、入口函数形参）停在 <code>S2</code> / <code>StillOpen</code>，不报 <code>L2</code></strong>；
+<code>L2</code> 只来自代码里给出的有限上界（校验、掩码、分支常量、循环界）。否则每个外部长度都会变成一条告警。
+这类"证明不了、来源又不可信"的，统一进 S10.4 的候选研判。</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>承诺等级</th>
+<th>含义</th>
+<th>验收</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>承诺</strong></td>
+<td>这一类的都要报；漏了是缺陷</td>
+<td>合成语料 TP 100% 报出（L1 或 L2，按上面的定义），TN 0 误报；链长 3 / 5 / 10 / 17 / 20</td>
+</tr>
+<tr>
+<td><strong>尽力</strong></td>
+<td>常见写法能报，漏报记为已知限制</td>
+<td>统计报出率，不设门槛</td>
+</tr>
+<tr>
+<td><strong>不承诺</strong></td>
+<td>程序分析不单独解决</td>
+<td>——</td>
+</tr>
+<tr>
+<td><strong>AI + 程序分析</strong></td>
+<td>AI 补事实，程序分析验证与传播</td>
+<td>另立精确率 / 召回率指标，不计入 12-15 验收</td>
+</tr>
+</tbody>
+</table></div>
+<p>循环类越界按区间分级多数是 <code>L2</code>（访问范围 <code>[0, n]</code> 与大小 <code>n</code> 部分重叠；Infer 的口径也是这样），这是分级口径，不是漏报。</p>
+<hr />
+</section><section id="dims"><div class="sec-hd"><span class="secno">§2</span><h2>维度：在你们给的基础上调整</h2></div>
+<h3>2.1 调整了什么、为什么</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>原来的维度</th>
+<th>调整</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>越界类型：下标 / 指针偏移 / 内存拷贝</td>
+<td>加 <strong>字符串操作</strong>（<code>strcpy_s</code> / <code>strcat_s</code> / <code>sprintf_s</code>）</td>
+<td>依赖源串长度，要另一种抽象（字符串长度），和 <code>memcpy_s</code> 不在一档</td>
+</tr>
+<tr>
+<td>内存来源：静态数组 / 动态申请 / 柔性数组 / 外层传入</td>
+<td>拆成 <strong>内存形态</strong> 和 <strong>内存信息的传递路径</strong> 两个维度</td>
+<td>"由外层调用传入"是路径不是形态，和"动态申请"可以同时成立；而路径（往下传 / 往上传 / 经字段 / 经全局 / 断链）才是摘要难度的主要来源</td>
+</tr>
+<tr>
+<td>访问长度来源：本函数 / 外层传入 / 多层传递</td>
+<td>和内存侧用同一套路径编码，补 <strong>返回值或出参上传、经结构体字段、全局、外部输入（无约束）</strong></td>
+<td>两侧对称，才能描述"两侧分别从哪来"的组合</td>
+</tr>
+<tr>
+<td>复杂因素"内存大小和访问长度分别沿不同链"</td>
+<td>提成独立维度 <strong>两侧关系</strong>：仅一侧跨层 / 同链 / 异链汇合</td>
+<td>同链只需要把条件往上传；异链还要把返回值、出参、字段写入的效果也往上传——这是能力的分水岭</td>
+</tr>
+<tr>
+<td>复杂因素"是否经过多层调用"</td>
+<td><strong>去掉</strong>，改为所有场景的基本要求</td>
+<td>层数不是复杂度来源（§1.1）</td>
+</tr>
+<tr>
+<td>复杂因素"类型转换"</td>
+<td>细分：<strong>标量指针强转</strong>（<code>char*</code> ↔ <code>UINT32*</code>）/ <strong>字节缓冲按结构体解释</strong></td>
+<td>前者只是乘除一个常量，Lv2 就能做；后者要字节级的内存建模，Lv7</td>
+</tr>
+<tr>
+<td>复杂因素"指针 / 内存偏移"</td>
+<td>细分：<strong>直线代码中的偏移</strong> / <strong>循环中的步进</strong></td>
+<td>前者是线性累加，Lv2；后者要"偏移量 = 循环次数 × 步长"这种关系，Lv7–Lv8</td>
+</tr>
+<tr>
+<td>复杂因素"别名或中间变量"</td>
+<td>细分：<strong>函数内中间变量</strong> / <strong>经结构体字段中转</strong> / <strong>真别名</strong>（二级指针改写、两条路径指向同一块内存）</td>
+<td>函数内中间变量对流敏感分析是免费的（Lv1 就有）；字段中转是 Lv5；真别名要指向分析，不在本期</td>
+</tr>
+<tr>
+<td>能力边界 (3)"移位 / 乘 / 除 / 取模 / 位运算无法精确求解"</td>
+<td>细分：<strong>常量操作数</strong> / <strong>变量操作数</strong></td>
+<td><code>x &amp; 0x3F</code>、无符号的 <code>x % 64</code> 自带上界，区间运算是精确的；<code>x &gt;&gt; 2</code>、<code>x / 4</code> 在 <code>x</code> 有界时也精确。真正失精度的只有两个变量相乘、按变量移位</td>
+</tr>
+<tr>
+<td>（新增）</td>
+<td><strong>校验形态</strong>：无 / 同函数 / 外层 / 封装在独立函数 / 校验了错字段</td>
+<td>真实代码几乎都有校验，它决定误报；而"校验了错字段"正是隐式契约类的本质</td>
+</tr>
+</tbody>
+</table></div>
+<h3>2.2 维度编码（用于每个场景的"签名"）</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>取值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A</strong> 访问形式</td>
+<td>A1 下标 · A2 指针偏移后解引用 · A3 <code>memcpy_s</code> / <code>memmove_s</code> / <code>memset_s</code> · A4 字符串类安全函数</td>
+</tr>
+<tr>
+<td><strong>M</strong> 内存形态</td>
+<td>M1 定长数组（局部 / static）· M2 全局定长数组 · M3 结构体数组成员 · M4 堆·常量长度 · M5 堆·变量长度 · M6 柔性数组成员 · M7 多维数组 · M8 分析范围外（入口形参、外部接口传入）</td>
+</tr>
+<tr>
+<td><strong>P</strong> 内存信息路径</td>
+<td>P0 本函数 · P1 形参逐层下传 · P2 返回值 / 出参上传 · P3 经结构体字段中转 · P4 经全局变量 · P5 断链（函数指针 / 未定义函数）</td>
+</tr>
+<tr>
+<td><strong>V</strong> 访问信息来源与路径</td>
+<td>V0 访问函数内的常量或常量约束 · V1 形参逐层下传 · V2 返回值 / 出参上传 · V3 经结构体字段 · V4 全局变量 · V5 外部输入（无约束）</td>
+</tr>
+<tr>
+<td><strong>R</strong> 两侧关系</td>
+<td>R1 仅一侧跨层 · R2 两侧同链下传 · R3 两侧异链汇合</td>
+</tr>
+<tr>
+<td><strong>X</strong> 值变换</td>
+<td>X0 原样 · X1 线性（± 常量、× 常量含 <code>sizeof</code>）· X2 标量指针强转 · X3 常量操作数的非线性（<code>&amp;</code>、<code>%</code>、<code>&gt;&gt;</code>、<code>/</code>）· X4 字节缓冲按结构体解释 · X5 变量操作数的非线性</td>
+</tr>
+<tr>
+<td><strong>K</strong> 控制</td>
+<td>K0 直线 · K1 分支合并 · K2 典型循环 · K3 循环中累积偏移 / 拷贝 · K4 非典型或多变量嵌套循环 · K5 递归</td>
+</tr>
+<tr>
+<td><strong>G</strong> 校验</td>
+<td>G0 无校验（访问量是常量）· G1 同函数校验 · G2 外层校验 · G3 校验封装在独立函数里 · G4 校验了错字段 / 错规格</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>你们列的 7 条能力边界落在哪里：</strong></p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>能力边界</th>
+<th>编码</th>
+<th>级别</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>(1) 间接调用断链</td>
+<td>P5</td>
+<td>Lv9（S9.1–S9.3）</td>
+</tr>
+<tr>
+<td>(2) 全局变量</td>
+<td>M2、P4、V4</td>
+<td>Lv1（S1.6 定义可见的全局数组）、Lv6</td>
+</tr>
+<tr>
+<td>(3) 约束求解精度</td>
+<td>V5、X3、X5</td>
+<td>X3 在 Lv2（S2.7，其实能精确）；X5 在 Lv7–Lv8；V5 在 Lv10（S10.4）</td>
+</tr>
+<tr>
+<td>(4) 未定义函数</td>
+<td>P5、M8</td>
+<td>Lv9（S9.4）</td>
+</tr>
+<tr>
+<td>(5) 业务逻辑 / 隐式契约</td>
+<td>G4</td>
+<td>Lv10</td>
+</tr>
+<tr>
+<td>(6) 内存建模精度</td>
+<td>M6、M7、X4、A4、循环步进</td>
+<td>Lv7</td>
+</tr>
+<tr>
+<td>(7) 循环</td>
+<td>K2–K4</td>
+<td>典型的在 Lv3，复杂的在 Lv8（对照表见 Lv8 一节末尾）</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section><section id="tiers"><div class="sec-hd"><span class="secno">§3</span><h2>场景分级（从简单到复杂）</h2></div>
+<p>代码约定：<code>L1 → L2 → L3</code> 是一条三层的直接调用链，<code>L1</code>、<code>L2</code> 原样转发，验收时中间层加到 20 层；
+<code>S…</code> 是链顶（汇合点）。所有片段共用下面这组声明，并已用 clang 逐段做过语法检查（<code>-fsyntax-only -Wall</code>）：</p>
+<pre><code class="language-c">#include &lt;stddef.h&gt;
+typedef unsigned int UINT32;
+typedef int errno_t;
+#define EOK 0
+#define PID 0x100
+/* 原型按 01- §3.7.1 的假设：第 3 个形参是字节数（下标待确认） */
+void *VOS_MemAlloc(UINT32 pid, UINT32 ptNo, UINT32 size);
+errno_t memcpy_s(void *dest, size_t destMax, const void *src, size_t count);
+errno_t memset_s(void *dest, size_t destMax, int c, size_t count);
+</code></pre>
+<p>每个场景标注：<strong>签名</strong>（§2.2 编码）、<strong>摘要长什么样</strong>、<strong>期望级别</strong>、<strong>年内</strong>。</p>
+<hr />
+<h3 id="lv1"><span class="lvtag">Lv1</span> 一侧跨层 · 原样传递 · 直接调用</h3>
+<p>这就是你们说的"最简单的场景"：只要沿调用链把内存的初始大小（或把访问点的常量）带到汇合点，不涉及路径爆炸。</p>
+<p><strong>新增能力</strong>：形参代换；常量界；数组、常量长度堆、全局数组的大小；层数过滤；逐层 trace。
+<strong>摘要形态</strong>：<code>L3(p): requires extent(p) ≥ 9</code>；<code>L3(i): requires i ≤ 7</code>。</p>
+<p class="scn" id="s1-1"><strong>S1.1 定长数组逐层下传，访问点常量下标越界</strong> —— A1·M1·P1·V0·R1·X0·K0·G0 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(char *p) { p[8] = 0; }        /* requires extent(p) &gt;= 9 */
+static void L2(char *p) { L3(p); }
+static void L1(char *p) { L2(p); }
+void S1_1(void) { char buf[8]; L1(buf); }    /* 8 &lt; 9 -&gt; L1，trace: S1_1 -&gt; L1 -&gt; L2 -&gt; L3 */
+</code></pre>
+<p class="scn" id="s1-2"><strong>S1.2 同上，访问点是常量界的循环</strong> —— A1·M1·P1·V0·R1·X0·K2·G0 —— L2 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(char *p) { for (int i = 0; i &lt;= 8; i++) p[i] = 0; }   /* 访问范围 [0,8] */
+static void L2(char *p) { L3(p); }
+static void L1(char *p) { L2(p); }
+void S1_2(void) { char buf[8]; L1(buf); }                            /* [0,8] 与 8 部分重叠 -&gt; L2 */
+</code></pre>
+<p class="scn" id="s1-3"><strong>S1.3 常量长度的堆内存逐层下传（链顶直接调已配置的底层分配器）</strong> —— A1·M4·P1·V0·R1 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(char *p) { p[8] = 0; }
+static void L2(char *p) { L3(p); }
+static void L1(char *p) { L2(p); }
+void S1_3(void) { char *p = VOS_MemAlloc(PID, 0, 8); if (p == NULL) return; L1(p); }
+</code></pre>
+<p>依赖 <code>config.ini</code> 里底层分配器的字节数下标（<code>MEM_ALLOC_SIZE</code>，<code>01-</code> §3.7.4）。</p>
+<p class="scn" id="s1-4"><strong>S1.4 结构体数组成员的地址逐层下传</strong> —— A1·M3·P1·V0·R1 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">typedef struct { UINT32 id; char name[8]; } NODE_S;
+static void L3(char *p) { p[8] = 0; }
+static void L2(char *p) { L3(p); }
+static void L1(char *p) { L2(p); }
+void S1_4(NODE_S *node) { L1(node-&gt;name); }   /* extent = sizeof(name) = 8：按成员（子对象）算，与现有规则口径一致 */
+</code></pre>
+<p class="scn" id="s1-5"><strong>S1.5 下标在链顶是常量，逐层下传，内存是访问函数自己的数组</strong> —— A1·M1·P0·V1·R1 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(UINT32 i) { char tbl[8]; tbl[i] = 0; (void)tbl; }   /* requires i &lt;= 7 */
+static void L2(UINT32 i) { L3(i); }
+static void L1(UINT32 i) { L2(i); }
+void S1_5(void) { L1(8); }
+</code></pre>
+<p class="scn" id="s1-6"><strong>S1.6 全局定长数组（本文件定义或带长度的 extern 声明），下标逐层下传</strong> —— A1·M2·P0·V1·R1 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static char g_tbl[8];
+static void L3(UINT32 i) { g_tbl[i] = 0; }   /* requires i &lt;= 7 */
+static void L2(UINT32 i) { L3(i); }
+static void L1(UINT32 i) { L2(i); }
+void S1_6(void) { L1(8); }
+</code></pre>
+<p class="scn" id="s1-7"><strong>S1.7 <code>memcpy_s</code> 的目的缓冲区逐层下传，<code>destMax</code> 是访问函数里的常量且报大了</strong> —— A3·M1·P1·V0·R1 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(char *d, const char *s) { (void)memcpy_s(d, 64, s, 32); }   /* requires extent(d) &gt;= 64 */
+static void L2(char *d, const char *s) { L3(d, s); }
+static void L1(char *d, const char *s) { L2(d, s); }
+void S1_7(const char *s) { char buf[16]; L1(buf, s); }                       /* 16 &lt; 64 -&gt; L1 */
+</code></pre>
+<hr />
+<h3 id="lv2"><span class="lvtag">Lv2</span> 两侧同链 · 线性变换 · 指针偏移 · 标量强转</h3>
+<p><strong>新增能力</strong>：线性表达式（<code>a·x + b</code>，系数是常量）；带偏移的基址（<code>base + off</code>）；按字节归一（元素大小换算）；常量操作数的区间运算。
+<strong>摘要形态</strong>：<code>L3(p, n): requires extent(p) ≥ n + 1</code>；中间层加偏移后变成 <code>requires extent(p) ≥ n + 4</code>。</p>
+<p class="scn" id="s2-1"><strong>S2.1 缓冲区与长度沿同一条链下传（长度在链顶是常量）</strong> —— A3·M1·P1·V1·R2·X0 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(char *d, UINT32 n, const char *s) { (void)memcpy_s(d, n, s, n); }   /* requires extent(d) &gt;= n */
+static void L2(char *d, UINT32 n, const char *s) { L3(d, n, s); }
+static void L1(char *d, UINT32 n, const char *s) { L2(d, n, s); }
+void S2_1(const char *s) { char buf[16]; L1(buf, 32, s); }
+</code></pre>
+<p class="scn" id="s2-2"><strong>S2.2 长度经线性变换（加头长、乘 <code>sizeof</code>、减一）</strong> —— A1·M1·P1·V1·R2·X1 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(UINT32 *p, UINT32 cnt) { p[cnt] = 0; }    /* requires extent(p) &gt;= 4*cnt + 4 */
+static void L2(UINT32 *p, UINT32 cnt) { L3(p, cnt); }
+static void L1(UINT32 *p, UINT32 cnt) { L2(p, cnt); }
+void S2_2(void) { UINT32 arr[8]; L1(arr, 8); }           /* 常见的差一：把&quot;个数&quot;当成了最后一个下标 */
+</code></pre>
+<p class="scn" id="s2-3"><strong>S2.3 指针偏移后下传（<code>buf + 4</code>、<code>&amp;buf[k]</code>、直线代码中多次偏移）</strong> —— A2·M1·P1·V1·R2·X1 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(char *p, UINT32 n) { p[n - 1] = 0; }       /* requires extent(p) &gt;= n */
+static void L2(char *p, UINT32 n) { L3(p + 4, n); }       /* 偏移在中间层：requires extent(p) &gt;= n + 4 */
+static void L1(char *p, UINT32 n) { L2(p, n); }
+void S2_3(void) { char buf[16]; L1(buf, 16); }            /* 16 &lt; 20 -&gt; L1 */
+</code></pre>
+<p>"指向数组中间的指针 + 符号下标"是 CSA 已知盲区（#21），这一类 1–2 层也报（<code>csaBlindSpot</code>）。</p>
+<p class="scn" id="s2-4"><strong>S2.4 <code>memcpy_s(dst + off, 整体大小, …)</code>：<code>destMax</code> 没有扣掉偏移</strong> —— A3·M1·P1·V1·R2·X1 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(char *b, UINT32 off, const char *s, UINT32 n) { (void)memcpy_s(b + off, 64, s, n); }
+                                                          /* requires extent(b) &gt;= off + 64 */
+static void L2(char *b, UINT32 off, const char *s, UINT32 n) { L3(b, off, s, n); }
+static void L1(char *b, UINT32 off, const char *s, UINT32 n) { L2(b, off, s, n); }
+void S2_4(const char *s) { char buf[64]; L1(buf, 8, s, 8); }   /* 64 &lt; 72 -&gt; L1；正确写法是 64 - off */
+</code></pre>
+<p>真实代码里最常见的安全函数误用之一。</p>
+<p class="scn" id="s2-5"><strong>S2.5 变量长度的堆内存，申请与访问由同一个量派生</strong> —— A1·M5·P1·V1·R2·X1 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(char *p, UINT32 n) { p[n] = 0; }          /* requires extent(p) &gt;= n + 1 */
+static void L2(char *p, UINT32 n) { L3(p, n); }
+static void L1(char *p, UINT32 n) { L2(p, n); }
+void S2_5(UINT32 n) { char *p = VOS_MemAlloc(PID, 0, n); if (p == NULL) return; L1(p, n); }
+/* extent(p) = n，要求 n &gt;= n + 1：两边差一个常量 -1，对任何 n 都不成立 -&gt; L1。不需要知道 n 是多少 */
+</code></pre>
+<p class="scn" id="s2-6"><strong>S2.6 标量指针强转（<code>char*</code> → <code>UINT32*</code>），元素单位换算</strong> —— A1·M1·P1·V1·R2·X2 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(char *raw, UINT32 k) { UINT32 *w = (UINT32 *)raw; w[k] = 0; }   /* requires extent(raw) &gt;= 4k + 4 */
+static void L2(char *raw, UINT32 k) { L3(raw, k); }
+static void L1(char *raw, UINT32 k) { L2(raw, k); }
+void S2_6(void) { char buf[16]; L1(buf, 4); }                                   /* 16 &lt; 20 -&gt; L1 */
+</code></pre>
+<p class="scn" id="s2-7"><strong>S2.7 常量操作数的"非线性"：掩码、无符号取模、有界量的移位与除法</strong> —— A1·M1·P1·V1·R2·X3 —— L2 / 不报 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(char *p, UINT32 id) { p[id &amp; 0x3F] = 0; }   /* id &amp; 0x3F 取值 [0,63] -&gt; requires extent(p) &gt;= 64 */
+static void L2(char *p, UINT32 id) { L3(p, id); }
+static void L1(char *p, UINT32 id) { L2(p, id); }
+void S2_7_TN(UINT32 id) { char buf[64]; L1(buf, id); }     /* 可证明安全：不报 */
+void S2_7_TP(UINT32 id) { char buf[32]; L1(buf, id); }     /* [0,63] 与 32 部分重叠 -&gt; L2 */
+</code></pre>
+<p>这一条是对能力边界 (3) 的修正：<code>&amp;</code> 掩码、对无符号数取模自带上界；<code>&gt;&gt;</code>、<code>/</code> 常量在被操作数有界时也精确。
+真正失精度的是 X5（两个变量相乘、按变量移位），在 Lv7（S7.6）。</p>
+<hr />
+<h3 id="lv3"><span class="lvtag">Lv3</span> 控制流：校验、分支、典型循环</h3>
+<p><strong>新增能力</strong>：</p>
+<ul>
+<li>按分支条件收窄取值范围（<code>if (len &gt; MAX) return;</code> 之后 <code>len ∈ [0, MAX]</code>），分支合并；</li>
+<li>循环：WTO + 阈值 widening + narrowing，<strong>narrowing 要支持符号界</strong>（<code>i &lt; n</code> 收窄出 <code>[0, n−1]</code>）；</li>
+<li><strong>条件带守卫</strong>：<code>L3</code> 里先校验 <code>i &lt; 32</code> 再访问，条件要写成 <code>i &lt; 32 ⇒ 4i + 4 ≤ extent(p)</code>（或 Infer 式的 <code>min(i, 31)</code> 界），
+  不能只留一个数值区间——否则链顶传常量 <code>3</code> 的调用点也会误报（见 S3.2 的 TN）；</li>
+<li><strong>访问点先符号化简、再代入区间</strong>：<code>memcpy_s(b + off, total − off, …)</code> 两边的 <code>off</code> 先抵消，
+  得到 <code>total ≤ extent(b)</code>，与 <code>off</code> 的循环区间无关（见 S3.7）。</li>
+</ul>
+<p>后两条是这次分级时发现的设计缺口，已补进 <code>01-</code> §3.3 / §3.6（§9）。</p>
+<p class="scn" id="s3-1"><strong>S3.1 外层（跨函数）校验后下传</strong> —— A3·M1·P1·V1·R2·K1·G2 —— TN 不报 / TP L2 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(char *d, UINT32 n, const char *s) { (void)memcpy_s(d, n, s, n); }
+static void L2(char *d, UINT32 n, const char *s) { L3(d, n, s); }
+static void L1(char *d, UINT32 n, const char *s) { L2(d, n, s); }
+void S3_1_TN(const char *s, UINT32 len) { char buf[16]; if (len &gt; sizeof(buf)) return; L1(buf, len, s); }
+void S3_1_TP(const char *s, UINT32 len) { char buf[16]; if (len &gt; sizeof(buf) + 1) return; L1(buf, len, s); }
+/* TN：len 取值 [0,16]，安全；TP：校验放行到 17 -&gt; L2 */
+</code></pre>
+<p class="scn" id="s3-2"><strong>S3.2 访问函数自己有校验，但校验界大于多层之上决定的实际大小</strong> —— A1·M1·P1·V1·R2·G1 —— TP L2 / TN 不报 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">#define MAX_NUM 32
+static void L3(UINT32 *p, UINT32 i) { if (i &gt;= MAX_NUM) return; p[i] = 0; }   /* i &lt; 32 =&gt; 4i + 4 &lt;= extent(p) */
+static void L2(UINT32 *p, UINT32 i) { L3(p, i); }
+static void L1(UINT32 *p, UINT32 i) { L2(p, i); }
+void S3_2_TP(UINT32 i) { UINT32 tbl[16]; L1(tbl, i); }   /* 校验按 32 放行，实际只有 16 个 -&gt; L2 */
+void S3_2_TN(void)     { UINT32 tbl[16]; L1(tbl, 3); }   /* 3 &lt; 32 且 16 &lt;= 64：不报。只留数值区间 [0,31] 会在这里误报 */
+</code></pre>
+<p>"校验界与实际大小不一致"是真实缺陷里的高发形态，也是多层场景的典型：数组定义和校验常量隔着好几层。</p>
+<p class="scn" id="s3-3"><strong>S3.3 分支给出不同长度后合并（其中一支越界）</strong> —— A3·M1·P1·V1·R2·K1 —— L2 <span class="pill c-best">尽力</span></p>
+<pre><code class="language-c">static void L3(char *d, UINT32 n, const char *s) { (void)memcpy_s(d, n, s, n); }
+static void L2(char *d, UINT32 n, const char *s) { L3(d, n, s); }
+static void L1(char *d, UINT32 n, const char *s) { L2(d, n, s); }
+void S3_3(const char *s, int big) { char buf[16]; UINT32 n = big ? 32 : 8; L1(buf, n, s); }   /* n 取值 [8,32] -&gt; L2 */
+</code></pre>
+<p>区间合并只能给 L2；要给 L1 需要少量路径分离（保留两个分支各自的值），年内不做。</p>
+<p class="scn" id="s3-4"><strong>S3.4 典型循环，循环界来自多层之上</strong> —— A1·M1·P1·V1·R2·K2 —— L2 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(char *p, UINT32 n) { for (UINT32 i = 0; i &lt; n; i++) p[i] = 0; }   /* requires extent(p) &gt;= n */
+static void L2(char *p, UINT32 n) { L3(p, n); }
+static void L1(char *p, UINT32 n) { L2(p, n); }
+void S3_4(void) { char buf[16]; L1(buf, 17); }
+</code></pre>
+<p class="scn" id="s3-5"><strong>S3.5 循环退出后使用计数器（填完再补结尾）</strong> —— A1·M1·P1·V1·R2·K2 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(char *p, UINT32 n) { UINT32 i; for (i = 0; i &lt; n; i++) p[i] = 'a'; p[i] = 0; }
+                                                        /* 退出时 i == n -&gt; requires extent(p) &gt;= n + 1 */
+static void L2(char *p, UINT32 n) { L3(p, n); }
+static void L1(char *p, UINT32 n) { L2(p, n); }
+void S3_5(void) { char buf[16]; L1(buf, 16); }
+</code></pre>
+<p class="scn" id="s3-6"><strong>S3.6 规则的嵌套循环（各维的界是常量）</strong> —— A1·M1·P1·V0·R1·K2 —— L2 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">#define ROWS 4
+#define COLS 8
+static void L3(char *m) { for (int r = 0; r &lt;= ROWS; r++) for (int c = 0; c &lt; COLS; c++) m[r * COLS + c] = 0; }
+static void L2(char *m) { L3(m); }
+static void L1(char *m) { L2(m); }
+void S3_6(void) { char mat[ROWS * COLS]; L1(mat); }   /* r*COLS + c 取值 [0,39]，大小 32 -&gt; L2 */
+</code></pre>
+<p><code>r * COLS</code> 里 <code>COLS</code> 是常量，区间乘法是精确的；<code>COLS</code> 换成变量就变成 S7.6。</p>
+<p class="scn" id="s3-7"><strong>S3.7 循环内按"剩余长度"拷贝（安全写法）</strong> —— A3·M1·P1·V1·R2·K3 —— 不报 <span class="pill c-commit">承诺（TN）</span></p>
+<pre><code class="language-c">static void L3(char *b, UINT32 total, const char *s, UINT32 n)
+{
+    UINT32 off = 0;
+    while (off + n &lt;= total) {
+        if (memcpy_s(b + off, total - off, s, n) != EOK) break;
+        off += n;
+    }
+}
+static void L2(char *b, UINT32 total, const char *s, UINT32 n) { L3(b, total, s, n); }
+static void L1(char *b, UINT32 total, const char *s, UINT32 n) { L2(b, total, s, n); }
+void S3_7(const char *s) { char buf[64]; L1(buf, sizeof(buf), s, 8); }
+/* total - off &lt;= extent(b) - off 先化简成 total &lt;= extent(b)，与 off 的循环区间无关 -&gt; 不报 */
+</code></pre>
+<p>报文组装代码里大量是这种写法。不先化简、直接拿 <code>off</code> 的区间 <code>[0, +∞)</code> 去比，这里会误报成片。</p>
+<p class="scn" id="s3-8"><strong>S3.8 循环内累积偏移，<code>destMax</code> 却用整体大小（缺陷）</strong> —— A3·M1·P1·V1·R2·K3 —— L2 <span class="pill c-best">尽力</span></p>
+<pre><code class="language-c">static void L3(char *b, UINT32 total, const char *s, UINT32 n)
+{
+    UINT32 off = 0;
+    while (off + n &lt;= total) {
+        if (memcpy_s(b + off, total, s, n) != EOK) break;   /* 化简成 off &lt;= extent(b) - total = 0 */
+        off += n;
+    }
+}
+static void L2(char *b, UINT32 total, const char *s, UINT32 n) { L3(b, total, s, n); }
+static void L1(char *b, UINT32 total, const char *s, UINT32 n) { L2(b, total, s, n); }
+void S3_8(const char *s) { char buf[64]; L1(buf, sizeof(buf), s, 8); }   /* 第二轮起 off &gt; 0 -&gt; L2 */
+</code></pre>
+<p class="scn" id="s3-9"><strong>S3.9 调用链在循环里：循环变量逐层下传到访问点</strong> —— A1·M1·P1·V1·R2·K2 —— L2 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void L3(char *p, UINT32 i) { p[i] = 0; }   /* requires extent(p) &gt;= i + 1 */
+static void L2(char *p, UINT32 i) { L3(p, i); }
+static void L1(char *p, UINT32 i) { L2(p, i); }
+void S3_9(void) { char buf[16]; for (UINT32 i = 0; i &lt;= 16; i++) L1(buf, i); }   /* 调用点 i 取值 [0,16] -&gt; L2 */
+</code></pre>
+<hr />
+<h3 id="lv4"><span class="lvtag">Lv4</span> 内存来自下层：多层封装的分配器、出参、getter</h3>
+<p>内存大小的信息先<strong>往上</strong>走（从分配器一层层返回），再<strong>往下</strong>走到访问点——"V 形"链。</p>
+<p><strong>新增能力</strong>：返回值效应 / 出参效应（新申请的堆，大小 = 形参表达式，<code>01-</code> §3.7）；返回值的取值范围；底层分配器配置。</p>
+<p class="scn" id="s4-1"><strong>S4.1 多层封装的分配器（返回值）</strong> —— A1·M4·P2+P1·V0 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static void *Pool_Alloc(UINT32 sz) { return VOS_MemAlloc(PID, 0, sz); }   /* ReturnEffect: fresh heap, extent = sz */
+static void *Mod_Alloc(UINT32 sz)  { return Pool_Alloc(sz); }
+static char *Buf_New(void)         { return Mod_Alloc(16); }              /* extent = 16 */
+static void L3(char *p) { p[16] = 0; }
+static void L2(char *p) { L3(p); }
+static void L1(char *p) { L2(p); }
+void S4_1(void) { char *p = Buf_New(); if (p == NULL) return; L1(p); }
+</code></pre>
+<p class="scn" id="s4-2"><strong>S4.2 带头部的分配器（实际申请 <code>n + HDR</code>，返回 <code>p + HDR</code>）</strong> —— A1·M5·P2+P1·V1 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">typedef struct { UINT32 magic; UINT32 len; } HDR_S;
+static void *Hdr_Alloc(UINT32 n)
+{
+    char *raw = VOS_MemAlloc(PID, 0, n + (UINT32)sizeof(HDR_S));
+    return raw ? raw + sizeof(HDR_S) : NULL;                       /* extent(返回值) = n */
+}
+static void L3(char *p, UINT32 n) { p[n] = 0; }
+static void L2(char *p, UINT32 n) { L3(p, n); }
+static void L1(char *p, UINT32 n) { L2(p, n); }
+void S4_2(void) { char *p = Hdr_Alloc(16); if (p == NULL) return; L1(p, 16); }
+</code></pre>
+<p>靠形参名猜长度在这里必错，靠摘要推导是对的（<code>01-</code> §3.7.1）。</p>
+<p class="scn" id="s4-3"><strong>S4.3 出参分配器</strong> —— A1·M5·P2+P1·V1 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static UINT32 Obj_Create(char **out, UINT32 n) { *out = VOS_MemAlloc(PID, 0, n); return (*out != NULL) ? 0 : 1; }
+                                                         /* OutParamEffect(arg#0): fresh heap, extent = n */
+static void L3(char *p, UINT32 n) { p[n] = 0; }
+static void L2(char *p, UINT32 n) { L3(p, n); }
+static void L1(char *p, UINT32 n) { L2(p, n); }
+void S4_3(void) { char *p = NULL; if (Obj_Create(&amp;p, 16) != 0) return; L1(p, 16); }
+</code></pre>
+<p class="scn" id="s4-4"><strong>S4.4 长度来自 getter 的返回值（最简单的"异链"）</strong> —— A1·M1·P1·V2·R3 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">static UINT32 Cfg_GetMaxUsers(void) { return 32; }         /* ensures ret == 32 */
+static void L3(char *p, UINT32 n) { p[n - 1] = 0; }
+static void L2(char *p, UINT32 n) { L3(p, n); }
+static void L1(char *p, UINT32 n) { L2(p, n); }
+void S4_4(void) { char tbl[16]; L1(tbl, Cfg_GetMaxUsers()); }
+</code></pre>
+<p class="scn" id="s4-5"><strong>S4.5 分配器的函数体不可见，只出现在 <code>config.ini</code> / <code>alloc_free_identity</code> 结果里</strong> <span class="pill c-rule">规则性处理</span></p>
+<p>知道是堆、不知道多大 → 大小记为符号，<strong>不报、记"大小未知"原因</strong>；配了 <code>MEM_ALLOC_SIZE</code> 则按配置（<code>01-</code> §3.7.2）。
+不单列承诺，但要保证<strong>不误报</strong>。</p>
+<hr />
+<h3 id="lv5"><span class="lvtag">Lv5</span> 经结构体字段中转；两侧异链汇合</h3>
+<p><strong>新增能力</strong>：字段级基址（<code>arg#0-&gt;buf</code>）；帧内字段存储跟踪（链顶 <code>ctx.buf = tmp</code> 之后知道 <code>ctx.buf</code> 指向 <code>tmp</code>）；
+写效应摘要（被调函数改了哪些字段、改成什么）；出参与字段的取值范围。</p>
+<p class="scn" id="s5-1"><strong>S5.1 链顶填好上下文结构体，逐层传指针，底层按字段访问</strong> —— A3·M1·P3·V3·R2 —— L1 <span class="pill c-commit">承诺</span></p>
+<pre><code class="language-c">typedef struct { char *buf; UINT32 len; } CTX_S;
+static void L3(CTX_S *c, const char *s) { (void)memcpy_s(c-&gt;buf, c-&gt;len, s, c-&gt;len); }  /* requires extent(c-&gt;buf) &gt;= c-&gt;len */
+static void L2(CTX_S *c, const char *s) { L3(c, s); }
+static void L1(CTX_S *c, const char *s) { L2(c, s); }
+void S5_1(const char *s) { char tmp[16]; CTX_S ctx = { tmp, 32 }; L1(&amp;ctx, s); }       /* 代换到链顶：16 &lt; 32 -&gt; L1 */
+</code></pre>
+<p>上下文结构体一路下传是业务代码里最普遍的传参方式，所以这一项提前到年内。</p>
+<p class="scn" id="s5-2"><strong>S5.2 上下文在独立的 Init 函数里填（写效应）</strong> —— A3·M5·P3+P2·V3·R3 —— L1 <span class="pill c-pa27">2027H1</span></p>
+<pre><code class="language-c">typedef struct { char *buf; UINT32 len; } CTX_S;
+static void Ctx_Init(CTX_S *c, UINT32 n) { c-&gt;buf = VOS_MemAlloc(PID, 0, n); c-&gt;len = n + 1; }
+                                           /* modifies: c-&gt;buf = fresh(n), c-&gt;len = n + 1 */
+static void L3(CTX_S *c, const char *s) { (void)memcpy_s(c-&gt;buf, c-&gt;len, s, c-&gt;len); }
+static void L2(CTX_S *c, const char *s) { L3(c, s); }
+static void L1(CTX_S *c, const char *s) { L2(c, s); }
+void S5_2(const char *s) { CTX_S ctx; Ctx_Init(&amp;ctx, 16); if (ctx.buf == NULL) return; L1(&amp;ctx, s); }
+</code></pre>
+<p class="scn" id="s5-3"><strong>S5.3 内存沿一条链下传，长度沿另一条链多层返回后汇合</strong> —— A3·M1·P1·V2·R3·X3 —— L2 <span class="pill c-best">尽力</span></p>
+<pre><code class="language-c">typedef struct MSG MSG_S;
+UINT32 Msg_Parse(const MSG_S *m);
+static UINT32 Msg_Field(const MSG_S *m)   { return Msg_Parse(m) &amp; 0xFF; }   /* ensures ret in [0,255] */
+static UINT32 Msg_BodyLen(const MSG_S *m) { return Msg_Field(m); }
+static void L3(char *d, UINT32 n, const char *s) { (void)memcpy_s(d, n, s, n); }
+static void L2(char *d, UINT32 n, const char *s) { L3(d, n, s); }
+static void L1(char *d, UINT32 n, const char *s) { L2(d, n, s); }
+void S5_3(const MSG_S *m, const char *s) { char buf[128]; L1(buf, Msg_BodyLen(m), s); }   /* [0,255] 与 128 部分重叠 -&gt; L2 */
+</code></pre>
+<p>机制和 S4.4 相同（返回值取值范围自底向上），难点在链上的精度，所以是尽力。</p>
+<p class="scn" id="s5-4"><strong>S5.4 同一结构体的字段在不同层被改写（缓冲区在一层换、长度在另一层改）</strong> —— P3·V3·R3 <span class="pill c-pa27">2027H1</span></p>
+<p class="scn" id="s5-5"><strong>S5.5 <code>alloc_free_identity</code> 里带 <code>offset</code> 的字段级申请（申请结果写进 <code>p-&gt;field</code>）</strong> —— M5·P3+P2 <span class="pill c-best">尽力</span></p>
+<p>对应计划 P0-5 的"带 <code>offset</code> 场景"，也是计划 §6 砍项顺序的第 3 项；<code>offset</code> 的 ABI 问题见 <code>01-</code> §3.7.2。</p>
+<hr />
+<h3 id="lv6"><span class="lvtag">Lv6</span> 全局状态</h3>
+<p class="scn" id="s6-1"><strong>S6.1 <code>extern</code> 不完整声明的全局数组（定义在另一个文件）</strong> —— A1·M2·P4·V1 —— L1 <span class="pill c-best">尽力</span></p>
+<pre><code class="language-c">extern char g_cellTbl[];   /* 本文件看不到大小；另一个文件里是 char g_cellTbl[64]; */
+static void L3(UINT32 i) { g_cellTbl[i] = 0; }
+static void L2(UINT32 i) { L3(i); }
+static void L1(UINT32 i) { L2(i); }
+void S6_1(void) { L1(64); }
+</code></pre>
+<p>需要跨文件的全局大小表（计划 P0-4，砍项顺序第 1 项）。</p>
+<p class="scn" id="s6-2"><strong>S6.2 全局长度变量（只在初始化函数里写常量）</strong> —— V4 <span class="pill c-pa27">2027H1</span></p>
+<pre><code class="language-c">static UINT32 g_maxCell;
+void Cell_Init(void) { g_maxCell = 64; }
+static void L3(char *p) { for (UINT32 i = 0; i &lt; g_maxCell; i++) p[i] = 0; }   /* 取全部写入值的并集：[0,64] */
+static void L2(char *p) { L3(p); }
+static void L1(char *p) { L2(p); }
+void S6_2(void) { char buf[32]; L1(buf); }
+</code></pre>
+<p class="scn" id="s6-3"><strong>S6.3 运行期申请的全局资源，长度来自跨函数变量</strong> —— M5·P4·V4·G4 <span class="pill c-ai">2027 程序分析验证 + AI 提不变式</span></p>
+<pre><code class="language-c">static UINT32 *g_tbl;
+static UINT32 g_num;
+void Tbl_Init(UINT32 n) { g_tbl = VOS_MemAlloc(PID, 0, n * (UINT32)sizeof(UINT32)); g_num = n; }
+static void L3(UINT32 i) { if (i &gt; g_num) return; g_tbl[i] = 0; }   /* 应为 &gt;=；要知道 extent(g_tbl) = 4 * g_num */
+static void L2(UINT32 i) { L3(i); }
+static void L1(UINT32 i) { L2(i); }
+void S6_3(UINT32 i) { L1(i); }
+</code></pre>
+<p>判定需要一条<strong>全局不变式</strong> <code>extent(g_tbl) = 4·g_num</code>。程序分析能验证"所有写 <code>g_tbl</code> / <code>g_num</code> 的地方都维持了它"，
+但从代码里自动归纳出它（哪个全局量是哪块全局内存的长度）不可靠——这一步交给 AI 提候选，程序分析验证后使用。</p>
+<p class="scn" id="s6-4"><strong>S6.4 访问约束来自运行期可配置的全局值</strong>（<code>g_cfg.maxPort</code> 由配置文件或命令设置） —— V4 <span class="pill c-ai">AI + 程序分析</span></p>
+<p>取值范围是业务给的，代码里没有。</p>
+<hr />
+<h3 id="lv7"><span class="lvtag">Lv7</span> 内存建模精度</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>场景</th>
+<th>签名</th>
+<th>归属</th>
+</tr>
+</thead>
+<tbody>
+<tr id="s7-1">
+<td class="id"><strong>S7.1</strong></td>
+<td>柔性数组成员：<code>l = Alloc(sizeof(LIST_S) + n * sizeof(UINT32))</code>，多层后访问 <code>l-&gt;item[n]</code></td>
+<td>A1·M6·P2+P1</td>
+<td>2027H1（计划 P1）。<code>extent(l-&gt;item) = 分配大小 − offsetof(item)</code>，与 S2.5 一样可以符号判定</td>
+</tr>
+<tr id="s7-2">
+<td class="id"><strong>S7.2</strong></td>
+<td>多维数组行级越界（<code>x.m[i][j]</code>，<code>i</code> 越界但总偏移未越界）</td>
+<td>A1·M7</td>
+<td>计划 P1。CSA 盲区 #18，1–2 层也报</td>
+</tr>
+<tr id="s7-3">
+<td class="id"><strong>S7.3</strong></td>
+<td>字节缓冲按结构体解释：<code>MSG_S *m = (MSG_S *)raw; m-&gt;data[k]</code></td>
+<td>A1·M1·X4</td>
+<td>2027H1。要求 <code>extent(raw) ≥ offsetof(MSG_S, data) + k + 1</code></td>
+</tr>
+<tr id="s7-4">
+<td class="id"><strong>S7.4</strong></td>
+<td>循环中指针步进：<code>while (n--) *p++ = 0;</code></td>
+<td>A2·K3</td>
+<td>2027H1。要"<code>p − base</code> = 已迭代次数"这类关系</td>
+</tr>
+<tr id="s7-5">
+<td class="id"><strong>S7.5</strong></td>
+<td>字符串：<code>strcpy_s</code> / <code>strcat_s</code> / <code>sprintf_s</code></td>
+<td>A4</td>
+<td><code>destMax ≤ extent(dest)</code> 那一半与 <code>memcpy_s</code> 相同，计划 P1；依赖源串长度的那一半要字符串长度的抽象，2027H2</td>
+</tr>
+<tr id="s7-6">
+<td class="id"><strong>S7.6</strong></td>
+<td>变量操作数的非线性下标：<code>a[i * stride + j]</code>（<code>stride</code> 是变量）、<code>len &lt;&lt; shift</code></td>
+<td>X5</td>
+<td><strong>不承诺</strong>。各自有界时给 L2 上界</td>
+</tr>
+<tr id="s7-7">
+<td class="id"><strong>S7.7</strong></td>
+<td>联合体 / 类型双关；真别名（二级指针改写、两条路径指向同一块内存）</td>
+<td>——</td>
+<td><strong>不承诺</strong>（要指向分析）</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h3 id="lv8"><span class="lvtag">Lv8</span> 复杂循环</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>场景</th>
+<th>签名</th>
+<th>归属</th>
+</tr>
+</thead>
+<tbody>
+<tr id="s8-1">
+<td class="id"><strong>S8.1</strong></td>
+<td><strong>数据驱动步长的解析循环</strong>（TLV、消息分段）：每轮的偏移增量是从缓冲区里读出来的长度</td>
+<td>A3·K3·V5</td>
+<td>"本轮访问被本轮校验覆盖"的写法：程序分析尽力（相对条件，不需要跨轮不变式）；依赖跨轮累计关系的：<strong>AI 提不变式 + 程序分析验证</strong></td>
+</tr>
+<tr id="s8-2">
+<td class="id"><strong>S8.2</strong></td>
+<td>非典型循环：<code>while (*p)</code>、多出口、循环体内改计数器、<code>goto</code> 构成的环</td>
+<td>K4</td>
+<td>尽力。widening 保证收敛，多数只能给 L2 或不报</td>
+</tr>
+<tr id="s8-3">
+<td class="id"><strong>S8.3</strong></td>
+<td>多层嵌套、下标由多个循环变量非线性组合（<code>a[i * n + j]</code>，<code>n</code> 是变量）</td>
+<td>K4·X5</td>
+<td><strong>不承诺</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>你们列的循环子项落在哪里：</strong></p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>循环子项</th>
+<th>场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>典型循环 <code>for (i = 0; i &lt; max; i++)</code></td>
+<td>S1.2（常量界）、S3.4（界来自多层之上）</td>
+</tr>
+<tr>
+<td>循环外的内存访问越界</td>
+<td>S3.5</td>
+</tr>
+<tr>
+<td>多层嵌套循环中访问内存</td>
+<td>S3.6（各维常量界，承诺）/ S8.3（变量步长，不承诺）</td>
+</tr>
+<tr>
+<td>循环中进行内存偏移和拷贝</td>
+<td>S3.7（剩余长度写法，TN）/ S3.8（<code>destMax</code> 用整体大小，TP）/ S7.4（指针步进）</td>
+</tr>
+<tr>
+<td>循环周期性的偏移和拷贝导致的越界</td>
+<td>固定步长：S3.6 / S3.8（线性，程序分析）；数据驱动步长：S8.1</td>
+</tr>
+<tr>
+<td>非一般常见的循环</td>
+<td>S8.2</td>
+</tr>
+<tr>
+<td>调用链本身在循环里</td>
+<td>S3.9（新增，承诺）</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h3 id="lv9"><span class="lvtag">Lv9</span> 断链：函数指针、外部 / 未定义函数、递归</h3>
+<p class="scn" id="s9-1"><strong>S9.1 链上的函数指针在同一函数内被赋常量</strong>（或查常量表） —— P5 <span class="pill c-best">尽力（计划 P1）</span></p>
+<pre><code class="language-c">static void L3(char *p) { p[8] = 0; }
+static void L2(char *p) { void (*fn)(char *) = L3; fn(p); }
+static void L1(char *p) { L2(p); }
+void S9_1(void) { char buf[8]; L1(buf); }
+</code></pre>
+<p class="scn" id="s9-2"><strong>S9.2 静态操作表：全局 const 结构体初始化的函数指针字段</strong> —— P5 <span class="pill c-ai">2027H1 程序分析；目标过多时 AI 做精度过滤</span></p>
+<pre><code class="language-c">typedef struct { void (*proc)(char *, UINT32); } OPS_S;
+static void L3(char *p, UINT32 n) { p[n] = 0; }
+static const OPS_S g_ops = { .proc = L3 };
+static void L2(char *p, UINT32 n) { g_ops.proc(p, n); }
+static void L1(char *p, UINT32 n) { L2(p, n); }
+void S9_2(void) { char buf[8]; L1(buf, 8); }
+</code></pre>
+<p>按"类型.字段"收集所有赋给它的函数（字段级解析），多个目标时逐个代换取最坏。
+目标集合太大时，用 LLM 做分发表识别与精度过滤、再把调用边回注给程序分析——正是你们调研过的那一路。</p>
+<p class="scn" id="s9-3"><strong>S9.3 运行期注册的回调</strong>（<code>Register(id, fn)</code>、按消息号查分发表） —— P5 <span class="pill c-ai">AI + 程序分析</span></p>
+<p>AI 从注册点和分发逻辑恢复"哪个消息号走哪个函数"，作为外部调用边注入；程序分析照常代换。</p>
+<p class="scn" id="s9-4"><strong>S9.4 未定义 / 外部函数读写传入的内存</strong>（库函数、没进编译数据库的模块） —— P5·M8 <span class="pill c-ai">模型表（程序分析）+ AI 生成模型草稿</span></p>
+<p>常用库函数进模型表（<code>01-</code> §3.7）；其余由 AI 从头文件和接口文档生成模型草稿，人工确认后入表。</p>
+<p class="scn" id="s9-5"><strong>S9.5 递归</strong> —— K5 <span class="pill c-pa27">2027H1（强连通分量内迭代到不动点）；年内按断链记原因。</span></p>
+<hr />
+<h3 id="lv10"><span class="lvtag">Lv10</span> 业务语义与隐式契约 → AI + 程序分析</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>场景</th>
+<th>签名</th>
+<th>AI 做什么</th>
+<th>程序分析做什么</th>
+</tr>
+</thead>
+<tbody>
+<tr id="s10-1">
+<td class="id"><strong>S10.1</strong></td>
+<td>结构体的缓冲区字段与长度字段对应关系用错（用 <code>dataLen</code> 校验 <code>ext</code>）</td>
+<td>G4·P3·V3</td>
+<td>推断字段配对（<code>ext</code> ↔ <code>extLen</code>）</td>
+<td>按配对生成条件，在所有访问点多层传播检查</td>
+</tr>
+<tr id="s10-2">
+<td class="id"><strong>S10.2</strong></td>
+<td>函数的指针入参与长度入参（<code>pBuf</code> ↔ <code>ulBufLen</code>）没被调用方遵守</td>
+<td>G4·P1·V1</td>
+<td>推断参数配对</td>
+<td>在所有调用点（多层）检查 <code>extent(pBuf) ≥ ulBufLen</code></td>
+</tr>
+<tr id="s10-3">
+<td class="id"><strong>S10.3</strong></td>
+<td>注释或接口文档写明的取值约束（"<code>ulPortId</code> 取值 0 ~ <code>MAX_PORT − 1</code>"）没被满足</td>
+<td>G4·V1</td>
+<td>抽取为前置条件</td>
+<td>检查调用链上是否满足</td>
+</tr>
+<tr id="s10-4">
+<td class="id"><strong>S10.4</strong></td>
+<td>外部输入的长度未经校验一路下传到访问点</td>
+<td>V5·G0</td>
+<td>读逐层 trace 与上下文，研判上层框架是否已统一校验</td>
+<td>给出候选（"证明不了安全、来源不可信"）和逐层 trace</td>
+</tr>
+</tbody>
+</table></div>
+<p>S10.1 的一个细节：<strong>如果那块缓冲区的大小在汇合点是已知的</strong>（比如 <code>ext</code> 实际指向一个 16 字节数组），
+用错长度字段校验其实会被 Lv5 直接查出来（校验界与实际大小不一致，同 S3.2）。
+真正需要 AI 的，是缓冲区大小在分析范围里不可知、只能靠"哪个字段是它的长度"这条业务知识的那部分。</p>
+<pre><code class="language-c">typedef struct { char *data; UINT32 dataLen; char *ext; UINT32 extLen; } PKT_S;
+static void L3(PKT_S *pkt, UINT32 off) { if (off &gt;= pkt-&gt;dataLen) return; pkt-&gt;ext[off] = 0; }   /* 用 dataLen 校验 ext */
+static void L2(PKT_S *pkt, UINT32 off) { L3(pkt, off); }
+static void L1(PKT_S *pkt, UINT32 off) { L2(pkt, off); }
+void S10_1(PKT_S *pkt, UINT32 off) { L1(pkt, off); }
+</code></pre>
+<hr />
+<h3>附：用 Infer 当标尺跑了一遍【实测数据】</h3>
+<p>本节 36 段代码用 <code>probes/scenarios/snippets.py</code> 抽出，Infer v1.3.0 <code>--bufferoverrun-only</code> 逐段跑
+（<code>--shim</code> 把 <code>VOS_MemAlloc</code> 换成 <code>malloc</code>、把 <code>memcpy_s</code> / <code>memset_s</code> 换成按 <code>destMax</code> 写的 <code>memset</code>，因为 Infer 没有这两类模型）。
+链长都是 3 层。</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>结果</th>
+<th>场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Infer 报出，级别与本文期望一致（15）</strong></td>
+<td>S1.1 L1、S1.2 L2、S1.3 L1、S1.5 L1、S2.2 L1、S2.3 L1、<strong>S2.5 L1</strong>（<code>n</code> 对 <code>n + 1</code> 的符号判定）、S3.4 L2、S3.5 L1、S3.6 L2、S3.9 L2、<strong>S4.1 / S4.2 / S4.3 L1</strong>（多层封装、带头部、出参分配器）、S4.4 L1</td>
+</tr>
+<tr>
+<td><strong>Infer 不报，而本设计要报（年内承诺里有 10 个）</strong></td>
+<td>S1.4 结构体成员地址下传、S1.6 全局数组、S2.6 标量强转、S2.7 掩码、S3.2 校验界大于实际大小；以及全部安全函数场景 S1.7、S2.1、S2.4、S3.1、S5.1</td>
+</tr>
+<tr>
+<td>TN 无误报</td>
+<td>S2.7_TN、S3.1_TN、S3.2_TN、S3.7</td>
+</tr>
+<tr>
+<td>其余不报（本就不在 Infer 能力内，或属于 2027 / AI + 程序分析）</td>
+<td>S3.3、S3.8、S5.2、S5.3、S6.1–S6.3、S9.1、S9.2、S10.1</td>
+</tr>
+</tbody>
+</table></div>
+<p>安全函数那一行单独核对过：<code>char buf[16]; memset(buf, 0, 64);</code> 在同一个函数里 Infer 报 L1，
+<strong>同样的 <code>memset</code> 挪进被调函数、由调用方传入 <code>buf</code> 就不报了</strong>——至少在 v1.3.0 的这个用法下，Infer 的 <code>memset</code> / <code>memcpy</code> 模型没有变成被调函数摘要里的条件往上传。</p>
+<p>两点结论：</p>
+<ol>
+<li><strong>26 个承诺场景里，Infer 报出 15 个，级别和本文的期望逐个对得上</strong>。Lv1–Lv4 的核心形态用摘要方式能做、分级口径也站得住，Infer 就是现成的证明。</li>
+<li><strong>Infer 漏掉的 10 个，正好是本设计比 Infer 多做的那几项</strong>：按字段类型算大小、全局数组、按字节归一、掩码区间、带守卫的条件、安全函数条件上传。
+   这也是"不直接用 Infer"的又一条实据——它漏掉的恰是你们代码里最常见的写法（安全函数、结构体成员、全局表）。</li>
+</ol>
+<p>复现：</p>
+<pre><code class="language-bash">cd 08-summary2-design/probes/scenarios
+python3 snippets.py check --clang &lt;任意 clang&gt;                       # 36 段语法检查
+python3 snippets.py infer --infer &lt;infer&gt;/bin/infer --shim             # 标尺对照表
+</code></pre>
+<hr />
+</section><section id="master"><div class="sec-hd"><span class="secno">§4</span><h2>总表（从简单到复杂）</h2></div>
+<p class="lede">56 个场景按级别从简单到复杂排列。点上面的类别只看那一类，或按级别筛选。</p>
+<div class="filters" role="group" aria-label="按类别筛选"><button type="button" class="fbtn" data-cat="commit" aria-pressed="false" id="f-commit"><span class="sw c-commit"></span>年内承诺 <b>26</b></button><button type="button" class="fbtn" data-cat="best" aria-pressed="false" id="f-best"><span class="sw c-best"></span>年内尽力 <b>6</b></button><button type="button" class="fbtn" data-cat="rule" aria-pressed="false" id="f-rule"><span class="sw c-rule"></span>规则性处理 <b>1</b></button><button type="button" class="fbtn" data-cat="pa27" aria-pressed="false" id="f-pa27"><span class="sw c-pa27"></span>2027 程序分析 <b>11</b></button><button type="button" class="fbtn" data-cat="ai" aria-pressed="false" id="f-ai"><span class="sw c-ai"></span>AI + 程序分析 <b>9</b></button><button type="button" class="fbtn" data-cat="no" aria-pressed="false" id="f-no"><span class="sw c-no"></span>不承诺 <b>3</b></button>
+<label class="lvsel" for="lvsel">级别 <select id="lvsel"><option value="">全部</option><option value="Lv1">Lv1</option><option value="Lv2">Lv2</option><option value="Lv3">Lv3</option><option value="Lv4">Lv4</option><option value="Lv5">Lv5</option><option value="Lv6">Lv6</option><option value="Lv7">Lv7</option><option value="Lv8">Lv8</option><option value="Lv9">Lv9</option><option value="Lv10">Lv10</option></select></label>
+<button type="button" class="fbtn reset" id="freset">清除</button></div>
+<div class="tw"><table class="master"><thead><tr><th>序</th><th>编号</th><th>场景</th><th>签名</th><th>级别</th><th>年内 / 归属类别</th><th>最终归属</th></tr></thead><tbody>
+<tr data-cat="commit" data-lv="Lv1"><td class="num">1</td><td class="id">S1.1</td><td>定长数组下传，访问点常量下标</td><td class="sig">A1·M1·P1·V0·R1·X0·K0·G0</td><td class="id">Lv1</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv1"><td class="num">2</td><td class="id">S1.2</td><td>定长数组下传，访问点常量界循环</td><td class="sig">A1·M1·P1·V0·R1·X0·K2·G0</td><td class="id">Lv1</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv1"><td class="num">3</td><td class="id">S1.3</td><td>常量长度堆内存下传</td><td class="sig">A1·M4·P1·V0·R1</td><td class="id">Lv1</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv1"><td class="num">4</td><td class="id">S1.4</td><td>结构体数组成员的地址下传</td><td class="sig">A1·M3·P1·V0·R1</td><td class="id">Lv1</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv1"><td class="num">5</td><td class="id">S1.5</td><td>链顶常量下标下传，访问函数自己的数组</td><td class="sig">A1·M1·P0·V1·R1</td><td class="id">Lv1</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv1"><td class="num">6</td><td class="id">S1.6</td><td>定义可见的全局数组，下标下传</td><td class="sig">A1·M2·P0·V1·R1</td><td class="id">Lv1</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv1"><td class="num">7</td><td class="id">S1.7</td><td><code>memcpy_s</code> 目的缓冲区下传，<code>destMax</code> 报大</td><td class="sig">A3·M1·P1·V0·R1</td><td class="id">Lv1</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv2"><td class="num">8</td><td class="id">S2.1</td><td>缓冲区与长度同链下传</td><td class="sig">A3·M1·P1·V1·R2·X0</td><td class="id">Lv2</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv2"><td class="num">9</td><td class="id">S2.2</td><td>长度线性变换</td><td class="sig">A1·M1·P1·V1·R2·X1</td><td class="id">Lv2</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv2"><td class="num">10</td><td class="id">S2.3</td><td>指针偏移后下传</td><td class="sig">A2·M1·P1·V1·R2·X1</td><td class="id">Lv2</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv2"><td class="num">11</td><td class="id">S2.4</td><td><code>memcpy_s(dst + off, 整体大小)</code></td><td class="sig">A3·M1·P1·V1·R2·X1</td><td class="id">Lv2</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv2"><td class="num">12</td><td class="id">S2.5</td><td>变量长度堆，申请与访问同源</td><td class="sig">A1·M5·P1·V1·R2·X1</td><td class="id">Lv2</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv2"><td class="num">13</td><td class="id">S2.6</td><td>标量指针强转</td><td class="sig">A1·M1·P1·V1·R2·X2</td><td class="id">Lv2</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv2"><td class="num">14</td><td class="id">S2.7</td><td>掩码 / 取模 / 有界移位</td><td class="sig">A1·M1·P1·V1·R2·X3</td><td class="id">Lv2</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv3"><td class="num">15</td><td class="id">S3.1</td><td>外层校验后下传</td><td class="sig">A3·M1·P1·V1·R2·K1·G2</td><td class="id">Lv3</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv3"><td class="num">16</td><td class="id">S3.2</td><td>访问函数校验界大于实际大小</td><td class="sig">A1·M1·P1·V1·R2·G1</td><td class="id">Lv3</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="best" data-lv="Lv3"><td class="num">17</td><td class="id">S3.3</td><td>分支合并后一支越界</td><td class="sig">A3·M1·P1·V1·R2·K1</td><td class="id">Lv3</td><td><span class="pill c-best">年内尽力</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv3"><td class="num">18</td><td class="id">S3.4</td><td>典型循环，界来自多层之上</td><td class="sig">A1·M1·P1·V1·R2·K2</td><td class="id">Lv3</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv3"><td class="num">19</td><td class="id">S3.5</td><td>循环退出后使用计数器</td><td class="sig">A1·M1·P1·V1·R2·K2</td><td class="id">Lv3</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv3"><td class="num">20</td><td class="id">S3.6</td><td>规则嵌套循环</td><td class="sig">A1·M1·P1·V0·R1·K2</td><td class="id">Lv3</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv3"><td class="num">21</td><td class="id">S3.7</td><td>循环按剩余长度拷贝（TN）</td><td class="sig">A3·M1·P1·V1·R2·K3</td><td class="id">Lv3</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="best" data-lv="Lv3"><td class="num">22</td><td class="id">S3.8</td><td>循环累积偏移，<code>destMax</code> 用整体大小</td><td class="sig">A3·M1·P1·V1·R2·K3</td><td class="id">Lv3</td><td><span class="pill c-best">年内尽力</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv3"><td class="num">23</td><td class="id">S3.9</td><td>调用链在循环里</td><td class="sig">A1·M1·P1·V1·R2·K2</td><td class="id">Lv3</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv4"><td class="num">24</td><td class="id">S4.1</td><td>多层封装分配器（返回值）</td><td class="sig">A1·M4·P2+P1·V0</td><td class="id">Lv4</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv4"><td class="num">25</td><td class="id">S4.2</td><td>带头部的分配器</td><td class="sig">A1·M5·P2+P1·V1</td><td class="id">Lv4</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv4"><td class="num">26</td><td class="id">S4.3</td><td>出参分配器</td><td class="sig">A1·M5·P2+P1·V1</td><td class="id">Lv4</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv4"><td class="num">27</td><td class="id">S4.4</td><td>长度来自 getter 返回值</td><td class="sig">A1·M1·P1·V2·R3</td><td class="id">Lv4</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="rule" data-lv="Lv4"><td class="num">28</td><td class="id">S4.5</td><td>分配器函数体不可见</td><td class="sig">M5·P2</td><td class="id">Lv4</td><td><span class="pill c-rule">规则性处理</span></td><td class="own">程序分析</td></tr><tr data-cat="commit" data-lv="Lv5"><td class="num">29</td><td class="id">S5.1</td><td>上下文结构体在链顶填好后下传</td><td class="sig">A3·M1·P3·V3·R2</td><td class="id">Lv5</td><td><span class="pill c-commit">年内承诺</span></td><td class="own">程序分析</td></tr><tr data-cat="pa27" data-lv="Lv5"><td class="num">30</td><td class="id">S5.2</td><td>上下文在 Init 函数里填（写效应）</td><td class="sig">A3·M5·P3+P2·V3·R3</td><td class="id">Lv5</td><td><span class="pill c-pa27">2027 程序分析</span></td><td class="own">程序分析</td></tr><tr data-cat="best" data-lv="Lv5"><td class="num">31</td><td class="id">S5.3</td><td>长度沿另一条链多层返回后汇合</td><td class="sig">A3·M1·P1·V2·R3·X3</td><td class="id">Lv5</td><td><span class="pill c-best">年内尽力</span></td><td class="own">程序分析</td></tr><tr data-cat="pa27" data-lv="Lv5"><td class="num">32</td><td class="id">S5.4</td><td>字段在不同层被改写</td><td class="sig">P3·V3·R3</td><td class="id">Lv5</td><td><span class="pill c-pa27">2027 程序分析</span></td><td class="own">程序分析</td></tr><tr data-cat="best" data-lv="Lv5"><td class="num">33</td><td class="id">S5.5</td><td>带 <code>offset</code> 的字段级申请</td><td class="sig">M5·P3+P2</td><td class="id">Lv5</td><td><span class="pill c-best">年内尽力</span></td><td class="own">程序分析</td></tr><tr data-cat="best" data-lv="Lv6"><td class="num">34</td><td class="id">S6.1</td><td><code>extern</code> 不完整声明的全局数组</td><td class="sig">A1·M2·P4·V1</td><td class="id">Lv6</td><td><span class="pill c-best">年内尽力</span></td><td class="own">程序分析</td></tr><tr data-cat="pa27" data-lv="Lv6"><td class="num">35</td><td class="id">S6.2</td><td>全局长度变量（初始化写常量）</td><td class="sig">V4</td><td class="id">Lv6</td><td><span class="pill c-pa27">2027 程序分析</span></td><td class="own">程序分析</td></tr><tr data-cat="ai" data-lv="Lv6"><td class="num">36</td><td class="id">S6.3</td><td>运行期申请的全局资源</td><td class="sig">M5·P4·V4·G4</td><td class="id">Lv6</td><td><span class="pill c-ai">AI + 程序分析</span></td><td class="own">程序分析验证 + AI 提不变式</td></tr><tr data-cat="ai" data-lv="Lv6"><td class="num">37</td><td class="id">S6.4</td><td>运行期可配置的全局值</td><td class="sig">V4</td><td class="id">Lv6</td><td><span class="pill c-ai">AI + 程序分析</span></td><td class="own">AI + 程序分析</td></tr><tr data-cat="pa27" data-lv="Lv7"><td class="num">38</td><td class="id">S7.1</td><td>柔性数组成员</td><td class="sig">A1·M6·P2+P1</td><td class="id">Lv7</td><td><span class="pill c-pa27">2027 程序分析</span></td><td class="own">程序分析</td></tr><tr data-cat="pa27" data-lv="Lv7"><td class="num">39</td><td class="id">S7.2</td><td>多维数组行级越界</td><td class="sig">A1·M7</td><td class="id">Lv7</td><td><span class="pill c-pa27">2027 程序分析</span></td><td class="own">程序分析</td></tr><tr data-cat="pa27" data-lv="Lv7"><td class="num">40</td><td class="id">S7.3</td><td>字节缓冲按结构体解释</td><td class="sig">A1·M1·X4</td><td class="id">Lv7</td><td><span class="pill c-pa27">2027 程序分析</span></td><td class="own">程序分析</td></tr><tr data-cat="pa27" data-lv="Lv7"><td class="num">41</td><td class="id">S7.4</td><td>循环中指针步进</td><td class="sig">A2·K3</td><td class="id">Lv7</td><td><span class="pill c-pa27">2027 程序分析</span></td><td class="own">程序分析</td></tr><tr data-cat="pa27" data-lv="Lv7"><td class="num">42</td><td class="id">S7.5</td><td>字符串类安全函数</td><td class="sig">A4</td><td class="id">Lv7</td><td><span class="pill c-pa27">2027 程序分析</span></td><td class="own">程序分析</td></tr><tr data-cat="no" data-lv="Lv7"><td class="num">43</td><td class="id">S7.6</td><td>变量操作数的非线性下标</td><td class="sig">X5</td><td class="id">Lv7</td><td><span class="pill c-no">不承诺</span></td><td class="own">不承诺（有界时 L2）</td></tr><tr data-cat="no" data-lv="Lv7"><td class="num">44</td><td class="id">S7.7</td><td>联合体 / 真别名</td><td class="sig">——</td><td class="id">Lv7</td><td><span class="pill c-no">不承诺</span></td><td class="own">不承诺</td></tr><tr data-cat="ai" data-lv="Lv8"><td class="num">45</td><td class="id">S8.1</td><td>数据驱动步长的解析循环</td><td class="sig">A3·K3·V5</td><td class="id">Lv8</td><td><span class="pill c-ai">AI + 程序分析</span></td><td class="own">部分程序分析尽力；其余 AI + 程序分析</td></tr><tr data-cat="pa27" data-lv="Lv8"><td class="num">46</td><td class="id">S8.2</td><td>非典型循环</td><td class="sig">K4</td><td class="id">Lv8</td><td><span class="pill c-pa27">2027 程序分析</span></td><td class="own">程序分析尽力</td></tr><tr data-cat="no" data-lv="Lv8"><td class="num">47</td><td class="id">S8.3</td><td>多变量非线性下标的嵌套循环</td><td class="sig">K4·X5</td><td class="id">Lv8</td><td><span class="pill c-no">不承诺</span></td><td class="own">不承诺</td></tr><tr data-cat="best" data-lv="Lv9"><td class="num">48</td><td class="id">S9.1</td><td>同函数内常量赋值的函数指针</td><td class="sig">P5</td><td class="id">Lv9</td><td><span class="pill c-best">年内尽力</span></td><td class="own">程序分析</td></tr><tr data-cat="pa27" data-lv="Lv9"><td class="num">49</td><td class="id">S9.2</td><td>静态操作表</td><td class="sig">P5</td><td class="id">Lv9</td><td><span class="pill c-pa27">2027 程序分析</span></td><td class="own">程序分析（AI 精度过滤）</td></tr><tr data-cat="ai" data-lv="Lv9"><td class="num">50</td><td class="id">S9.3</td><td>运行期注册的回调</td><td class="sig">P5</td><td class="id">Lv9</td><td><span class="pill c-ai">AI + 程序分析</span></td><td class="own">AI + 程序分析</td></tr><tr data-cat="ai" data-lv="Lv9"><td class="num">51</td><td class="id">S9.4</td><td>未定义 / 外部函数</td><td class="sig">P5·M8</td><td class="id">Lv9</td><td><span class="pill c-ai">AI + 程序分析</span></td><td class="own">模型表 + AI 生成模型</td></tr><tr data-cat="pa27" data-lv="Lv9"><td class="num">52</td><td class="id">S9.5</td><td>递归</td><td class="sig">K5</td><td class="id">Lv9</td><td><span class="pill c-pa27">2027 程序分析</span></td><td class="own">程序分析</td></tr><tr data-cat="ai" data-lv="Lv10"><td class="num">53</td><td class="id">S10.1</td><td>缓冲区与长度字段配对用错</td><td class="sig">G4·P3·V3</td><td class="id">Lv10</td><td><span class="pill c-ai">AI + 程序分析</span></td><td class="own">AI + 程序分析</td></tr><tr data-cat="ai" data-lv="Lv10"><td class="num">54</td><td class="id">S10.2</td><td>指针入参与长度入参不匹配</td><td class="sig">G4·P1·V1</td><td class="id">Lv10</td><td><span class="pill c-ai">AI + 程序分析</span></td><td class="own">AI + 程序分析</td></tr><tr data-cat="ai" data-lv="Lv10"><td class="num">55</td><td class="id">S10.3</td><td>注释 / 文档约束未满足</td><td class="sig">G4·V1</td><td class="id">Lv10</td><td><span class="pill c-ai">AI + 程序分析</span></td><td class="own">AI + 程序分析</td></tr><tr data-cat="ai" data-lv="Lv10"><td class="num">56</td><td class="id">S10.4</td><td>外部输入长度未经校验</td><td class="sig">V5·G0</td><td class="id">Lv10</td><td><span class="pill c-ai">AI + 程序分析</span></td><td class="own">AI + 程序分析（候选研判）</td></tr>
+</tbody></table></div>
+<p class="count" id="mcount" aria-live="polite">显示 56 / 56</p>
+</section><section id="order"><div class="sec-hd"><span class="secno">§5</span><h2>年内优先与实现顺序</h2></div>
+<h3>5.1 年内承诺（26 个）与尽力（6 个）</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>级别</th>
+<th>承诺</th>
+<th>尽力</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lv1</td>
+<td>S1.1–S1.7（7）</td>
+<td>——</td>
+</tr>
+<tr>
+<td>Lv2</td>
+<td>S2.1–S2.7（7）</td>
+<td>——</td>
+</tr>
+<tr>
+<td>Lv3</td>
+<td>S3.1、S3.2、S3.4、S3.5、S3.6、S3.7、S3.9（7）</td>
+<td>S3.3、S3.8</td>
+</tr>
+<tr>
+<td>Lv4</td>
+<td>S4.1–S4.4（4）；S4.5 保证不误报</td>
+<td>——</td>
+</tr>
+<tr>
+<td>Lv5</td>
+<td>S5.1（1）</td>
+<td>S5.3、S5.5</td>
+</tr>
+<tr>
+<td>Lv6</td>
+<td>——</td>
+<td>S6.1</td>
+</tr>
+<tr>
+<td>Lv9</td>
+<td>——</td>
+<td>S9.1</td>
+</tr>
+</tbody>
+</table></div>
+<h3>5.2 实现顺序（对应计划周次）</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>顺序</th>
+<th>内容</th>
+<th>周</th>
+<th>检查点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Lv1（同文件）：形参代换、常量界、数组 / 常量堆 / 全局数组大小、层数过滤、trace</td>
+<td>W04–W05</td>
+<td>——</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Lv2：线性表达式、带偏移的基址、字节归一、常量操作数区间运算</td>
+<td>W05</td>
+<td>——</td>
+</tr>
+<tr>
+<td>3</td>
+<td>跨文件执行（多轮扫描 + 工作表）</td>
+<td>W06</td>
+<td><strong>G1（10-30）</strong>：Lv1 + Lv2 全部 14 个场景在 3 / 5 / 10 / 17 / 20 层报出，≤ 2 层不报，三文件跨文件用例报出</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Lv3：条件收窄、合并、循环（含符号 narrowing）、<strong>条件带守卫</strong>、<strong>访问点先化简</strong></td>
+<td>W07</td>
+<td>——</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Lv4：返回值 / 出参效应、返回值范围、分配器配置</td>
+<td>W08</td>
+<td>——</td>
+</tr>
+<tr>
+<td>6</td>
+<td>S5.1、安全函数族收尾；尽力项 S3.8、S6.1、S5.5</td>
+<td>W09</td>
+<td><strong>G2（11-20）</strong>：26 个承诺场景全部通过，TN 零误报；尽力项给出报出率</td>
+</tr>
+<tr>
+<td>7</td>
+<td>真实代码子集 → 全量；<strong>按级别统计告警与断链原因</strong></td>
+<td>W10–W11</td>
+<td><strong>G3（12-04）</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>为什么是这个顺序</strong>：每一级只多要一种能力，而且是下一级的前置条件
+（Lv3 的符号循环界要用 Lv2 的线性表达式；Lv4 的"大小 = 形参表达式"要用 Lv2；Lv5 的字段代换要用 Lv4 的效应）。
+Lv3 排在 Lv4 前面，是因为真实代码几乎处处有校验，没有 Lv3 就上真实代码会误报成片；
+Lv4 排在 Lv5 前面，是因为分配器封装在你们的代码里是固定形态、有现成的配置和识别结果可用。</p>
+<h3>5.3 2027 路线</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>时间</th>
+<th>程序分析</th>
+<th>AI + 程序分析</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2027H1</td>
+<td>Lv5 其余（S5.2、S5.4）；S6.2；S7.1–S7.4；S9.2；S9.5；增量分析</td>
+<td>接口联调（§7 的四个注入点）；S9.3 调用边恢复；S10.1 / S10.2 配对</td>
+</tr>
+<tr>
+<td>2027H2</td>
+<td>S7.5 字符串</td>
+<td>S6.3 / S6.4 不变式；S8.1；S10.3；S10.4 研判闭环</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section><section id="ceiling"><div class="sec-hd"><span class="secno">§6</span><h2>程序分析的覆盖上限</h2></div>
+<p><strong>一句话：事实都在被分析的代码里，能用线性表达式和区间表达，调用边能静态确定，循环的影响能用区间 widening 概括。</strong>
+四条同时成立，程序分析就承诺（或计划承诺）；任何一条不成立，就不由程序分析单独承诺。</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>条件</th>
+<th>不成立时的典型场景</th>
+<th>去向</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>① 大小、访问量、校验都来自被分析的代码或已建模的函数</td>
+<td>S9.4 外部函数、S6.4 运行期配置、S10.x 业务约束</td>
+<td>AI 补事实</td>
+</tr>
+<tr>
+<td>② 取值能用线性表达式（含常量操作数的非线性）和区间表达</td>
+<td>S7.6、S8.3 变量乘积</td>
+<td>不承诺（有界时 L2）</td>
+</tr>
+<tr>
+<td>③ 链上的调用边能静态确定</td>
+<td>S9.3 运行期注册</td>
+<td>AI 补调用边</td>
+</tr>
+<tr>
+<td>④ 循环的影响能用区间 widening 概括（界线性、步长固定）</td>
+<td>S8.1 数据驱动步长</td>
+<td>AI 提不变式 / 不承诺</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>按级别说</strong>：Lv1–Lv5 全部；Lv6 除运行期配置值（S6.4）外；Lv7 除 S7.6、S7.7 外；Lv8 的 S8.2 尽力、S8.1 的相对条件写法尽力；
+Lv9 的 S9.1、S9.2、S9.5。这是程序分析这条线<strong>最终</strong>计划做到的复杂度，年内做到 Lv4 + S5.1。</p>
+<hr />
+</section><section id="aipa"><div class="sec-hd"><span class="secno">§7</span><h2>AI + 程序分析：分工与接口</h2></div>
+<p><strong>原则</strong>：AI 补"代码里没有、或者程序分析推不出来的事实"，程序分析负责<strong>验证 + 多层传播 + 给出逐层证据</strong>。
+所有 AI 提供的事实带来源标注（<code>llm</code>），<strong>人工确认前只参与 L2，不参与 L1</strong>——与 <code>01-</code> §3.7.2 对启发式分配器大小的处理是同一条规则。</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>缺的事实</th>
+<th>场景</th>
+<th>AI 做什么</th>
+<th>注入到摘要引擎的哪里</th>
+<th>程序分析接着做什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>调用边</td>
+<td>S9.2（精度过滤）、S9.3</td>
+<td>分发表 / 注册点识别，给出函数指针 → 目标集合</td>
+<td>SummaryDB 的<strong>外部调用边表</strong></td>
+<td>按调用边代换、多层传播</td>
+</tr>
+<tr>
+<td>函数行为</td>
+<td>S9.4</td>
+<td>从头文件、接口文档生成模型草稿</td>
+<td><code>summary_models.yaml</code>（来源 = <code>llm</code>，待确认）</td>
+<td>当作模型使用</td>
+</tr>
+<tr>
+<td>缓冲区 ↔ 长度配对</td>
+<td>S10.1、S10.2</td>
+<td>字段配对、参数配对</td>
+<td><strong>规格表</strong>：<code>extent(buf) ≥ len</code> 作为契约</td>
+<td>在所有访问点、调用点检查</td>
+</tr>
+<tr>
+<td>取值约束 / 不变式</td>
+<td>S10.3、S6.3、S6.4、S8.1</td>
+<td>从注释、接口文档、初始化代码提出候选不变式</td>
+<td><strong>规格表</strong>：前置条件 / 全局不变式</td>
+<td>先验证不变式在代码里被维持，再用来判定</td>
+</tr>
+<tr>
+<td>告警研判</td>
+<td>S10.4、所有 L2</td>
+<td>读逐层 trace 与上下文，判断是否已被框架统一校验</td>
+<td>告警 → 研判队列</td>
+<td>研判结论回写（抑制 / 升级）</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>年内要做的只有一件事：把这四个注入点的表结构预留好</strong>（外部调用边表、模型表的来源字段、规格表、断链 / 未证明原因的导出），
+在 W02 建 SummaryDB 表结构时一并建，约 0.5 人日。AI 侧 2027 再接。
+这些表加上每个函数的摘要和逐层 trace，本身就是"程序分析给 Agent 提供的查询接口"——
+字段配对（S10.1）和函数指针目标恢复（S9.2 / S9.3）与你们已经在做的 LLM + 静态分析那两条线是同一种分工，可以直接对接。</p>
+<hr />
+</section><section id="corpus"><div class="sec-hd"><span class="secno">§8</span><h2>验收语料怎么组织（取代&quot;3–5 个真实样例&quot;作为验收基准）</h2></div>
+<ul>
+<li><strong>每个承诺场景至少一对 TP / TN</strong>。TN 是把越界改成安全的最小改动（校验改对、长度改对、<code>destMax</code> 扣掉偏移）。</li>
+<li><strong>链长变体</strong>：Lv1、Lv2 的 14 个场景全部做 3 / 5 / 10 / 17 / 20 层；Lv3–Lv5 每级选 2 个代表做全链长。</li>
+<li><strong>每个 TP 附期望告警</strong>：级别、访问点行号、逐层 trace。</li>
+<li><strong>规模</strong>：26 × 2 + 链长变体约 60 ≈ <strong>110 个用例文件</strong>；由我按 <code>csa-checker-dev</code> 的正交用例约定写，W02–W03 交第一批（Lv1–Lv2）。</li>
+<li><strong>真实样例改为可选</strong>：不再是 G0 的前置输入。有的话用来检验"真实漏报落在哪一级"；
+  W10 跑真实代码时，每条告警和每条已知漏报都按本文件的级别归类，用分布反过来校准 2027 的优先级。</li>
+</ul>
+<hr />
+</section><section id="impact"><div class="sec-hd"><span class="secno">§9</span><h2>对设计与计划的影响（已同步）</h2></div>
+<p><strong>分级过程中发现的两处设计缺口</strong>（已补进 <code>01-architecture.md</code>）：</p>
+<ol>
+<li><strong>条件要带守卫</strong>（S3.2）：访问前的校验不能只变成一个数值区间，要保留"守卫 ⇒ 条件"或 <code>min(i, 31)</code> 这样的符号界，
+   否则链顶传常量的调用点会误报。补在 §3.3 BoundExpr。</li>
+<li><strong>访问点先符号化简、再代入区间</strong>（S3.7）：同一局部变量在条件两边出现时先抵消，
+   否则"按剩余长度拷贝"这种最常见的安全写法会误报成片。补在 §3.6 Applier。</li>
+</ol>
+<p><strong>计划</strong>（<code>00-implementation-plan.md</code> v3.10）：P0 八项不变；G1 / G2 的过关标准改按级别；
+输入清单里"真实样例"改为可选、"现有 checker 源码"取消（注册、CMake、告警格式按 <code>csa-checker-dev</code> skill 的约定写）；
+W02 增加 AI + 程序分析注入点的表结构预留。</p>
+</section>
+
+<footer>
+  <p>文本版：调研包 <code>08-summary2-design/04-scenario-tiers.md</code>（本页由它生成）；实施计划见 <code>00-implementation-plan.md</code>，设计细节见 <code>01-architecture.md</code>。
+  代码片段可用 <code>probes/scenarios/snippets.py</code> 抽出、做语法检查、并用 Infer 当标尺复跑。
+  <span class="ev">实测数据</span> 指调研包里可复现的实验，<span class="ev">推断</span> 指设计判断。</p>
+</footer>
+</div>
+<script>
+(function(){
+  var active = {};
+  var btns = document.querySelectorAll('.fbtn[data-cat]');
+  var sel = document.getElementById('lvsel');
+  var rows = document.querySelectorAll('table.master tbody tr');
+  var count = document.getElementById('mcount');
+  function apply(){
+    var any = Object.keys(active).some(function(k){ return active[k]; });
+    var lv = sel ? sel.value : '';
+    var n = 0;
+    rows.forEach(function(tr){
+      var ok = (!any || active[tr.getAttribute('data-cat')]) && (!lv || tr.getAttribute('data-lv') === lv);
+      tr.hidden = !ok; if (ok) n++;
+    });
+    if (count) count.textContent = '显示 ' + n + ' / ' + rows.length;
+  }
+  btns.forEach(function(b){
+    b.addEventListener('click', function(){
+      var k = b.getAttribute('data-cat');
+      active[k] = !active[k];
+      b.setAttribute('aria-pressed', active[k] ? 'true' : 'false');
+      apply();
+    });
+  });
+  if (sel) sel.addEventListener('change', apply);
+  var r = document.getElementById('freset');
+  if (r) r.addEventListener('click', function(){
+    active = {}; btns.forEach(function(b){ b.setAttribute('aria-pressed','false'); });
+    if (sel) sel.value = ''; apply();
+  });
+  apply();
+})();
+
+</script>
+
+</body>
+</html>

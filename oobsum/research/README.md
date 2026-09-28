@@ -1,4 +1,4 @@
-# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.9）
+# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.10）
 
 一句话：**这个包里只有一份"正文"（报告），其余全是为了让你能亲手复现、读懂、并在自己代码库上用起来的材料。**
 
@@ -6,6 +6,8 @@
 > [`08-summary2-design/00-implementation-plan.md`](08-summary2-design/00-implementation-plan.md)**
 > —— 方案一句话、P0/P1/P2 优先级、倒排到 **2026-12-15** 的周计划与五个检查点、人力、验收标准、需要你提供的输入。
 > `01-report/` 是调研阶段的报告（回答"为什么选这条路"），其中 §25/§28 的路线与 §29 的 PoC 已被那份计划取代。
+> **v3.10 起，做哪些场景、承诺到什么程度看 [`08-summary2-design/04-scenario-tiers.md`](08-summary2-design/04-scenario-tiers.md)**
+> —— 56 个场景按 Lv1–Lv10 从简单到复杂排好，年内承诺 26 个，程序分析的覆盖上限与 AI + 程序分析的分工都在里面。
 
 调研基线：`facebook/infer` commit `3d38229b04b649024fee065621f6a4c838f6d029`（main，2026-09-10）；
 实验用官方预编译 `infer v1.3.0`，以及从源码自建的 `v1.3.0-3d38229b`（含本包里的 MiniOobChecker）。
@@ -74,6 +76,9 @@
 > （指针真的 4 字节，旧的 `-U__LP64__ -D__ILP32__` 只改了宏），加 `-D__AARCH64EB__` 与 `__uint128_t` 替身，
 > 新增查 `capture.db` 的进度监控。本版另修了一处会让 `capture.log` 变空的重定向
 > （infer 的输出全走 stderr，**实测** stdout 为空），并把 `-m32` 的代价写进文档。
+> **v3.10** 新增 **`08-summary2-design/04-scenario-tiers.md`**：按你们给的正交维度（调整后 8 个维度）把多层越界分成
+> Lv1–Lv10 共 56 个场景，年内承诺 26 个；每个场景带最小代码（36 段全部过 clang 语法检查，并用 Infer 当标尺跑过）。
+> 实施计划的验收改按场景级别，真实样例改为可选，现有 checker 源码不再需要；设计补了两处缺口（条件带守卫、访问点先化简）。
 >
 > ⚠️ **v2.5 在 git 里是一次大规模重命名**（35 个条目 + 根目录）。
 > 提交时用 `git add -A`，让 git 的 rename detection 生效，
@@ -134,11 +139,14 @@ CHANGELOG.md   ← 版本变更清单
 08-summary2-design/                     ★ 方案 C 的实施（已立项）
    00-implementation-plan.md                   ★★ 先看这个：方案、步骤、优先级、倒排到 12-15 的计划
    00-implementation-plan-offline.html         同一份计划的网页版（含甘特图，内网可直接用浏览器打开）
+   04-scenario-tiers.md                        ★★ 场景分级：Lv1–Lv10、年内承诺 26 个、PA 覆盖上限、AI + PA 分工
+   04-scenario-tiers-offline.html              同一份分级的网页版
    01-architecture.md                          组件/数据结构/算法/接口，每条决策挂证伪条件
    02-effort-and-milestones.md                 99–149 人日，分 M0–M5；含"让 Claude 写代码"的估算
    03-assumptions-and-test-plan.md             实施阶段需要的输入 + 验证清单（T0-1 ✅ A1 成立；其余 Tier-0 已不需要）
    probes/t0-1b/                               T0-1b 字段层复核探针：checker + 用例，直接覆盖即可
    probes/t0-3/t03_depth.py                    跨过程深度统计（v3.6 起备用：从告警/DTS 里挑多层验收样例）
+   probes/scenarios/snippets.py                从 04- 抽出 36 段场景代码：语法检查 / 用 Infer 当标尺跑对照表
 ```
 
 ---

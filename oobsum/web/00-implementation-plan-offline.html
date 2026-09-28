@@ -142,7 +142,7 @@ footer p{max-width:none}
 <div class="wrap">
 
 <header class="mast">
-  <div class="eyebrow">CSA Summary 2.0 · rb.enhance.ipa.OobSummary · 调研包 v3.7 · 2026-09-22</div>
+  <div class="eyebrow">CSA Summary 2.0 · rb.enhance.ipa.OobSummary · 调研包 v3.10 · 2026-09-28</div>
   <h1>跨多层调用越界检测：<span class="due">12 月 15 日</span>交付计划</h1>
   <p class="thesis">在现有 CSA 规则之外新建一条<strong>摘要通道</strong>：一个不走 ExprEngine 的抽象解释引擎，
     给每个函数算出“越界安全条件”摘要，在调用点把形参代换成实参、逐层往上传，传到数组大小和下标都已知的那一层再判定。
@@ -152,8 +152,14 @@ footer p{max-width:none}
     <div><dt>可用工作日</dt><dd>56 天<small>扣除中秋、国庆，含 <span style="white-space:nowrap">10-10</span> 调休</small></dd></div>
     <div><dt>检查点</dt><dd>G0 – G4<small>10-10 · 10-30 · 11-20 · 12-04 · 12-15</small></dd></div>
     <div><dt>深度目标</dt><dd>2–17 层<small>不设上限，验收到 20 层</small></dd></div>
-    <div><dt>P0 工作量</dt><dd>42–64 人日<small>Claude 写码 + 你调试跑测 <span class="ev">推断</span></small></dd></div>
+    <div><dt>P0 工作量</dt><dd>43–66 人日<small>Claude 写码 + 你调试跑测 <span class="ev">推断</span></small></dd></div>
   </dl>
+  <div class="note" style="margin-top:18px">
+    <div class="hdr">v3.10 · 承诺边界按场景分级</div>
+    <p>做哪些场景、承诺到什么程度，以 <code>04-scenario-tiers.md</code> 为准：56 个场景分成 Lv1–Lv10，
+      年内<strong>承诺 26 个</strong>（Lv1–Lv4 全部 + Lv5 的上下文结构体下传），另 6 个尽力；
+      检查点 G1 / G2 的过关标准已改按级别。验收基准改为场景语料（Claude 写），真实样例改为可选，现有 checker 源码不再需要。</p>
+  </div>
 </header>
 
 <section id="why">
@@ -189,8 +195,8 @@ footer p{max-width:none}
     <thead><tr><th>周</th><th>日期</th><th>天</th><th>做什么</th><th>这周结束时拿得出来的东西</th></tr></thead>
     <tbody>
       <tr><td class="id">W01</td><td class="date">09-22 ~ 09-24</td><td class="num">3</td><td>收输入；新 checker <code>rb.enhance.ipa.OobSummary</code> 在 <code>Checkers.td</code> 注册，<code>check::ASTCodeBody</code> 空跑</td><td>空 checker 能在 fork 里编译、bxen 能调起来</td></tr>
-      <tr><td class="id">W02</td><td class="date">09-28 ~ 09-30</td><td class="num">3</td><td>SummaryDB 表结构；驱动脚本雏形（生成过滤后的 <code>compile_commands.json</code> 喂给 bxen）；合成链语料 3/5/10/17/20 层</td><td>语料 + 空跑流水线</td></tr>
-      <tr class="gate-row"><td class="id">W03</td><td class="date">10-08 ~ 10-10</td><td class="num">3</td><td><strong>量一次“只建 CFG 的全量空跑”耗时</strong>（定多轮上限）；真实多层漏报样例脱敏入库</td><td><span class="pill gate">G0 · 10-10</span></td></tr>
+      <tr><td class="id">W02</td><td class="date">09-28 ~ 09-30</td><td class="num">3</td><td>SummaryDB 表结构（含 AI + 程序分析注入点预留）；驱动脚本雏形（生成过滤后的 <code>compile_commands.json</code> 喂给 bxen）；场景语料第一批（Lv1、Lv2 × 3/5/10/17/20 层）</td><td>语料 + 空跑流水线</td></tr>
+      <tr class="gate-row"><td class="id">W03</td><td class="date">10-08 ~ 10-10</td><td class="num">3</td><td><strong>量一次“只建 CFG 的全量空跑”耗时</strong>（定多轮上限）；场景语料第二批（Lv3–Lv5）；真实样例（可选）脱敏入库</td><td><span class="pill gate">G0 · 10-10</span></td></tr>
       <tr><td class="id">W04</td><td class="date">10-12 ~ 10-16</td><td class="num">5</td><td>BoundExpr / Range；AccessPath（形参 / 局部 / 全局 / 字段 / 偏移）</td><td>单测通过</td></tr>
       <tr><td class="id">W05</td><td class="date">10-19 ~ 10-23</td><td class="num">5</td><td>ExtentModel 基础形态；SummaryGen 直线代码 + 分支合并；Applier（代换、分级、层数过滤）</td><td>单 TU 内 3 层链报出</td></tr>
       <tr class="gate-row"><td class="id">W06</td><td class="date">10-26 ~ 10-30</td><td class="num">5</td><td>同 TU 按需递归 + 跨 TU 多轮工作表；告警导出</td><td><span class="pill gate">G1 · 10-30</span></td></tr>
@@ -211,8 +217,8 @@ footer p{max-width:none}
     <thead><tr><th>检查点</th><th>日期</th><th>过关标准</th><th>过不了怎么办</th></tr></thead>
     <tbody>
       <tr><td class="id">G0 准备就绪</td><td class="date">10-10</td><td>下文“需要你提供的输入”齐；空 checker 在 fork 里编译运行；全量空跑耗时已知</td><td>缺样例就先用合成语料开工，样例最晚 G1 前补上</td></tr>
-      <tr><td class="id">G1 多层主干</td><td class="date">10-30</td><td>合成直线链 3/5/10/17/20 层<strong>全部报出、每条 &lt; 1 秒</strong>；≤ 2 层<strong>不报</strong>；三文件跨 TU 用例报出；真实样例里的直线型报出</td><td>先只支持同 TU、保 G2，跨 TU 顺延一周</td></tr>
-      <tr><td class="id">G2 覆盖面</td><td class="date">11-20</td><td>2–17 层变体（链上夹循环 / 字段数组 / 全局 / 堆封装 / <code>memcpy_s</code>）在 ≥ 3 层时<strong>全部报出</strong>；TN 语料 <strong>0 误报</strong>；真实样例报出率达到约定值</td><td>按下文砍项顺序砍</td></tr>
+      <tr><td class="id">G1 多层主干</td><td class="date">10-30</td><td><strong>Lv1 + Lv2 的 14 个场景</strong>在 3/5/10/17/20 层<strong>全部报出、每条 &lt; 1 秒</strong>；≤ 2 层<strong>不报</strong>（CSA 盲区例外）；三文件跨 TU 用例报出</td><td>先只支持同 TU、保 G2，跨 TU 顺延一周</td></tr>
+      <tr><td class="id">G2 覆盖面</td><td class="date">11-20</td><td><strong>26 个承诺场景全部通过</strong>：TP 报出（L1 / L2 按分级定义），TN <strong>0 误报</strong>；尽力项（6 个）给出报出率</td><td>按下文砍项顺序砍</td></tr>
       <tr><td class="id">G3 真实代码</td><td class="date">12-04</td><td>全量 cdb 跑通；耗时 / 内存在约定范围内；抽样 L1 精度达到约定值</td><td>精度不够先只出 L1；耗时不够先按子系统分批跑</td></tr>
       <tr><td class="id">G4 交付</td><td class="date">12-15</td><td>验收标准全部满足</td><td>——</td></tr>
     </tbody>
@@ -231,7 +237,7 @@ footer p{max-width:none}
       <tr><td class="id">P0-5</td><td><strong>分配器</strong>：读 <code>config.ini</code> + <code>alloc_free_identity</code> JSON；底层分配器字节数下标；封装函数大小由 <code>ReturnEffect</code> 推出；<code>para</code> 为形参 / 带 <code>offset</code> 的场景</td><td class="date">W08</td><td class="src">01- §3.7.1–3.7.2</td></tr>
       <tr><td class="id">P0-6</td><td><strong>安全函数族模型</strong>：<code>memcpy_s</code> / <code>memmove_s</code> / <code>memset_s</code></td><td class="date">W09</td><td class="src">01- §3.7.3</td></tr>
       <tr><td class="id">P0-7</td><td><strong>告警输出</strong>：bxen 现有格式、稳定指纹、逐层 trace（每穿过一层一行） <span class="pill keep">不砍</span></td><td class="date">W06</td><td class="src">01- §3.10、3.11</td></tr>
-      <tr><td class="id">P0-8</td><td><strong>验收语料与报告</strong>：合成链 3/5/10/17/20 层及变体、真实多层漏报样例、TN 语料、真实代码跑测</td><td class="date">贯穿</td><td class="src">验收标准</td></tr>
+      <tr><td class="id">P0-8</td><td><strong>验收语料与报告</strong>：26 个承诺场景的 TP / TN、链长 3/5/10/17/20 变体、真实代码跑测（真实样例可选）</td><td class="date">贯穿</td><td class="src">验收标准</td></tr>
     </tbody>
   </table></div>
   <div class="cols">
@@ -308,10 +314,10 @@ void *XX_AllocWithHdr(UINT32 n) { char *p = VOS_MemAlloc(PID, 0, n + sizeof(HDR)
 </section>
 
 <section id="people">
-  <div class="sec-hd"><h2>人力与砍项</h2><span class="tag">P0 纯人工 84–122 人日</span></div>
-  <p>按“Claude 写大部分代码，你负责 review、在 fork 里编译调试、跑真实代码”算，P0 约 <strong>42–64 人日</strong> <span class="ev">推断</span>。
+  <div class="sec-hd"><h2>人力与砍项</h2><span class="tag">P0 纯人工 86–125 人日</span></div>
+  <p>按“Claude 写大部分代码，你负责 review、在 fork 里编译调试、跑真实代码”算，P0 约 <strong>43–66 人日</strong> <span class="ev">推断</span>。
     56 个工作日、一个人加 Claude：<strong>中位数能落在期限内，但几乎没有缓冲</strong>。
-    建议从 W04 起补 <strong>0.5 个人</strong>，专做语料、真实代码跑测和误报分析——这几件事集中在后半段，也是 Claude 帮不上的部分。</p>
+    建议从 W04 起补 <strong>0.5 个人</strong>，专做真实代码跑测、误报判定和按级别归类——这几件事集中在后半段，也是 Claude 帮不上的部分（场景语料由 Claude 写）。</p>
   <div class="cols">
     <div>
       <h3>落后时的砍项顺序（先砍在前）</h3>
@@ -343,8 +349,8 @@ void *XX_AllocWithHdr(UINT32 n) { char *p = VOS_MemAlloc(PID, 0, n + sizeof(HDR)
     <thead><tr><th>维度</th><th>标准</th></tr></thead>
     <tbody>
       <tr><td class="id">深度</td><td>合成直线链 3 / 5 / 10 / 17 / 20 层：<strong>100% 报出</strong>，每条 &lt; 1 秒</td></tr>
-      <tr><td class="id">多层变体</td><td>2–17 层链上夹循环 / 字段数组 / 全局 / 堆封装 / 安全函数：≥ 3 层的 <strong>100% 报出</strong>（循环类允许 L2）</td></tr>
-      <tr><td class="id">真实样例</td><td>提供的多层漏报样例报出率 ≥ <span class="blank">__%</span>（建议 80%，不达标的逐条给出断链原因）</td></tr>
+      <tr><td class="id">场景</td><td>26 个承诺场景：TP <strong>100% 报出</strong>（L1 / L2 按分级定义），TN <strong>0 误报</strong>；尽力项统计报出率</td></tr>
+      <tr><td class="id">真实样例（可选）</td><td>若提供：报出率 ≥ <span class="blank">__%</span>（建议 80%），每条按级别归类，未报出的给出断链原因</td></tr>
       <tr><td class="id">精确率</td><td>TN 语料 0 误报；真实代码抽样 50 条 L1，精确率 ≥ <span class="blank">__%</span></td></tr>
       <tr><td class="id">不重复</td><td>≤ 2 层不报（盲区例外）；与现有规则在同一访问点上不出重复告警</td></tr>
       <tr><td class="id">规模</td><td>全量 cdb（约 1 万个源文件）≤ <span class="blank">__</span> 小时、峰值内存 ≤ <span class="blank">__</span> GB（47 核 / 251 GB 机器）</td></tr>
@@ -358,8 +364,8 @@ void *XX_AllocWithHdr(UINT32 n) { char *p = VOS_MemAlloc(PID, 0, n + sizeof(HDR)
   <div class="tw"><table>
     <thead><tr><th>#</th><th>输入</th><th>用途</th></tr></thead>
     <tbody>
-      <tr><td class="num">1</td><td><strong>3–5 个真实多层漏报样例</strong>（≥ 3 层，脱敏，最好有一个接近 17 层）</td><td>G1 / G2 验收锚点</td></tr>
-      <tr><td class="num">2</td><td>一个现有越界 checker 的完整源码 + 一条它的告警原样输出</td><td>代码风格、注册方式、告警格式对齐</td></tr>
+      <tr><td class="num">1</td><td><s>3–5 个真实多层漏报样例</s> → <strong>改为可选</strong>；验收基准改为场景语料（Claude 写）</td><td>有的话检验真实漏报落在哪一级</td></tr>
+      <tr><td class="num">2</td><td><s>现有越界 checker 源码 + 告警原样输出</s> → <strong>取消</strong></td><td>注册、CMake、告警格式按 <code>csa-checker-dev</code> skill 的约定</td></tr>
       <tr><td class="num">3</td><td>现有规则实际的 <code>inlineDepth</code></td><td>层数过滤阈值</td></tr>
       <tr><td class="num">4</td><td><code>config.ini</code> 的 <code>MEM_ALLOC</code> / <code>MEM_FREE</code>、完整的 <code>alloc_free_identity</code> JSON、<strong><code>VOS_MemAlloc</code> 等底层分配器的原型</strong></td><td>P0-5</td></tr>
       <tr><td class="num">5</td><td><code>config.ini</code> 解析器是否容忍新键 <code>MEM_ALLOC_SIZE</code>；JSON 里 <code>offset</code> 按哪个 ABI 算</td><td>P0-5 配置格式</td></tr>
@@ -369,7 +375,7 @@ void *XX_AllocWithHdr(UINT32 n) { char *p = VOS_MemAlloc(PID, 0, n + sizeof(HDR)
 </section>
 
 <section id="decisions">
-  <div class="sec-hd"><h2>关键决策</h2><span class="tag">D0–D4 已定 · D5–D7 待确认</span></div>
+  <div class="sec-hd"><h2>关键决策</h2><span class="tag">D0–D4 已定 · D5–D8 待确认</span></div>
   <div class="tw"><table>
     <thead><tr><th>#</th><th>决策</th><th>状态</th><th>依据 / 建议</th></tr></thead>
     <tbody>
@@ -381,6 +387,7 @@ void *XX_AllocWithHdr(UINT32 n) { char *p = VOS_MemAlloc(PID, 0, n + sizeof(HDR)
       <tr><td class="id">D5</td><td>跨 TU 执行模型</td><td><span class="pill gate">待确认</span></td><td><strong>方案 A</strong>：多轮 TU 扫描 + 工作表；方案 B（IR 导出 + 离线求解）放 2027 与增量一起做</td></tr>
       <tr><td class="id">D6</td><td>告警在哪判定</td><td><span class="pill gate">待确认</span></td><td>在摘要生成这一遍判定并入库；CSA 侧 checker 只做路径解释（P1）</td></tr>
       <tr><td class="id">D7</td><td>新 checker 归属</td><td><span class="pill gate">待确认</span></td><td><code>rb.enhance.ipa.OobSummary</code>（跨过程，归 <code>ipa</code> 包）</td></tr>
+      <tr><td class="id">D8</td><td>年内承诺边界</td><td><span class="pill gate">待确认</span></td><td>按 <code>04-scenario-tiers.md</code> 的 26 个承诺场景验收；尽力 6 个统计报出率；其余进 2027 或 AI + 程序分析</td></tr>
     </tbody>
   </table></div>
 </section>
@@ -416,7 +423,7 @@ void *XX_AllocWithHdr(UINT32 n) { char *p = VOS_MemAlloc(PID, 0, n + sizeof(HDR)
 </section>
 
 <footer>
-  <p>出处：调研包 v3.7 <code>08-summary2-design/00-implementation-plan.md</code>（本页的文本版）；设计细节见 <code>01-architecture.md</code>，工作量明细见 <code>02-effort-and-milestones.md</code>，输入与验证清单见 <code>03-assumptions-and-test-plan.md</code>。
+  <p>出处：调研包 v3.10 <code>08-summary2-design/00-implementation-plan.md</code>（本页的文本版）；设计细节见 <code>01-architecture.md</code>，工作量明细见 <code>02-effort-and-milestones.md</code>，输入与验证清单见 <code>03-assumptions-and-test-plan.md</code>。
     假期依据《国务院办公厅关于 2026 年部分节假日安排的通知》。标注 <span class="ev">推断</span> 的数字是估算，<span class="ev">实测数据</span> 来自调研包里可复现的实验。</p>
 </footer>
 </div>
