@@ -2,6 +2,7 @@
 
 > **先看 `00-implementation-plan.md`**：方案一句话、分几步、优先级、倒排到 12 月 15 日的计划都在那里；本文件是它的设计展开。
 > **做哪些场景、承诺到什么程度看 `04-scenario-tiers.md`**（v3.10：Lv1–Lv10 分级，年内承诺 26 个场景）。
+> **摘要的形式、取舍、怎么串联、67 个分级用例，看 `05-summary-design-and-cases.md`**（v3.11）；本文件 §3.12 是 v3.11 的设计补充。
 
 > 这份文档把报告 §25 / §28 的"方案 C"从**架构建议**细化到**可以开工的设计**：
 > 组件边界、数据结构、关键算法、与现有 CSA 的接口、以及每条设计决策的**证伪条件**。
@@ -711,6 +712,24 @@ CREATE TABLE reports (
   access_loc TEXT, report_proc TEXT, trace BLOB, first_round INTEGER
 );
 ```
+
+---
+
+### 3.12 v3.11 补充：效果词表、条件效果、报告口径、账本
+
+来自 `05-` 的分级用例，补四条设计约定：
+
+1. **效果（Eff）用固定词表**，自底向上总是算这几类，不等调用方来要：
+   返回 / 出参指针指向的新对象及其大小；整数返回值、出参的取值范围或与形参的线性关系；
+   经形参能到达的结构体字段（深度 ≤ 2）被写成什么；被写的全局。按需计算（调用方有未决条件引用到某个输出时再算）留作优化（`05-` §5 方案 C）。
+2. **条件效果**：`ret = 常量 ⇒ 关于形参的线性约束`（校验函数，S4.6）。生成：返回语句所在路径上的守卫投影到形参；
+   应用：调用方在"对返回值分支"之后的那一侧收窄实参的区间。可以沿返回值继续上传（`Cell_CheckPara` → `Cell_IsValidId`）。
+3. **报告口径**（与 `04-` §1.3 一致，在此固化成规则）：L2 只认**代码给出的有限上界**——校验、掩码、分支常量、循环界、返回值范围、守卫。
+   以下几种**不报、记账**：上界只来自类型范围（`UINT16` 的 65535）；上界是 widening 出来的 ∞（指针步进、跨轮累计）；条件含不透明的非线性项；
+   条件到入口仍含符号。
+4. **账本（Open）原因枚举**：`fptr`、`unknown_callee`、`recursion`、`msg_edge`、`global_value`、`global_ptr_target`、`field_written_by_callee`、
+   `alloc_size_unknown`、`flexible_array`、`struct_overlay`、`pointer_stepping`、`string_length`、`nonlinear`、`type_range_only`、`entry_unproven`、
+   `cond_truncated`。W10 上真实代码后按这个枚举统计，决定 2027 先补什么；也是 AI + 程序分析的输入。
 
 ---
 

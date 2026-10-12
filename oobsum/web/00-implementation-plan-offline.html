@@ -142,7 +142,7 @@ footer p{max-width:none}
 <div class="wrap">
 
 <header class="mast">
-  <div class="eyebrow">CSA Summary 2.0 · rb.enhance.ipa.OobSummary · 调研包 v3.10 · 2026-09-28</div>
+  <div class="eyebrow">CSA Summary 2.0 · rb.enhance.ipa.OobSummary · 调研包 v3.11 · 2026-10-12</div>
   <h1>跨多层调用越界检测：<span class="due">12 月 15 日</span>交付计划</h1>
   <p class="thesis">在现有 CSA 规则之外新建一条<strong>摘要通道</strong>：一个不走 ExprEngine 的抽象解释引擎，
     给每个函数算出“越界安全条件”摘要，在调用点把形参代换成实参、逐层往上传，传到数组大小和下标都已知的那一层再判定。
@@ -156,9 +156,15 @@ footer p{max-width:none}
   </dl>
   <div class="note" style="margin-top:18px">
     <div class="hdr">v3.10 · 承诺边界按场景分级</div>
-    <p>做哪些场景、承诺到什么程度，以 <code>04-scenario-tiers.md</code> 为准：56 个场景分成 Lv1–Lv10，
-      年内<strong>承诺 26 个</strong>（Lv1–Lv4 全部 + Lv5 的上下文结构体下传），另 6 个尽力；
+    <p>做哪些场景、承诺到什么程度，以 <code>04-scenario-tiers.md</code> 为准：58 个场景（v3.11 补 2 个）分成 Lv1–Lv10，
+      年内<strong>承诺 26 个</strong>（Lv1–Lv4 全部 + Lv5 的上下文结构体下传），另 7 个尽力；
       检查点 G1 / G2 的过关标准已改按级别。验收基准改为场景语料（Claude 写），真实样例改为可选，现有 checker 源码不再需要。</p>
+  </div>
+  <div class="note" style="margin-top:12px">
+    <div class="hdr">v3.11 · 摘要设计与 67 个分级用例</div>
+    <p>摘要长什么样、留什么扔什么、怎么串起来，以及 Lv1–Lv10 共 67 个贴近业务写法的用例（每个带逐函数摘要与串联步骤），见
+      <code>05-summary-design-and-cases.md</code> 与 <code>cases/</code>。原计划 W02–W03 的两批语料已交付；
+      链长变体生成与真实业务用例归级并入 W04。</p>
   </div>
 </header>
 
@@ -218,7 +224,7 @@ footer p{max-width:none}
     <tbody>
       <tr><td class="id">G0 准备就绪</td><td class="date">10-10</td><td>下文“需要你提供的输入”齐；空 checker 在 fork 里编译运行；全量空跑耗时已知</td><td>缺样例就先用合成语料开工，样例最晚 G1 前补上</td></tr>
       <tr><td class="id">G1 多层主干</td><td class="date">10-30</td><td><strong>Lv1 + Lv2 的 14 个场景</strong>在 3/5/10/17/20 层<strong>全部报出、每条 &lt; 1 秒</strong>；≤ 2 层<strong>不报</strong>（CSA 盲区例外）；三文件跨 TU 用例报出</td><td>先只支持同 TU、保 G2，跨 TU 顺延一周</td></tr>
-      <tr><td class="id">G2 覆盖面</td><td class="date">11-20</td><td><strong>26 个承诺场景全部通过</strong>：TP 报出（L1 / L2 按分级定义），TN <strong>0 误报</strong>；尽力项（6 个）给出报出率</td><td>按下文砍项顺序砍</td></tr>
+      <tr><td class="id">G2 覆盖面</td><td class="date">11-20</td><td><strong>26 个承诺场景全部通过</strong>：TP 报出（L1 / L2 按分级定义），TN <strong>0 误报</strong>；尽力项（7 个）给出报出率</td><td>按下文砍项顺序砍</td></tr>
       <tr><td class="id">G3 真实代码</td><td class="date">12-04</td><td>全量 cdb 跑通；耗时 / 内存在约定范围内；抽样 L1 精度达到约定值</td><td>精度不够先只出 L1；耗时不够先按子系统分批跑</td></tr>
       <tr><td class="id">G4 交付</td><td class="date">12-15</td><td>验收标准全部满足</td><td>——</td></tr>
     </tbody>
@@ -387,7 +393,7 @@ void *XX_AllocWithHdr(UINT32 n) { char *p = VOS_MemAlloc(PID, 0, n + sizeof(HDR)
       <tr><td class="id">D5</td><td>跨 TU 执行模型</td><td><span class="pill gate">待确认</span></td><td><strong>方案 A</strong>：多轮 TU 扫描 + 工作表；方案 B（IR 导出 + 离线求解）放 2027 与增量一起做</td></tr>
       <tr><td class="id">D6</td><td>告警在哪判定</td><td><span class="pill gate">待确认</span></td><td>在摘要生成这一遍判定并入库；CSA 侧 checker 只做路径解释（P1）</td></tr>
       <tr><td class="id">D7</td><td>新 checker 归属</td><td><span class="pill gate">待确认</span></td><td><code>rb.enhance.ipa.OobSummary</code>（跨过程，归 <code>ipa</code> 包）</td></tr>
-      <tr><td class="id">D8</td><td>年内承诺边界</td><td><span class="pill gate">待确认</span></td><td>按 <code>04-scenario-tiers.md</code> 的 26 个承诺场景验收；尽力 6 个统计报出率；其余进 2027 或 AI + 程序分析</td></tr>
+      <tr><td class="id">D8</td><td>年内承诺边界</td><td><span class="pill gate">待确认</span></td><td>按 <code>04-scenario-tiers.md</code> 的 26 个承诺场景验收；尽力 7 个统计报出率；其余进 2027 或 AI + 程序分析</td></tr>
     </tbody>
   </table></div>
 </section>
@@ -423,7 +429,7 @@ void *XX_AllocWithHdr(UINT32 n) { char *p = VOS_MemAlloc(PID, 0, n + sizeof(HDR)
 </section>
 
 <footer>
-  <p>出处：调研包 v3.10 <code>08-summary2-design/00-implementation-plan.md</code>（本页的文本版）；设计细节见 <code>01-architecture.md</code>，工作量明细见 <code>02-effort-and-milestones.md</code>，输入与验证清单见 <code>03-assumptions-and-test-plan.md</code>。
+  <p>出处：调研包 v3.11 <code>08-summary2-design/00-implementation-plan.md</code>（本页的文本版）；设计细节见 <code>01-architecture.md</code>，工作量明细见 <code>02-effort-and-milestones.md</code>，输入与验证清单见 <code>03-assumptions-and-test-plan.md</code>。
     假期依据《国务院办公厅关于 2026 年部分节假日安排的通知》。标注 <span class="ev">推断</span> 的数字是估算，<span class="ev">实测数据</span> 来自调研包里可复现的实验。</p>
 </footer>
 </div>
