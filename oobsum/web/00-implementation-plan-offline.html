@@ -142,7 +142,7 @@ footer p{max-width:none}
 <div class="wrap">
 
 <header class="mast">
-  <div class="eyebrow">CSA Summary 2.0 · rb.enhance.ipa.OobSummary · 调研包 v3.11 · 2026-10-12</div>
+  <div class="eyebrow">CSA Summary 2.0 · rb.enhance.ipa.OobSummary · 调研包 v3.12 · 2026-10-13</div>
   <h1>跨多层调用越界检测：<span class="due">12 月 15 日</span>交付计划</h1>
   <p class="thesis">在现有 CSA 规则之外新建一条<strong>摘要通道</strong>：一个不走 ExprEngine 的抽象解释引擎，
     给每个函数算出“越界安全条件”摘要，在调用点把形参代换成实参、逐层往上传，传到数组大小和下标都已知的那一层再判定。
@@ -165,6 +165,12 @@ footer p{max-width:none}
     <p>摘要长什么样、留什么扔什么、怎么串起来，以及 Lv1–Lv10 共 67 个贴近业务写法的用例（每个带逐函数摘要与串联步骤），见
       <code>05-summary-design-and-cases.md</code> 与 <code>cases/</code>。原计划 W02–W03 的两批语料已交付；
       链长变体生成与真实业务用例归级并入 W04。</p>
+  </div>
+  <div class="note" style="margin-top:12px">
+    <div class="hdr">v3.12 · 开工规格与编码计划</div>
+    <p>代码写成什么样以 <code>06-spec.md</code> 为准，按什么顺序写、每周交什么、需要你提供什么以 <code>07-dev-plan.md</code> 为准——
+      <strong>本页的周计划与输入清单由它取代</strong>（原 W01–W03 的集成工作压进 10-14 ~ 10-16；G0 改为 10-16，G1 为 10-30 沙箱 / 11-03 fork，G2–G4 不变）。
+      跨 TU 改为建议<strong>方案 B</strong>（export → solve → report），checker 只挂 <code>ASTDecl&lt;TranslationUnitDecl&gt;</code>；8 个决策待你点头。</p>
   </div>
 </header>
 
@@ -237,7 +243,7 @@ footer p{max-width:none}
     <thead><tr><th>编号</th><th>内容</th><th>排在</th><th>设计出处</th></tr></thead>
     <tbody>
       <tr><td class="id">P0-1</td><td><strong>多层传播主干</strong>：BoundExpr / Range（线性 + 不透明项）、AccessPath、SummaryGen（直线 + 分支合并）、Applier（代换、L1/L2/StillOpen、层数过滤与盲区例外） <span class="pill keep">不砍</span></td><td class="date">W04–W05</td><td class="src">01- §3.2–3.6、§0.1</td></tr>
-      <tr><td class="id">P0-2</td><td><strong>跨 TU 执行</strong>：同 TU 按需递归 + 跨 TU 多轮工作表（方案 A）、SummaryDB <span class="pill keep">不砍</span></td><td class="date">W02、W06</td><td class="src">01- §3.8、3.9、3.11</td></tr>
+      <tr><td class="id">P0-2</td><td><strong>跨 TU 执行</strong>：v3.12 建议方案 B（export → solve → report，见 <code>06-</code> §7）；方案 A 作回退 <span class="pill keep">不砍</span></td><td class="date">W02、W06</td><td class="src">01- §3.8、3.9、3.11</td></tr>
       <tr><td class="id">P0-3</td><td><strong>循环</strong>：WTO + 阈值 widening + narrowing，任何循环都不 unsupported</td><td class="date">W07</td><td class="src">01- §3.4</td></tr>
       <tr><td class="id">P0-4</td><td><strong>ExtentModel 高频形态</strong>：局部 / static / 全局数组（含无初始化器、跨 TU 全局）、结构体字段数组（含形参结构体指针）、#21 基址偏移、柔性数组显式标 Unknown</td><td class="date">W05、W09</td><td class="src">01- §3.1</td></tr>
       <tr><td class="id">P0-5</td><td><strong>分配器</strong>：读 <code>config.ini</code> + <code>alloc_free_identity</code> JSON；底层分配器字节数下标；封装函数大小由 <code>ReturnEffect</code> 推出；<code>para</code> 为形参 / 带 <code>offset</code> 的场景</td><td class="date">W08</td><td class="src">01- §3.7.1–3.7.2</td></tr>
@@ -390,7 +396,7 @@ void *XX_AllocWithHdr(UINT32 n) { char *p = VOS_MemAlloc(PID, 0, n + sizeof(HDR)
       <tr><td class="id">D2</td><td>通道分工：摘要通道只报 &gt; <code>inlineDepth</code> 层，CSA 已知盲区例外</td><td><span class="pill p0">已定</span></td><td>盲区经 T0-1b 在 fork 上实测</td></tr>
       <tr><td class="id">D3</td><td>ExtentModel 借 CSA 的“按类型算大小”，不借 ExprEngine 的地址</td><td><span class="pill p0">已定</span></td><td>T0-1 / T0-1b：A1 成立，#21 在 fork 上复现</td></tr>
       <tr><td class="id">D4</td><td>封装分配器的大小由摘要自底向上推出，不靠参数名</td><td><span class="pill p0">已定</span></td><td>带头部的分配写法下参数名必错</td></tr>
-      <tr><td class="id">D5</td><td>跨 TU 执行模型</td><td><span class="pill gate">待确认</span></td><td><strong>方案 A</strong>：多轮 TU 扫描 + 工作表；方案 B（IR 导出 + 离线求解）放 2027 与增量一起做</td></tr>
+      <tr><td class="id">D5</td><td>跨 TU 执行模型</td><td><span class="pill gate">待确认</span></td><td><s>方案 A：多轮 TU 扫描 + 工作表</s> → <strong>v3.12 建议方案 B</strong>：export → solve → report（<code>06-spec.md</code> D5′）；A 作回退</td></tr>
       <tr><td class="id">D6</td><td>告警在哪判定</td><td><span class="pill gate">待确认</span></td><td>在摘要生成这一遍判定并入库；CSA 侧 checker 只做路径解释（P1）</td></tr>
       <tr><td class="id">D7</td><td>新 checker 归属</td><td><span class="pill gate">待确认</span></td><td><code>rb.enhance.ipa.OobSummary</code>（跨过程，归 <code>ipa</code> 包）</td></tr>
       <tr><td class="id">D8</td><td>年内承诺边界</td><td><span class="pill gate">待确认</span></td><td>按 <code>04-scenario-tiers.md</code> 的 26 个承诺场景验收；尽力 7 个统计报出率；其余进 2027 或 AI + 程序分析</td></tr>
@@ -429,7 +435,7 @@ void *XX_AllocWithHdr(UINT32 n) { char *p = VOS_MemAlloc(PID, 0, n + sizeof(HDR)
 </section>
 
 <footer>
-  <p>出处：调研包 v3.11 <code>08-summary2-design/00-implementation-plan.md</code>（本页的文本版）；设计细节见 <code>01-architecture.md</code>，工作量明细见 <code>02-effort-and-milestones.md</code>，输入与验证清单见 <code>03-assumptions-and-test-plan.md</code>。
+  <p>出处：调研包 v3.12 <code>08-summary2-design/00-implementation-plan.md</code>（本页的文本版）；设计细节见 <code>01-architecture.md</code>，工作量明细见 <code>02-effort-and-milestones.md</code>，输入与验证清单见 <code>03-assumptions-and-test-plan.md</code>。
     假期依据《国务院办公厅关于 2026 年部分节假日安排的通知》。标注 <span class="ev">推断</span> 的数字是估算，<span class="ev">实测数据</span> 来自调研包里可复现的实验。</p>
 </footer>
 </div>

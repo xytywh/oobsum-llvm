@@ -1,5 +1,48 @@
 # CHANGELOG
 
+## v3.12 — 2026-10-13
+
+**开工准备：P0 规格说明（`06-spec.md`）、编码实施计划（`07-dev-plan.md`）、I0 集成探针。**
+
+使用方问题【立项输入】：v3.11 的用例已提交并审过，先按它来；开始写代码之前还需要什么输入；写代码前要有完整的实施计划与 spec 文档。
+
+### 新增 `08-summary2-design/06-spec.md`（规格说明，评审稿）
+
+* 需求带编号（F 功能 / I 接口 / D 数据 / A 算法 / X 跨 TU / N 非功能 / T 测试），§11 追溯到 P0 条目、模块、用例与检查点。
+* 范围：承诺 26 个场景 = 32 个用例；尽力 9 个 TP；其余入口期望 `-` / `记账` 的一律不得报；链长 3–20 层。
+* 判定与级别（Safe / L1 / L2 / 上传 / 记账，L2 只认代码给出的上界，界带来源标签）；通道分工按 `max(depth, effDepth) > InlineDepth`；
+  告警位置、英文 BugType 与消息模板、trace note、指纹、确定性排序。
+* 接口：`rb.enhance.ipa.OobSummary` 的 14 个选项、四个 `Phase`（inline / export / solve / report）、bxen 命令、驱动 `oobsum.py` 子命令、
+  模型表 `oob_models.yaml`（分配器 / 访问类 / 纯函数）、`config.ini` 与 `alloc_free_identity` 的读取、工作目录、SQLite 查询库。
+* 数据：函数 / 全局键、FIR（类型、局部、6 种指令、表达式、边）、摘要 JSON（接口符号、线性式、界、Req / Eff / Rep / Open、账本 26 类原因、状态）、大小与布局规则。
+* 算法：降级、抽象域（符号界 + min/max + 来源标签、指针 base 种类、内存格、定义式、守卫）、转移、WTO 不动点、访问检查与 Req 生成（先化简后代区间）、
+  蕴含判定（线性组合 + 区间，不调 SMT）、调用点五步、效果生成、SCC 调度、出告警、全函数性。
+* 跨 TU 改为**方案 B**：export（全量，只做语法遍历）→ solve（一次，桩 TU 或独立命令）→ report（只跑有告警的 TU）；A 作回退。
+* 非功能（深度、耗时、内存、健壮性、确定性、可移植、编码规范、可观测）、代码组织（入口平铺 + `OobSummary/` 子目录，C++ 约 9 700 行、Python 约 900 行；`core/` 不含 Clang 头文件）、
+  测试规格 T-01…T-09 与各检查点的验收集。
+* §12：8 个待点头的决策（D5′、D7、D9–D13、X-04）；§13：对 `01-` / `05-` 的 6 处修订。
+
+### 新增 `08-summary2-design/07-dev-plan.md`（编码实施计划，评审稿）
+
+* 现状基线：原计划 W01–W03 的集成工作未做，压进 10-14 ~ 10-16；G0 改为 10-16，G1 为 10-30 沙箱 / 11-03 fork，G2–G4 不变；剩 45 个工作日。
+* **开工输入 I1–I12**：每项写明用在哪、什么时候要、没有时的默认；本周只需三件（点头决策、跑探针、确认交付形态）。
+* 两环境闭环（沙箱上游 LLVM 14.0.6 ↔ fork）、每周两次交付、每次交付前必跑的检查；14 个工作包；周历；检查点与回退；风险；代码包结构。
+
+### 新增 `08-summary2-design/probes/i0-integration/`（I0 集成探针）
+
+* 只读 checker `rb.enhance.core.OobSummaryProbe`（五处落点、`csa-checker-dev` 规范检查 PASS 42 / WARN 2 / FAIL 0），一次确认：版本与编译开关、选项透传、
+  目标 ABI（ILP32 是否生效）、TU 级回调、调用图 SCC 顺序、告警与 note 的呈现、子目录源文件能否编译、多进程写文件；
+  `probe_stats.py` 汇总全量形态（CFG 规模、函数指针占比、跨 TU 被调者唯一性、多轮扫描倍数、耗时）。
+* 沙箱实测【实测数据】（Ubuntu clang-14 / 上游 14.0.6）：挂一个空的 `check::EndOfTranslationUnit` 就会让 CSA 对每个函数跑 ExprEngine
+  （`-analyzer-stats` 出现 `Path exploration time`），只挂 `check::ASTDecl<TranslationUnitDecl>` 不会——正式 checker 据此选回调（D11）；
+  `CallGraph` + `scc_iterator` 按被调者先给出顺序、递归标 `cycle`；只声明未定义的被调者也在图里（要按 `hasBody` 过滤）；
+  在 67 个用例上：71 个 TU、435 个函数、跨 TU 链需要 3 轮。期望输出 `expected-upstream14.txt`；`sandbox_build.sh` 可复现。
+
+### 同步
+
+`00-`：头部指向 `06-` / `07-`（§5 日历、§8 输入由 `07-` 取代），§3 加方案 B 的修订说明，D5 改为建议 B，加 D9–D13；
+`01-`：头部列出 `06-` §13 的 6 处修订；`03-`：输入表指向 `07-` §2；README 同步；网页版 `06-07-spec-and-plan-offline.html`，计划网页同步。
+
 ## v3.11 — 2026-10-12
 
 **摘要长什么样、怎么取舍、多层怎么串起来检测：按 Lv1–Lv10 写了 67 个跨函数用例，每个用例给出各层摘要与串联过程。**

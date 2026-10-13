@@ -1,0 +1,2580 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body>
+<title>Summary 2.0 开工规格</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap">
+<style>
+:root{
+  --bg:#F3F5F8; --surface:#FFFFFF; --surface-2:#E9EDF3; --ink:#17202B; --ink-2:#465164; --muted:#6A7585;
+  --line:#D4DBE5; --line-2:#E4E9F0;
+  --accent:#1C5DAE; --accent-soft:#E2ECF9; --on-accent:#FFFFFF;
+  --gate:#9C5B07; --gate-soft:#FAEFDC;
+  --pa27:#4E6278; --on-pa27:#FFFFFF;
+  --ai:#6A4FB0; --ai-soft:#EEE9F8; --on-ai:#FFFFFF;
+  --code-bg:#EEF1F6;
+  --serif:"Noto Serif SC","Songti SC","SimSun",serif;
+  --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif;
+  --mono:"IBM Plex Mono","SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0F131A; --surface:#161B24; --surface-2:#1E2530; --ink:#E2E7EE; --ink-2:#B2BBC8; --muted:#8A94A3;
+    --line:#2B3441; --line-2:#222A35;
+    --accent:#6FA8EC; --accent-soft:#1A2A3F; --on-accent:#0F131A;
+    --gate:#E2A94E; --gate-soft:#30261A;
+    --pa27:#8FA3BA; --on-pa27:#0F131A;
+    --ai:#A992E8; --ai-soft:#271F3A; --on-ai:#0F131A;
+    --code-bg:#1B212B;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0F131A; --surface:#161B24; --surface-2:#1E2530; --ink:#E2E7EE; --ink-2:#B2BBC8; --muted:#8A94A3;
+  --line:#2B3441; --line-2:#222A35;
+  --accent:#6FA8EC; --accent-soft:#1A2A3F; --on-accent:#0F131A;
+  --gate:#E2A94E; --gate-soft:#30261A;
+  --pa27:#8FA3BA; --on-pa27:#0F131A;
+  --ai:#A992E8; --ai-soft:#271F3A; --on-ai:#0F131A;
+  --code-bg:#1B212B;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+body{background:var(--bg); color:var(--ink); font:15px/1.75 var(--sans); padding-inline:18px; padding-block:0 64px}
+.wrap{max-width:1040px; margin:0 auto}
+a{color:var(--accent)}
+code{font-family:var(--mono); font-size:.86em; background:var(--surface-2); padding:1px 5px; border-radius:3px; overflow-wrap:anywhere}
+pre{background:var(--code-bg); border:1px solid var(--line); padding:12px 14px; overflow-x:auto; margin:10px 0 14px; border-radius:3px}
+pre code{background:none; padding:0; font-size:12.5px; line-height:1.65; overflow-wrap:normal; white-space:pre}
+h1,h2{font-family:var(--serif); text-wrap:balance; letter-spacing:.01em}
+h2{font-size:22px; line-height:1.35; margin:0}
+h3{font-size:17px; margin:30px 0 8px; font-weight:700; text-wrap:balance}
+h4{font-size:15px; margin:20px 0 6px}
+p,li{max-width:74ch}
+p{margin:0 0 12px}
+ul,ol{padding-left:1.3em; margin:0 0 12px}
+li{margin:3px 0}
+blockquote{margin:12px 0; padding:10px 14px; border-left:3px solid var(--line); background:var(--surface); color:var(--ink-2)}
+blockquote p:last-child{margin-bottom:0}
+hr{border:0; border-top:1px solid var(--line); margin:22px 0}
+.lede{color:var(--ink-2)}
+.ev{font:500 10.5px/1 var(--mono); color:var(--muted); border:1px solid var(--line); padding:2px 5px; border-radius:3px; white-space:nowrap; vertical-align:1px}
+
+.mast{padding-block:40px 28px; border-bottom:1px solid var(--line)}
+.eyebrow{font:500 11.5px/1.4 var(--mono); letter-spacing:.06em; color:var(--muted); margin-bottom:14px}
+.mast h1{font-size:clamp(24px,4vw,34px); line-height:1.3; margin:0 0 16px}
+.thesis{font-size:16px; line-height:1.8; max-width:66ch; margin-bottom:22px}
+.facts{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); border:1px solid var(--line); background:var(--surface); margin:0}
+.facts div{padding:12px 14px; border-right:1px solid var(--line-2)}
+.facts div:last-child{border-right:0}
+.facts dt{font:500 10.5px/1.3 var(--mono); letter-spacing:.08em; color:var(--muted); margin-bottom:4px}
+.facts dd{margin:0; font:600 20px/1.3 var(--mono); font-variant-numeric:tabular-nums}
+.facts dd small{display:block; font:400 12px/1.5 var(--sans); color:var(--ink-2); margin-top:2px}
+@media (max-width:640px){ .facts div{border-right:0; border-bottom:1px solid var(--line-2)} }
+
+section{padding-block:38px 4px}
+.sec-hd{display:flex; align-items:baseline; gap:12px; margin-bottom:10px; flex-wrap:wrap}
+.secno{font:600 12px/1 var(--mono); color:var(--muted)}
+
+.tw{overflow-x:auto; border:1px solid var(--line); background:var(--surface); margin:12px 0 14px}
+table{border-collapse:collapse; width:100%; font-size:13.5px; line-height:1.6}
+th,td{padding:8px 11px; text-align:left; vertical-align:top; border-bottom:1px solid var(--line-2)}
+thead th{font:500 11px/1.4 var(--mono); letter-spacing:.06em; color:var(--muted); background:var(--surface-2); border-bottom:1px solid var(--line); white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+td.id{font:600 12.5px/1.6 var(--mono); white-space:nowrap}
+td.num{font-family:var(--mono); text-align:right; font-variant-numeric:tabular-nums; color:var(--muted)}
+td.sig{font:12px/1.6 var(--mono); color:var(--ink-2); white-space:nowrap}
+td.own{color:var(--ink-2)}
+
+/* categories */
+.c-commit{background:var(--accent); color:var(--on-accent); border:1px solid var(--accent)}
+.c-best{background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent)}
+.c-rule{background:var(--surface-2); color:var(--ink-2); border:1px dashed var(--muted)}
+.c-pa27{background:var(--pa27); color:var(--on-pa27); border:1px solid var(--pa27)}
+.c-ai{background:var(--ai); color:var(--on-ai); border:1px solid var(--ai)}
+.c-no{background:transparent; color:var(--muted); border:1px dashed var(--muted); text-decoration:line-through}
+.pill{display:inline-block; font:600 11px/1 var(--mono); padding:4px 7px; border-radius:3px; white-space:nowrap; vertical-align:1px}
+.sw{display:inline-block; width:12px; height:12px; border-radius:2px; text-decoration:none}
+
+.legend{display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12.5px; color:var(--ink-2); margin:4px 0 12px}
+.legend span{display:inline-flex; align-items:center; gap:6px}
+
+/* ladder */
+.ladder{border:1px solid var(--line); background:var(--surface)}
+.rung{display:grid; grid-template-columns:58px minmax(0,1.25fr) minmax(0,1.5fr) 150px; gap:14px; padding:12px 14px; border-bottom:1px solid var(--line-2); align-items:start}
+.rung:last-child{border-bottom:0}
+.rung-id{font:600 15px/1.4 var(--mono); color:var(--accent)}
+.rung-one{font-weight:500; line-height:1.55}
+.rung-cap{font-size:12.5px; color:var(--muted); line-height:1.55; margin-top:3px}
+.rung-chips{display:flex; flex-wrap:wrap; gap:5px}
+.chip{font:600 11px/1 var(--mono); padding:5px 6px; border-radius:3px; text-decoration:none; font-variant-numeric:tabular-nums}
+.chip:hover{filter:brightness(1.08)}
+.chip.c-no:hover{filter:none; color:var(--ink)}
+.rung-year{font-size:12.5px; line-height:1.55; color:var(--ink-2)}
+.divider{padding:6px 14px; font:600 11.5px/1.5 var(--mono); letter-spacing:.02em; border-bottom:1px solid var(--line-2)}
+.divider.year{background:var(--gate-soft); color:var(--gate)}
+.divider.ceiling{background:var(--surface-2); color:var(--ink-2)}
+@media (max-width:760px){
+  .rung{grid-template-columns:48px minmax(0,1fr)}
+  .rung-chips,.rung-year{grid-column:2}
+}
+.answers{margin-top:22px}
+.answers ol li{margin:8px 0}
+
+/* scenario paragraphs */
+p.scn{margin:22px 0 6px; padding:8px 12px; background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--accent); font-size:14px}
+p.scn .pill{margin-left:6px}
+p.scn:target{outline:2px solid var(--gate); outline-offset:2px}
+tr:target td{background:var(--gate-soft)}
+.lvtag{display:inline-block; font:600 12px/1 var(--mono); background:var(--accent); color:var(--on-accent); padding:5px 7px; border-radius:3px; margin-right:10px; vertical-align:2px}
+
+/* master table */
+.filters{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0 4px}
+.fbtn{font:500 12.5px/1 var(--sans); color:var(--ink); background:var(--surface); border:1px solid var(--line); padding:7px 10px; border-radius:3px; cursor:pointer; display:inline-flex; align-items:center; gap:6px}
+.fbtn b{font:600 11.5px/1 var(--mono); color:var(--muted)}
+.fbtn[aria-pressed="true"]{border-color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink)}
+.fbtn.reset{color:var(--muted)}
+.lvsel{font-size:12.5px; color:var(--ink-2); display:inline-flex; align-items:center; gap:6px}
+.lvsel select{font:12.5px var(--mono); background:var(--surface); color:var(--ink); border:1px solid var(--line); padding:5px 6px; border-radius:3px}
+.count{font:12px var(--mono); color:var(--muted)}
+.master tr[hidden]{display:none}
+
+footer{margin-top:44px; padding-top:16px; border-top:1px solid var(--line); font-size:12.5px; color:var(--muted)}
+footer p{max-width:none}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+/* spec page */
+.three{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; margin:14px 0 6px}
+.three > div{background:var(--surface); border:1px solid var(--line); padding:14px 16px; min-width:0}
+.three h3{margin:0 0 6px; font-size:15px}
+.three .when{font:600 11.5px/1 var(--mono); color:var(--gate); background:var(--gate-soft); padding:4px 6px; border-radius:3px; display:inline-block; margin-bottom:8px}
+.three p{font-size:13.5px; color:var(--ink-2); margin:0}
+.toc{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:13px; margin:8px 0 0}
+.toc b{font:600 11px/1.9 var(--mono); color:var(--muted); letter-spacing:.06em; margin-right:2px}
+.toc a{text-decoration:none}
+.toc a:hover{text-decoration:underline}
+.part{margin-top:46px; padding-top:14px; border-top:3px double var(--line)}
+.part > h2{font-size:26px}
+.part > p{color:var(--ink-2)}
+.gw{overflow-x:auto; border:1px solid var(--line); background:var(--surface); margin:12px 0 8px}
+.gantt{min-width:760px; font-size:12.5px}
+.g-row{display:grid; grid-template-columns:230px repeat(10,minmax(48px,1fr)); border-bottom:1px solid var(--line-2)}
+.g-row:last-child{border-bottom:0}
+.g-lab{padding:6px 10px; line-height:1.4; color:var(--ink); border-right:1px solid var(--line-2)}
+.g-wp{font:600 11.5px/1 var(--mono); color:var(--accent); margin-right:4px}
+.g-head .g-lab,.g-wk{font:500 10.5px/1.3 var(--mono); color:var(--muted); background:var(--surface-2); letter-spacing:.04em}
+.g-wk{padding:6px 4px; text-align:center; border-right:1px solid var(--line-2)}
+.g-wk b{display:block; color:var(--ink-2); font-weight:600}
+.g-wk small{font-size:10px}
+.g-cell{border-right:1px solid var(--line-2); position:relative; min-height:30px}
+.g-cell:last-child,.g-wk:last-child{border-right:0}
+.g-cell.on::after{content:""; position:absolute; left:0; right:0; top:9px; height:12px; background:var(--accent)}
+.g-cell.on.s::after{left:4px; border-radius:2px 0 0 2px}
+.g-cell.on.e::after{right:4px; border-radius:0 2px 2px 0}
+.g-cell.on.s.e::after{border-radius:2px}
+.g-gates .g-cell{display:flex; align-items:center; justify-content:center; padding:4px 2px}
+.gate{font:500 10px/1.25 var(--mono); color:var(--gate); background:var(--gate-soft); border:1px solid var(--gate); border-radius:3px; padding:3px 4px; text-align:center}
+.gate b{display:block; font-size:11px}
+@media (max-width:640px){ .part > h2{font-size:22px} }
+
+</style>
+<div class="wrap">
+<header class="mast">
+  <div class="eyebrow">CSA Summary 2.0 · 调研包 v3.12 · 2026-10-13 · 评审稿</div>
+  <h1>开工前的规格与计划：代码写成什么样、按什么顺序写、需要你给什么</h1>
+  <p class="thesis">写代码<strong>不用等任何输入</strong>：规格里不依赖待定决策的部分今天就开写，绝大部分调试在沙箱（上游 LLVM 14.0.6）里做完再交给你。
+    本周只要你三件事；其余输入都有默认值和时间点。跨 TU 改为<strong>一遍导出 → 离线求解 → 一遍出告警</strong>，
+    checker 只做语法遍历——沙箱实测挂错一个回调就会让每个函数跑一遍 ExprEngine。</p>
+  <dl class="facts">
+    <div><dt>剩余工作日</dt><dd>45<small>10-14 至 12-15，无法定假日</small></dd></div>
+    <div><dt>本周要你做</dt><dd>3 件<small>点头决策 · 跑探针 · 定交付形态</small></dd></div>
+    <div><dt>待点头决策</dt><dd>8<small>规格 §12，不回则按推荐</small></dd></div>
+    <div><dt>工作包</dt><dd>14<small>每周两次交付</small></dd></div>
+    <div><dt>代码规模</dt><dd>≈9.7k<small>C++ 行；另有驱动 ≈0.9k 行 Python</small></dd></div>
+  </dl>
+  <nav class="toc" aria-label="目录"><b>计划</b><a href="#now">本周三件事</a><a href="#inputs">输入清单</a><a href="#gantt">工作包与周</a><a href="#decisions">待点头的决策</a><a href="#p-1">现状基线（10-13）</a><a href="#p-3">开发方式：两个环境的闭环</a><a href="#p-4">工作包</a><a href="#p-5">日历（取代 <code>00-</code> §5）</a><a href="#p-6">检查点</a><a href="#p-7">本周与下周逐日</a><a href="#p-8">风险</a><a href="#p-9">交付物与约定</a></nav>
+  <nav class="toc" aria-label="规格目录"><b>规格</b><a href="#s-0">读法与约定</a><a href="#s-1">范围</a><a href="#s-2">运行形态总览</a><a href="#s-3">功能需求</a><a href="#s-4">外部接口</a><a href="#s-5">数据规格</a><a href="#s-6">算法规格</a><a href="#s-7">跨 TU 执行（方案 B）</a><a href="#s-8">非功能需求</a><a href="#s-9">代码组织与构建</a><a href="#s-10">测试规格</a><a href="#s-11">追溯矩阵</a><a href="#s-12">待确认的决策（点头即定稿）</a><a href="#s-13">本文件对 <code>01-</code> / <code>05-</code> 的修订（定稿后同步回去）</a></nav>
+</header>
+
+<section id="now">
+  <div class="sec-hd"><span class="secno">07- §0</span><h2>本周要你做的三件事</h2></div>
+  <div class="three">
+    <div><span class="when">10-16 前</span><h3>点头 8 个决策</h3><p>规格 §12：方案 B、FIR、JSON 落盘、只挂 ASTDecl、告警位置、自定义键、包名、solve 宿主。不回就按推荐写。</p></div>
+    <div><span class="when">10-16 前（R3 可到 10-21）</span><h3>在 fork 里跑 I0 探针</h3><p><code>probes/i0-integration/</code>：五处落点、编译，R1 测试用例、R2 一个业务文件（看是否 ILP32）、R3 全量挂机，把输出发我。</p></div>
+    <div><span class="when">10-16 前</span><h3>定代码交付形态与人力</h3><p>默认独立代码包 <code>oob-summary-v0.N</code>（目录镜像 BXPlugin）+ 提交信息；W07 起是否补 0.5 人做真实代码研判。</p></div>
+  </div>
+</section>
+
+<section id="inputs">
+  <div class="sec-hd"><span class="secno">07- §2</span><h2>开工需要你提供的输入</h2></div>
+  <p><strong>结论：现在开始写代码不缺任何东西；下表是"什么时候之前要"，过了时间点我按"默认"继续，不会卡住。</strong></p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>输入</th>
+<th>用在哪</th>
+<th>什么时候要</th>
+<th>没有时的默认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>I1</strong></td>
+<td>点头 <code>06-</code> §12 的 8 个决策（D5′、D7、D9–D13、X-04）</td>
+<td>定稿；第一次 fork 集成</td>
+<td><strong>10-16</strong></td>
+<td>按推荐写</td>
+</tr>
+<tr>
+<td><strong>I2</strong></td>
+<td>探针 R1、R2 的输出（<code>probes/i0-integration/README.md</code> §3）</td>
+<td>宿主能力确认（回调、选项透传、子目录编译、目标 ABI、告警呈现）</td>
+<td><strong>10-16</strong></td>
+<td>按沙箱结果写；fork 不一致时 v0.1 集成会暴露</td>
+</tr>
+<tr>
+<td><strong>I2′</strong></td>
+<td>探针 R3：全量 <code>time</code> 与 <code>probe-full.md</code></td>
+<td>solve 的内存 / 分批（X-07）、<code>MaxBlocks</code>、性能目标（N-02、N-03）、重名外部函数比例（D-07）</td>
+<td><strong>10-21</strong></td>
+<td><code>MaxBlocks=5000</code>、单进程全量加载</td>
+</tr>
+<tr>
+<td><strong>I3</strong></td>
+<td>代码交付形态（§9）</td>
+<td>每次交付</td>
+<td><strong>10-16</strong></td>
+<td>独立代码包 <code>oob-summary-vX.Y.tar.gz</code> + 提交信息</td>
+</tr>
+<tr>
+<td><strong>I4</strong></td>
+<td>bxen 全量模式：是否多进程并行、并发度参数；告警最终落在哪（终端 / 文件 / 平台）及格式</td>
+<td>驱动（X-05、X-10）；T-05 的告警计数</td>
+<td>随 R3</td>
+<td>驱动按串行调用 bxen、从 bxen 输出里按 <code>[rb.enhance.ipa.OobSummary]</code> 计数</td>
+</tr>
+<tr>
+<td><strong>I5</strong></td>
+<td><strong>底层分配器原型</strong>（<code>VOS_MemAlloc</code> 等：字节数是第几个形参）；<code>config.ini</code> 的 <code>MEM_ALLOC</code> / <code>MEM_FREE</code> 段；<code>alloc_free_identity</code> 的结果 JSON（全量或 ≥ 50 条样例）</td>
+<td>P0-5 分配器（W08）</td>
+<td><strong>11-06</strong></td>
+<td>按用例里的原型（<code>VOS_MemAlloc(pid, pt, size)</code> → <code>size: p2</code>）；真实代码跑测前必须给</td>
+</tr>
+<tr>
+<td><strong>I6</strong></td>
+<td>现有规则实际的 <code>inlineDepth</code></td>
+<td>F-20 层数过滤</td>
+<td><strong>10-28</strong></td>
+<td>2</td>
+</tr>
+<tr>
+<td><strong>I7</strong></td>
+<td>人力：W07 起是否补 0.5 人做真实代码跑测与误报判定</td>
+<td>§5 W07–W12</td>
+<td><strong>10-16</strong></td>
+<td>不补：W10–W12 的真实代码工作全落在你身上，G3 的精确率抽样可能只做到 30 条</td>
+</tr>
+<tr>
+<td>I8</td>
+<td>内部访问类封装（安全函数之外自己包的拷贝 / 取元素函数）清单</td>
+<td>F-06 模型</td>
+<td>11-13</td>
+<td>只建模安全函数族与 libc</td>
+</tr>
+<tr>
+<td>I9</td>
+<td>已知纯函数（日志、打点、调试打印）清单或命名规律</td>
+<td>模型表 <code>pure</code>，减少无谓失效</td>
+<td>11-20</td>
+<td><code>^LOG_</code>、<code>^DIAG_</code>、<code>_Trace$</code> 等几条通用规律</td>
+</tr>
+<tr>
+<td>I10</td>
+<td><code>00-</code> §7 的四个验收数值（真实样例报出率、L1 精确率、全量耗时上限、峰值内存上限）</td>
+<td>G3</td>
+<td>11-27</td>
+<td>建议值：80% / 80% / 8 小时 / 64 GB</td>
+</tr>
+<tr>
+<td>I11</td>
+<td>真实业务用例（按 <code>cases/</code> 的文件头格式）</td>
+<td>T-03 扩充</td>
+<td>随时</td>
+<td>——</td>
+</tr>
+<tr>
+<td>I12</td>
+<td>已有的 <code>SummaryApplyChecker</code>（<code>rb.enhance.core.SummaryApply</code>）的去留</td>
+<td>P1 的路径解释（<code>01-</code> §3.10）可能在它上面演进；P0 只需确认不重名</td>
+<td>随时</td>
+<td>并存，互不影响</td>
+</tr>
+</tbody>
+</table></div>
+<p>不再需要的（v3.10 已取消）：现有越界 checker 源码、现有告警原样输出——按 <code>csa-checker-dev</code> 的约定写。</p>
+<hr />
+</section>
+
+<section id="gantt">
+  <div class="sec-hd"><span class="secno">07- §4–§6</span><h2>工作包与周</h2></div>
+  <p class="lede">每一行是一个工作包，蓝条是它所在的周；最下一行是检查点。G1 先在沙箱过（10-30），再在 fork 上确认（11-03）。</p>
+  <div class="gw"><div class="gantt" role="table" aria-label="工作包与周">
+<div class="g-row g-head" role="row"><div class="g-lab" role="columnheader">工作包</div><div class="g-wk" role="columnheader"><b>W04′</b><small>10-14</small></div><div class="g-wk" role="columnheader"><b>W05</b><small>10-19</small></div><div class="g-wk" role="columnheader"><b>W06</b><small>10-26</small></div><div class="g-wk" role="columnheader"><b>W07</b><small>11-02</small></div><div class="g-wk" role="columnheader"><b>W08</b><small>11-09</small></div><div class="g-wk" role="columnheader"><b>W09</b><small>11-16</small></div><div class="g-wk" role="columnheader"><b>W10</b><small>11-23</small></div><div class="g-wk" role="columnheader"><b>W11</b><small>11-30</small></div><div class="g-wk" role="columnheader"><b>W12</b><small>12-07</small></div><div class="g-wk" role="columnheader"><b>W13</b><small>12-14</small></div></div>
+<div class="g-row" role="row"><div class="g-lab" role="rowheader"><span class="g-wp">WP0</span> 骨架与流水线</div><div class="g-cell on s e" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div></div>
+<div class="g-row" role="row"><div class="g-lab" role="rowheader"><span class="g-wp">WP1</span> 降级</div><div class="g-cell" role="cell"></div><div class="g-cell on s e" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div></div>
+<div class="g-row" role="row"><div class="g-lab" role="rowheader"><span class="g-wp">WP2</span> 表达式代数</div><div class="g-cell" role="cell"></div><div class="g-cell on s e" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div></div>
+<div class="g-row" role="row"><div class="g-lab" role="rowheader"><span class="g-wp">WP3</span> 解释器与访问检查</div><div class="g-cell" role="cell"></div><div class="g-cell on s" role="cell"></div><div class="g-cell on e" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div></div>
+<div class="g-row" role="row"><div class="g-lab" role="rowheader"><span class="g-wp">WP4</span> 摘要、代换、调度、出告警</div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell on s e" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div></div>
+<div class="g-row" role="row"><div class="g-lab" role="rowheader"><span class="g-wp">WP5</span> 安全函数族模型</div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell on s e" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div></div>
+<div class="g-row" role="row"><div class="g-lab" role="rowheader"><span class="g-wp">WP6</span> 链长生成器</div><div class="g-cell" role="cell"></div><div class="g-cell on s" role="cell"></div><div class="g-cell on e" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div></div>
+<div class="g-row" role="row"><div class="g-lab" role="rowheader"><span class="g-wp">WP7</span> 循环与守卫</div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell on s e" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div></div>
+<div class="g-row" role="row"><div class="g-lab" role="rowheader"><span class="g-wp">WP8</span> 效果与分配器</div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell on s e" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div></div>
+<div class="g-row" role="row"><div class="g-lab" role="rowheader"><span class="g-wp">WP9</span> 大小模型补全</div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell on s e" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div></div>
+<div class="g-row" role="row"><div class="g-lab" role="rowheader"><span class="g-wp">WP10</span> 驱动补全</div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell on s" role="cell"></div><div class="g-cell on" role="cell"></div><div class="g-cell on" role="cell"></div><div class="g-cell on e" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div></div>
+<div class="g-row" role="row"><div class="g-lab" role="rowheader"><span class="g-wp">WP11</span> 真实代码子集</div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell on s e" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div></div>
+<div class="g-row" role="row"><div class="g-lab" role="rowheader"><span class="g-wp">WP12</span> 全量与性能</div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell on s e" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div></div>
+<div class="g-row" role="row"><div class="g-lab" role="rowheader"><span class="g-wp">WP13</span> 冻结与交付</div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"></div><div class="g-cell on s" role="cell"></div><div class="g-cell on e" role="cell"></div></div>
+<div class="g-row g-gates" role="row"><div class="g-lab" role="rowheader">检查点</div><div class="g-cell" role="cell"><span class="gate"><b>G0′</b>10-16</span></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"><span class="gate"><b>G1</b>10-30 沙箱</span></div><div class="g-cell" role="cell"><span class="gate"><b>G1</b>11-03 fork</span></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"><span class="gate"><b>G2</b>11-20</span></div><div class="g-cell" role="cell"></div><div class="g-cell" role="cell"><span class="gate"><b>G3</b>12-04</span></div><div class="g-cell" role="cell"><span class="gate"><b>冻结</b>12-11</span></div><div class="g-cell" role="cell"><span class="gate"><b>G4</b>12-15</span></div></div>
+</div></div>
+</section>
+
+<section id="decisions">
+  <div class="sec-hd"><span class="secno">06- §12</span><h2>待点头的决策</h2></div>
+  <div class="tw"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>决策</th>
+<th>推荐</th>
+<th>备选</th>
+<th>不选推荐的影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>D5′</strong></td>
+<td>跨 TU 编排</td>
+<td><strong>B</strong>：export → solve → report（§7）</td>
+<td>A：多轮扫描（<code>01-</code> §3.11）</td>
+<td>A 要多做每轮导入 / 合并 / 去重；轮数取决于探针统计，可能把全量耗时放大数倍</td>
+</tr>
+<tr>
+<td><strong>D7</strong></td>
+<td>包与名字</td>
+<td><code>rb.enhance.ipa.OobSummary</code> / <code>OobSummaryChecker</code></td>
+<td><code>rb.enhance.core.OobSummary</code></td>
+<td>只影响 <code>Checkers.td</code> 的位置与 <code>-checker=</code> 字符串</td>
+</tr>
+<tr>
+<td><strong>D9</strong></td>
+<td>引擎跑在 FIR 上</td>
+<td><strong>是</strong></td>
+<td>直接跑 <code>clang::CFG</code></td>
+<td>否的话 B 不成立（求解要 AST 在内存里），只能走 A；单测要带 Clang</td>
+</tr>
+<tr>
+<td><strong>D10</strong></td>
+<td>落盘格式</td>
+<td>JSON + Python 侧 SQLite</td>
+<td>C++ 侧 SQLite / FlatBuffers（<code>01-</code> §3.8）</td>
+<td>要给 xir 加第三方依赖；多进程写同一个库要处理锁</td>
+</tr>
+<tr>
+<td><strong>D11</strong></td>
+<td>宿主回调</td>
+<td>只挂 <code>ASTDecl&lt;TranslationUnitDecl&gt;</code></td>
+<td><code>ASTCodeBody</code> + <code>EndOfTranslationUnit</code></td>
+<td>后者会让每个函数跑 ExprEngine<span class="ev">实测数据</span></td>
+</tr>
+<tr>
+<td><strong>D12</strong></td>
+<td>告警位置与 trace</td>
+<td>汇合点调用表达式 + 文本 trace</td>
+<td>报在访问点</td>
+<td>访问点常在别的 TU 里，CSA 的告警位置必须在本 TU 可见文件内</td>
+</tr>
+<tr>
+<td><strong>D13</strong></td>
+<td>键</td>
+<td>名字 / 定义文件 + 名字</td>
+<td>Clang USR</td>
+<td>USR 要链接 <code>clangIndex</code>（fork 里是否可用待确认），对 C 没有额外好处</td>
+</tr>
+<tr>
+<td><strong>X-04</strong></td>
+<td>solve 宿主</td>
+<td>桩 TU（不改 BXPlugin 构建）</td>
+<td>独立可执行 <code>oobsum-solve</code></td>
+<td>后者更干净，但要在 BXPlugin 的 CMake 里加一个可执行目标</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+
+<div class="part" id="part-plan"><h2>编码实施计划（07-dev-plan.md）</h2><p>其余各节原文。</p></div>
+<section id="p-1"><div class="sec-hd"><span class="secno">07- §1</span><h2>现状基线（10-13）</h2></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>原计划（<code>00-</code> §5）</th>
+<th>状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>W01：收输入；空 checker 在 fork 编译、bxen 能调起来</td>
+<td><strong>未做</strong> → 本周探针（R1）+ v0.1 骨架（10-16）在 fork 里跑通</td>
+</tr>
+<tr>
+<td>W02：SummaryDB 表结构、驱动雏形、语料第一批</td>
+<td>表结构由 <code>06-</code> §5 定稿（改为 JSON，D10）；驱动在 v0.1；语料已交付</td>
+</tr>
+<tr>
+<td>W03：全量空跑耗时；语料第二批；真实样例（可选）</td>
+<td>耗时 → 探针 R3；语料已交付（<code>cases/</code> 67 个）；真实样例你会陆续补</td>
+</tr>
+<tr>
+<td>G0（10-10）：输入齐、空 checker 跑通、空跑耗时已知、语料就位</td>
+<td>语料 ✅；其余三项本周完成 → <strong>G0 改为 10-16</strong></td>
+</tr>
+<tr>
+<td>设计 / 规格</td>
+<td><code>01-</code> + <code>05-</code> + <strong><code>06-</code> 规格（本版）</strong>；8 个决策待点头</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section id="p-3"><div class="sec-hd"><span class="secno">07- §3</span><h2>开发方式：两个环境的闭环</h2></div>
+<pre><code> 我（沙箱：上游 LLVM 14.0.6 / clang-14）                         你（fork：/usr1/BXPlugin）
+ ─────────────────────────────────────                         ─────────────────────────
+ 写代码 → 插件构建 → T-01 单测 → cases 全量 T-03                      解包覆盖 → make -j16
+       → T-06 摘要快照 → T-07 健壮性 → 规范检查        ──交付──▶    → 驱动跑 TestCase（T-05）
+       → 交付：代码包 + 提交信息 + &quot;这次验什么&quot; + 沙箱结果表           → （W07 起）真实子集跑一遍
+                         ◀── 编译报错 / 输出 / 与沙箱不一致的地方 ──    → 把输出贴回来
+</code></pre>
+<ul>
+<li><strong>节奏</strong>：每周两次交付（周二、周五），每次一个完整代码包（<code>oob-summary-v0.N</code>）+ 中文提交信息（<code>csa-checker-dev</code> 格式，scope <code>rb.enhance.ipa.OobSummary</code>）+ 验证命令 + 沙箱结果表。</li>
+<li><strong>你那边的回路目标</strong>：收到后 1 个工作日内把 fork 的编译 / 运行结果发回；不一致优先修，当天出补丁版。</li>
+<li><strong>沙箱结果与 fork 不一致时</strong>：以 fork 为准，我在沙箱里补一个复现用例，进 T-03 / T-07。</li>
+<li><strong>每次交付前我必须跑完</strong>：插件构建无告警、T-01 全过、T-03 不回退（已通过的入口不得变成失败）、T-07 无崩溃、规范检查无 FAIL。</li>
+</ul>
+<hr />
+</section>
+<section id="p-4"><div class="sec-hd"><span class="secno">07- §4</span><h2>工作包</h2></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>WP</th>
+<th>内容（<code>06-</code> 编号）</th>
+<th>主要文件</th>
+<th>依赖</th>
+<th>验收</th>
+<th>周</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>WP0</strong> 骨架与流水线</td>
+<td>入口与四个 <code>Phase</code>、选项（I-10…I-23）、键（D-01…D-08）、FIR 的类型 / 全局导出、驱动 <code>run/export/solve/report/status</code> 雏形、<code>run.py csa</code> 与 <code>run.py testcase</code>（生成 fork 用例目录）、沙箱插件构建</td>
+<td><code>OobSummaryChecker.cpp</code>、<code>lower/Keys</code>、<code>core/Fir*</code>、<code>tools/oobsum.py</code>、<code>cases/run.py</code></td>
+<td>探针结论</td>
+<td>fork 里三阶段在 TestCase 上跑通（无告警）、FIR 文件齐</td>
+<td>W04′</td>
+</tr>
+<tr>
+<td><strong>WP1</strong> 降级</td>
+<td>A-01…A-09；T-02 快照</td>
+<td><code>lower/Lowering</code>、<code>lower/TypeLayout</code></td>
+<td>WP0</td>
+<td>70 个用例文件全部降级无 <code>unsupported</code>（除用例故意构造的）；10 个 FIR 快照</td>
+<td>W05</td>
+</tr>
+<tr>
+<td><strong>WP2</strong> 表达式代数</td>
+<td>A-10…A-17、A-21…A-27</td>
+<td><code>core/LinExpr</code>、<code>core/Bound</code>、<code>core/Value</code></td>
+<td>——</td>
+<td>T-01 约 120 条</td>
+<td>W05</td>
+</tr>
+<tr>
+<td><strong>WP3</strong> 解释器与访问检查</td>
+<td>A-20、A-28…A-33、A-40…A-45、A-50…A-52</td>
+<td><code>core/State</code>、<code>core/Wto</code>、<code>core/Interp</code>、<code>core/Transfer</code>、<code>core/Access</code>、<code>core/Entail</code></td>
+<td>WP1、WP2</td>
+<td>函数内判定正确（各用例里 depth = 0 的访问）；<code>Dump=summary</code> 与用例头"摘要"块逐个对照</td>
+<td>W05–W06</td>
+</tr>
+<tr>
+<td><strong>WP4</strong> 摘要、代换、调度、出告警</td>
+<td>A-60…A-62、A-80…A-82、A-90、A-91、F-20…F-35、D-23…D-29</td>
+<td><code>core/Summary*</code>、<code>core/Apply</code>、<code>core/Solver</code>、<code>core/Dump</code>、入口的告警部分</td>
+<td>WP3</td>
+<td><strong>G1</strong>：Lv1 + Lv2（含跨 TU 的 LV1-07）</td>
+<td>W06</td>
+</tr>
+<tr>
+<td><strong>WP5</strong> 安全函数族模型</td>
+<td>F-03…F-05、A-65 的访问类</td>
+<td><code>core/Models</code></td>
+<td>WP3</td>
+<td>LV1-05、LV1-08、LV2-02、LV2-03</td>
+<td>W06</td>
+</tr>
+<tr>
+<td><strong>WP6</strong> 链长生成器</td>
+<td>T-04 四类模板 × N</td>
+<td><code>cases/gen_chain.py</code></td>
+<td>——</td>
+<td>生成的用例全部能编译</td>
+<td>W05–W06</td>
+</tr>
+<tr>
+<td><strong>WP7</strong> 循环与守卫</td>
+<td>F-07、A-14、A-16、A-17、A-13 的定义式抵消、A-64 前半</td>
+<td><code>core/State</code>、<code>core/Interp</code></td>
+<td>WP4</td>
+<td>Lv3 全部承诺用例；LV3-07 的 TN</td>
+<td>W07</td>
+</tr>
+<tr>
+<td><strong>WP8</strong> 效果与分配器</td>
+<td>D-24 全部效果、A-63、A-64、A-70、A-71、I-40…I-44</td>
+<td><code>core/Summary</code>、<code>core/Apply</code>、<code>core/Models</code></td>
+<td>WP7、<strong>I5</strong></td>
+<td>Lv4 承诺用例；LV5-06；S4.6（尽力）</td>
+<td>W08</td>
+</tr>
+<tr>
+<td><strong>WP9</strong> 大小模型补全</td>
+<td>D-30…D-39 其余、F-08 盲区、S5.1 字段代换、尽力项</td>
+<td><code>lower/TypeLayout</code>、<code>core/Value</code>、<code>core/Apply</code></td>
+<td>WP8</td>
+<td><strong>G2</strong>：全部承诺用例 + 全语料零误报</td>
+<td>W09</td>
+</tr>
+<tr>
+<td><strong>WP10</strong> 驱动补全</td>
+<td><code>explain</code>、<code>stats</code>、<code>sqlite</code>、<code>check</code>；断点续跑；日志</td>
+<td><code>tools/oobsum.py</code></td>
+<td>WP4</td>
+<td><code>oobsum.py check</code> 与 <code>run.py csa</code> 结论一致</td>
+<td>W06–W09</td>
+</tr>
+<tr>
+<td><strong>WP11</strong> 真实代码子集</td>
+<td>子集跑测、误报收敛、账本统计 → 补模型</td>
+<td>全部</td>
+<td>WP9、I8、I9</td>
+<td>误报清单与修正；账本前十原因</td>
+<td>W10</td>
+</tr>
+<tr>
+<td><strong>WP12</strong> 全量与性能</td>
+<td>全量 cdb；N-02、N-03；X-07 分批（如需要）</td>
+<td><code>core/Solver</code>、驱动</td>
+<td>WP11、I2′</td>
+<td><strong>G3</strong></td>
+<td>W11</td>
+</tr>
+<tr>
+<td><strong>WP13</strong> 冻结与交付</td>
+<td>规则 README（<code>csa-checker-dev</code> 合并版模板：目的、边界、TP/TN/FP/FN、示例、运行）、验收报告、使用文档</td>
+<td><code>docs/</code></td>
+<td>全部</td>
+<td><strong>G4</strong></td>
+<td>W12–W13</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section id="p-5"><div class="sec-hd"><span class="secno">07- §5</span><h2>日历（取代 <code>00-</code> §5）</h2></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>周</th>
+<th>日期</th>
+<th>工作日</th>
+<th>我交付</th>
+<th>你要做</th>
+<th>结束时拿得出来的</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>W04′</strong></td>
+<td>10-14 ~ 10-16</td>
+<td>3</td>
+<td><strong>v0.1</strong>（10-16）：WP0；WP2 起步</td>
+<td>读 <code>06-</code> / <code>07-</code>、点头决策（I1）；探针 R1 / R2（I2），R3 挂机；I3、I7</td>
+<td><strong>G0′</strong>：探针结果 + 决策 + 骨架在 fork 编译</td>
+</tr>
+<tr>
+<td>W05</td>
+<td>10-19 ~ 10-23</td>
+<td>5</td>
+<td><strong>v0.2</strong>（10-20）：WP1 降级 + FIR 快照；<strong>v0.3</strong>（10-23）：WP2、WP3 前半（直线代码、函数内判定）、WP6</td>
+<td>集成 v0.1 / v0.2；<strong>用 v0.2 在全量 cdb 上只跑 export</strong>（暴露降级问题，顺带量 export 耗时）；I2′、I6</td>
+<td>全量 export 能跑完；函数内判定正确</td>
+</tr>
+<tr>
+<td>W06</td>
+<td>10-26 ~ 10-30</td>
+<td>5</td>
+<td><strong>v0.4</strong>（10-27）：WP3 完成、WP4 同 TU；<strong>v0.5</strong>（10-30）：跨 TU solve / report、WP5、WP10 前半</td>
+<td>集成 v0.3 / v0.4</td>
+<td><strong>G1（沙箱，10-30）</strong></td>
+</tr>
+<tr>
+<td>W07</td>
+<td>11-02 ~ 11-06</td>
+<td>5</td>
+<td><strong>v0.6</strong>（11-03）：G1 修正 + WP7 前半；<strong>v0.7</strong>（11-06）：WP7 完成</td>
+<td><strong>11-03 fork 上确认 G1</strong>；从这周起<strong>每周在一个真实子集上跑一次全流程</strong>（只看崩溃、耗时、告警量）；I5（11-06）</td>
+<td><strong>G1（fork，11-03）</strong>；Lv3 通过</td>
+</tr>
+<tr>
+<td>W08</td>
+<td>11-09 ~ 11-13</td>
+<td>5</td>
+<td><strong>v0.8</strong>（11-10）、<strong>v0.9</strong>（11-13）：WP8</td>
+<td>集成；真实子集一跑；I8</td>
+<td>Lv4 通过</td>
+</tr>
+<tr>
+<td>W09</td>
+<td>11-16 ~ 11-20</td>
+<td>5</td>
+<td><strong>v0.10</strong>（11-17）、<strong>v0.11</strong>（11-20）：WP9、WP10 完成</td>
+<td>集成；G2 验收</td>
+<td><strong>G2（11-20）</strong></td>
+</tr>
+<tr>
+<td>W10</td>
+<td>11-23 ~ 11-27</td>
+<td>5</td>
+<td><strong>v0.12</strong>（11-24）、<strong>v0.13</strong>（11-27）：按你的误报研判修正、补模型</td>
+<td><strong>真实代码子集研判</strong>（WP11 的主体，3–5 天）；I9、I10</td>
+<td>误报清单与修正</td>
+</tr>
+<tr>
+<td>W11</td>
+<td>11-30 ~ 12-04</td>
+<td>5</td>
+<td><strong>v0.14</strong>（12-01）：WP12</td>
+<td><strong>全量 cdb 跑通</strong>；量耗时 / 内存；抽样 50 条 L1</td>
+<td><strong>G3（12-04）</strong></td>
+</tr>
+<tr>
+<td>W12</td>
+<td>12-07 ~ 12-11</td>
+<td>5</td>
+<td><strong>v0.15</strong>（12-08）；<strong>v1.0-rc</strong>（12-11 冻结）</td>
+<td>修 G3 暴露的问题；回归</td>
+<td>冻结版本</td>
+</tr>
+<tr>
+<td>W13</td>
+<td>12-14 ~ 12-15</td>
+<td>2</td>
+<td><strong>v1.0</strong>：WP13</td>
+<td>合入、验收报告确认</td>
+<td><strong>G4 交付（12-15）</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>你的投入估计</strong>：W04′–W09 每周 1–2.5 天（读交付、编译、跑用例、真实子集一跑），W10–W12 每周 4–5 天（真实代码），合计约 <strong>25–32 人日</strong>。
+比 <code>00-</code> §6 的 43–66 人日少，是因为沙箱承担了大部分调试<span class="ev">推断</span>；<strong>真实代码那部分（W10–W12）压不下来</strong>，这就是建议补 0.5 人的原因。</p>
+<hr />
+</section>
+<section id="p-6"><div class="sec-hd"><span class="secno">07- §6</span><h2>检查点</h2></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>检查点</th>
+<th>日期</th>
+<th>过关标准（<code>06-</code> T-09）</th>
+<th>过不了怎么办</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>G0′</strong></td>
+<td>10-16</td>
+<td>决策已定；探针 R1 / R2 结果到手；v0.1 在 fork 编译通过</td>
+<td>探针编译不过：当天按报错出补丁；决策没定：按推荐继续</td>
+</tr>
+<tr>
+<td><strong>G1</strong></td>
+<td>10-30（沙箱）/ 11-03（fork）</td>
+<td>Lv1 + Lv2 的 17 个用例（34 个入口）全对；链长模板 1、2、4 在 3…20 层全报、2 层不报</td>
+<td>跨 TU 不过：先保同 TU，跨 TU 顺延到 W07 第一个交付</td>
+</tr>
+<tr>
+<td><strong>G2</strong></td>
+<td>11-20</td>
+<td>32 个承诺用例 TP 级别正确；134 个入口里期望为 <code>-</code> / <code>记账</code> 的<strong>零告警</strong>；尽力 9 个给出报出率</td>
+<td>按 <code>00-</code> §6 的砍项顺序：跨 TU 全局表 → 只留 <code>memcpy_s</code> / <code>memset_s</code> → 只做返回值型分配器 → 去掉 narrowing</td>
+</tr>
+<tr>
+<td><strong>G3</strong></td>
+<td>12-04</td>
+<td>全量 cdb 跑通不崩溃；耗时 / 内存达到 I10 的数值；L1 精确率达标</td>
+<td>精度不够先只出 L1（<code>ReportL2=false</code>）；耗时不够按子系统分批；solve 内存不够按 SCC 分批（X-07）</td>
+</tr>
+<tr>
+<td><strong>G4</strong></td>
+<td>12-15</td>
+<td><code>00-</code> §7 全部满足；规则 README 与验收报告齐</td>
+<td>——</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section id="p-7"><div class="sec-hd"><span class="secno">07- §7</span><h2>本周与下周逐日</h2></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>日期</th>
+<th>我</th>
+<th>你</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10-14（三）</td>
+<td>WP0：入口、选项、<code>Phase</code> 分派、键、FIR 类型 / 全局导出；WP2：线性式 / 界</td>
+<td>读 <code>06-</code> §0、§2、§12 与本文件；把探针按 README 落到 fork 里编译</td>
+</tr>
+<tr>
+<td>10-15（四）</td>
+<td>WP0：驱动 <code>run/export/solve/report/status</code>、<code>run.py csa</code>、<code>run.py testcase</code>；WP2：区间运算、合并</td>
+<td>跑 R1、R2，把输出发我；晚上挂 R3</td>
+</tr>
+<tr>
+<td>10-16（五）</td>
+<td><strong>交付 v0.1</strong> + 提交信息 + 验证命令</td>
+<td>点头决策（I1）、确认交付形态（I3）与人力（I7）；集成 v0.1</td>
+</tr>
+<tr>
+<td>10-19（一）</td>
+<td>按 R1–R3 修 v0.1；WP1 降级主体</td>
+<td>v0.1 在 TestCase 上三阶段跑通的结果发我</td>
+</tr>
+<tr>
+<td>10-20（二）</td>
+<td><strong>交付 v0.2</strong>（降级 + FIR 快照）</td>
+<td>集成；<strong>全量 cdb 只跑 export</strong>，发 <code>logs/export.log</code> 的失败统计与耗时</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section id="p-8"><div class="sec-hd"><span class="secno">07- §8</span><h2>风险</h2></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>风险</th>
+<th>早期信号</th>
+<th>应对</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>fork 与上游 14.0.6 的 API / 构建差异</td>
+<td>探针 R1 编译不过</td>
+<td>骨架在 W04′ 就进 fork；差异集中封装在入口文件</td>
+</tr>
+<tr>
+<td>降级覆盖不全（真实代码的构造比用例多）</td>
+<td>W05 全量 export 的 <code>unsupported_construct</code> 统计</td>
+<td>W05 就上全量 export（不等 G3）；按统计补降级规则</td>
+</tr>
+<tr>
+<td>solve 的内存 / 时间</td>
+<td>R3 的函数数、CFG 规模；W07 起的真实子集全流程</td>
+<td>X-07 分批；并行求解提前</td>
+</tr>
+<tr>
+<td>真实代码误报</td>
+<td>W07 起每周子集的告警量</td>
+<td>只报代码给出的界（F-12）；<code>ReportL2=false</code> 预案；账本原因统计指导补模型</td>
+</tr>
+<tr>
+<td>人力只有一个人</td>
+<td>W10 研判积压</td>
+<td>I7：补 0.5 人；G3 抽样数量按实际人力定</td>
+</tr>
+<tr>
+<td>bxen 对桩 TU 有时长 / 内存限制</td>
+<td>W06 第一次跨 TU solve</td>
+<td>换独立可执行 <code>oobsum-solve</code>（X-04 可选项）；再不行退回方案 A（X-08）</td>
+</tr>
+<tr>
+<td>我这边的上下文连续性（多次会话写一个代码库）</td>
+<td>——</td>
+<td>规格是契约（<code>06-</code>）；每个代码包带 CHANGELOG 与沙箱结果；关键文档写进 claude.ai 项目</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section id="p-9"><div class="sec-hd"><span class="secno">07- §9</span><h2>交付物与约定</h2></div>
+<p><strong>代码包</strong>（默认，I3 可改）：</p>
+<pre><code>oob-summary-v0.N/
+  BXPlugin/xir/llvm_ast/StaticAnalyzer/Checkers/OobSummaryChecker.cpp
+  BXPlugin/xir/llvm_ast/StaticAnalyzer/Checkers/OobSummary/{lower,core,config,tools}/…
+  BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/{CMakeLists.txt,src/,include/,EXPECTED.md}
+  patches/   Checkers.td 条目、两处 CMakeLists 追加行（apply.sh 幂等追加，也可手工）
+  sandbox/   插件构建脚本、core 单测
+  docs/      规则 README（csa-checker-dev 合并版模板）、CHANGELOG.md、本次沙箱结果
+  apply.sh   把 BXPlugin/ 下的文件覆盖到你的仓库根，并检查三处登记
+</code></pre>
+<ul>
+<li>每个包都是<strong>完整的</strong>（不是增量补丁），解压覆盖后 <code>git status</code> 就是这次的改动；配一份中文提交信息（<code>feat(rb.enhance.ipa.OobSummary): …</code>，<code>csa-checker-dev</code> 模板）。</li>
+<li>调研包（本包）继续单独维护：规格 / 计划的修订在这里，版本号沿 v3.x。</li>
+<li>每次交付的回复里写清：这次改了什么、在 fork 里怎么验（具体命令）、期望结果、沙箱实测结果。</li>
+</ul>
+</section>
+
+<div class="part" id="part-spec"><h2>规格说明（06-spec.md）</h2><p>全文。需求编号 F / I / D / A / X / N / T 与追溯矩阵（§11）一一对应。</p></div>
+<section id="s-0"><div class="sec-hd"><span class="secno">06- §0</span><h2>读法与约定</h2></div>
+<ul>
+<li><strong>需求编号</strong>：<code>F-</code> 功能、<code>I-</code> 接口、<code>D-</code> 数据、<code>A-</code> 算法、<code>X-</code> 跨 TU、<code>N-</code> 非功能、<code>T-</code> 测试。§11 的追溯矩阵把它们挂到 P0 条目、模块、用例与检查点。</li>
+<li><strong>用词</strong>：<strong>必须</strong>＝不满足不能交付；<strong>应</strong>＝默认要做，偏离要在提交信息里说明；<strong>可</strong>＝可选。</li>
+<li><strong>优先级</strong>：本文件只规定 P0（12-15 交付）。P1 / P2 的内容只在需要预留接口时提到，标 <code>[P1]</code> / <code>[2027]</code>。</li>
+<li><strong>与其它文件冲突时</strong>：实现以本文件为准；排期以 <code>07-</code> 为准；场景归属以 <code>04-</code> 为准。</li>
+</ul>
+<h3>0.1 本版新增的设计决策（详见 §12，需要你点头）</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>决策</th>
+<th>一句话理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>D5′</strong></td>
+<td>跨 TU 改为<strong>方案 B</strong>：一遍导出 → 离线求解 → 一遍出告警（替代 v3.7 建议的多轮扫描）</td>
+<td>有了 D9，B 的额外工作只剩序列化；B 的遍数固定为 2，与调用链跨多少文件无关；多轮的代价要看探针统计，B 没有这个不确定性</td>
+</tr>
+<tr>
+<td><strong>D9</strong></td>
+<td>引擎跑在自己的轻量中间表示 <strong>FIR</strong> 上，不直接跑 <code>clang::CFG</code></td>
+<td>引擎与 Clang 解耦：可单测、可离线求解、可直接喂给 AI；Clang 相关的复杂度集中在一处（降级）</td>
+</tr>
+<tr>
+<td><strong>D10</strong></td>
+<td>落盘用 <strong>JSON</strong>（<code>llvm::json</code>），查询库（SQLite）由 Python 驱动生成；<strong>C++ 侧不引入任何第三方库</strong></td>
+<td>不动 xir 的依赖；跨语言可读（<code>01-</code> R5）；多进程写不同文件、无锁</td>
+</tr>
+<tr>
+<td><strong>D11</strong></td>
+<td>checker 只挂 <strong><code>check::ASTDecl&lt;TranslationUnitDecl&gt;</code></strong>，不挂任何路径敏感回调</td>
+<td>沙箱实测：多挂一个空的 <code>EndOfTranslationUnit</code>，每个函数都会跑一遍 ExprEngine<span class="ev">实测数据</span></td>
+</tr>
+<tr>
+<td><strong>D12</strong></td>
+<td>告警报在<strong>汇合点的调用表达式</strong>上；跨文件的 trace 写进 note 文本</td>
+<td>CSA 的 note 只能指向本 TU 可见的文件，被调者在别的 <code>.c</code> 里时无法定位</td>
+</tr>
+<tr>
+<td><strong>D13</strong></td>
+<td>函数 / 全局用<strong>自定义键</strong>（外部链接用名字，内部链接带定义文件），不用 USR</td>
+<td>C 没有重载，名字即可；不依赖 <code>clangIndex</code>；头文件 static inline 可跨 TU 去重</td>
+</tr>
+<tr>
+<td><strong>D7</strong></td>
+<td>新 checker：<code>rb.enhance.ipa.OobSummary</code>（类 <code>OobSummaryChecker</code>）</td>
+<td>跨 TU 规则按 <code>csa-checker-dev</code> 约定须与你确认包；它不用 CSA 的 IPA，<code>ipa</code> 取值不影响它</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section id="s-1"><div class="sec-hd"><span class="secno">06- §1</span><h2>范围</h2></div>
+<h3>1.1 一句话</h3>
+<p>一个只做语法遍历的 CSA checker 把每个函数降成 FIR；一个与 Clang 无关的抽象解释引擎自底向上给每个函数算出越界摘要
+（前置条件 Req、效果 Eff、已判定 Rep、账本 Open），在调用点代换、逐层上传，在大小和访问都已知的那一层（汇合点）判定；
+判定出的越界按现有告警格式报出，只报现有规则看不到的（&gt; <code>inlineDepth</code> 层，CSA 盲区例外）。</p>
+<h3>1.2 P0 必须支持的场景（验收口径）</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>类别</th>
+<th>场景（<code>04-</code>）</th>
+<th>用例（<code>cases/</code>）</th>
+<th>要求</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>年内承诺</strong></td>
+<td>26 个：Lv1–Lv4 全部 + S5.1</td>
+<td>32 个用例：LV1-01…08、LV2-01…09、LV3-01…05、LV3-08…10、LV4-01…05、LV5-01、LV5-06，以及 LV3-07 的 TN</td>
+<td>TP 按期望级别报出（L1 / L2），TN 不报</td>
+</tr>
+<tr>
+<td><strong>年内尽力</strong></td>
+<td>7 个：S3.3、S3.8、S4.6、S5.3、S5.5、S6.1、S9.1</td>
+<td>9 个 TP：LV3-06、LV3-07(TP)、LV4-06、LV5-03、LV5-04、LV5-05、LV6-01、LV8-01、LV9-01</td>
+<td>统计报出率，不设门槛；<strong>不得因此误报</strong></td>
+</tr>
+<tr>
+<td><strong>其余</strong></td>
+<td>2027 / AI + 程序分析 / 不承诺</td>
+<td>其余用例的全部入口</td>
+<td><strong>期望为 <code>-</code> 或 <code>记账</code> 的入口一律不得报</strong>；<code>记账</code> 的应在账本里有对应原因</td>
+</tr>
+<tr>
+<td><strong>链长</strong></td>
+<td>合成直线链</td>
+<td>3 / 5 / 10 / 17 / 20 层变体（由 <code>cases/gen_chain.py</code> 生成，见 <code>07-</code>）</td>
+<td>全部报出；每条 &lt; 1 秒；≤ 2 层的不报</td>
+</tr>
+</tbody>
+</table></div>
+<h3>1.3 不做（P0）</h3>
+<p>C++；函数指针的指向分析（只做同函数内常量赋值，S9.1 尽力）；递归的 SCC 不动点（环上保守回退）；
+二维数组行级越界 #18 <code>[P1]</code>；<code>strcpy_s</code> 族的源串长度 <code>[2027]</code>（<code>destMax</code> 一半可在 P1 顺带）；
+字段级不变式、跨任务消息、AI 注入 <code>[2027]</code>；增量分析、CI 门禁 <code>[2027]</code>；路径解释（CSA 侧 <code>checkPreCall</code>）<code>[P1]</code>；
+S2 级（符号可疑）输出。</p>
+<h3>1.4 术语</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>术语</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FIR</strong></td>
+<td>Function IR：本引擎的函数级中间表示（§5.2），由 checker 从 Clang AST + CFG 降级得到，JSON 可序列化</td>
+</tr>
+<tr>
+<td><strong>接口符号</strong></td>
+<td>摘要里允许出现的符号：形参值 <code>p#i</code>、形参指向对象的剩余字节数 <code>ext(p#i)</code>、经形参可达的字段（深度 ≤ 2）<code>p#i-&gt;f</code>、全局 <code>g:K</code>（§5.3）</td>
+</tr>
+<tr>
+<td><strong>Req / Eff / Rep / Open</strong></td>
+<td>前置条件 / 效果 / 已判定的越界 / 账本（<code>05-</code> §1.1）</td>
+</tr>
+<tr>
+<td><strong>汇合点</strong></td>
+<td>访问侧条件与大小侧信息都已知、能判定的那个函数（调用点）</td>
+</tr>
+<tr>
+<td><strong>depth / effDepth</strong></td>
+<td>访问点到汇合点经过的调用层数 / 大小、偏移或长度经效果（返回值、出参、字段）向上传了几层；报告过滤用两者的最大值（§3.3）</td>
+</tr>
+<tr>
+<td><strong>L1 / L2</strong></td>
+<td>确定越界 / 可能越界（上界来自代码）（§3.2）</td>
+</tr>
+<tr>
+<td><strong>记账</strong></td>
+<td>判不了，不报，在账本里记一条带原因的记录（<code>01-</code> §3.12 的原因枚举）</td>
+</tr>
+<tr>
+<td><strong>TU id</strong></td>
+<td>主文件规范化绝对路径的 xxHash64（16 位十六进制），驱动与 checker 用同一规则算（§5.1）</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section id="s-2"><div class="sec-hd"><span class="secno">06- §2</span><h2>运行形态总览</h2></div>
+<pre><code>                    ① Phase=export（bxen 全量模式，按 TU 并行；只做语法遍历，不跑 ExprEngine）
+compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/&lt;tu&gt;.json   （每个 TU 一份 FIR + 全局声明）
+                                                         │
+                    ② solve（一次；bxen 跑一个桩 TU 的 Phase=solve，或独立命令 oobsum-solve）
+                                                         ▼
+                          读全部 FIR → 全局调用图 → SCC 逆拓扑序逐函数求摘要 → 调用点代换与判定
+                          ──▶ WorkDir/summaries/*.json、decisions/&lt;tu&gt;.json、ledger.jsonl、stats.json
+                                                         │
+                    ③ Phase=report（只对有判定的 TU，bxen 全量模式 + 过滤后的 cdb）
+                                                         ▼
+                          按 decisions/&lt;tu&gt;.json 发 BugReport ──▶ 与现有规则同格式的告警
+                    ④ oobsum.py sqlite（可选）：把 summaries / ledger / reports 灌进 SQLite，给查询与 AI 用
+
+  Phase=inline（默认值）：单个 TU 内一次做完 ①②③（跨 TU 的被调者视为未知）。
+  所以 csa-checker-dev 约定的&quot;单文件 bxen 命令&quot;不加任何参数就能跑同文件内的多层链。
+</code></pre>
+<p><strong>为什么从多轮扫描（方案 A）改成方案 B</strong><span class="ev">推断</span>：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th></th>
+<th>A：多轮 TU 扫描 + 工作表（v3.7 建议）</th>
+<th><strong>B：一遍导出 → 离线求解 → 一遍出告警（本版）</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>解析遍数</td>
+<td>轮数 ≈ 调用链上<strong>跨文件切换</strong>的次数；同一 TU 可能被重复解析多次</td>
+<td><strong>固定 2 遍</strong>（export 全量；report 只跑有告警的 TU）</td>
+</tr>
+<tr>
+<td>代价的不确定性</td>
+<td>取决于真实代码的调用图形态，要先量（探针 <code>probe_stats.py</code> 的"TU 分析总次数 / TU 数"）</td>
+<td>无</td>
+</tr>
+<tr>
+<td>新增基础设施</td>
+<td>每轮的导入文件、合并、工作表、跨轮去重</td>
+<td>FIR 序列化（<code>llvm::json</code>）、求解入口</td>
+</tr>
+<tr>
+<td>跨 TU 递归 / 调度</td>
+<td>按轮次近似</td>
+<td>全局 SCC，和同 TU 一样处理</td>
+</tr>
+<tr>
+<td>2027 增量分析</td>
+<td>每次都从解析开始</td>
+<td>只重导出改过的 TU、只重算受影响的 SCC</td>
+</tr>
+<tr>
+<td>给 AI / 查询（<code>05-</code> 方案 E、G）</td>
+<td>另行导出</td>
+<td>FIR + 摘要本身就是</td>
+</tr>
+</tbody>
+</table></div>
+<p>前提是 D9（引擎跑在 FIR 上）：两种方案共用同一个引擎，只是编排不同。A 保留为回退方案（§7 的 X-08），不在 P0 实现。</p>
+<hr />
+</section>
+<section id="s-3"><div class="sec-hd"><span class="secno">06- §3</span><h2>功能需求</h2></div>
+<h3>3.1 检测对象</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>访问形态</th>
+<th>生成的安全条件（字节）</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>F-01</strong></td>
+<td>数组下标读 / 写 <code>a[i]</code>、<code>p[i]</code>、<code>s.arr[i]</code>、<code>p-&gt;arr[i]</code>、<code>g.arr[i]</code></td>
+<td><code>off + size ≤ ext(base)</code>，且 <code>off ≥ 0</code></td>
+<td>结构体成员数组以<strong>成员</strong>为对象（子对象边界，<code>01-</code> §3.1 #2–#7、#11）</td>
+</tr>
+<tr>
+<td><strong>F-02</strong></td>
+<td>指针解引用 <code>*p</code>、<code>*(p + k)</code>、<code>p-&gt;f</code>（<code>p</code> 指向的对象可能比类型小）</td>
+<td><code>off(f) + sizeof(f) ≤ ext(p)</code></td>
+<td>覆盖"按大结构体访问小对象"（LV1-05、LV4-02）</td>
+</tr>
+<tr>
+<td><strong>F-03</strong></td>
+<td><code>memcpy_s</code> / <code>memmove_s(dest, destMax, src, count)</code></td>
+<td><code>destMax ≤ ext(dest)</code>；<code>count ≤ ext(src)</code></td>
+<td><code>count &gt; destMax</code> 运行时被拦，不算越界（<code>01-</code> §3.7.3）</td>
+</tr>
+<tr>
+<td><strong>F-04</strong></td>
+<td><code>memset_s(dest, destMax, c, count)</code></td>
+<td><code>destMax ≤ ext(dest)</code></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>F-05</strong></td>
+<td>libc <code>memcpy</code> / <code>memmove</code> / <code>memset</code></td>
+<td><code>n ≤ ext(dest)</code>；<code>n ≤ ext(src)</code></td>
+<td>代价很小，顺带支持</td>
+</tr>
+<tr>
+<td><strong>F-06</strong></td>
+<td>模型表里配置的其它访问函数（内部封装）</td>
+<td>按配置（§4.4）</td>
+<td>清单由你提供（<code>07-</code> 输入 I8）</td>
+</tr>
+<tr>
+<td><strong>F-07</strong></td>
+<td>循环里的访问</td>
+<td>下标取循环后的区间（阈值 widening + narrowing）</td>
+<td><strong>任何循环都必须产出结果</strong>，不得 unsupported</td>
+</tr>
+<tr>
+<td><strong>F-08</strong></td>
+<td>指向数组中间的指针再下标 <code>p = &amp;a[2]; p[j]</code>、<code>p = a + k; p[j]</code></td>
+<td>基址 <code>a</code>、偏移 <code>2·elem + j·elem</code></td>
+<td>CSA 盲区 #21：打 <code>csaBlindSpot</code>，不做层数过滤（<code>01-</code> §0.1）</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>ext(x)</code> 的含义与 <code>05-</code> §2.1 相同：从指针 <code>x</code> 往后还能访问的字节数（对象大小 − 偏移）。负偏移（<code>off &lt; 0</code>）同样是越界，按同一套级别判定。</p>
+<h3>3.2 判定与级别</h3>
+<p>在汇合点，对代换后的条件 <code>need ≤ have</code>（<code>need = off + size</code>，<code>have = ext(base)</code>）：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>结论</th>
+<th>判据</th>
+<th>去向</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>F-10</strong></td>
+<td><strong>Safe</strong></td>
+<td><code>need</code> 的上界 ≤ <code>have</code> 的下界（区间或经守卫蕴含，§6.5）</td>
+<td>丢弃</td>
+</tr>
+<tr>
+<td><strong>F-11</strong></td>
+<td><strong>L1</strong></td>
+<td><code>need</code> 的<strong>下界</strong> &gt; <code>have</code> 的上界（对所有取值都越界）</td>
+<td>报（Definite）</td>
+</tr>
+<tr>
+<td><strong>F-12</strong></td>
+<td><strong>L2</strong></td>
+<td>下界不越界、上界越界，<strong>且上界来自代码</strong>：校验、掩码、<code>%</code>、分支常量、循环界、被调者返回值范围、守卫</td>
+<td>报（Possible）</td>
+</tr>
+<tr>
+<td><strong>F-13</strong></td>
+<td><strong>上传</strong></td>
+<td>还含当前函数的接口符号</td>
+<td>代换成当前函数的 Req，<code>depth + 1</code></td>
+</tr>
+<tr>
+<td><strong>F-14</strong></td>
+<td><strong>记账</strong></td>
+<td>到入口仍含符号；或上界只来自类型范围（<code>UINT16</code> 的 65535）、widening 的 ∞、不透明非线性项、读自内存内容的无约束值</td>
+<td>不报；账本记原因</td>
+</tr>
+</tbody>
+</table></div>
+<p>上界的<strong>来源标签</strong>随值一起传播（§6.2），F-12 只认标签集合 ⊆ {<code>check</code>, <code>mask</code>, <code>branch</code>, <code>loop</code>, <code>ret</code>, <code>guard</code>, <code>const</code>} 的上界。
+<strong>F-15</strong>：<code>S2</code> 级（符号可疑）P0 不输出。<strong>F-16</strong>：<code>ReportL2=false</code> 时只报 L1（G3 的"精度不够先只出 L1"预案）。</p>
+<h3>3.3 只报现有规则看不到的（通道分工）</h3>
+<ul>
+<li><strong>F-20</strong>：每条判定带两个层数：<code>depth</code>（访问点到汇合点经过的调用边数）与 <code>effDepth</code>（判定用到的大小、偏移、长度里，经效果向上传得最远的层数）。
+  报告条件：<code>max(depth, effDepth) &gt; InlineDepth</code>（默认 2，取你们现有规则的 inline 上限，<code>07-</code> 输入 I6）。
+  理由：现有规则要 inline 到大小和访问<strong>两侧</strong>才能判，任何一侧超出 inline 深度它就看不到<span class="ev">推断</span>。</li>
+<li><strong>F-21</strong>：<code>csaBlindSpot</code> 的判定（F-08、二维数组字段 <code>[P1]</code>）<strong>不做层数过滤</strong>。</li>
+<li><strong>F-22</strong>：<code>EvalMode=true</code> 时不过滤，全报并在消息里带层数，用于和现有规则逐条对比（<code>03-</code> T1-5）。</li>
+</ul>
+<h3>3.4 告警内容</h3>
+<ul>
+<li><strong>F-30 位置</strong>：汇合点函数里<strong>那次调用的调用表达式</strong>（被判定的条件从这里进入）。<code>depth = 0</code>（只在 F-21 / F-22 时才会报）报在访问点本身。</li>
+<li><strong>F-31 BugType</strong>（英文，<code>csa-checker-dev</code> 约定；category 只用于展示）：
+  <code>"Out-of-bound access via call chain (definite)"</code>、<code>"Out-of-bound access via call chain (possible)"</code>，category <code>"Memory error"</code>。</li>
+<li><strong>F-32 消息</strong>（英文模板，<code>{}</code> 为占位）：</li>
+</ul>
+<p><code>L1: Definite out-of-bound {write|read} through a {N}-level call chain: up to byte {need} of {object} ({size} bytes) is accessed
+  L2: Possible out-of-bound {write|read} through a {N}-level call chain: up to byte {needHi} of {object} ({size} bytes) may be accessed; the bound comes from {source}</code></p>
+<p><code>{object}</code> 是汇合点处对象的描述：变量名（<code>'aucName'</code>）、成员路径（<code>'pstCtx-&gt;aucBuf'</code>，结构体名按 typedef 反查）、
+  堆对象（<code>heap object allocated at alm_top.c:42</code>）；<code>{size}</code>、<code>{need}</code> 可以是符号式（LV2-04：<code>4*ulNum+4</code> 对 <code>4*ulNum</code>）。
+* <strong>F-33 trace（note）</strong>：
+  ① 一条<strong>总链 note</strong>，锚在告警位置：<code>Call chain: Ue_Setup (ue_init.c:80) -&gt; Ue_InitTbl (ue_init.c:60) -&gt; Ue_InitOne (ue_tbl.c:40): write of 4 bytes at offset 16*ulIdx</code>；
+  ② 链上每一跳、访问点、大小来源（分配点）里<strong>位于本 TU 可见文件</strong>的，各一条 note 指向那一行；
+  ③ 不在本 TU 的只出现在 ① 的文本里（D12）。
+* <strong>F-34 指纹</strong>：<code>xxHash64("OobSummary|" + level + "|" + 汇合点函数键 + "|" + 访问函数键 + "|" + R/W + "|" + 访问序号 + "|" + 对象描述)</code>，
+  <strong>不含行号</strong>（<code>01-</code> §3.10）；访问序号＝该访问在其函数 FIR 里同类访问中的序号。同一指纹全工程只报一次。
+* <strong>F-35 确定性</strong>：同一 TU 的告警按（文件、行、列、指纹）排序后发出（<code>csa-checker-dev</code> 约定）。</p>
+<h3>3.5 账本与可查性</h3>
+<ul>
+<li><strong>F-40</strong>：每个函数的摘要都有 <code>status</code>：<code>analyzed</code>、<code>partial:&lt;原因&gt;</code>、<code>skipped:&lt;原因&gt;</code>（<code>01-</code> §3.4 全函数性）。<strong>"没分析"必须和"分析了没问题"可区分</strong>。</li>
+<li><strong>F-41</strong>：记账条目带原因（§5.3 的枚举）、位置、函数、明细；<code>stats.json</code> 按原因汇总，W10 起作为补模型、补能力的依据。</li>
+<li><strong>F-42</strong>：<code>oobsum.py explain &lt;指纹 | 函数名&gt;</code> 打印该告警 / 函数的逐层摘要与代换过程（用 <code>05-</code> §2.1 的记法），供误报研判。</li>
+</ul>
+<hr />
+</section>
+<section id="s-4"><div class="sec-hd"><span class="secno">06- §4</span><h2>外部接口</h2></div>
+<h3>4.1 注册（五处落点，<code>csa-checker-dev</code> 约定）</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>落点</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>源码</td>
+<td>入口 <code>xir/llvm_ast/StaticAnalyzer/Checkers/OobSummaryChecker.cpp</code>（平铺，与其它 checker 一致）；引擎在同级子目录 <code>OobSummary/</code>（文件清单见 §9.1）</td>
+</tr>
+<tr>
+<td>源码 CMakeLists</td>
+<td><code>add_library()</code> 末尾追加入口与 <code>OobSummary/...cpp</code>（<strong>I-01</strong>：子目录路径能否这样追加，由探针 R1 的编译验证，探针本身就是这个布局）</td>
+</tr>
+<tr>
+<td><code>Checkers.td</code></td>
+<td><code>let ParentPackage = RosaRBEnhanceIpa in { … }</code> 块末尾追加 <code>def OobSummaryChecker : Checker&lt;"OobSummary"&gt;</code>（D7 待确认）</td>
+</tr>
+<tr>
+<td>用例目录</td>
+<td><code>xir/llvm_ast/TestCase/OobSummaryChecker/</code>：<code>src/</code> 放由 <code>cases/</code> 生成的用例（带四块文件头）、<code>include/</code> 放公共头</td>
+</tr>
+<tr>
+<td>用例登记</td>
+<td><code>TestCase/CMakeLists.txt</code> 末尾 <code>add_subdirectory(OobSummaryChecker)</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>命名：类 / 文件 / <code>def</code> / <code>register…</code> 带 <code>Checker</code> 后缀；<code>Checker&lt;"OobSummary"&gt;</code> 与 <code>-checker=rb.enhance.ipa.OobSummary</code> 用短名。</p>
+<h3>4.2 选项（<code>CheckerOptions</code>，全部 <code>Released</code>）</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>选项</th>
+<th>类型</th>
+<th>默认</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>I-10</td>
+<td><code>Phase</code></td>
+<td>string</td>
+<td><code>inline</code></td>
+<td><code>inline</code> / <code>export</code> / <code>solve</code> / <code>report</code>（§7）</td>
+</tr>
+<tr>
+<td>I-11</td>
+<td><code>WorkDir</code></td>
+<td>string</td>
+<td><code>""</code></td>
+<td>工作目录（§4.5）。<code>export</code> / <code>solve</code> / <code>report</code> 必填</td>
+</tr>
+<tr>
+<td>I-12</td>
+<td><code>InlineDepth</code></td>
+<td>int</td>
+<td><code>2</code></td>
+<td>F-20 的阈值</td>
+</tr>
+<tr>
+<td>I-13</td>
+<td><code>EvalMode</code></td>
+<td>bool</td>
+<td><code>false</code></td>
+<td>F-22</td>
+</tr>
+<tr>
+<td>I-14</td>
+<td><code>ReportL2</code></td>
+<td>bool</td>
+<td><code>true</code></td>
+<td>F-16</td>
+</tr>
+<tr>
+<td>I-15</td>
+<td><code>ModelFile</code></td>
+<td>string</td>
+<td><code>""</code></td>
+<td>模型表（§4.4）；空则用内置的最小模型（安全函数族 + libc）</td>
+</tr>
+<tr>
+<td>I-16</td>
+<td><code>AllocConfig</code></td>
+<td>string</td>
+<td><code>""</code></td>
+<td>现有 <code>config.ini</code> 的路径（读 <code>MEM_ALLOC</code> / <code>MEM_FREE</code>）。显式传入，不依赖 fork 内部读 <code>-rbchecker-config</code> 的接口</td>
+</tr>
+<tr>
+<td>I-17</td>
+<td><code>AllocIdentity</code></td>
+<td>string</td>
+<td><code>""</code></td>
+<td><code>alloc_free_identity</code> 结果 JSON 的路径（数组或逐行 JSON 均可）</td>
+</tr>
+<tr>
+<td>I-18</td>
+<td><code>MaxBlocks</code></td>
+<td>int</td>
+<td><code>5000</code></td>
+<td>超过即 <code>skipped:cfg_too_large</code>（探针给出 P99 后再定）</td>
+</tr>
+<tr>
+<td>I-19</td>
+<td><code>TimeLimitMs</code></td>
+<td>int</td>
+<td><code>5000</code></td>
+<td>单函数求解时间上限，超时 <code>skipped:timeout</code></td>
+</tr>
+<tr>
+<td>I-20</td>
+<td><code>MaxConds</code></td>
+<td>int</td>
+<td><code>64</code></td>
+<td>单函数 Req 上限，超出按严重度保留、其余记账 <code>cond_truncated</code></td>
+</tr>
+<tr>
+<td>I-21</td>
+<td><code>Dump</code></td>
+<td>string</td>
+<td><code>""</code></td>
+<td>调试输出：<code>fir</code>、<code>summary</code>、<code>trace</code> 的逗号组合，打印到 stderr（规范记法）</td>
+</tr>
+<tr>
+<td>I-22</td>
+<td><code>FuncFilter</code></td>
+<td>string</td>
+<td><code>""</code></td>
+<td>只对名字匹配的函数打印调试输出（正则）</td>
+</tr>
+<tr>
+<td>I-23</td>
+<td><code>Verbose</code></td>
+<td>int</td>
+<td><code>0</code></td>
+<td><code>1</code>：每 TU 一行统计；<code>2</code>：每函数一行</td>
+</tr>
+</tbody>
+</table></div>
+<h3>4.3 运行命令</h3>
+<p><strong>单文件 / 单目录（Phase=inline，同 TU 内的多层链）</strong>——与 <code>csa-checker-dev</code> 的标准命令一致，只换 <code>-checker=</code>，ipa 包不加 <code>ipa=none</code>：</p>
+<pre><code class="language-bash">/usr1/BXPlugin/cmake-build-release-release/bxen \
+  -exec_mode=onlySa \
+  -cc_json=/usr1/BXPlugin/cmake-build-release-release/ \
+  -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/src/lv1_01_stat_enum_butt.c \
+  -checker=rb.enhance.ipa.OobSummary \
+  &quot;-extra_args=-analyzer-max-loop 3 -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini&quot;
+</code></pre>
+<p><strong>全量 / 跨 TU（export → solve → report）</strong>——用驱动，一条命令：</p>
+<pre><code class="language-bash">python3 /usr1/BXPlugin/xir/llvm_ast/StaticAnalyzer/Checkers/OobSummary/tools/oobsum.py run \
+  --bxen /usr1/BXPlugin/cmake-build-release-release/bxen \
+  --cc-json &lt;业务工程&gt;/compile_commands.json \
+  --work /usr1/oobsum-work \
+  --alloc-config /usr1/clang_check/src/cfg/ini/config.ini \
+  --rbchecker-config /usr1/clang_check/src/cfg/ini/config.ini \
+  --funcptr-config /usr1/clang_check/src/cfg/ini/config_funcptr.ini
+</code></pre>
+<p>驱动拼出的三条 bxen 命令会原样打印出来（可单独重跑），形如：</p>
+<pre><code class="language-bash"># ① export：全量，每个 TU 写 fir/&lt;tu&gt;.json
+bxen -exec_mode=onlySa -cc_json=&lt;业务工程&gt;/compile_commands.json -checker=rb.enhance.ipa.OobSummary \
+  &quot;-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:Phase=export -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work -rbchecker-config=... -funcptr-config=...&quot;
+# ② solve：驱动生成的桩 TU（WorkDir/solve_stub/），一次
+bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/solve_stub/ -analysis_file=/usr1/oobsum-work/solve_stub/stub.c -checker=rb.enhance.ipa.OobSummary \
+  &quot;-extra_args=-analyzer-config rb.enhance.ipa.OobSummary:Phase=solve -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work ...&quot;
+# ③ report：只含有判定的 TU 的 cdb（WorkDir/report_cdb/compile_commands.json）
+bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/report_cdb/compile_commands.json -checker=rb.enhance.ipa.OobSummary \
+  &quot;-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:Phase=report -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work ...&quot;
+</code></pre>
+<p><strong>I-30 驱动子命令</strong>（<code>oobsum.py</code>，Python 3.6+ 标准库）：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>子命令</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run</code></td>
+<td>依次 export → solve → report；<code>--from &lt;阶段&gt;</code> 断点续跑</td>
+</tr>
+<tr>
+<td><code>export</code> / <code>solve</code> / <code>report</code></td>
+<td>单独跑一个阶段</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>各阶段产物是否齐全、TU 失败清单、函数状态统计</td>
+</tr>
+<tr>
+<td><code>explain &lt;指纹 \| 函数名&gt;</code></td>
+<td>F-42</td>
+</tr>
+<tr>
+<td><code>stats</code></td>
+<td>打印 <code>stats.json</code>：告警按级别 / 层数、账本按原因、耗时</td>
+</tr>
+<tr>
+<td><code>sqlite</code></td>
+<td>生成 <code>WorkDir/oobsum.sqlite</code>（§4.6）</td>
+</tr>
+<tr>
+<td><code>check --cases &lt;cases 目录&gt;</code></td>
+<td>把结果与用例头里的 <code>@expect</code> 对照（验收用，§10）</td>
+</tr>
+</tbody>
+</table></div>
+<h3>4.4 配置</h3>
+<p><strong>I-40 模型表 <code>oob_models.yaml</code></strong>（<code>llvm::yaml</code> 读取；默认随代码放 <code>OobSummary/config/oob_models.yaml</code>）：</p>
+<pre><code class="language-yaml">allocators:                     # 底层分配器：只配最底层几个，封装函数由摘要推出（01- §3.7.1）
+  - { name: VOS_MemAlloc, result: ret, size: &quot;p2&quot;, maybe_null: true }   # 字节数是第几个形参：待你确认（07- 输入 I5）
+  - { name: malloc,       result: ret, size: &quot;p0&quot;, maybe_null: true }
+  - { name: calloc,       result: ret, size: &quot;p0*p1&quot;, maybe_null: true }
+access:                         # 访问类函数：安全条件按字节
+  - { name: memcpy_s,  conds: [ { base: p0, bytes: &quot;p1&quot;, kind: W }, { base: p2, bytes: &quot;p3&quot;, kind: R } ] }
+  - { name: memmove_s, conds: [ { base: p0, bytes: &quot;p1&quot;, kind: W }, { base: p2, bytes: &quot;p3&quot;, kind: R } ] }
+  - { name: memset_s,  conds: [ { base: p0, bytes: &quot;p1&quot;, kind: W } ] }
+  - { name: memcpy,    conds: [ { base: p0, bytes: &quot;p2&quot;, kind: W }, { base: p1, bytes: &quot;p2&quot;, kind: R } ] }
+  - { name: memset,    conds: [ { base: p0, bytes: &quot;p2&quot;, kind: W } ] }
+pure:                           # 不改任何被跟踪内存、返回值无约束的函数（日志、打点）
+  names:    [ LOG_Print, VOS_Printf ]
+  patterns: [ &quot;^LOG_&quot;, &quot;^DIAG_&quot;, &quot;_Trace$&quot; ]           # 正则；清单由你补（07- 输入 I9）
+</code></pre>
+<ul>
+<li><strong>I-41</strong> <code>size</code> / <code>bytes</code> 是形参的线性式或乘积（<code>p0*p1</code>），解析成与摘要相同的表达式。</li>
+<li><strong>I-42</strong> <code>AllocConfig</code>：只读 <code>MEM_ALLOC=&lt;名字&gt;,&lt;下标&gt;</code>（<code>-1</code> 为返回值，其余为出参）；<code>MEM_FREE</code> 读入但 P0 不用。<strong>不新增 <code>config.ini</code> 的键</strong>（v3.7 设想的 <code>MEM_ALLOC_SIZE</code> 改放模型表，免得动现有解析器）。</li>
+<li><strong>I-43</strong> <code>AllocIdentity</code>：读 <code>func_name</code>、<code>func_type</code>、<code>para</code>、<code>offset</code>、<code>inner_wrapped_func</code>。函数体在分析范围内时<strong>以摘要推导为准</strong>，JSON 只做交叉校验（不一致写一条日志）；函数体不在范围内时当作分配器、大小记为未知（<code>01-</code> §3.7.2）。</li>
+<li><strong>I-44</strong> 同名冲突：模型表 &gt; <code>AllocConfig</code> &gt; <code>AllocIdentity</code> &gt; 摘要推导；函数体可见且模型表没配的，一律用摘要。</li>
+</ul>
+<h3>4.5 工作目录</h3>
+<pre><code>WorkDir/
+  fir/&lt;tu&gt;.json            ① 每个 TU 一份（原子写：先写 .tmp 再改名）
+  solve_stub/              ② 驱动生成：stub.c + compile_commands.json
+  summaries/&lt;00..ff&gt;.json  ② 按函数键哈希分 256 片
+  decisions/&lt;tu&gt;.json      ② 汇合点所在 TU 的判定（③ 读它发告警）
+  reports.json             ② 全部判定（含被层数过滤掉的，带 filtered 标记）
+  ledger.jsonl             ② 账本，一行一条
+  stats.json               ② 汇总
+  report_cdb/compile_commands.json   ③ 驱动生成
+  logs/                    各阶段 bxen 的输出
+  oobsum.sqlite            ④ 可选
+</code></pre>
+<h3>4.6 查询库（SQLite，驱动生成，供 <code>05-</code> 方案 E 与 AI 使用）</h3>
+<p>表结构即 <code>05-</code> §2.2 的 <code>summaries / reqs / effs / opens / reports</code> 五张表，外加 <code>funcs(fn_key, name, tu, file, line, status)</code> 与
+<code>calls(caller, callee, site_file, site_line, kind)</code>。由 <code>oobsum.py sqlite</code> 从 JSON 灌入；C++ 侧不读写 SQLite（D10）。</p>
+<hr />
+</section>
+<section id="s-5"><div class="sec-hd"><span class="secno">06- §5</span><h2>数据规格</h2></div>
+<h3>5.1 键与位置（D13）</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>对象</th>
+<th>键</th>
+<th>例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D-01</td>
+<td>外部链接函数</td>
+<td><code>F:&lt;名字&gt;</code></td>
+<td><code>F:Ue_InitOne</code></td>
+</tr>
+<tr>
+<td>D-02</td>
+<td>内部链接函数（<code>static</code>）</td>
+<td><code>F@&lt;定义文件 id&gt;:&lt;名字&gt;</code>；定义在头文件里的再加 <code>#&lt;FIR 哈希前 8 位&gt;</code></td>
+<td><code>F@3fa1…:Ue_Fill</code>、<code>F@9c02…:Pub_Min#a1b2c3d4</code></td>
+</tr>
+<tr>
+<td>D-03</td>
+<td>外部链接全局</td>
+<td><code>G:&lt;名字&gt;</code></td>
+<td><code>G:g_astCellCtx</code></td>
+</tr>
+<tr>
+<td>D-04</td>
+<td>内部链接全局 / 函数内 <code>static</code></td>
+<td><code>G@&lt;定义文件 id&gt;:&lt;名字&gt;</code> / <code>S@&lt;函数键&gt;:&lt;名字&gt;</code></td>
+<td></td>
+</tr>
+<tr>
+<td>D-05</td>
+<td>文件 id、TU id</td>
+<td>规范化绝对路径（<code>make_absolute</code> + <code>remove_dots</code>）的 xxHash64，16 位小写十六进制</td>
+<td>探针已按此实现<span class="ev">实测数据</span></td>
+</tr>
+<tr>
+<td>D-06</td>
+<td>位置</td>
+<td><code>[文件, 行, 列]</code>，取宏展开位置；JSON 里文件写路径，FIR 内部用下标</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>D-07 同名外部函数有多个定义</strong>（同一个 cdb 里有多个产品 / 二进制）：调用方解析时取<strong>与调用方 TU 公共目录前缀最长</strong>的那个定义；
+  仍并列的，记账 <code>ambiguous_callee</code>、不代换。探针 <code>probe_stats.py</code> 会给出这类名字有多少（<code>07-</code> 输入 I2）。</li>
+<li><strong>D-08</strong> 头文件里的 <code>static inline</code> 各 TU 一份；FIR 哈希相同的只求解一次。</li>
+</ul>
+<h3>5.2 FIR（<code>oobsum-fir/1</code>）</h3>
+<p>FIR 是"能决定越界的最少信息"：类型只留大小与字段布局，表达式只留整数 / 指针运算，访问都显式化。<strong>引擎只看 FIR，不看 Clang</strong>（D9）。</p>
+<pre><code class="language-json">{ &quot;schema&quot;: &quot;oobsum-fir/1&quot;, &quot;tu&quot;: &quot;abe9fde904012438&quot;, &quot;file&quot;: &quot;/src/ue/ue_init.c&quot;,
+  &quot;target&quot;: { &quot;triple&quot;: &quot;aarch64_be-unknown-linux-gnu&quot;, &quot;ptr&quot;: 4, &quot;long&quot;: 4, &quot;big_endian&quot;: true },
+  &quot;files&quot;: [ &quot;/src/ue/ue_init.c&quot;, &quot;/src/inc/ue.h&quot; ],
+  &quot;records&quot;: [ { &quot;id&quot;: 0, &quot;name&quot;: &quot;UE_TBL_S&quot;, &quot;size&quot;: 16,
+                 &quot;fields&quot;: [ { &quot;name&quot;: &quot;ulId&quot;, &quot;off&quot;: 0, &quot;t&quot;: { &quot;k&quot;: &quot;int&quot;, &quot;w&quot;: 32, &quot;s&quot;: false } },
+                             { &quot;name&quot;: &quot;aucData&quot;, &quot;off&quot;: 4, &quot;t&quot;: { &quot;k&quot;: &quot;arr&quot;, &quot;n&quot;: 12, &quot;elem&quot;: { &quot;k&quot;: &quot;int&quot;, &quot;w&quot;: 8, &quot;s&quot;: false } } } ] } ],
+  &quot;globals&quot;: [ { &quot;key&quot;: &quot;G:g_ulUeNum&quot;, &quot;name&quot;: &quot;g_ulUeNum&quot;, &quot;def&quot;: true, &quot;t&quot;: { &quot;k&quot;: &quot;int&quot;, &quot;w&quot;: 32, &quot;s&quot;: false }, &quot;loc&quot;: [0, 12, 8] } ],
+  &quot;funcs&quot;: [ { &quot;key&quot;: &quot;F:Ue_InitOne&quot;, &quot;name&quot;: &quot;Ue_InitOne&quot;, &quot;ext&quot;: true, &quot;loc&quot;: [0, 40, 6],
+               &quot;ret&quot;: { &quot;k&quot;: &quot;void&quot; },
+               &quot;locals&quot;: [ { &quot;id&quot;: 0, &quot;name&quot;: &quot;pstTbl&quot;, &quot;param&quot;: 0, &quot;t&quot;: { &quot;k&quot;: &quot;ptr&quot;, &quot;to&quot;: { &quot;k&quot;: &quot;rec&quot;, &quot;id&quot;: 0 } } },
+                           { &quot;id&quot;: 1, &quot;name&quot;: &quot;ulIdx&quot;,  &quot;param&quot;: 1, &quot;t&quot;: { &quot;k&quot;: &quot;int&quot;, &quot;w&quot;: 32, &quot;s&quot;: false } } ],
+               &quot;entry&quot;: 2, &quot;exit&quot;: 0,
+               &quot;blocks&quot;: [ { &quot;id&quot;: 2, &quot;insts&quot;: [
+                   { &quot;op&quot;: &quot;store&quot;, &quot;addr&quot;: [&quot;padd&quot;, [&quot;l&quot;, 0], [&quot;bin&quot;, &quot;mul&quot;, [&quot;l&quot;, 1], [&quot;c&quot;, 16]]], &quot;size&quot;: 4, &quot;val&quot;: [&quot;c&quot;, 0], &quot;loc&quot;: [0, 42, 5] } ],
+                 &quot;succ&quot;: [ { &quot;to&quot;: 0 } ] },
+                 { &quot;id&quot;: 0, &quot;insts&quot;: [], &quot;succ&quot;: [] } ] } ] }
+</code></pre>
+<p><strong>D-10 类型</strong> <code>t</code>：<code>{k:int,w,s}</code>、<code>{k:ptr,to}</code>、<code>{k:arr,n|null,elem}</code>（<code>n</code> 为 null 即柔性 / 不完整）、<code>{k:rec,id}</code>、<code>{k:void}</code>、<code>{k:other,size}</code>。
+记录类型放模块级 <code>records</code> 表，字段带字节偏移（<strong>按被分析 TU 自己的目标 ABI 算</strong>，即 ILP32 与否以 cdb / fork 为准，§5.4）。</p>
+<p><strong>D-11 局部</strong>：形参也是局部（带 <code>param</code> 下标），入口处的值是接口符号；<code>obj: true</code> 表示是内存对象（数组、结构体、取过地址的标量），
+对它的读写一律走 <code>load</code> / <code>store</code>；其余标量走 <code>set</code>。降级产生的临时值是 <code>tmp: true</code> 的局部，<strong>永远不进摘要</strong>。</p>
+<p><strong>D-12 指令</strong>（每条带 <code>loc</code>）：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th><code>op</code></th>
+<th>字段</th>
+<th>语义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>set</code></td>
+<td><code>dst</code>, <code>val</code></td>
+<td>标量赋值</td>
+</tr>
+<tr>
+<td><code>load</code></td>
+<td><code>dst</code>, <code>addr</code>, <code>size</code></td>
+<td>读 <code>size</code> 字节（同时是一次 <strong>R</strong> 访问）</td>
+</tr>
+<tr>
+<td><code>store</code></td>
+<td><code>addr</code>, <code>size</code>, <code>val</code>（可为 null）</td>
+<td>写（同时是一次 <strong>W</strong> 访问）</td>
+</tr>
+<tr>
+<td><code>call</code></td>
+<td><code>dst</code>（可无）, <code>callee</code>（函数键或 <code>["ind", E]</code>）, <code>args</code>, <code>ord</code>（调用点序号）</td>
+<td>调用（安全函数等访问类函数的条件由模型表给出）</td>
+</tr>
+<tr>
+<td><code>havoc</code></td>
+<td><code>dst</code>, <code>why</code></td>
+<td>值未知（内联汇编、不支持的构造），<code>why</code> 进账本</td>
+</tr>
+<tr>
+<td><code>ret</code></td>
+<td><code>val</code>（可为 null）</td>
+<td>返回值；其后一条边到 <code>exit</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>D-13 表达式</strong>（纯，无副作用；副作用已被 CFG 线性化成前面的指令）：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>形式</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>["c", v]</code></td>
+<td>整数常量（含 <code>sizeof</code>、枚举、宏展开后的常量）</td>
+</tr>
+<tr>
+<td><code>["l", id]</code></td>
+<td>局部的当前值</td>
+</tr>
+<tr>
+<td><code>["bin", op, a, b, w, s]</code></td>
+<td><code>add sub mul div rem shl shr and or xor</code>，结果宽度 / 有无符号</td>
+</tr>
+<tr>
+<td><code>["cmp", op, a, b, s]</code> / <code>["lnot", a]</code> / <code>["neg", a]</code> / <code>["bnot", a]</code></td>
+<td>比较与一元运算</td>
+</tr>
+<tr>
+<td><code>["cast", w, s, a]</code></td>
+<td>整数转换（截断 / 扩展）</td>
+</tr>
+<tr>
+<td><code>["laddr", id]</code> / <code>["gaddr", key]</code> / <code>["str", len]</code> / <code>["faddr", key]</code></td>
+<td>局部对象、全局对象、字符串字面量（对象 <code>len + 1</code> 字节）、函数的地址</td>
+</tr>
+<tr>
+<td><code>["padd", P, E]</code></td>
+<td>指针加<strong>字节</strong>偏移（下标乘元素大小在降级时完成；指针类型转换在 FIR 里不存在）</td>
+</tr>
+<tr>
+<td><code>["fld", P, off, size, name]</code></td>
+<td>取<strong>数组成员</strong>的地址：偏移 <code>off</code>，并把可访问范围收窄到这个成员（子对象边界，F-01）</td>
+</tr>
+<tr>
+<td><code>["psub", P1, P2, elem]</code></td>
+<td>指针相减（元素数）</td>
+</tr>
+<tr>
+<td><code>["unk", why]</code></td>
+<td>未知值</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>D-14 边</strong>：<code>succ: [{to, assume?}]</code>。<code>if</code> / 循环条件降成两条边上的 <code>assume E</code> / <code>assume ["lnot", E]</code>；<code>switch</code> 降成每个 <code>case</code> 一条
+<code>assume x == c</code> 与 <code>default</code> 一条（<code>case</code> 超过 16 个时 <code>default</code> 不带 assume）。<code>&amp;&amp;</code>、<code>||</code>、<code>?:</code> 由 Clang CFG 拆好，
+<code>?:</code> 的结果在两个前驱块末尾各补一条 <code>set tmp</code>（<strong>A-04</strong>）。</p>
+<h3>5.3 摘要（<code>oobsum-summary/1</code>）</h3>
+<p><strong>D-20 接口符号</strong>：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>符号</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>p#i</code></td>
+<td>第 i 个形参在入口处的值（整数，或指针的"值"本身，用于判空 / 比较）</td>
+</tr>
+<tr>
+<td><code>ext(p#i)</code></td>
+<td>形参指针所指对象的剩余字节数</td>
+</tr>
+<tr>
+<td><code>p#i-&gt;o:s</code>、<code>p#i-&gt;o1-&gt;o2:s</code></td>
+<td>经形参可达的字段在入口处的值（偏移 <code>o</code>、大小 <code>s</code>；最多两次解引用）；打印时带字段名，如 <code>p#0-&gt;ulLen</code></td>
+</tr>
+<tr>
+<td><code>ext(&lt;指针符号&gt;)</code></td>
+<td>任一指针型符号（字段、全局指针）所指对象的剩余字节数</td>
+</tr>
+<tr>
+<td><code>g:K</code>、<code>ext(g:K)</code>、<code>size(g:K)</code></td>
+<td>全局在入口处的值；全局指针的剩余字节数；不完整类型全局的大小（求解时由定义所在 TU 给出）</td>
+</tr>
+<tr>
+<td><code>&lt;op …&gt;</code></td>
+<td>不透明项：<code>&lt;mul p#1 p#2&gt;</code>、<code>&lt;div p#1 32&gt;</code>、<code>&lt;wrap32 p#1-1&gt;</code>；代换后变成常数才参与判定</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>D-21 线性式</strong> <code>LE</code>：<code>{"c": 常数, "t": [[系数, 符号], …], "o": [不透明项…], "txt": "16*p#1 + 4"}</code>；系数、常数为 64 位有符号整数，
+溢出即整式降为不透明项。<strong>D-22 界</strong> <code>B</code>：<code>LE</code>、<code>"+inf"</code>、<code>"-inf"</code>，带来源标签 <code>src</code>（§6.2）。</p>
+<p><strong>D-23 函数摘要</strong>：</p>
+<pre><code class="language-json">{ &quot;key&quot;: &quot;F:Ue_InitTbl&quot;, &quot;name&quot;: &quot;Ue_InitTbl&quot;, &quot;tu&quot;: &quot;…&quot;, &quot;status&quot;: &quot;analyzed&quot;,
+  &quot;reqs&quot;: [ { &quot;id&quot;: 1, &quot;kind&quot;: &quot;W&quot;, &quot;obj&quot;: &quot;p#0&quot;, &quot;have&quot;: { &quot;c&quot;: 0, &quot;t&quot;: [[1, &quot;ext(p#0)&quot;]] },
+              &quot;lo&quot;: { &quot;c&quot;: 0 }, &quot;hi&quot;: { &quot;c&quot;: -16, &quot;t&quot;: [[16, &quot;p#1&quot;]] }, &quot;size&quot;: { &quot;c&quot;: 4 }, &quot;hi_src&quot;: [&quot;loop&quot;],
+              &quot;guard&quot;: [ { &quot;c&quot;: 1, &quot;t&quot;: [[-1, &quot;p#1&quot;]] } ],
+              &quot;access&quot;: { &quot;fn&quot;: &quot;F:Ue_InitOne&quot;, &quot;loc&quot;: [&quot;ue_tbl.c&quot;, 42, 5], &quot;ord&quot;: 0 },
+              &quot;path&quot;: [ { &quot;fn&quot;: &quot;F:Ue_InitTbl&quot;, &quot;site&quot;: [&quot;ue_init.c&quot;, 61, 9] } ],
+              &quot;depth&quot;: 1, &quot;eff_depth&quot;: 0, &quot;blind&quot;: false,
+              &quot;txt&quot;: &quot;p#1 &gt;= 1 =&gt; W4 @ p#0 + [0, 16*p#1-16]   need 16*p#1-12 &lt;= ext(p#0)&quot; } ],
+  &quot;effs&quot;: [], &quot;reps&quot;: [], &quot;opens&quot;: [],
+  &quot;stats&quot;: { &quot;blocks&quot;: 9, &quot;iters&quot;: 14, &quot;ms&quot;: 0.4 } }
+</code></pre>
+<ul>
+<li>条件统一写成 <code>lo + size ≤ have</code> 与 <code>hi + size ≤ have</code>（再加 <code>lo ≥ 0</code>）：<code>have</code> 是对象剩余字节数，可以是常数（数组在被调者里，偏移来自形参，LV1-01）、
+  <code>ext(符号)</code> 或 <code>size(g:K)</code>；<code>obj</code> 只用于描述对象。<code>guard</code> 是若干个 <code>LE ≤ 0</code> 的合取（例中 <code>1 − p#1 ≤ 0</code>，即 <code>p#1 ≥ 1</code>）。</li>
+<li><strong>D-24 效果</strong> <code>effs[].k</code>：<code>ret_new</code>（<code>size</code>、<code>off</code>、<code>maybe_null</code>、<code>eff_depth</code>）、<code>ret_ptr</code>（返回指向形参 / 全局对象内部的指针：<code>base</code>、<code>off</code>）、
+  <code>ret_int</code>（<code>lo</code>、<code>hi</code>、<code>src</code>）、<code>ret_cond</code>（<code>ret == c ⇒ atoms</code>，最多 4 条，校验函数 S4.6）、<code>out_new</code> / <code>out_int</code>（<code>*p#i</code> 或其字段）、
+  <code>field</code>（<code>p#i-&gt;…</code> 被写成什么）、<code>global</code>（被写的全局，P0 只记录）、<code>invalidate</code>（经形参按类型失效）。</li>
+<li><strong>D-25 已判定</strong> <code>reps[]</code> 与 <strong>D-26 告警记录</strong>（<code>reports.json</code>）：
+  <code>{fp, level, filtered, decision_fn, decision_tu, site, access{fn,loc,kind,size,ord}, object, size_txt, need_txt, depth, eff_depth, blind, bound_src, chain[{fn,loc}], size_origin[{fn,loc}], msg}</code>。</li>
+<li><strong>D-27 账本</strong> <code>opens[]</code> / <code>ledger.jsonl</code>：<code>{reason, fn, loc, detail}</code>。<code>reason</code> 取值：
+  <code>01-</code> §3.12 的 16 类（<code>fptr</code>、<code>unknown_callee</code>、<code>recursion</code>、<code>msg_edge</code>、<code>global_value</code>、<code>global_ptr_target</code>、<code>field_written_by_callee</code>、
+  <code>alloc_size_unknown</code>、<code>flexible_array</code>、<code>struct_overlay</code>、<code>pointer_stepping</code>、<code>string_length</code>、<code>nonlinear</code>、<code>type_range_only</code>、<code>entry_unproven</code>、<code>cond_truncated</code>）
+  加运行类 10 个：<code>ambiguous_callee</code>、<code>not_exported</code>（被调者不在 cdb 里）、<code>not_in_tu</code>（inline 模式下的跨 TU 被调者）、<code>cfg_too_large</code>、<code>timeout</code>、
+  <code>iter_limit</code>、<code>unsupported_construct</code>、<code>struct_by_value</code>、<code>inline_asm</code>、<code>imprecise_join</code>（两个不可比的符号界合并后丢失）。</li>
+<li><strong>D-28 状态</strong> <code>status</code>：<code>analyzed</code>；<code>partial:iter_limit|cond_truncated</code>；<code>skipped:cfg_too_large|timeout|no_body</code>。</li>
+</ul>
+<p><strong>D-29 规范文本记法</strong>：<code>Dump=summary</code> 与 <code>oobsum.py explain</code> 都用 <code>05-</code> §2.1 的记法输出（<code>req R1 W4 @ p#0 + 16*p#1   需 16*p#1+4 &lt;= ext(p#0)</code>），
+与用例文件头的"摘要"块同形，便于人工对照（T-06 的快照测试也比这个文本）。</p>
+<h3>5.4 大小与布局（ExtentModel 的 P0 部分）</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>对象</th>
+<th>大小来源</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D-30</td>
+<td>局部 / static / 全局数组、结构体（含无初始化器）</td>
+<td><code>ASTContext</code> 的类型大小</td>
+<td><code>01-</code> §3.1 #1–#8</td>
+</tr>
+<tr>
+<td>D-31</td>
+<td>数组成员（含嵌套、结构体数组元素的成员、形参结构体指针的成员）</td>
+<td>成员类型大小；访问以成员为界（<code>fld</code>）</td>
+<td>#2–#7、#11</td>
+</tr>
+<tr>
+<td>D-32</td>
+<td>形参指针</td>
+<td>符号 <code>ext(p#i)</code></td>
+<td>#10</td>
+</tr>
+<tr>
+<td>D-33</td>
+<td>分配器 / 封装分配器的返回值、出参</td>
+<td>模型表的 <code>size</code> 代入实参；封装函数由 <code>ret_new</code> 效果逐层推出</td>
+<td>#12、#13、#15、#20</td>
+</tr>
+<tr>
+<td>D-34</td>
+<td><code>extern</code> 全局</td>
+<td>求解时取定义所在 TU 的大小；全工程都没有定义的 → 未知</td>
+<td>#9</td>
+</tr>
+<tr>
+<td>D-35</td>
+<td>字符串字面量</td>
+<td>长度 + 1</td>
+<td>#19</td>
+</tr>
+<tr>
+<td>D-36</td>
+<td>VLA</td>
+<td>符号或区间</td>
+<td>#16</td>
+</tr>
+<tr>
+<td>D-37</td>
+<td>柔性数组成员 <code>[]</code>、<code>[0]</code>、末尾 <code>[1]</code></td>
+<td><strong>不按成员收窄</strong>：以整个对象为界；对象大小未知时记账 <code>flexible_array</code></td>
+<td>#17；P0 对末尾 <code>[1]</code> 一律按柔性处理，宁可漏报不误报</td>
+</tr>
+<tr>
+<td>D-38</td>
+<td>指向数组中间的指针</td>
+<td>基址 + 偏移，不读 ExprEngine 的地址</td>
+<td>#21，<code>csaBlindSpot</code></td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>D-39</strong> 字节布局取被分析 TU 的 <code>ASTContext</code>：fork 按 ILP32 分析业务代码时（探针 R2 的 <code>ptr=4</code>）布局即真实布局；
+  若是 <code>ptr=8</code>，含指针 / <code>long</code> 的结构体偏移会与真实不同，<strong>数组下标与元素个数之比不受影响</strong>，影响面在 <code>03-</code> T0-1c 已列出。</li>
+</ul>
+<hr />
+</section>
+<section id="s-6"><div class="sec-hd"><span class="secno">06- §6</span><h2>算法规格</h2></div>
+<h3>6.1 降级：Clang → FIR（<code>lower/</code>，只有这一层碰 Clang）</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>规则</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A-01</strong></td>
+<td>CFG 用 <code>AnalysisManager::getCFG(fd)</code>（与 CSA 同一份）。按块号、块内元素顺序降级；每个子表达式的值按 <code>Stmt*</code> 记忆，纯子表达式内联成 <code>Expr</code> 树，有副作用的（调用、赋值、<code>++</code>）生成指令并落到临时局部</td>
+</tr>
+<tr>
+<td><strong>A-02</strong></td>
+<td>左值降成地址表达式：局部对象 → <code>laddr</code>；全局 → <code>gaddr</code>；<code>a[i]</code> → <code>padd(基址, i × 元素大小)</code>；数组成员（<code>.</code> / <code>-&gt;</code>）→ <code>fld</code>；标量成员 → <code>padd(基址, 偏移)</code>；<code>*p</code> → <code>p</code>；字符串字面量 → <code>str</code></td>
+</tr>
+<tr>
+<td><strong>A-03</strong></td>
+<td>右值：未取过地址的标量局部 → <code>["l", id]</code>；其余左值转右值 → <code>load</code>（同时是一次 R 访问）；整数转换 → <code>cast</code>；<strong>指针类型转换在 FIR 里消失</strong>（偏移都按字节）；数组退化 → 首元素地址；<code>sizeof</code> / 枚举 / 常量表达式 → <code>EvaluateAsInt</code> 成常数；浮点 → <code>unk</code></td>
+</tr>
+<tr>
+<td><strong>A-04</strong></td>
+<td><code>?:</code>、<code>&amp;&amp;</code>、<code>||</code> 作为值使用时，在两个前驱块末尾补 <code>set tmp</code>，汇合块引用 <code>tmp</code></td>
+</tr>
+<tr>
+<td><strong>A-05</strong></td>
+<td>调用：直接调用 → 函数键；<code>__builtin_memcpy</code> 等映射到 libc 名；<code>__builtin_expect(x, c)</code> → <code>x</code>；间接调用 → <code>["ind", E]</code></td>
+</tr>
+<tr>
+<td><strong>A-06</strong></td>
+<td>结构体整体赋值 <code>a = b</code> → 一次 <code>call __oobsum_copy(&amp;a, &amp;b, sizeof)</code>（内置访问模型：W / R 各 <code>sizeof</code> 字节）；结构体按值传参 → 实参 <code>unk(struct_by_value)</code></td>
+</tr>
+<tr>
+<td><strong>A-07</strong></td>
+<td>下标访问在 <code>load</code> / <code>store</code> 上带 <code>sub: true</code>；引擎据此识别 F-08 的盲区形态（指针来自 <code>&amp;a[k]</code> / <code>a + k</code>、再用非常量下标）</td>
+</tr>
+<tr>
+<td><strong>A-08</strong></td>
+<td>不认识的构造 → <code>havoc</code> 或 <code>unk</code>，带原因；<strong>函数照样导出</strong>（全函数性）</td>
+</tr>
+<tr>
+<td><strong>A-09</strong></td>
+<td>块数 &gt; <code>MaxBlocks</code> 的函数只导出签名与 <code>flags: ["cfg_too_large"]</code>，求解时 <code>skipped:cfg_too_large</code></td>
+</tr>
+</tbody>
+</table></div>
+<h3>6.2 抽象域（<code>core/</code>，不依赖 Clang）</h3>
+<ul>
+<li><strong>A-10 整数值</strong> <code>AbsInt = [lo, hi]</code>，<code>lo</code> / <code>hi</code> 是 <strong>界</strong>：<code>LE</code>（接口符号的线性式 + 不透明项）、<code>min(c, LE)</code> / <code>max(c, LE)</code>、<code>±∞</code>。
+  每个界带<strong>来源标签</strong>集合 <code>src ⊆ {const, check, mask, branch, loop, ret, guard, type, widen, data, unknown}</code>（F-12 用）；另带 <code>via</code>（经效果传了几层，饱和于 255）。</li>
+<li><strong>A-11 指针值</strong> <code>PtrVal = (base, off: AbsInt 字节, maybeNull, via)</code>。<code>base</code> 种类：<code>Param(i)</code>、<code>ParamField(i, path)</code>、<code>Global(K)</code>、<code>GlobalPtr(K)</code>、<code>Local(id)</code>、
+  <code>Sub(父, 偏移, 大小, 名字)</code>（数组成员子对象）、<code>Alloc(调用点, size: LE)</code>、<code>Str(len)</code>、<code>Ret(调用点)</code>（大小未知）、<code>Func(K)</code>、<code>Unknown(原因)</code>。
+  <code>have(PtrVal)</code> = <code>size(base) − off</code>，其中 <code>size(Param(i)) := ext(p#i)</code> 并约定 <code>off</code> 相对形参指针。</li>
+<li><strong>A-12 内存格</strong> <code>cells: (base, 常量偏移, 大小) → 值</code>。形参可达的格第一次读到时取初值符号 <code>p#i-&gt;o:s</code>（两次解引用以内）；局部对象的格初值未知；
+  非常量偏移的写 → 失效该 base 上重叠的格；经 <code>Unknown</code> 基址的写 → 失效所有非局部对象的格（按类型细分留 P1）。</li>
+<li><strong>A-13 定义式</strong> <code>defs: 局部 → Expr</code>（只含局部与接口符号，深度 ≤ 4）：记录"<code>rem = total − off</code>"这类关系，操作数被重新赋值时失效。用于 §6.4 的同类项抵消（<code>01-</code> §3.6）。</li>
+<li><strong>A-14 守卫</strong> <code>guards</code>：至多 8 个原子 <code>LE ≤ 0</code>（只含接口符号），先进先出。来源：<code>assume</code> 边（把局部的确切符号值代进去后仍含接口符号的比较）；
+  带符号界的区间非空约束（<code>i ∈ [0, p#1−1]</code> ⇒ <code>p#1 ≥ 1</code>）。</li>
+<li><strong>A-15 合并</strong>：值逐点合并；两个界差为常数时取数值较大 / 较小者；一个是常数一个是 <code>LE</code> 时取 <code>max(c, LE)</code> / <code>min(c, LE)</code>；其余 → <code>±∞</code> 并带 <code>imprecise_join</code>。
+  指针同 base 合并偏移；不同 base → <code>Unknown(base_join)</code>；一边是空指针常量 → <code>maybeNull</code>。守卫取交集；定义式保留两边相同的。</li>
+<li><strong>A-16 widening</strong>：在 WTO 分量头，前 2 次合并照常，之后按阈值外推：阈值集 = 函数里所有比较中的常数 <code>c</code> 的 <code>{c−1, c, c+1}</code>，
+  以及与接口符号式比较时的 <code>{E−1, E, E+1}</code>；没有阈值可用才到 <code>±∞</code>（<code>src</code> 加 <code>widen</code>）。<strong>narrowing</strong> 2 轮。</li>
+<li><strong>A-17 化简</strong>：<code>min(max(c, x), x + d)</code>（<code>d ≤ 0</code>）→ <code>x + d</code> 等少量规则（与 Infer <code>Bound</code> 的 MinMax 化简同类）；化简失败保留原式。</li>
+</ul>
+<h3>6.3 转移</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>指令 / 表达式</th>
+<th>规则</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A-20</td>
+<td><code>set</code></td>
+<td>求值写入局部；更新定义式；失效引用了被写局部的定义式</td>
+</tr>
+<tr>
+<td>A-21</td>
+<td><code>add</code> / <code>sub</code> / 乘常数</td>
+<td>界逐项运算；乘负常数交换上下界</td>
+</tr>
+<tr>
+<td>A-22</td>
+<td>变量 × 变量</td>
+<td>两边都是确切符号值 → 不透明项 <code>&lt;mul a b&gt;</code>（确切），区间由两边数值范围相乘；否则 <code>±∞</code>，<code>src: nonlinear</code></td>
+</tr>
+<tr>
+<td>A-23</td>
+<td><code>/ c</code>、<code>&gt;&gt; k</code></td>
+<td>确切符号值 → 不透明项 <code>&lt;div a c&gt;</code>（确切），区间为数值范围的商；<strong>不丢成 ∞</strong>（Infer 在 LV2-05 / LV2-06 上的误报即出于此<span class="ev">实测数据</span>）</td>
+</tr>
+<tr>
+<td>A-24</td>
+<td><code>% c</code>、<code>&amp; m</code>（常数，非负）</td>
+<td><code>[0, c−1]</code> / <code>[0, m]</code>，<code>src: mask</code></td>
+</tr>
+<tr>
+<td>A-25</td>
+<td><code>| ^ ~</code>、位域</td>
+<td>两边常数则求值；否则类型范围，<code>src: type</code></td>
+</tr>
+<tr>
+<td>A-26</td>
+<td>无符号减法可能为负</td>
+<td>确切符号值 → <code>&lt;wrapW a−b&gt;</code>（代换成常数后按 2^W 取模）；区间为类型范围，<code>src: type</code></td>
+</tr>
+<tr>
+<td>A-27</td>
+<td>截断 <code>cast</code></td>
+<td>区间落在目标类型内则不变；否则 <code>&lt;truncW a&gt;</code>，区间为类型范围</td>
+</tr>
+<tr>
+<td>A-28</td>
+<td><code>load</code></td>
+<td>先做访问检查（§6.4）；值：命中格 → 格值；形参可达 → 初值符号；<code>const</code> 全局且有常量初值 → 常数；其余全局 → <code>g:K</code>；数组元素 / 消息内容 → 类型范围，<code>src: data</code></td>
+</tr>
+<tr>
+<td>A-29</td>
+<td><code>store</code></td>
+<td>先做访问检查；常量偏移、base 已知 → 强更新格；否则按 A-12 失效</td>
+</tr>
+<tr>
+<td>A-30</td>
+<td><code>assume a op b</code></td>
+<td>收窄出现在两边的局部（<code>l &lt; E</code> → <code>hi := min(hi, E−1)</code>）；两边都是常数且为假 → 该边不可达；含接口符号 → 加守卫；<code>p != 0</code> / <code>p == 0</code> 收窄 <code>maybeNull</code>；被比较的局部是带条件效应的调用结果 → 应用条件效应（§6.6 第 5 步）</td>
+</tr>
+<tr>
+<td>A-31</td>
+<td><code>call</code></td>
+<td>§6.6</td>
+</tr>
+<tr>
+<td>A-32</td>
+<td><code>havoc</code> / <code>unk</code></td>
+<td>未知值，<code>src: unknown</code>，原因随值携带（只在它真正影响某次判定时才写进账本）</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>A-33 不动点</strong>：Bourdoncle WTO（递归策略）；分量头上 widening / narrowing；每个分量头迭代上限 20 次、全函数 <code>TimeLimitMs</code>；
+超限 → 仍不稳定的值置 <code>±∞</code>，<code>status = partial:iter_limit</code>，<strong>照常产出摘要</strong>。</p>
+<h3>6.4 访问检查与 Req 生成</h3>
+<p>对一次访问（<code>kind</code>、地址 <code>P</code>、字节数 <code>S</code>）：</p>
+<ol>
+<li><strong>A-40 符号形</strong>：把 <code>P</code> 求成 <code>(base, offExpr)</code>、<code>S</code> 求成 <code>sizeExpr</code>，其中 <code>offExpr</code> / <code>sizeExpr</code> 是<strong>局部与接口符号的表达式</strong>（按定义式展开，深度 ≤ 4），先不代区间。</li>
+<li><strong>A-41 化简</strong>：<code>D = offExpr + sizeExpr − have(base)</code> 线性化，<strong>同类项抵消</strong>（局部也参与抵消，LV3-07 的 <code>ulOff</code>）。</li>
+<li><strong>A-42 代区间</strong>：<code>D</code> 里剩下的局部换成它们的界（系数为正取上界、为负取下界），得到 <code>D</code> 的上界 <code>U</code> 与下界 <code>L</code>（只含接口符号），并记下所用界的来源标签；
+   另对 <code>offExpr</code> 求下界，检查 <code>off ≥ 0</code>。</li>
+<li><strong>A-43 当场判定</strong>：<code>U</code>、<code>L</code> 不含符号时按 F-10…F-14 判；<code>depth = 0</code>，判出的进 <code>reps</code>（只有 F-21 / F-22 时才会报出，其余被 F-20 过滤，但照样入 <code>reports.json</code> 并标 <code>filtered</code>）。</li>
+<li><strong>A-44 生成 Req</strong>：含接口符号时，先用守卫判蕴含（§6.5）：<code>U ≤ 0</code> 成立 → 安全，丢弃；否则生成 Req：<code>have</code>、<code>lo</code>、<code>hi</code>、<code>size</code>、<code>hi_src</code>、
+   与 Req 符号相关的守卫原子、访问位置与序号、<code>depth = 0</code>、<code>blind</code>（A-07）。同一 <code>have</code>、同一访问位置的 Req 只留最强的一条。</li>
+<li><strong>A-45 记账</strong>：<code>have</code> 无法表示（<code>Ret</code> / <code>Unknown</code> base、未知大小的分配）→ 记账 <code>alloc_size_unknown</code> / 对应原因；上界只来自 <code>type</code> / <code>widen</code> / <code>data</code> → <code>type_range_only</code> / <code>pointer_stepping</code>；含 <code>nonlinear</code> → <code>nonlinear</code>。</li>
+</ol>
+<h3>6.5 蕴含判定（守卫 ⇒ 条件）</h3>
+<p><strong>A-50</strong>：判定 <code>U ≤ 0</code> 是否在守卫 <code>G</code> 与符号取值范围 <code>R</code>（无符号形参 ≥ 0、<code>ext(·) ≥ 0</code>、类型范围）下恒成立：</p>
+<ol>
+<li>只用 <code>R</code> 求 <code>U</code> 的上界 ≤ 0 → 成立；</li>
+<li>对每个守卫原子 <code>g</code>、<code>U</code> 与 <code>g</code> 共有且系数同号的符号 <code>s</code>：<code>U′ = U − (a_s / b_s)·g</code>（有理系数），<code>U′</code> 的上界 ≤ 0 → 成立；</li>
+<li>再对守卫原子两两组合做一次第 2 步（至多 28 对）；</li>
+<li>否则"判不了"。</li>
+</ol>
+<p><strong>A-51</strong>：L1 的判定对称：<code>L &gt; 0</code> 在 <code>G</code> 与 <code>R</code> 下恒成立。<strong>A-52</strong>：判定只用线性推理与区间，<strong>不调 SMT</strong>，代价有界。</p>
+<h3>6.6 调用点（<code>05-</code> §3.1 的五步）</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>步</th>
+<th>编号</th>
+<th>规则</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>① 取摘要</td>
+<td>A-60</td>
+<td>直接调用 → 求解阶段已算好的摘要（SCC 逆拓扑序保证被调者先算）或模型；间接调用 → 被调表达式是定义式为 <code>faddr</code> 常量的局部时当直接调用（S9.1 尽力），否则记账 <code>fptr</code></td>
+</tr>
+<tr>
+<td>② 代换表</td>
+<td>A-61</td>
+<td><code>p#i ↦</code> 实参的值与符号形；<code>ext(p#i) ↦ have(实参指针)</code>；<code>p#i-&gt;o:s ↦</code> 调用方在（实参 base，实参偏移 + o，s）处的格值——实参 base 是调用方形参时改写成调用方的字段符号（路径加一层，超过两次解引用则未知）；<code>g:K ↦ g:K</code></td>
+</tr>
+<tr>
+<td>③ 代换并判定</td>
+<td>A-62</td>
+<td>每条 Req：代换 <code>have</code> / <code>lo</code> / <code>hi</code> / <code>size</code> / 守卫，按 §6.4 第 2–6 步判定：安全 / L1 / L2 / 上传（<code>depth + 1</code>，<code>path</code> 前加本调用点，<code>eff_depth</code> 取所用值的 <code>via</code> 最大值）/ 记账。守卫代换后为假 → 这次调用不会走到访问 → 安全；守卫判不了且含调用方局部 → <strong>不报</strong>（避免误报），记账 <code>entry_unproven</code></td>
+</tr>
+<tr>
+<td>④ 效果</td>
+<td>A-63</td>
+<td><code>ret_new</code> → 结果为 <code>Alloc(调用点, 代换后的大小)</code>、<code>via + 1</code>；<code>ret_ptr</code> / <code>ret_int</code> → 代换后的值、<code>src</code> 加 <code>ret</code>；<code>out_*</code> / <code>field</code> → 写调用方的格；<code>invalidate</code> → 失效调用方相应的格；<code>global</code> → P0 只失效调用方对该全局的缓存</td>
+</tr>
+<tr>
+<td>⑤ 条件效应</td>
+<td>A-64</td>
+<td><code>ret_cond</code> 挂在接收返回值的局部上；之后在该局部上的 <code>assume</code> 选中 <code>ret == c</code> 那一侧时，把代换后的原子加入守卫并收窄实参对应的局部（LV4-06 <code>if (Check(id) != OK) return;</code>）</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>A-65 模型</strong>：分配器 → <code>Alloc(调用点, size)</code>、<code>via = 0</code>；访问类 → 按条件生成访问检查（§6.4）；纯函数 → 不失效、结果未知。
+<strong>A-66 未知函数</strong>（无摘要、无模型）：结果未知（原因 <code>unknown_callee</code> / <code>not_exported</code> / <code>not_in_tu</code>）；经指针实参可达的格失效。</p>
+<h3>6.7 效果生成（函数出口）</h3>
+<p><strong>A-70</strong>：返回值 → <code>ret_new</code>（base 是 <code>Alloc</code> 且大小能用接口符号表示）/ <code>ret_ptr</code>（base 是形参或全局）/ <code>ret_int</code>（界能投影到接口符号）；
+每条 <code>ret c</code> 处的守卫（只含接口符号）→ <code>ret_cond</code>（同一个 <code>c</code> 取交集，至多 4 条）；形参可达的格在出口处与初值不同 → <code>field</code> / <code>out_*</code>；
+经未知写失效过的 → <code>invalidate</code>。<strong>A-71 投影</strong>：含非接口符号的界换成它的数值界（来源标签保留），没有数值界则为 <code>±∞</code>。</p>
+<h3>6.8 调度</h3>
+<ul>
+<li><strong>A-80 solve</strong>：读全部 FIR；建函数表（D-07 处理重名）与全局大小表（D-34）；按直接调用 + 可静态解析的函数指针建全局调用图；
+  Tarjan 求 SCC，逆拓扑序逐个求解；SCC 内（递归）按键排序各求一次，环内调用按未知处理并记账 <code>recursion</code>（<code>01-</code> §3.9）。</li>
+<li><strong>A-81 inline</strong>：同样的过程，范围限于本 TU。</li>
+<li><strong>A-82</strong> 求解过程<strong>单线程、确定性</strong>（所有遍历按键排序，不依赖指针地址）；并行求解 <code>[P1]</code>（按 SCC 层级分批）。</li>
+</ul>
+<h3>6.9 出告警</h3>
+<ul>
+<li><strong>A-90</strong>：<code>solve</code> 给每条未被过滤的判定定一个汇合点 TU（汇合点函数的 FIR 所在 TU），写进 <code>decisions/&lt;tu&gt;.json</code>。</li>
+<li><strong>A-91</strong>：<code>report</code> / <code>inline</code> 阶段把 <code>[文件, 行, 列]</code> 经 <code>FileManager</code> + <code>SourceManager::translateFileLineCol</code> 换成 <code>SourceLocation</code>；
+  换不出来（文件不在本 TU）→ 退回汇合点函数的声明位置，并把原位置写进消息。按 F-33 组 note，按 F-35 排序后发出；同一进程内按指纹去重。</li>
+</ul>
+<h3>6.10 全函数性与上限</h3>
+<p><strong>A-95</strong> 任何函数都必须产出合法摘要：不支持的构造降为未知、迭代超限置 <code>±∞</code>、超时 / CFG 过大产出空摘要并标 <code>skipped</code>。
+<strong>A-96</strong> 不得因单个函数 / TU 失败而中断整体：export 失败的 TU 记入 <code>logs/</code>，其中的函数在调用方看来是 <code>not_exported</code>；引擎对异常输入（读进来的 FIR 不一致、超出上限）一律返回错误码、
+把该函数降级为 <code>skipped</code>，<strong>不靠 <code>assert</code></strong>（release 构建里 <code>assert</code> 不生效，而 LLVM 不开异常）。</p>
+<hr />
+</section>
+<section id="s-7"><div class="sec-hd"><span class="secno">06- §7</span><h2>跨 TU 执行（方案 B）</h2></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>阶段</th>
+<th>规格</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>X-01</strong></td>
+<td>export</td>
+<td>每个 TU 导出主文件与头文件里所有有函数体的函数、所有全局声明 / 定义（带类型与大小）、用到的记录类型、目标信息；写 <code>fir/&lt;tu&gt;.json</code>（紧凑 JSON，先写 <code>.tmp</code> 再改名）。重跑覆盖，幂等</td>
+</tr>
+<tr>
+<td><strong>X-02</strong></td>
+<td>export</td>
+<td>不做任何求解，不发告警；只挂 <code>ASTDecl&lt;TranslationUnitDecl&gt;</code>（D11），因此<strong>不触发 ExprEngine</strong></td>
+</tr>
+<tr>
+<td><strong>X-03</strong></td>
+<td>solve</td>
+<td>读 <code>fir/</code> 下全部文件（单进程）；按 §6.8 求解；写 <code>summaries/</code>、<code>decisions/</code>、<code>reports.json</code>、<code>ledger.jsonl</code>、<code>stats.json</code>。缺文件 / 坏文件跳过并记日志</td>
+</tr>
+<tr>
+<td><strong>X-04</strong></td>
+<td>solve 的宿主</td>
+<td><strong>默认</strong>：驱动生成一个桩 TU（<code>solve_stub/stub.c</code> 与只含它的 <code>compile_commands.json</code>），用 bxen 跑 <code>Phase=solve</code>，checker 在桩 TU 的回调里完成求解——<strong>不需要在 BXPlugin 里新增可执行目标</strong>。<strong>可选</strong>：独立命令 <code>oobsum-solve</code>（只链接 LLVM Support 与 <code>core/</code>），需要在 BXPlugin 的 CMake 里加一个可执行目标（<code>07-</code> 输入 I1）</td>
+</tr>
+<tr>
+<td><strong>X-05</strong></td>
+<td>report</td>
+<td>驱动从原 cdb 里<strong>原样复制</strong>出 <code>decisions/</code> 里出现的 TU 的条目，组成 <code>report_cdb/compile_commands.json</code>，bxen 全量模式跑 <code>Phase=report</code>。原样复制保证两个阶段算出的 TU id 一致（同一 bxen、同样的 <code>directory</code> / <code>file</code>）</td>
+</tr>
+<tr>
+<td><strong>X-06</strong></td>
+<td>inline</td>
+<td>默认模式：本 TU 内 export → solve → report 一次做完，不读写 <code>WorkDir</code>（设置了 <code>WorkDir</code> 时额外写一份 <code>fir/</code>，方便对照）</td>
+</tr>
+<tr>
+<td><strong>X-07</strong></td>
+<td>规模预估</td>
+<td>FIR 体积与求解内存按探针的函数数与 CFG 规模估算（<code>07-</code> 输入 I2）；若 solve 峰值内存超过约定值，按 SCC 分批加载（只常驻摘要，FIR 用完即释放）<code>[P1]</code></td>
+</tr>
+<tr>
+<td><strong>X-08</strong></td>
+<td>回退</td>
+<td>若 B 在你们环境里不可行（如 bxen 对单个 TU 有时长上限、桩 TU 跑不完求解），退回方案 A：export 照旧，solve 改成按"被调者都已就绪的 TU"分轮在 bxen 里做（<code>01-</code> §3.11）。引擎不变，只换编排；P0 不预先实现</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>X-10 驱动的其它约定</strong>：每条 bxen 命令先打印再执行，输出存 <code>logs/&lt;阶段&gt;.log</code>；任一阶段非零退出码 → 停止并提示单独重跑该阶段的命令；
+<code>status</code> 子命令能在任何时候说明"到哪一步了、缺什么"。</p>
+<hr />
+</section>
+<section id="s-8"><div class="sec-hd"><span class="secno">06- §8</span><h2>非功能需求</h2></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>项</th>
+<th>要求</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>N-01</strong></td>
+<td>深度</td>
+<td>合成直线链 3 / 5 / 10 / 17 / 20 层全部报出；20 层在 <code>inline</code> 模式下求解 &lt; 1 秒（不含 bxen 启动与解析）</td>
+</tr>
+<tr>
+<td><strong>N-02</strong></td>
+<td>export 耗时</td>
+<td>≤ 探针全量墙钟时间（R3）× 1.5<span class="ev">推断</span></td>
+</tr>
+<tr>
+<td><strong>N-03</strong></td>
+<td>solve</td>
+<td>单函数中位数 ≤ 2 ms、P99 ≤ 100 ms；全量单线程 ≤ 1 小时；峰值内存 ≤ 64 GB（47 核 / 251 GB 机器）。实测超标先降级 X-07 / 并行</td>
+</tr>
+<tr>
+<td><strong>N-04</strong></td>
+<td>全量总耗时 / 内存</td>
+<td>数值由你定（<code>00-</code> §7 的空格，<code>07-</code> 输入 I10）</td>
+</tr>
+<tr>
+<td><strong>N-05</strong></td>
+<td>健壮性</td>
+<td>在全量 cdb 上<strong>不得让 bxen 崩溃</strong>；单个函数 / TU 的失败只影响它自己（A-96）</td>
+</tr>
+<tr>
+<td><strong>N-06</strong></td>
+<td>确定性</td>
+<td>同样的输入，<code>summaries/</code>、<code>reports.json</code>、告警输出逐字节相同（<code>stats.json</code> 里的耗时除外）</td>
+</tr>
+<tr>
+<td><strong>N-07</strong></td>
+<td>可移植</td>
+<td>C++14；只用 LLVM 14 的 Support / ADT / JSON / YAML 与 Clang 的 AST / Analysis / StaticAnalyzer Core；不开 RTTI、不用异常；同一份源码既能在 fork 里随 <code>Checkers.td</code> 编进 xir，也能在沙箱里编成插件（<code>-DOOBSUM_PLUGIN_BUILD</code>，探针已验证这种双构建<span class="ev">实测数据</span>）；驱动只用 Python 3.6+ 标准库</td>
+</tr>
+<tr>
+<td><strong>N-08</strong></td>
+<td>编码规范</td>
+<td><code>csa-checker-dev</code>：命名（checker 类内统一小驼峰、其余函数大驼峰、变量小驼峰）、<code>.clang-format</code>、单语句控制流带 <code>{}</code>、<code>BuiltinCheckerRegistration.h</code>、诊断与 td 全英文、include 不排序；每次交付跑 <code>check_checker_conventions.py</code> 无 FAIL</td>
+</tr>
+<tr>
+<td><strong>N-09</strong></td>
+<td>可观测</td>
+<td><code>Verbose=1</code> 每 TU 一行（函数数、导出耗时）；<code>stats.json</code>：函数状态分布、Req / Eff 数分布、告警按级别与层数、账本按原因、各阶段耗时</td>
+</tr>
+<tr>
+<td><strong>N-10</strong></td>
+<td>产物内容</td>
+<td>FIR 与摘要只含名字、类型布局、位置与抽象值，<strong>不含源码文本</strong></td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section id="s-9"><div class="sec-hd"><span class="secno">06- §9</span><h2>代码组织与构建</h2></div>
+<h3>9.1 目录与文件（入口平铺在 <code>Checkers/</code>，其余在 <code>Checkers/OobSummary/</code>）</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>路径</th>
+<th>内容</th>
+<th>依赖</th>
+<th>估算行数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>../OobSummaryChecker.cpp</code></td>
+<td>checker 入口（平铺在 <code>Checkers/</code>）：注册、选项、四个 <code>Phase</code> 的分派、告警发出（F-30…F-35）</td>
+<td>Clang SA</td>
+<td>450</td>
+</tr>
+<tr>
+<td><code>lower/Keys.{h,cpp}</code></td>
+<td>D-01…D-08</td>
+<td>Clang AST</td>
+<td>150</td>
+</tr>
+<tr>
+<td><code>lower/TypeLayout.{h,cpp}</code></td>
+<td>类型 → FIR 类型、记录布局、柔性数组识别（D-30…D-39）</td>
+<td>Clang AST</td>
+<td>300</td>
+</tr>
+<tr>
+<td><code>lower/Lowering.{h,cpp}</code></td>
+<td>A-01…A-09</td>
+<td>Clang AST / CFG</td>
+<td>1400</td>
+</tr>
+<tr>
+<td><code>core/Fir.{h,cpp}</code>、<code>core/FirJson.{h,cpp}</code></td>
+<td>FIR 结构与 JSON 读写（D-10…D-14）</td>
+<td>LLVM Support</td>
+<td>900</td>
+</tr>
+<tr>
+<td><code>core/LinExpr.{h,cpp}</code>、<code>core/Bound.{h,cpp}</code></td>
+<td>线性式、不透明项、界、来源标签、化简（A-10、A-17）</td>
+<td>LLVM ADT</td>
+<td>900</td>
+</tr>
+<tr>
+<td><code>core/Value.{h,cpp}</code>、<code>core/State.{h,cpp}</code></td>
+<td><code>AbsInt</code>、<code>PtrVal</code>、格、定义式、守卫、合并 / widening（A-10…A-16）</td>
+<td></td>
+<td>1000</td>
+</tr>
+<tr>
+<td><code>core/Wto.{h,cpp}</code>、<code>core/Interp.{h,cpp}</code></td>
+<td>WTO 与不动点（A-33）</td>
+<td></td>
+<td>450</td>
+</tr>
+<tr>
+<td><code>core/Transfer.{h,cpp}</code>、<code>core/Access.{h,cpp}</code></td>
+<td>转移（A-20…A-32）、访问检查与 Req 生成（A-40…A-45）</td>
+<td></td>
+<td>1000</td>
+</tr>
+<tr>
+<td><code>core/Entail.{h,cpp}</code></td>
+<td>蕴含判定（A-50…A-52）</td>
+<td></td>
+<td>300</td>
+</tr>
+<tr>
+<td><code>core/Summary.{h,cpp}</code>、<code>core/SummaryJson.{h,cpp}</code></td>
+<td>摘要结构与 JSON（D-20…D-29）、效果生成（A-70、A-71）</td>
+<td></td>
+<td>800</td>
+</tr>
+<tr>
+<td><code>core/Apply.{h,cpp}</code></td>
+<td>调用点五步（A-60…A-66）</td>
+<td></td>
+<td>700</td>
+</tr>
+<tr>
+<td><code>core/Models.{h,cpp}</code></td>
+<td>模型表、<code>config.ini</code>、<code>alloc_free_identity</code> 读取（I-40…I-44）</td>
+<td>LLVM YAML / JSON</td>
+<td>400</td>
+</tr>
+<tr>
+<td><code>core/Solver.{h,cpp}</code></td>
+<td>全局表、调用图、SCC 调度、判定汇总与指纹（A-80…A-90、F-34）</td>
+<td></td>
+<td>600</td>
+</tr>
+<tr>
+<td><code>core/Dump.{h,cpp}</code></td>
+<td>规范文本记法（D-29）</td>
+<td></td>
+<td>300</td>
+</tr>
+<tr>
+<td><code>config/oob_models.yaml</code></td>
+<td>默认模型表</td>
+<td></td>
+<td>40</td>
+</tr>
+<tr>
+<td><code>tools/oobsum.py</code></td>
+<td>驱动（I-30、X-04、X-05、X-10）与 <code>sqlite</code> / <code>explain</code> / <code>check</code></td>
+<td>Python 3</td>
+<td>900</td>
+</tr>
+<tr>
+<td><strong>合计</strong></td>
+<td></td>
+<td></td>
+<td><strong>C++ 约 9 700 行、Python 约 900 行</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>分层规则</strong>：<code>core/</code> 不得包含任何 <code>clang/</code> 头文件；<code>lower/</code> 只产出 FIR；只有 <code>OobSummaryChecker.cpp</code> 同时看到两边。
+这条规则让 <code>core/</code> 能在沙箱里不经 Clang 单测、也能编进独立的 <code>oobsum-solve</code>（X-04 可选项）。</p>
+<h3>9.2 在 fork 里</h3>
+<ul>
+<li>源码 <code>CMakeLists.txt</code>：<code>add_library()</code> 末尾逐个追加上表的 <code>.cpp</code>（以 <code>OobSummary/</code> 开头的相对路径）。</li>
+<li><code>Checkers.td</code>：<code>ipa</code> 包块末尾追加（选项按 §4.2 的 <code>CheckerOptions</code> 写）。</li>
+<li>用例：<code>TestCase/OobSummaryChecker/</code> 由 <code>cases/run.py testcase</code> 生成（T-05）。</li>
+<li>编译命令与 <code>csa-checker-dev</code> 相同（<code>cmake … ../ &amp;&amp; make -j16</code>）。</li>
+</ul>
+<h3>9.3 在沙箱里（我这边每次交付前跑完）</h3>
+<ul>
+<li>插件：<code>clang++-14 -std=c++14 -fno-rtti -shared -fPIC -DOOBSUM_PLUGIN_BUILD …</code>，与探针的 <code>sandbox_build.sh</code> 同法。</li>
+<li><code>core/</code> 单测：独立可执行 <code>oobsum-core-tests</code>（自带最小测试框架，不依赖 gtest）。</li>
+<li>语料：<code>cases/run.py csa</code>（驱动沙箱里的 <code>clang -cc1 -load</code> 走完 export → solve → report，对照 <code>@expect</code>）。</li>
+<li>规范检查：<code>check_checker_conventions.py</code> 跑在一个模拟的 BXPlugin 目录上（与探针同法，无 FAIL）。</li>
+</ul>
+<hr />
+</section>
+<section id="s-10"><div class="sec-hd"><span class="secno">06- §10</span><h2>测试规格</h2></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>编号</th>
+<th>层级</th>
+<th>内容</th>
+<th>在哪跑</th>
+<th>何时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>T-01</strong></td>
+<td>单元</td>
+<td>线性式 / 界 / 区间运算、合并与 widening、蕴含判定、代换；手写 FIR 上的转移与摘要</td>
+<td>沙箱</td>
+<td>每次交付</td>
+</tr>
+<tr>
+<td><strong>T-02</strong></td>
+<td>降级快照</td>
+<td>10 个代表用例的 <code>Dump=fir</code> 文本快照</td>
+<td>沙箱</td>
+<td>降级改动时</td>
+</tr>
+<tr>
+<td><strong>T-03</strong></td>
+<td>语料验收</td>
+<td><code>cases/</code> 全部 134 个入口按 <code>@expect</code> 对照（下述口径）</td>
+<td>沙箱 + fork</td>
+<td>每次交付；检查点</td>
+</tr>
+<tr>
+<td><strong>T-04</strong></td>
+<td>链长</td>
+<td><code>cases/gen_chain.py</code> 生成 4 类模板（形参透传、偏移累加、封装分配器链、跨 TU 链）× N ∈ {2, 3, 5, 10, 17, 20}</td>
+<td>沙箱 + fork</td>
+<td>G1 起</td>
+</tr>
+<tr>
+<td><strong>T-05</strong></td>
+<td>fork 用例</td>
+<td><code>TestCase/OobSummaryChecker/</code>（由 <code>cases/</code> 生成）跑驱动，告警数与 <code>EXPECTED.md</code> 一致</td>
+<td>fork</td>
+<td>每次集成</td>
+</tr>
+<tr>
+<td><strong>T-06</strong></td>
+<td>摘要快照</td>
+<td>约 20 个关键函数的 <code>Dump=summary</code> 文本快照（与用例头"摘要"块对照后冻结），改动须有意更新</td>
+<td>沙箱</td>
+<td>每次交付</td>
+</tr>
+<tr>
+<td><strong>T-07</strong></td>
+<td>健壮性</td>
+<td>本包 <code>05-experiments/</code>、<code>07-capability-boundary/corpus/</code>、<code>cases/</code> 全部跑 export + solve 不崩溃、全函数性成立</td>
+<td>沙箱</td>
+<td>每次交付</td>
+</tr>
+<tr>
+<td><strong>T-08</strong></td>
+<td>真实代码</td>
+<td>子集（几个顶层目录）→ 全量：告警按级别 / 层数、账本按原因、耗时 / 内存；抽样 50 条 L1 由你研判精确率</td>
+<td>fork</td>
+<td>W10 起</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>T-03 的对照口径</strong>（<code>oobsum.py check</code> 与 <code>run.py csa</code> 共用同一实现）：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th><code>@expect</code> 的 <code>pa</code></th>
+<th>判为通过的条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>L1</code> / <code>L2</code></td>
+<td>恰有一条告警的<strong>汇合点函数是该入口</strong>，且级别相同（L2 的用例报成 L1 也算不通过，单独列出）</td>
+</tr>
+<tr>
+<td><code>-</code></td>
+<td>没有任何汇合点为该入口的告警</td>
+</tr>
+<tr>
+<td><code>记账</code></td>
+<td>同 <code>-</code>；另外统计账本里是否有该链上的记录（P0 只统计不判失败）</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>T-09 检查点的验收集</strong>：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>检查点</th>
+<th>必须全部通过</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>G1</strong></td>
+<td>Lv1 + Lv2 的 17 个用例（34 个入口，含跨 TU 的 LV1-07）；T-04 的模板 1、2、4 在 N = 3…20 全报、N = 2 不报</td>
+</tr>
+<tr>
+<td><strong>G2</strong></td>
+<td>32 个承诺用例的 TP 级别正确；<strong>全部 134 个入口里期望为 <code>-</code> / <code>记账</code> 的零告警</strong>；尽力项 9 个给出报出率；T-04 全部模板</td>
+</tr>
+<tr>
+<td><strong>G3</strong></td>
+<td>全量 cdb 跑通（N-05）；N-02、N-03 达标或有降级方案；T-08 的指标达到你定的数值</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section id="s-11"><div class="sec-hd"><span class="secno">06- §11</span><h2>追溯矩阵</h2></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>P0 条目（<code>00-</code> §4）</th>
+<th>需求</th>
+<th>模块</th>
+<th>主要用例 / 测试</th>
+<th>检查点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P0-1 多层传播主干</td>
+<td>F-01、F-02、F-10…F-16、F-20…F-22、A-10…A-17、A-20…A-33、A-40…A-52、A-60…A-66</td>
+<td><code>core/*</code></td>
+<td>Lv1、Lv2、Lv3 全部；T-01、T-04</td>
+<td>G1、G2</td>
+</tr>
+<tr>
+<td>P0-2 跨 TU 执行</td>
+<td>X-01…X-10、D-01…D-08</td>
+<td><code>lower/Keys</code>、<code>core/Solver</code>、<code>core/FirJson</code>、<code>tools/oobsum.py</code></td>
+<td>LV1-07；T-04 模板 4</td>
+<td>G1</td>
+</tr>
+<tr>
+<td>P0-3 循环</td>
+<td>F-07、A-16、A-33</td>
+<td><code>core/Interp</code>、<code>core/Wto</code></td>
+<td>LV1-03、LV1-04、LV2-01、LV2-06、LV3-04、LV3-05、LV3-08、LV3-09</td>
+<td>G2</td>
+</tr>
+<tr>
+<td>P0-4 ExtentModel 高频形态</td>
+<td>D-30…D-39、F-08</td>
+<td><code>lower/TypeLayout</code>、<code>core/Value</code></td>
+<td>LV1-04、LV1-06、LV3-01、LV3-02、LV6-01（尽力）</td>
+<td>G2</td>
+</tr>
+<tr>
+<td>P0-5 分配器</td>
+<td>I-40…I-44、D-33、A-63、A-65</td>
+<td><code>core/Models</code>、<code>core/Apply</code></td>
+<td>LV1-03、LV2-04、LV4-01…LV4-04、LV5-06</td>
+<td>G2</td>
+</tr>
+<tr>
+<td>P0-6 安全函数族</td>
+<td>F-03…F-05</td>
+<td><code>core/Models</code>、<code>core/Access</code></td>
+<td>LV1-05、LV1-08、LV2-02、LV2-03、LV3-07、LV5-01</td>
+<td>G1（memcpy_s / memset_s）、G2</td>
+</tr>
+<tr>
+<td>P0-7 告警输出</td>
+<td>F-30…F-35、F-40…F-42、A-90、A-91</td>
+<td><code>OobSummaryChecker.cpp</code>、<code>core/Solver</code></td>
+<td>T-05</td>
+<td>G1</td>
+</tr>
+<tr>
+<td>P0-8 验收语料与报告</td>
+<td>T-01…T-09</td>
+<td><code>cases/</code>、<code>run.py</code>、<code>gen_chain.py</code></td>
+<td>全部</td>
+<td>各检查点</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section id="s-12"><div class="sec-hd"><span class="secno">06- §12</span><h2>待确认的决策（点头即定稿）</h2></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>决策</th>
+<th>推荐</th>
+<th>备选</th>
+<th>不选推荐的影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>D5′</strong></td>
+<td>跨 TU 编排</td>
+<td><strong>B</strong>：export → solve → report（§7）</td>
+<td>A：多轮扫描（<code>01-</code> §3.11）</td>
+<td>A 要多做每轮导入 / 合并 / 去重；轮数取决于探针统计，可能把全量耗时放大数倍</td>
+</tr>
+<tr>
+<td><strong>D7</strong></td>
+<td>包与名字</td>
+<td><code>rb.enhance.ipa.OobSummary</code> / <code>OobSummaryChecker</code></td>
+<td><code>rb.enhance.core.OobSummary</code></td>
+<td>只影响 <code>Checkers.td</code> 的位置与 <code>-checker=</code> 字符串</td>
+</tr>
+<tr>
+<td><strong>D9</strong></td>
+<td>引擎跑在 FIR 上</td>
+<td><strong>是</strong></td>
+<td>直接跑 <code>clang::CFG</code></td>
+<td>否的话 B 不成立（求解要 AST 在内存里），只能走 A；单测要带 Clang</td>
+</tr>
+<tr>
+<td><strong>D10</strong></td>
+<td>落盘格式</td>
+<td>JSON + Python 侧 SQLite</td>
+<td>C++ 侧 SQLite / FlatBuffers（<code>01-</code> §3.8）</td>
+<td>要给 xir 加第三方依赖；多进程写同一个库要处理锁</td>
+</tr>
+<tr>
+<td><strong>D11</strong></td>
+<td>宿主回调</td>
+<td>只挂 <code>ASTDecl&lt;TranslationUnitDecl&gt;</code></td>
+<td><code>ASTCodeBody</code> + <code>EndOfTranslationUnit</code></td>
+<td>后者会让每个函数跑 ExprEngine<span class="ev">实测数据</span></td>
+</tr>
+<tr>
+<td><strong>D12</strong></td>
+<td>告警位置与 trace</td>
+<td>汇合点调用表达式 + 文本 trace</td>
+<td>报在访问点</td>
+<td>访问点常在别的 TU 里，CSA 的告警位置必须在本 TU 可见文件内</td>
+</tr>
+<tr>
+<td><strong>D13</strong></td>
+<td>键</td>
+<td>名字 / 定义文件 + 名字</td>
+<td>Clang USR</td>
+<td>USR 要链接 <code>clangIndex</code>（fork 里是否可用待确认），对 C 没有额外好处</td>
+</tr>
+<tr>
+<td><strong>X-04</strong></td>
+<td>solve 宿主</td>
+<td>桩 TU（不改 BXPlugin 构建）</td>
+<td>独立可执行 <code>oobsum-solve</code></td>
+<td>后者更干净，但要在 BXPlugin 的 CMake 里加一个可执行目标</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section id="s-13"><div class="sec-hd"><span class="secno">06- §13</span><h2>本文件对 <code>01-</code> / <code>05-</code> 的修订（定稿后同步回去）</h2></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>原文</th>
+<th>修订</th>
+<th>依据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>01-</code> §3.11：跨 TU 走方案 A（多轮），B 放 2027</td>
+<td>P0 走方案 B；A 为回退</td>
+<td>D5′、D9</td>
+</tr>
+<tr>
+<td><code>01-</code> §3.8：SummaryDB 用 SQLite，序列化建议 FlatBuffers / Protobuf</td>
+<td>JSON 落盘（<code>llvm::json</code>），SQLite 由驱动生成</td>
+<td>D10</td>
+</tr>
+<tr>
+<td><code>01-</code> §3.2：函数与全局用 USR 做键</td>
+<td>自定义键（D-01…D-08）</td>
+<td>D13</td>
+</tr>
+<tr>
+<td><code>01-</code> §2 / <code>00-</code> §3：checker 挂 <code>check::ASTCodeBody</code></td>
+<td>挂 <code>check::ASTDecl&lt;TranslationUnitDecl&gt;</code></td>
+<td>D11</td>
+</tr>
+<tr>
+<td><code>01-</code> §3.3：<code>BoundExpr</code> 的 min/max 变体与守卫二选一</td>
+<td>两者都要：界带 <code>min/max(c, LE)</code>（循环 narrowing 需要），条件另带守卫</td>
+<td>A-10、A-14、A-17</td>
+</tr>
+<tr>
+<td><code>01-</code> §3.5：<code>SafetyCondition</code> 以元素为单位</td>
+<td>统一按<strong>字节</strong>（安全函数、强转、结构体覆盖都是字节语义）</td>
+<td>D-21…D-23</td>
+</tr>
+<tr>
+<td><code>05-</code> §2.2：落盘的 SQL 表</td>
+<td>不变，改为驱动生成的查询库（§4.6）</td>
+<td>D10</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+
+<footer>
+  <p>文本版：调研包 <code>08-summary2-design/06-spec.md</code>、<code>07-dev-plan.md</code>（本页由它们生成）；集成探针 <code>probes/i0-integration/</code>；
+  场景分级 <code>04-scenario-tiers.md</code>；摘要设计与用例 <code>05-summary-design-and-cases.md</code>。
+  <span class="ev">实测数据</span> 指可复现的实验，<span class="ev">推断</span> 指设计判断。</p>
+</footer>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,40 @@
+[OSP] build clang=14.0.6 cxx=201402 rtti=off exceptions=off
+[OSP] opt WorkDir="work" EmitProbeReport=true
+[OSP] tu file=TestCase/OobSummaryProbeChecker/src/TC_OobSummaryProbeChecker_a.c id=abe9fde904012438 triple=x86_64-pc-linux-gnu ptr=8 long=8 sizet=8 endian=little funcs=4
+[OSP] scc #0 F@abe9fde904012438:Probe_Min
+[OSP] scc #1 F@abe9fde904012438:Probe_Leaf
+[OSP] scc #2 F@abe9fde904012438:Probe_Mid
+[OSP] scc #3 F:Probe_Top
+[OSP] func F@abe9fde904012438:Probe_Leaf blocks=6 loops=1 direct=0 indirect=0
+[OSP] func F@abe9fde904012438:Probe_Mid blocks=3 loops=0 direct=2 indirect=0
+[OSP] func F:Probe_Top blocks=4 loops=0 direct=3 indirect=1
+[OSP] wrote work/tu-abe9fde904012438.json
+TestCase/OobSummaryProbeChecker/src/TC_OobSummaryProbeChecker_a.c:28:13: warning: OobSummary probe: 3 function(s) analyzed in this translation unit [rb.enhance.core.OobSummaryProbe]
+static void Probe_Leaf(ProbeCtx *pstCtx, UINT32 ulIdx)
+            ^
+TestCase/OobSummaryProbeChecker/src/TC_OobSummaryProbeChecker_a.c:37:13: note: Probe note: second function in this translation unit
+static void Probe_Mid(ProbeCtx *pstCtx, UINT32 ulIdx)
+            ^
+TestCase/OobSummaryProbeChecker/src/TC_OobSummaryProbeChecker_a.c:28:13: note: OobSummary probe: 3 function(s) analyzed in this translation unit
+static void Probe_Leaf(ProbeCtx *pstCtx, UINT32 ulIdx)
+            ^
+1 warning generated.
+[OSP] build clang=14.0.6 cxx=201402 rtti=off exceptions=off
+[OSP] opt WorkDir="work" EmitProbeReport=true
+[OSP] tu file=TestCase/OobSummaryProbeChecker/src/TC_OobSummaryProbeChecker_b.c id=256bb97a43ccb10f triple=x86_64-pc-linux-gnu ptr=8 long=8 sizet=8 endian=little funcs=3
+[OSP] scc #0 F@256bb97a43ccb10f:Probe_Min
+[OSP] scc #1 F:Probe_FillBuf
+[OSP] scc #2 cycle F:Probe_Depth
+[OSP] func F:Probe_FillBuf blocks=6 loops=1 direct=0 indirect=0
+[OSP] func F:Probe_Depth blocks=5 loops=0 direct=1 indirect=0
+[OSP] wrote work/tu-256bb97a43ccb10f.json
+TestCase/OobSummaryProbeChecker/src/TC_OobSummaryProbeChecker_b.c:23:6: warning: OobSummary probe: 2 function(s) analyzed in this translation unit [rb.enhance.core.OobSummaryProbe]
+void Probe_FillBuf(UINT8 *pucBuf, UINT32 ulLen)
+     ^
+TestCase/OobSummaryProbeChecker/src/TC_OobSummaryProbeChecker_b.c:31:8: note: Probe note: second function in this translation unit
+UINT32 Probe_Depth(UINT32 ulN)
+       ^
+TestCase/OobSummaryProbeChecker/src/TC_OobSummaryProbeChecker_b.c:23:6: note: OobSummary probe: 2 function(s) analyzed in this translation unit
+void Probe_FillBuf(UINT8 *pucBuf, UINT32 ulLen)
+     ^
+1 warning generated.
