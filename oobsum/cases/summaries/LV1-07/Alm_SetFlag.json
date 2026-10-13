@@ -1,0 +1,32 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Alm_SetFlag",
+  "key": "F:Alm_SetFlag",
+  "tu": "alm_low.c",
+  "loc": "alm_low.c:5",
+  "params": ["ulAlmId: UINT32"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "1",
+      "obj": "g_aucAlmFlag",
+      "have": "3",
+      "end": ["p0 + 1", "p0 + 1"],
+      "start": "p0",
+      "bound": "exact",
+      "guard": [],
+      "access": {"fn": "Alm_SetFlag", "at": "alm_low.c:7", "code": "g_aucAlmFlag[ulAlmId] = 1"},
+      "path": ["Alm_SetFlag@alm_low.c:7"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "text": "W1 @ g_aucAlmFlag，末端 ulAlmId + 1；需 ulAlmId + 1 <= 3"
+    }
+  ],
+  "effs": [],
+  "calls": [],
+  "reps": [],
+  "opens": []
+}

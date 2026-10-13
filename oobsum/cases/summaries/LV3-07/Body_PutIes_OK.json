@@ -1,0 +1,47 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Body_PutIes_OK",
+  "key": "F@lv3_07_pkt_loop_destmax.c:Body_PutIes_OK",
+  "loc": "lv3_07_pkt_loop_destmax.c:67",
+  "params": ["p: UINT8*", "n: UINT32", "a: IE_S*", "k: UINT32"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "p1 - ulOff",
+      "obj": "*p",
+      "have": "ext(p0)",
+      "end": ["p1", "p1"],
+      "start": "0",
+      "bound": "exact",
+      "guard": [],
+      "access": {
+        "fn": "Pkt_PutIes_OK",
+        "at": "lv3_07_pkt_loop_destmax.c:42",
+        "code": "memcpy_s(pucPkt + ulOff, ulPktLen - ulOff, astIe[i].pucVal, astIe[i].ulLen)"
+      },
+      "path": ["Body_PutIes_OK@lv3_07_pkt_loop_destmax.c:67", "Pkt_PutIes_OK@lv3_07_pkt_loop_destmax.c:42"],
+      "depth": 1,
+      "eff_depth": 0,
+      "blind": false,
+      "text": "Wn - ulOff @ *p，末端 n；需 n <= ext(p)"
+    }
+  ],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv3_07_pkt_loop_destmax.c:67",
+      "callee": "Pkt_PutIes_OK",
+      "args": [
+        {"ptr": "p", "have": "ext(p0)", "alias": "p0"},
+        "p1",
+        {"ptr": "a", "have": "ext(p2)", "alias": "p2"},
+        "p3"
+      ],
+      "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

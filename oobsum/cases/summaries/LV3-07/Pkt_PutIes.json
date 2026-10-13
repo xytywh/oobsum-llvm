@@ -1,0 +1,51 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Pkt_PutIes",
+  "key": "F@lv3_07_pkt_loop_destmax.c:Pkt_PutIes",
+  "loc": "lv3_07_pkt_loop_destmax.c:50",
+  "params": ["pucPkt: UINT8*", "ulPktLen: UINT32", "astIe: IE_S*", "ulIeNum: UINT32"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "p1",
+      "obj": "*pucPkt",
+      "have": "ext(p0)",
+      "end": ["p1", "2*p1"],
+      "start": "0",
+      "bound": "check",
+      "guard": [],
+      "access": {
+        "fn": "Pkt_PutIes",
+        "at": "lv3_07_pkt_loop_destmax.c:58",
+        "code": "memcpy_s(pucPkt + ulOff, ulPktLen, astIe[i].pucVal, astIe[i].ulLen)"
+      },
+      "path": ["Pkt_PutIes@lv3_07_pkt_loop_destmax.c:58"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "note": "末端 ulOff + ulPktLen，ulOff ∈ [0, ulPktLen]（循环里的校验 ulOff + len <= ulPktLen）",
+      "text": "WulPktLen @ *pucPkt，末端 [ulPktLen, 2*ulPktLen]；需 2*ulPktLen <= ext(pucPkt)"
+    }
+  ],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv3_07_pkt_loop_destmax.c:58",
+      "callee": "memcpy_s",
+      "model": "access",
+      "args": [{"ptr": "pucPkt + ulOff", "have": "ext(p0) - ulOff"}, "p1", null, null],
+      "locals": {"ulOff": {"range": ["0", "p1"], "bound": "check"}},
+      "results": [{"note": "访问类模型 memcpy_s → R1；源 astIe[i].pucVal 记账"}]
+    }
+  ],
+  "reps": [],
+  "opens": [
+    {
+      "reason": "untracked_pointer",
+      "at": "lv3_07_pkt_loop_destmax.c:58",
+      "detail": "源指针 astIe[i].pucVal 来自数组元素的字段，P0 不跟踪它指向多大"
+    }
+  ]
+}

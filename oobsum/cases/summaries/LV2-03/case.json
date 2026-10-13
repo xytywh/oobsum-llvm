@@ -1,0 +1,14 @@
+{
+  "id": "LV2-03",
+  "title": "memcpy_s(pkt + off, 整包大小, …)：destMax 没扣偏移，偏移在中间层又加了头长",
+  "files": [
+    "lv2/lv2_03_tlv_destmax_no_off.c"
+  ],
+  "point": "安全函数的条件按 securec 的真实语义生成：**写 destMax 字节**（`count > destMax` 时也会先把 destMax 字节清零），**读 count 字节只在 `count <= destMax` 时发生**（所以源那条带守卫）。偏移在中间层被加了 4，`ext(p + k) = ext(p) − k` 让它表现为末端 +4。TN 一侧的 `destMax = 128 − ulOff` 是可能回绕的无符号减法：securec 对 `destMax > SECUREC_MEM_MAX_LEN`（0x7fffffff）直接返回、不写，所以生成守卫 `ulOff <= 128`，在守卫下 `ulOff` 正好抵消。源缓冲区那条一路传到入口，变成入口的账本记录。",
+  "show_open": [
+    "Tlv_WriteVal",
+    "Tlv_Append",
+    "Pkt_Build_TP"
+  ],
+  "code": "#define PKT_MAX_LEN 128\n#define TLV_HDR_LEN 4\n\nstatic void Tlv_WriteVal(UINT8 *pucPkt, UINT32 ulOff, const UINT8 *pucVal, UINT32 ulValLen)\n{\n    (void)memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen);            /* ★1 */\n}\n\nstatic void Tlv_WriteVal_OK(UINT8 *pucPkt, UINT32 ulOff, const UINT8 *pucVal, UINT32 ulValLen)\n{\n    (void)memcpy_s(pucPkt + ulOff, PKT_MAX_LEN - ulOff, pucVal, ulValLen);\n}\n\nstatic void Tlv_Append(UINT8 *pucPkt, UINT32 ulOff, const UINT8 *pucVal, UINT32 ulValLen)\n{\n    pucPkt[ulOff] = 0x10;                       /* type */\n    Tlv_WriteVal(pucPkt, ulOff + TLV_HDR_LEN, pucVal, ulValLen);\n}\n\nstatic void Tlv_Append_OK(UINT8 *pucPkt, UINT32 ulOff, const UINT8 *pucVal, UINT32 ulValLen)\n{\n    pucPkt[ulOff] = 0x10;\n    Tlv_WriteVal_OK(pucPkt, ulOff + TLV_HDR_LEN, pucVal, ulValLen);\n}\n\nstatic void Pkt_AddIe(UINT8 *pucPkt, UINT32 ulOff, const UINT8 *pucVal, UINT32 ulValLen)    { Tlv_Append(pucPkt, ulOff, pucVal, ulValLen); }\nstatic void Pkt_AddIe_OK(UINT8 *pucPkt, UINT32 ulOff, const UINT8 *pucVal, UINT32 ulValLen) { Tlv_Append_OK(pucPkt, ulOff, pucVal, ulValLen); }\n\nvoid Pkt_Build_TP(const UINT8 *pucVal)\n{\n    UINT8 aucPkt[PKT_MAX_LEN];\n    Pkt_AddIe(aucPkt, 16, pucVal, 8);\n}\n\nvoid Pkt_Build_TN(const UINT8 *pucVal)\n{\n    UINT8 aucPkt[PKT_MAX_LEN];\n    Pkt_AddIe_OK(aucPkt, 16, pucVal, 8);\n}"
+}

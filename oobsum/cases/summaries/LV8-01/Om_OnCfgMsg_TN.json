@@ -1,0 +1,56 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Om_OnCfgMsg_TN",
+  "key": "F:Om_OnCfgMsg_TN",
+  "loc": "lv8_01_tlv_relative_check.c:65",
+  "params": ["pucIn: UINT8*"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "R",
+      "bytes": "64",
+      "obj": "*pucIn",
+      "have": "ext(p0)",
+      "end": ["64", "64"],
+      "start": "0",
+      "bound": "exact",
+      "guard": [],
+      "access": {
+        "fn": "Om_OnCfgMsg_TN",
+        "at": "lv8_01_tlv_relative_check.c:69",
+        "code": "memcpy_s(aucMsg, sizeof(aucMsg), pucIn, sizeof(aucMsg))"
+      },
+      "path": ["Om_OnCfgMsg_TN@lv8_01_tlv_relative_check.c:69"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "text": "R64 @ *pucIn，末端 64；需 64 <= ext(pucIn)"
+    }
+  ],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv8_01_tlv_relative_check.c:69",
+      "callee": "memcpy_s",
+      "model": "access",
+      "args": [{"ptr": "aucMsg", "have": "64"}, "64", {"ptr": "pucIn", "have": "ext(p0)"}, "64"],
+      "results": [{"note": "目的 64 <= 64 当场安全；源生成本函数的 R1（64 <= ext(pucIn)）"}]
+    },
+    {
+      "site": "lv8_01_tlv_relative_check.c:70",
+      "callee": "Om_HandleCfg_OK",
+      "args": [{"ptr": "aucMsg", "have": "64"}, "64", {"ptr": "aucOut", "have": "256"}],
+      "results": [{"req": "R1", "outcome": "safe"}, {"req": "R2", "outcome": "safe"}]
+    }
+  ],
+  "reps": [],
+  "opens": [
+    {
+      "reason": "entry_unproven",
+      "at": "lv8_01_tlv_relative_check.c:69",
+      "detail": "入口形参 pucIn 要求至少 64 字节；没有调用方能证明",
+      "req": "R1"
+    }
+  ]
+}

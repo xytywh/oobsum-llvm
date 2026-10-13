@@ -1,0 +1,13 @@
+{
+  "id": "LV5-01",
+  "title": "编码上下文在链顶填好（缓冲区 + 长度），长度用了新宏，缓冲区还是老大小",
+  "files": [
+    "lv5/lv5_01_ctx_filled_at_top.c"
+  ],
+  "point": "**字段符号**：基址和长度都是\"形参指向的结构体的字段\"——`ext(p0->pucBuf)`、`p0->ulBufLen`。`fields` 表给出每个字段的偏移、大小、类型（这里按目标 ABI ILP32 排布）。中间层把同一个指针原样往下传（`alias`），字段符号路径不变；链顶在自己的栈帧里记着 `stCtx.pucBuf = aucBuf`（128）、`stCtx.ulBufLen = 256`，代入后 `256 <= 128` 不成立 → L1。另外 `ulUsed` 被写成 `ulLen`，作为 `field` 效应上传。",
+  "show_open": [
+    "Enc_PutBytes",
+    "Rrc_EncodeMsg_TP"
+  ],
+  "code": "#define ENC_BUF_LEN_OLD  128\n#define ENC_BUF_LEN      256\n\ntypedef struct {\n    UINT8  *pucBuf;\n    UINT32  ulBufLen;\n    UINT32  ulUsed;\n} ENC_CTX_S;\n\nstatic void Enc_PutBytes(ENC_CTX_S *pstCtx, const UINT8 *pucData, UINT32 ulLen)\n{\n    (void)memcpy_s(pstCtx->pucBuf, pstCtx->ulBufLen, pucData, ulLen);   /* ★1 */\n    pstCtx->ulUsed = ulLen;\n}\n\nstatic void Enc_PutIe(ENC_CTX_S *pstCtx, const UINT8 *pucIe, UINT32 ulLen)  { Enc_PutBytes(pstCtx, pucIe, ulLen); }\nstatic void Enc_Encode(ENC_CTX_S *pstCtx, const UINT8 *pucIe, UINT32 ulLen) { Enc_PutIe(pstCtx, pucIe, ulLen); }\n\nvoid Rrc_EncodeMsg_TP(void)\n{\n    UINT8     aucBuf[ENC_BUF_LEN_OLD];\n    UINT8     aucIe[16] = { 0 };\n    ENC_CTX_S stCtx;\n    stCtx.pucBuf   = aucBuf;\n    stCtx.ulBufLen = ENC_BUF_LEN;\n    stCtx.ulUsed   = 0;\n    Enc_Encode(&stCtx, aucIe, sizeof(aucIe));\n}\n\nvoid Rrc_EncodeMsg_TN(void)\n{\n    UINT8     aucBuf[ENC_BUF_LEN_OLD];\n    UINT8     aucIe[16] = { 0 };\n    ENC_CTX_S stCtx;\n    stCtx.pucBuf   = aucBuf;\n    stCtx.ulBufLen = sizeof(aucBuf);\n    stCtx.ulUsed   = 0;\n    Enc_Encode(&stCtx, aucIe, sizeof(aucIe));\n}"
+}

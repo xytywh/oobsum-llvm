@@ -1,0 +1,12 @@
+{
+  "id": "LV9-04",
+  "title": "BSP 驱动接口只有声明：按 ulLen 往 pucBuf 读寄存器，调用方缓冲区 16、长度 32",
+  "files": [
+    "lv9/lv9_04_external_driver.c"
+  ],
+  "point": "**断链的样子**：`Drv_ReadReg` 没有函数体、模型表里也没有。`pucBuf`、`ulLen` 流进了它，条件在 `Chip_ReadStatus` 这一层断掉，账本记 `unknown_callee`，上层摘要为空，链顶不报。给模型表补一行（来源可以是 AI 读头文件注释生成的草稿，人工确认后生效）：`{ name: Drv_ReadReg, conds: [ { base: p1, bytes: \"p2\", kind: W } ] }`，`Chip_ReadStatus` 就会有 `R1 需 ulLen <= ext(pucBuf)`，TP 变 L1。",
+  "show_open": [
+    "Chip_ReadStatus"
+  ],
+  "code": "/* BSP 库：从 ulRegBase 开始读 ulLen 字节到 pucBuf。pucBuf 至少 ulLen 字节，由调用者保证。 */\nUINT32 Drv_ReadReg(UINT32 ulRegBase, UINT8 *pucBuf, UINT32 ulLen);\n\nstatic UINT32 Chip_ReadStatus(UINT8 *pucBuf, UINT32 ulLen) { return Drv_ReadReg(0x40000000u, pucBuf, ulLen); }   /* ★1 */\nstatic UINT32 Om_CollectChip(UINT8 *pucBuf, UINT32 ulLen)  { return Chip_ReadStatus(pucBuf, ulLen); }\nstatic UINT32 Om_ReadAll(UINT8 *pucBuf, UINT32 ulLen)      { return Om_CollectChip(pucBuf, ulLen); }\n\nUINT32 Om_ReadChip_TP(void)\n{\n    UINT8 aucStatus[16];\n    return Om_ReadAll(aucStatus, 32);\n}\n\nUINT32 Om_ReadChip_TN(void)\n{\n    UINT8 aucStatus[16];\n    return Om_ReadAll(aucStatus, sizeof(aucStatus));\n}"
+}

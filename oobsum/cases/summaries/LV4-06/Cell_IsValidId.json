@@ -1,0 +1,17 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Cell_IsValidId",
+  "key": "F@lv4_06_validator_func.c:Cell_IsValidId",
+  "loc": "lv4_06_validator_func.c:33",
+  "params": ["ulCellId: UINT32"],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [
+    {"kind": "ret_cond", "when": "ret == 1", "then": ["p0 <= 16"], "text": "ret == 1 ⇒ ulCellId <= 16"},
+    {"kind": "ret_cond", "when": "ret == 0", "then": ["p0 >= 17"], "text": "ret == 0 ⇒ ulCellId >= 17"},
+    {"kind": "ret_int", "range": ["0", "1"], "bound": "const", "text": "ret ∈ [0, 1]"}
+  ],
+  "calls": [],
+  "reps": [],
+  "opens": []
+}

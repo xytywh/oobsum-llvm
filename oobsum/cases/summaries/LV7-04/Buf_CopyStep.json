@@ -1,0 +1,19 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Buf_CopyStep",
+  "key": "F@lv7_04_pointer_stepping.c:Buf_CopyStep",
+  "loc": "lv7_04_pointer_stepping.c:24",
+  "params": ["pucOut: UINT8*", "pucIn: UINT8*", "ulCnt: UINT32"],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [],
+  "reps": [],
+  "opens": [
+    {
+      "reason": "pointer_stepping",
+      "at": "lv7_04_pointer_stepping.c:27",
+      "detail": "pucOut、pucIn 的偏移在循环里 widening 到 [0, +inf)，与 ulCnt 的关系丢失；不算代码给出的界，不生成条件"
+    }
+  ]
+}

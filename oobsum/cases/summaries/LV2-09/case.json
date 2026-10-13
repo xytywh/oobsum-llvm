@@ -1,0 +1,15 @@
+{
+  "id": "LV2-09",
+  "title": "无符号下标减一回绕：pos 为 0 时取\"前一个\"",
+  "files": [
+    "lv2/lv2_09_unsigned_wrap.c"
+  ],
+  "point": "无符号减法 `ulPos − 1` 记成 `wrap32(p1 − 1)`：代入 0 得 4294967295，确定越界。Safe 版本先判 `ulPos == 0` 就返回，于是有守卫 `ulPos >= 1`，守卫下减法不会回绕，偏移就是普通的 `ulPos − 1`；TN 的调用点传 0，守卫为假 → 这次调用根本走不到访问。",
+  "show_open": [
+    "Hist_GetPrev",
+    "Hist_GetPrevSafe",
+    "Ue_CheckJitter_TP",
+    "Ue_CheckJitter_TN"
+  ],
+  "code": "#define HIST_LEN 16\n\nstatic UINT8 Hist_GetPrev(const UINT8 *pucHist, UINT32 ulPos)\n{\n    return pucHist[ulPos - 1];                                /* ★1 */\n}\n\nstatic UINT8 Hist_GetPrevSafe(const UINT8 *pucHist, UINT32 ulPos)\n{\n    if (ulPos == 0) {\n        return 0;\n    }\n    return pucHist[ulPos - 1];\n}\n\nstatic UINT32 Ue_CalcJitter(const UINT8 *pucHist, UINT32 ulPos)      { return (UINT32)Hist_GetPrev(pucHist, ulPos); }\nstatic UINT32 Ue_CalcJitter_OK(const UINT8 *pucHist, UINT32 ulPos)   { return (UINT32)Hist_GetPrevSafe(pucHist, ulPos); }\nstatic UINT32 Ue_UpdateJitter(const UINT8 *pucHist, UINT32 ulPos)    { return Ue_CalcJitter(pucHist, ulPos); }\nstatic UINT32 Ue_UpdateJitter_OK(const UINT8 *pucHist, UINT32 ulPos) { return Ue_CalcJitter_OK(pucHist, ulPos); }\n\nUINT32 Ue_CheckJitter_TP(void)\n{\n    UINT8 aucHist[HIST_LEN] = { 0 };\n    return Ue_UpdateJitter(aucHist, 0);\n}\n\nUINT32 Ue_CheckJitter_TN(void)\n{\n    UINT8 aucHist[HIST_LEN] = { 0 };\n    return Ue_UpdateJitter_OK(aucHist, 0);\n}"
+}

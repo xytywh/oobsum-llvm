@@ -1,0 +1,38 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Ue_ResetMap_OK",
+  "key": "F@lv2_05_bitmap_cast_words.c:Ue_ResetMap_OK",
+  "loc": "lv2_05_bitmap_cast_words.c:47",
+  "params": ["pucMap: UINT8*", "ulBits: UINT32"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "4",
+      "obj": "*pucMap",
+      "have": "ext(p0)",
+      "end": ["4", "4*div(p1 + 31, 32)"],
+      "start": "0",
+      "bound": "loop",
+      "guard": ["div(p1 + 31, 32) >= 1"],
+      "access": {"fn": "Map_ClearWords_OK", "at": "lv2_05_bitmap_cast_words.c:42", "code": "pulMap[i] = 0"},
+      "path": ["Ue_ResetMap_OK@lv2_05_bitmap_cast_words.c:47", "Map_ClearWords_OK@lv2_05_bitmap_cast_words.c:42"],
+      "depth": 1,
+      "eff_depth": 0,
+      "blind": false,
+      "text": "div(ulBits + 31, 32) >= 1 ⇒ W4 @ *pucMap，末端 [4, 4*div(ulBits + 31, 32)]；需 4*div(ulBits + 31, 32) <= ext(pucMap)"
+    }
+  ],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv2_05_bitmap_cast_words.c:47",
+      "callee": "Map_ClearWords_OK",
+      "args": [{"ptr": "pucMap", "have": "ext(p0)", "alias": "p0"}, "p1"],
+      "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

@@ -1,0 +1,22 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Alm_ReportAll_TN",
+  "key": "F:Alm_ReportAll_TN",
+  "tu": "alm_top.c",
+  "loc": "alm_top.c:23",
+  "params": ["ulCellId: UINT32"],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "alm_top.c:23",
+      "callee": "Alm_Dispatch",
+      "args": ["2", "p0"],
+      "results": [{"req": "R1", "outcome": "safe"}],
+      "note": "ALM_ID_CLK_LOSS = 2"
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

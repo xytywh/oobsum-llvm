@@ -1,0 +1,20 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Om_ReadAll",
+  "key": "F@lv9_04_external_driver.c:Om_ReadAll",
+  "loc": "lv9_04_external_driver.c:27",
+  "params": ["pucBuf: UINT8*", "ulLen: UINT32"],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [{"kind": "ret_int", "range": ["0", "4294967295"], "bound": "type", "text": "ret ∈ [0, 4294967295]"}],
+  "calls": [
+    {
+      "site": "lv9_04_external_driver.c:27",
+      "callee": "Om_CollectChip",
+      "args": [{"ptr": "pucBuf", "have": "ext(p0)", "alias": "p0"}, "p1"],
+      "results": [{"note": "被调者没有条件"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

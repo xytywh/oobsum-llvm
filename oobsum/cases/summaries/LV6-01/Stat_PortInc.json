@@ -1,0 +1,34 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Stat_PortInc",
+  "key": "F@port_stat_use.c:Stat_PortInc",
+  "tu": "port_stat_use.c",
+  "loc": "port_stat_use.c:26",
+  "params": ["ulPort: UINT32"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "4",
+      "obj": "g_aulPortStat",
+      "have": "64",
+      "end": ["4*p0 + 4", "4*p0 + 4"],
+      "start": "4*p0",
+      "bound": "exact",
+      "guard": [],
+      "access": {"fn": "Stat_PortInc", "at": "port_stat_use.c:26", "code": "g_aulPortStat[ulPort]++"},
+      "path": ["Stat_PortInc@port_stat_use.c:26"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "absorbed": ["R4（同一位置的读）"],
+      "note": "have 来自全局大小表：G:g_aulPortStat 定义在 port_stat_def.c:5，UINT32[16] = 64 字节",
+      "text": "W4 @ g_aulPortStat，末端 4*ulPort + 4；需 4*ulPort + 4 <= 64"
+    }
+  ],
+  "effs": [],
+  "calls": [],
+  "reps": [],
+  "opens": []
+}

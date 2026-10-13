@@ -1,0 +1,13 @@
+{
+  "id": "LV8-01",
+  "title": "TLV 解析循环：每轮的校验漏算了 2 字节 TLV 头（读越界）",
+  "files": [
+    "lv8/lv8_01_tlv_relative_check.c"
+  ],
+  "point": "**数据驱动的步长也能做**：`ulLen` 读自缓冲区（无约束），`ulOff` 在循环里被 widening，两者的区间都没用；有用的是本轮的校验给出的**关系** `ulOff + ulLen <= ulTotal`（06- A-13 定义式 + A-14 守卫），访问末端 `ulOff + 2 + ulLen` 因此 `<= ulTotal + 2`。最小末端 2（第一轮、长度 0）。循环至少执行一次需要 `ulTotal >= 2`，作为守卫带着。读 `pucBuf[ulOff + 1]` 的那条被更强的条件覆盖。链顶自己的 `memcpy_s(aucMsg, 64, pucIn, 64)` 在源上要求入口形参至少 64 字节 —— 入口，记账。",
+  "show_open": [
+    "Tlv_ParseAll",
+    "Om_OnCfgMsg_TP"
+  ],
+  "code": "static void Tlv_ParseAll(const UINT8 *pucBuf, UINT32 ulTotal, UINT8 *pucOut)\n{\n    UINT32 ulOff = 0;\n    while (ulOff + 2 <= ulTotal) {\n        UINT32 ulLen = pucBuf[ulOff + 1];\n        if (ulOff + ulLen > ulTotal) {                        /* 漏了 + 2 */\n            break;\n        }\n        (void)memcpy_s(pucOut, 256, pucBuf + ulOff + 2, ulLen);   /* ★1 */\n        ulOff += 2 + ulLen;\n    }\n}\n\nstatic void Tlv_ParseAll_OK(const UINT8 *pucBuf, UINT32 ulTotal, UINT8 *pucOut)\n{\n    UINT32 ulOff = 0;\n    while (ulOff + 2 <= ulTotal) {\n        UINT32 ulLen = pucBuf[ulOff + 1];\n        if (ulOff + 2 + ulLen > ulTotal) {\n            break;\n        }\n        (void)memcpy_s(pucOut, 256, pucBuf + ulOff + 2, ulLen);\n        ulOff += 2 + ulLen;\n    }\n}\n\nstatic void Msg_ParseBody(const UINT8 *p, UINT32 n, UINT8 *o)    { Tlv_ParseAll(p, n, o); }\nstatic void Msg_ParseBody_OK(const UINT8 *p, UINT32 n, UINT8 *o) { Tlv_ParseAll_OK(p, n, o); }\nstatic void Om_HandleCfg(const UINT8 *p, UINT32 n, UINT8 *o)     { Msg_ParseBody(p, n, o); }\nstatic void Om_HandleCfg_OK(const UINT8 *p, UINT32 n, UINT8 *o)  { Msg_ParseBody_OK(p, n, o); }\n\nvoid Om_OnCfgMsg_TP(const UINT8 *pucIn)\n{\n    UINT8 aucMsg[64];\n    UINT8 aucOut[256];\n    (void)memcpy_s(aucMsg, sizeof(aucMsg), pucIn, sizeof(aucMsg));\n    Om_HandleCfg(aucMsg, sizeof(aucMsg), aucOut);\n}\n\nvoid Om_OnCfgMsg_TN(const UINT8 *pucIn)\n{\n    UINT8 aucMsg[64];\n    UINT8 aucOut[256];\n    (void)memcpy_s(aucMsg, sizeof(aucMsg), pucIn, sizeof(aucMsg));\n    Om_HandleCfg_OK(aucMsg, sizeof(aucMsg), aucOut);\n}"
+}

@@ -1,0 +1,28 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Cell_OnDelReq_TN",
+  "key": "F:Cell_OnDelReq_TN",
+  "loc": "lv4_06_validator_func.c:69",
+  "params": ["ulCellId: UINT32"],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [{"kind": "ret_int", "range": ["0", "1"], "bound": "const", "text": "ret ∈ [0, 1]"}],
+  "calls": [
+    {
+      "site": "lv4_06_validator_func.c:71",
+      "callee": "Cell_CheckPara_OK",
+      "args": ["p0"],
+      "results": [{"eff": 0, "value": "ret == 0 ⇒ p0 <= 15"}, {"eff": 1, "value": "ret == 1 ⇒ p0 >= 16"}],
+      "note": "分支 != VOS_OK 就 return；落到下面的一侧 ret == VOS_OK(0) → 守卫 ulCellId <= 15"
+    },
+    {
+      "site": "lv4_06_validator_func.c:74",
+      "callee": "Cell_Delete",
+      "args": ["p0"],
+      "guards": [{"cond": "p0 <= 15", "bound": "check", "from": "Cell_CheckPara_OK 的条件效应 ret == 0 ⇒ ulCellId <= 15"}],
+      "results": [{"req": "R1", "outcome": "safe"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

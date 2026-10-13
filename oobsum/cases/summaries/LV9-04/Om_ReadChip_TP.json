@@ -1,0 +1,20 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Om_ReadChip_TP",
+  "key": "F:Om_ReadChip_TP",
+  "loc": "lv9_04_external_driver.c:29",
+  "params": [],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv9_04_external_driver.c:32",
+      "callee": "Om_ReadAll",
+      "args": [{"ptr": "aucStatus", "have": "16"}, "32"],
+      "results": [{"note": "被调者没有条件 → 不报；漏报在 Chip_ReadStatus 的账本里"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

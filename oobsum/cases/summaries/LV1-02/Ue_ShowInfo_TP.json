@@ -1,0 +1,50 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Ue_ShowInfo_TP",
+  "key": "F:Ue_ShowInfo_TP",
+  "loc": "lv1_02_name_terminator.c:44",
+  "params": ["ulUeId: UINT32"],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv1_02_name_terminator.c:47",
+      "callee": "Ue_BuildName",
+      "args": [{"ptr": "szName", "have": "16"}, "p0"],
+      "results": [{"req": "R1", "outcome": "L1", "report": "RPT1"}],
+      "note": "CHAR szName[UE_NAME_LEN]，16 字节"
+    },
+    {
+      "site": "lv1_02_name_terminator.c:48",
+      "callee": "LOG_Print",
+      "model": "pure",
+      "args": ["3", null, null],
+      "results": [{"note": "LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件"}]
+    }
+  ],
+  "reps": [
+    {
+      "id": "RPT1",
+      "level": "L1",
+      "reported": true,
+      "site": "lv1_02_name_terminator.c:47",
+      "access": "Name_Terminate@lv1_02_name_terminator.c:29",
+      "object": "szName",
+      "have": "16",
+      "end": ["17", "17"],
+      "bound": "exact",
+      "depth": 3,
+      "eff_depth": 0,
+      "chain": [
+        "Ue_ShowInfo_TP@lv1_02_name_terminator.c:47",
+        "Ue_BuildName@lv1_02_name_terminator.c:41",
+        "Name_Format@lv1_02_name_terminator.c:36",
+        "Name_Terminate@lv1_02_name_terminator.c:29"
+      ],
+      "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 17 of 'szName' (16 bytes) is accessed",
+      "fp": "da30a4888779f6eb"
+    }
+  ],
+  "opens": []
+}

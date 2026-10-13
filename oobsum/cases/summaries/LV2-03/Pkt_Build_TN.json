@@ -1,0 +1,58 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Pkt_Build_TN",
+  "key": "F:Pkt_Build_TN",
+  "loc": "lv2_03_tlv_destmax_no_off.c:60",
+  "params": ["pucVal: UINT8*"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "R",
+      "bytes": "8",
+      "obj": "*pucVal",
+      "have": "ext(p0)",
+      "end": ["8", "8"],
+      "start": "0",
+      "bound": "exact",
+      "guard": [],
+      "access": {
+        "fn": "Tlv_WriteVal_OK",
+        "at": "lv2_03_tlv_destmax_no_off.c:36",
+        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN - ulOff, pucVal, ulValLen)"
+      },
+      "path": [
+        "Pkt_Build_TN@lv2_03_tlv_destmax_no_off.c:63",
+        "Pkt_AddIe_OK@lv2_03_tlv_destmax_no_off.c:52",
+        "Tlv_Append_OK@lv2_03_tlv_destmax_no_off.c:48",
+        "Tlv_WriteVal_OK@lv2_03_tlv_destmax_no_off.c:36"
+      ],
+      "depth": 3,
+      "eff_depth": 0,
+      "blind": false,
+      "text": "R8 @ *pucVal，末端 8；需 8 <= ext(pucVal)"
+    }
+  ],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv2_03_tlv_destmax_no_off.c:63",
+      "callee": "Pkt_AddIe_OK",
+      "args": [{"ptr": "aucPkt", "have": "128"}, "16", {"ptr": "pucVal", "have": "ext(p0)", "alias": "p0"}, "8"],
+      "results": [
+        {"req": "R1", "outcome": "safe"},
+        {"req": "R2", "outcome": "up", "as": "R1"},
+        {"req": "R3", "outcome": "safe"}
+      ]
+    }
+  ],
+  "reps": [],
+  "opens": [
+    {
+      "reason": "entry_unproven",
+      "at": "lv2_03_tlv_destmax_no_off.c:60",
+      "detail": "同 TP：pucVal 至少 8 字节",
+      "req": "R1"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Cell_FreeCtx",
+  "key": "F@lv4_06_validator_func.c:Cell_FreeCtx",
+  "loc": "lv4_06_validator_func.c:57",
+  "params": ["ulCellId: UINT32"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "32",
+      "obj": "g_astCellCtx",
+      "have": "512",
+      "end": ["32*p0 + 32", "32*p0 + 32"],
+      "start": "32*p0",
+      "bound": "exact",
+      "guard": [],
+      "access": {
+        "fn": "Ctx_Clear",
+        "at": "lv4_06_validator_func.c:54",
+        "code": "memset_s(&g_astCellCtx[ulCellId], sizeof(CELL_CTX_S), 0, sizeof(CELL_CTX_S))"
+      },
+      "path": ["Cell_FreeCtx@lv4_06_validator_func.c:57", "Ctx_Clear@lv4_06_validator_func.c:54"],
+      "depth": 1,
+      "eff_depth": 0,
+      "blind": false,
+      "text": "W32 @ g_astCellCtx，末端 32*ulCellId + 32；需 32*ulCellId + 32 <= 512"
+    }
+  ],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv4_06_validator_func.c:57",
+      "callee": "Ctx_Clear",
+      "args": ["p0"],
+      "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

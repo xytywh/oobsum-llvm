@@ -1,0 +1,43 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Cell_ResetUeMap_TP",
+  "key": "F:Cell_ResetUeMap_TP",
+  "loc": "lv2_05_bitmap_cast_words.c:51",
+  "params": [],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv2_05_bitmap_cast_words.c:54",
+      "callee": "Cell_ClearUeMap",
+      "args": [{"ptr": "(UINT8 *)aulAlign", "have": "8"}, "64"],
+      "results": [{"req": "R1", "outcome": "L2", "report": "RPT1"}],
+      "note": "UINT32 aulAlign[64 / 32]，8 字节"
+    }
+  ],
+  "reps": [
+    {
+      "id": "RPT1",
+      "level": "L2",
+      "reported": true,
+      "site": "lv2_05_bitmap_cast_words.c:54",
+      "access": "Map_ClearWords@lv2_05_bitmap_cast_words.c:33",
+      "object": "aulAlign",
+      "have": "8",
+      "end": ["4", "12"],
+      "bound": "loop",
+      "depth": 3,
+      "eff_depth": 0,
+      "chain": [
+        "Cell_ResetUeMap_TP@lv2_05_bitmap_cast_words.c:54",
+        "Cell_ClearUeMap@lv2_05_bitmap_cast_words.c:48",
+        "Ue_ResetMap@lv2_05_bitmap_cast_words.c:46",
+        "Map_ClearWords@lv2_05_bitmap_cast_words.c:33"
+      ],
+      "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 12 of 'aulAlign' (8 bytes) may be accessed; the bound comes from a loop bound in Map_ClearWords",
+      "fp": "8fc2c2ebe1bd96e9"
+    }
+  ],
+  "opens": []
+}

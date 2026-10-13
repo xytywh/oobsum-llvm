@@ -1,0 +1,13 @@
+{
+  "id": "LV10-04",
+  "title": "外部消息里的长度一路下传到 memcpy_s，没有任何校验（TN：框架在注册时声明了最大长度）",
+  "files": [
+    "lv10/lv10_04_unchecked_ext_len.c"
+  ],
+  "point": "**类型范围不算界**：链顶 `ulLen = pstMsg->usMsgLen`，只有 `UINT16` 的类型范围 `[0, 65535]`。对象都已知（`g_aucCfg` 256、`aucBody` 1024），但上界只来自类型，按 F-12 不报 L2；链顶是入口（消息处理函数），条件到此为止 → 记账 `type_range_only`。TP 与 TN 在代码里一模一样，区别在注册调用 `OM_RegMsg(…, 256)` 和平台的投递校验——那是 AI + 程序分析的活（候选研判）。",
+  "show_open": [
+    "Cfg_Save",
+    "Om_OnSaveCfg_TP"
+  ],
+  "code": "#define CFG_LEN 256\n\ntypedef struct {\n    UINT16 usMsgId;\n    UINT16 usMsgLen;\n    UINT8  aucBody[1024];\n} OM_MSG_S;\n\nvoid OM_RegMsg(UINT32 ulMsgId, void (*pfnEntry)(const OM_MSG_S *), UINT32 ulMaxLen);   /* 平台：投递前按 ulMaxLen 校验 */\n\nstatic UINT8 g_aucCfg[CFG_LEN];\n\nstatic void Cfg_Save(const UINT8 *pucBody, UINT32 ulLen)\n{\n    (void)memcpy_s(g_aucCfg, ulLen, pucBody, ulLen);         /* ★1 */\n}\n\nstatic void Cfg_Store(const UINT8 *p, UINT32 n)  { Cfg_Save(p, n); }\nstatic void Om_SaveCfg(const UINT8 *p, UINT32 n) { Cfg_Store(p, n); }\n\nvoid Om_OnSaveCfg_TP(const OM_MSG_S *pstMsg) { Om_SaveCfg(pstMsg->aucBody, pstMsg->usMsgLen); }\nvoid Om_OnSaveCfg_TN(const OM_MSG_S *pstMsg) { Om_SaveCfg(pstMsg->aucBody, pstMsg->usMsgLen); }\n\nvoid Om_ModInit(void) { OM_RegMsg(0x3001, Om_OnSaveCfg_TN, CFG_LEN); }"
+}

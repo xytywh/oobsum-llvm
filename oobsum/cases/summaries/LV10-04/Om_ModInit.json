@@ -1,0 +1,27 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Om_ModInit",
+  "key": "F:Om_ModInit",
+  "loc": "lv10_04_unchecked_ext_len.c:45",
+  "params": [],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv10_04_unchecked_ext_len.c:45",
+      "callee": "OM_RegMsg",
+      "model": "unknown",
+      "args": ["0x3001", null, "256"],
+      "results": [{"note": "外部函数、无模型：登记了 Om_OnSaveCfg_TN 与最大长度 256 —— 程序分析不理解，AI 研判时读它"}]
+    }
+  ],
+  "reps": [],
+  "opens": [
+    {
+      "reason": "unknown_callee",
+      "at": "lv10_04_unchecked_ext_len.c:45",
+      "detail": "OM_RegMsg 未建模（平台框架）；它把函数指针与最大长度登记给框架"
+    }
+  ]
+}

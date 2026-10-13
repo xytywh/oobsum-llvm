@@ -1,0 +1,43 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Port_HandleDown",
+  "key": "F@port_stat_use.c:Port_HandleDown",
+  "tu": "port_stat_use.c",
+  "loc": "port_stat_use.c:28",
+  "params": ["ulPort: UINT32"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "4",
+      "obj": "g_aulPortStat",
+      "have": "64",
+      "end": ["4*p0 + 4", "4*p0 + 4"],
+      "start": "4*p0",
+      "bound": "exact",
+      "guard": [],
+      "access": {"fn": "Stat_PortInc", "at": "port_stat_use.c:26", "code": "g_aulPortStat[ulPort]++"},
+      "path": [
+        "Port_HandleDown@port_stat_use.c:28",
+        "Port_CountDown@port_stat_use.c:27",
+        "Stat_PortInc@port_stat_use.c:26"
+      ],
+      "depth": 2,
+      "eff_depth": 0,
+      "blind": false,
+      "text": "W4 @ g_aulPortStat，末端 4*ulPort + 4；需 4*ulPort + 4 <= 64"
+    }
+  ],
+  "effs": [],
+  "calls": [
+    {
+      "site": "port_stat_use.c:28",
+      "callee": "Port_CountDown",
+      "args": ["p0"],
+      "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

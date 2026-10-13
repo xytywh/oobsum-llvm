@@ -1,0 +1,72 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Tlv_ParseAll",
+  "key": "F@lv8_01_tlv_relative_check.c:Tlv_ParseAll",
+  "loc": "lv8_01_tlv_relative_check.c:26",
+  "params": ["pucBuf: UINT8*", "ulTotal: UINT32", "pucOut: UINT8*"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "R",
+      "bytes": "ulLen",
+      "obj": "*pucBuf",
+      "have": "ext(p0)",
+      "end": ["2", "p1 + 2"],
+      "start": "2",
+      "bound": "check",
+      "guard": ["p1 >= 2"],
+      "access": {
+        "fn": "Tlv_ParseAll",
+        "at": "lv8_01_tlv_relative_check.c:34",
+        "code": "memcpy_s(pucOut, 256, pucBuf + ulOff + 2, ulLen)"
+      },
+      "path": ["Tlv_ParseAll@lv8_01_tlv_relative_check.c:34"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "absorbed": ["R1 @ pucBuf + ulOff + 1（lv8_01_tlv_relative_check.c:30，末端 <= ulTotal）"],
+      "note": "末端 ulOff + 2 + ulLen；本轮校验给出 ulOff + ulLen <= ulTotal",
+      "text": "ulTotal >= 2 ⇒ RulLen @ *pucBuf，末端 [2, ulTotal + 2]；需 ulTotal + 2 <= ext(pucBuf)"
+    },
+    {
+      "id": "R2",
+      "kind": "W",
+      "bytes": "256",
+      "obj": "*pucOut",
+      "have": "ext(p2)",
+      "end": ["256", "256"],
+      "start": "0",
+      "bound": "exact",
+      "guard": ["p1 >= 2"],
+      "access": {
+        "fn": "Tlv_ParseAll",
+        "at": "lv8_01_tlv_relative_check.c:34",
+        "code": "memcpy_s(pucOut, 256, pucBuf + ulOff + 2, ulLen)"
+      },
+      "path": ["Tlv_ParseAll@lv8_01_tlv_relative_check.c:34"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "note": "memcpy_s 的目的：destMax 256",
+      "text": "ulTotal >= 2 ⇒ W256 @ *pucOut，末端 256；需 256 <= ext(pucOut)"
+    }
+  ],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv8_01_tlv_relative_check.c:34",
+      "callee": "memcpy_s",
+      "model": "access",
+      "args": [
+        {"ptr": "pucOut", "have": "ext(p2)"},
+        "256",
+        {"ptr": "pucBuf + ulOff + 2", "have": "ext(p0) - ulOff - 2"},
+        "ulLen"
+      ],
+      "results": [{"note": "访问类模型 memcpy_s → R1（源）、R2（目的）"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

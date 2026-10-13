@@ -1,0 +1,14 @@
+{
+  "id": "LV3-07",
+  "title": "报文组装循环：按剩余长度拷贝（安全） vs. destMax 用整包长度（缺陷）",
+  "files": [
+    "lv3/lv3_07_pkt_loop_destmax.c"
+  ],
+  "point": "**先化简、后代区间**：安全写法里目的末端 = `ulOff + (ulPktLen − ulOff)`，`ulOff` 两边抵消，与它的循环区间无关，摘要就是 `ulPktLen <= ext(pucPkt)`。缺陷写法里末端 = `ulOff + ulPktLen`，`ulOff` 只能换成它的区间 `[0, ulPktLen]`（来自循环里的校验），末端是 `[ulPktLen, 2*ulPktLen]`。源指针 `astIe[i].pucVal` 来自数组元素的字段，P0 不跟踪，记账。",
+  "show_open": [
+    "Pkt_PutIes_OK",
+    "Pkt_PutIes",
+    "Msg_Encode_TP"
+  ],
+  "code": "#define PKT_LEN 128\n\ntypedef struct {\n    const UINT8 *pucVal;\n    UINT32       ulLen;\n} IE_S;\n\nstatic UINT32 Pkt_PutIes_OK(UINT8 *pucPkt, UINT32 ulPktLen, const IE_S *astIe, UINT32 ulIeNum)\n{\n    UINT32 i;\n    UINT32 ulOff = 0;\n    for (i = 0; i < ulIeNum; i++) {\n        if (ulOff + astIe[i].ulLen > ulPktLen) {\n            break;\n        }\n        if (memcpy_s(pucPkt + ulOff, ulPktLen - ulOff, astIe[i].pucVal, astIe[i].ulLen) != EOK) {   /* ★1 */\n            break;\n        }\n        ulOff += astIe[i].ulLen;\n    }\n    return ulOff;\n}\n\nstatic UINT32 Pkt_PutIes(UINT8 *pucPkt, UINT32 ulPktLen, const IE_S *astIe, UINT32 ulIeNum)\n{\n    UINT32 i;\n    UINT32 ulOff = 0;\n    for (i = 0; i < ulIeNum; i++) {\n        if (ulOff + astIe[i].ulLen > ulPktLen) {\n            break;\n        }\n        if (memcpy_s(pucPkt + ulOff, ulPktLen, astIe[i].pucVal, astIe[i].ulLen) != EOK) {          /* ★2 */\n            break;\n        }\n        ulOff += astIe[i].ulLen;\n    }\n    return ulOff;\n}\n\nstatic UINT32 Body_PutIes(UINT8 *p, UINT32 n, const IE_S *a, UINT32 k)       { return Pkt_PutIes(p, n, a, k); }\nstatic UINT32 Body_PutIes_OK(UINT8 *p, UINT32 n, const IE_S *a, UINT32 k)    { return Pkt_PutIes_OK(p, n, a, k); }\nstatic UINT32 Msg_BuildBody(UINT8 *p, UINT32 n, const IE_S *a, UINT32 k)     { return Body_PutIes(p, n, a, k); }\nstatic UINT32 Msg_BuildBody_OK(UINT8 *p, UINT32 n, const IE_S *a, UINT32 k)  { return Body_PutIes_OK(p, n, a, k); }\n\nUINT32 Msg_Encode_TP(const IE_S *astIe, UINT32 ulIeNum)\n{\n    UINT8 aucPkt[PKT_LEN];\n    return Msg_BuildBody(aucPkt, sizeof(aucPkt), astIe, ulIeNum);\n}\n\nUINT32 Msg_Encode_TN(const IE_S *astIe, UINT32 ulIeNum)\n{\n    UINT8 aucPkt[PKT_LEN];\n    return Msg_BuildBody_OK(aucPkt, sizeof(aucPkt), astIe, ulIeNum);\n}"
+}

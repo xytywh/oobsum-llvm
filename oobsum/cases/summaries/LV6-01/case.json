@@ -1,0 +1,13 @@
+{
+  "id": "LV6-01",
+  "title": "跨文件：extern 不完整声明的全局统计表，下标常量从三层之上传入",
+  "files": [
+    "lv6/lv6_01_extern_tbl/port_stat_use.c"
+  ],
+  "point": "使用文件里只有 `extern UINT32 g_aulPortStat[];`，看不到大小。方案 B 的 `solve` 先读全部 FIR 建**全局大小表**（`port_stat_def.c` 里定义为 16 项 = 64 字节），所以最底层的 Req 直接是 `have = 64`。没有这张表时 `have` 是未知，条件停住、记账 `global_value`——这就是它在 04- 里只是\"尽力\"的原因（依赖全工程都进了 cdb）。",
+  "show_open": [
+    "Stat_PortInc",
+    "Port_OnLinkDown_TP"
+  ],
+  "code": "/* port_stat_def.c */\n#define MAX_PORT_NUM 16\n\nUINT32 g_aulPortStat[MAX_PORT_NUM];\n\n/* port_stat_use.c */\n#define MAX_PORT_NUM 16\n\nextern UINT32 g_aulPortStat[];\n\nstatic void Stat_PortInc(UINT32 ulPort)     { g_aulPortStat[ulPort]++; }   /* ★1 */\nstatic void Port_CountDown(UINT32 ulPort)   { Stat_PortInc(ulPort); }\nstatic void Port_HandleDown(UINT32 ulPort)  { Port_CountDown(ulPort); }\n\nvoid Port_OnLinkDown_TP(void) { Port_HandleDown(MAX_PORT_NUM); }\nvoid Port_OnLinkDown_TN(void) { Port_HandleDown(MAX_PORT_NUM - 1); }"
+}

@@ -1,0 +1,25 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Cell_CheckPara",
+  "key": "F@lv4_06_validator_func.c:Cell_CheckPara",
+  "loc": "lv4_06_validator_func.c:36",
+  "params": ["ulCellId: UINT32"],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [
+    {"kind": "ret_cond", "when": "ret == 0", "then": ["p0 <= 16"], "text": "ret == 0 ⇒ ulCellId <= 16"},
+    {"kind": "ret_cond", "when": "ret == 1", "then": ["p0 >= 17"], "text": "ret == 1 ⇒ ulCellId >= 17"},
+    {"kind": "ret_int", "range": ["0", "1"], "bound": "const", "text": "ret ∈ [0, 1]"}
+  ],
+  "calls": [
+    {
+      "site": "lv4_06_validator_func.c:38",
+      "callee": "Cell_IsValidId",
+      "args": ["p0"],
+      "results": [{"eff": 0, "value": "ret == 1 ⇒ p0 <= 16"}, {"eff": 1, "value": "ret == 0 ⇒ p0 >= 17"}],
+      "note": "== VOS_FALSE 那一侧 return VOS_ERR(1)，另一侧 return VOS_OK(0) → 本函数的两条 ret_cond"
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

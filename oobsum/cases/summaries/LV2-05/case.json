@@ -1,0 +1,14 @@
+{
+  "id": "LV2-05",
+  "title": "字节型位图按 UINT32 清零，字数算多了一个",
+  "files": [
+    "lv2/lv2_05_bitmap_cast_words.c"
+  ],
+  "point": "两个要点：① 强转 `(UINT32 *)pucMap` 不换对象，条件仍写在 `ext(pucMap)` 上，元素大小 4 已经折进字节偏移；② `ulBits / 32` 保留成不透明项 `div(ulBits, 32)`，代入常量 64 后变成 2 再判。Infer 在这里把除法丢成区间，TN 也误报了【实测数据】。末端是区间 `[4, 4*div(ulBits,32)+4]`，来源是循环界，所以只会是 L2。",
+  "show_open": [
+    "Map_ClearWords",
+    "Map_ClearWords_OK",
+    "Cell_ResetUeMap_TP"
+  ],
+  "code": "#define MAX_UE_NUM 64\n\nstatic void Map_ClearWords(UINT8 *pucMap, UINT32 ulBits)\n{\n    UINT32 *pulMap = (UINT32 *)(void *)pucMap;\n    UINT32 i;\n    for (i = 0; i <= ulBits / 32; i++) {\n        pulMap[i] = 0;                                        /* ★1 */\n    }\n}\n\nstatic void Map_ClearWords_OK(UINT8 *pucMap, UINT32 ulBits)\n{\n    UINT32 *pulMap = (UINT32 *)(void *)pucMap;\n    UINT32 i;\n    for (i = 0; i < (ulBits + 31) / 32; i++) {\n        pulMap[i] = 0;\n    }\n}\n\nstatic void Ue_ResetMap(UINT8 *pucMap, UINT32 ulBits)       { Map_ClearWords(pucMap, ulBits); }\nstatic void Ue_ResetMap_OK(UINT8 *pucMap, UINT32 ulBits)    { Map_ClearWords_OK(pucMap, ulBits); }\nstatic void Cell_ClearUeMap(UINT8 *pucMap, UINT32 ulBits)    { Ue_ResetMap(pucMap, ulBits); }\nstatic void Cell_ClearUeMap_OK(UINT8 *pucMap, UINT32 ulBits) { Ue_ResetMap_OK(pucMap, ulBits); }\n\nvoid Cell_ResetUeMap_TP(void)\n{\n    UINT32 aulAlign[MAX_UE_NUM / 32];             /* 保证 4 字节对齐的 8 字节缓冲 */\n    Cell_ClearUeMap((UINT8 *)aulAlign, MAX_UE_NUM);\n}\n\nvoid Cell_ResetUeMap_TN(void)\n{\n    UINT32 aulAlign[MAX_UE_NUM / 32];\n    Cell_ClearUeMap_OK((UINT8 *)aulAlign, MAX_UE_NUM);\n}"
+}

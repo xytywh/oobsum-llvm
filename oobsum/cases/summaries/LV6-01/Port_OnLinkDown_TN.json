@@ -1,0 +1,21 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Port_OnLinkDown_TN",
+  "key": "F:Port_OnLinkDown_TN",
+  "tu": "port_stat_use.c",
+  "loc": "port_stat_use.c:31",
+  "params": [],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "port_stat_use.c:31",
+      "callee": "Port_HandleDown",
+      "args": ["15"],
+      "results": [{"req": "R1", "outcome": "safe"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

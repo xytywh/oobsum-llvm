@@ -1,0 +1,32 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Map_ClearWords",
+  "key": "F@lv2_05_bitmap_cast_words.c:Map_ClearWords",
+  "loc": "lv2_05_bitmap_cast_words.c:28",
+  "params": ["pucMap: UINT8*", "ulBits: UINT32"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "4",
+      "obj": "*pucMap",
+      "have": "ext(p0)",
+      "end": ["4", "4*div(p1, 32) + 4"],
+      "start": "0",
+      "bound": "loop",
+      "guard": [],
+      "access": {"fn": "Map_ClearWords", "at": "lv2_05_bitmap_cast_words.c:33", "code": "pulMap[i] = 0"},
+      "path": ["Map_ClearWords@lv2_05_bitmap_cast_words.c:33"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "note": "i ∈ [0, ulBits / 32]（循环 i <= ulBits / 32）；pulMap 与 pucMap 同一基址",
+      "text": "W4 @ *pucMap，末端 [4, 4*div(ulBits, 32) + 4]；需 4*div(ulBits, 32) + 4 <= ext(pucMap)"
+    }
+  ],
+  "effs": [],
+  "calls": [],
+  "reps": [],
+  "opens": []
+}

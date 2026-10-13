@@ -1,4 +1,4 @@
-# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.12）
+# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.13）
 
 一句话：**这个包里只有一份"正文"（报告），其余全是为了让你能亲手复现、读懂、并在自己代码库上用起来的材料。**
 
@@ -14,6 +14,8 @@
 > **v3.12 起，开始写代码：代码写成什么样看 [`08-summary2-design/06-spec.md`](08-summary2-design/06-spec.md)（规格说明），
 > 按什么顺序写、每周交什么、需要你提供什么看 [`08-summary2-design/07-dev-plan.md`](08-summary2-design/07-dev-plan.md)**
 > —— 写代码前先在 fork 里跑一次 I0 集成探针（`probes/i0-integration/`）。
+> **v3.13：方案备选按五个独立问题重排、摘要看真实 JSON，见 [`08-summary2-design/08-options-and-summary-examples.md`](08-summary2-design/08-options-and-summary-examples.md)**
+> —— 16 个用例、104 份函数摘要在 `cases/summaries/`，`python3 replay.py` 在每个调用点重做代换并对照期望。
 
 调研基线：`facebook/infer` commit `3d38229b04b649024fee065621f6a4c838f6d029`（main，2026-09-10）；
 实验用官方预编译 `infer v1.3.0`，以及从源码自建的 `v1.3.0-3d38229b`（含本包里的 MiniOobChecker）。
@@ -92,6 +94,9 @@
 > **v3.12** 新增 **`06-spec.md`**（P0 规格：功能、选项、FIR 与摘要格式、算法、跨 TU 方案 B、非功能、测试与验收、追溯矩阵、8 个待点头决策）、
 > **`07-dev-plan.md`**（10-14 → 12-15 的编码计划：开工输入 I1–I12、两环境闭环、14 个工作包、周历与检查点），
 > 以及 **`probes/i0-integration/`**（只读集成探针 + 全量形态统计脚本；沙箱实测：挂 `EndOfTranslationUnit` 会让每个函数跑 ExprEngine，故改挂 `ASTDecl`）。
+> **v3.13** 新增 **`08-options-and-summary-examples.md`**：旧 A–G 拆成五个独立问题（内容 / 生成 / 顺序 / 判定 / 跨文件）的选项矩阵，拼成 S1–S6 完整方案；
+> **`cases/summaries/`**：16 个用例（Lv1–Lv10 每级至少一个）的 104 份函数摘要 JSON + JSON Schema + 回放器（32 个入口与期望一致）。
+> `06-spec.md` §5.3 摘要格式定稿为可读 JSON，按 securec 真实语义细化安全函数条件，新增守卫界判定 F-12b。
 >
 > ⚠️ **v2.5 在 git 里是一次大规模重命名**（35 个条目 + 根目录）。
 > 提交时用 `git add -A`，让 git 的 rename detection 生效，
@@ -159,11 +164,16 @@ CHANGELOG.md   ← 版本变更清单
    06-spec.md                                  ★★ 规格说明（P0）：写代码以它为准
    07-dev-plan.md                              ★★ 编码实施计划：开工输入、工作包、周历、检查点
    06-07-spec-and-plan-offline.html            上面两份的网页版
+   08-options-and-summary-examples.md          ★★ 方案按五个问题拆开比 + 16 个用例的真实摘要与逐步回放（专家讨论用）
+   08-options-and-summary-examples-offline.html 同一份的网页版（方案矩阵可点选；用例浏览器：每个函数的 JSON + 回放）
    cases/                                      ★ 分级用例语料（v3.11）
       common.h                                 公共类型与安全函数声明；-DCASE_SHIM 时换成 Infer 认识的 malloc/memset
       lv1/ … lv10/                             67 个用例，头部 @id/@scene/@expect/摘要/串联；跨文件用例单独成目录
       demo/relevance_demo.c                    05- §1.2 的例子：一整个函数里摘要实际剩下什么
       run.py                                   index / check / infer / doc 四个子命令
+      summaries/                               ★ 16 个用例的 104 份函数摘要 JSON（06- §5.3 的落盘格式）
+         replay.py                             回放器：在每个调用点重做代换与判定，核对 JSON 与 @expect；--md 生成 08- 的 B.5
+         summary.schema.json                   摘要格式的 JSON Schema
       INDEX.md                                 用例总表（run.py index 生成）
    01-architecture.md                          组件/数据结构/算法/接口，每条决策挂证伪条件
    02-effort-and-milestones.md                 99–149 人日，分 M0–M5；含"让 Claude 写代码"的估算
@@ -186,6 +196,7 @@ CHANGELOG.md   ← 版本变更清单
 | **★ 在你们自己代码库上跑** | `06-practice/01-whole-program-analysis.md` | 半天（含切子集试水） |
 | **★ 搞清楚每一步在干什么** | `06-practice/02-observability-handbook.md` + `./observe.sh` | 1 小时 |
 | **★ 做选型权衡（能看住什么/看不住什么）** | `07-capability-boundary/01-capability-boundary-fp-fn.md` | 40 分钟 |
+| **★ 和专家讨论方案 / 看摘要到底长什么样** | **`08-summary2-design/08-options-and-summary-examples.md`**（网页版可点选），`cases/summaries/replay.py -v` | 读 1 小时 |
 | **★ 开始写代码（规格 + 计划 + 你要给什么）** | **`08-summary2-design/07-dev-plan.md` §0、§2**，再看 `06-spec.md` §12；探针 `probes/i0-integration/README.md` | 读 1 小时 + 探针 1 小时 |
 | **★ 摘要长什么样、多层怎么串起来** | **`08-summary2-design/05-summary-design-and-cases.md`**，用例在 `cases/` | 读 1 小时 |
 | **★ 实施排期（已立项）** | **`08-summary2-design/00-implementation-plan.md`**，细节再看 `01-architecture.md` | 读 30 分钟 |

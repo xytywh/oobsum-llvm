@@ -1,0 +1,45 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Cell_UpdateStat",
+  "key": "F@lv1_01_stat_enum_butt.c:Cell_UpdateStat",
+  "loc": "lv1_01_stat_enum_butt.c:40",
+  "params": ["ulType: UINT32"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "4",
+      "obj": "g_aulCellStat",
+      "have": "16",
+      "end": ["4*p0 + 4", "4*p0 + 4"],
+      "start": "4*p0",
+      "bound": "exact",
+      "guard": [],
+      "access": {"fn": "Stat_Inc", "at": "lv1_01_stat_enum_butt.c:37", "code": "g_aulCellStat[ulType]++"},
+      "path": ["Cell_UpdateStat@lv1_01_stat_enum_butt.c:43", "Stat_Inc@lv1_01_stat_enum_butt.c:37"],
+      "depth": 1,
+      "eff_depth": 0,
+      "blind": false,
+      "text": "W4 @ g_aulCellStat，末端 4*ulType + 4；需 4*ulType + 4 <= 16"
+    }
+  ],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv1_01_stat_enum_butt.c:42",
+      "callee": "LOG_Print",
+      "model": "pure",
+      "args": ["3", null, "p0"],
+      "results": [{"note": "LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件"}]
+    },
+    {
+      "site": "lv1_01_stat_enum_butt.c:43",
+      "callee": "Stat_Inc",
+      "args": ["p0"],
+      "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

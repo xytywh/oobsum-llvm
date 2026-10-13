@@ -1,0 +1,13 @@
+{
+  "id": "LV1-07",
+  "title": "跨文件：告警 ID 用了 BUTT，经三个文件三层到达标志数组",
+  "files": [
+    "lv1/lv1_07_cross_tu/alm_top.c"
+  ],
+  "point": "与 LV1-01 同形，但三层分在三个 `.c` 里。方案 B 下三个 TU 各自 `export` 出 FIR，`solve` 时全局调用图把它们接起来，摘要与单文件时**完全相同**，只多了 `tu` 字段；告警报在 `alm_top.c` 的调用点，trace 写进消息（D12）。",
+  "show_open": [
+    "Alm_SetFlag",
+    "Alm_ReportAll_TP"
+  ],
+  "code": "/* alm_low.c */\nstatic UINT8 g_aucAlmFlag[ALM_ID_BUTT];\n\nvoid Alm_SetFlag(UINT32 ulAlmId)\n{\n    g_aucAlmFlag[ulAlmId] = 1;                                /* ★1 */\n}\n\nvoid Alm_RaiseOne(UINT32 ulAlmId)\n{\n    Alm_SetFlag(ulAlmId);\n}\n\n/* alm_mid.c */\nvoid Alm_Dispatch(UINT32 ulAlmId, UINT32 ulCellId)\n{\n    LOG_Print(2, \"alarm %u on cell %u\", ulAlmId, ulCellId);\n    Alm_RaiseOne(ulAlmId);\n}\n\n/* alm_top.c */\nvoid Alm_ReportAll_TP(UINT32 ulCellId) { Alm_Dispatch(ALM_ID_BUTT, ulCellId); }\nvoid Alm_ReportAll_TN(UINT32 ulCellId) { Alm_Dispatch(ALM_ID_CLK_LOSS, ulCellId); }"
+}

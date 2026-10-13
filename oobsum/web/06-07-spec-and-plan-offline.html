@@ -187,7 +187,7 @@ footer p{max-width:none}
 </style>
 <div class="wrap">
 <header class="mast">
-  <div class="eyebrow">CSA Summary 2.0 · 调研包 v3.12 · 2026-10-13 · 评审稿</div>
+  <div class="eyebrow">CSA Summary 2.0 · 调研包 v3.13 · 2026-10-13 · 评审稿</div>
   <h1>开工前的规格与计划：代码写成什么样、按什么顺序写、需要你给什么</h1>
   <p class="thesis">写代码<strong>不用等任何输入</strong>：规格里不依赖待定决策的部分今天就开写，绝大部分调试在沙箱（上游 LLVM 14.0.6）里做完再交给你。
     本周只要你三件事；其余输入都有默认值和时间点。跨 TU 改为<strong>一遍导出 → 离线求解 → 一遍出告警</strong>，
@@ -517,10 +517,10 @@ footer p{max-width:none}
 </tr>
 <tr>
 <td><strong>WP4</strong> 摘要、代换、调度、出告警</td>
-<td>A-60…A-62、A-80…A-82、A-90、A-91、F-20…F-35、D-23…D-29</td>
+<td>A-60…A-62、A-80…A-82、A-90、A-91、F-20…F-35、D-20…D-29</td>
 <td><code>core/Summary*</code>、<code>core/Apply</code>、<code>core/Solver</code>、<code>core/Dump</code>、入口的告警部分</td>
 <td>WP3</td>
-<td><strong>G1</strong>：Lv1 + Lv2（含跨 TU 的 LV1-07）</td>
+<td><strong>G1</strong>：Lv1 + Lv2（含跨 TU 的 LV1-07）；<code>cases/summaries/</code> 里 Lv1、Lv2 的 JSON 与引擎输出一致（T-06）</td>
 <td>W06</td>
 </tr>
 <tr>
@@ -968,7 +968,7 @@ S2 级（符号可疑）输出。</p>
 </tr>
 <tr>
 <td><strong>接口符号</strong></td>
-<td>摘要里允许出现的符号：形参值 <code>p#i</code>、形参指向对象的剩余字节数 <code>ext(p#i)</code>、经形参可达的字段（深度 ≤ 2）<code>p#i-&gt;f</code>、全局 <code>g:K</code>（§5.3）</td>
+<td>摘要里允许出现的符号：形参值 <code>p0</code>、<code>p1</code>…、形参指向对象的剩余字节数 <code>ext(p0)</code>、经形参可达的字段（深度 ≤ 2）<code>p0-&gt;ulLen</code>、全局 <code>g:g_x</code>（§5.3）</td>
 </tr>
 <tr>
 <td><strong>Req / Eff / Rep / Open</strong></td>
@@ -1087,14 +1087,14 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/&lt;tu&g
 <tr>
 <td><strong>F-03</strong></td>
 <td><code>memcpy_s</code> / <code>memmove_s(dest, destMax, src, count)</code></td>
-<td><code>destMax ≤ ext(dest)</code>；<code>count ≤ ext(src)</code></td>
-<td><code>count &gt; destMax</code> 运行时被拦，不算越界（<code>01-</code> §3.7.3）</td>
+<td>目的：<code>destMax ≤ ext(dest)</code>；源：<code>count ≤ destMax ⇒ count ≤ ext(src)</code></td>
+<td>按 securec（libboundscheck）的实现<span class="ev">文档</span>：<code>destMax == 0</code> 或 <code>&gt; SECUREC_MEM_MAX_LEN</code>（默认 <code>0x7fffffff</code>）直接返回、不写；<code>count &gt; destMax</code> 时先把 <code>dest</code> 的 <code>destMax</code> 字节清零再返回、不读源。所以目的一侧总是写 <code>destMax</code> 字节，源一侧只在 <code>count ≤ destMax</code> 时读。<code>destMax</code> 是<strong>可能回绕的无符号减法</strong>（<code>128 − ulOff</code>）时，回绕后的值必然大于上限 → 生成守卫"减法不为负"（LV2-03 TN）</td>
 </tr>
 <tr>
 <td><strong>F-04</strong></td>
 <td><code>memset_s(dest, destMax, c, count)</code></td>
 <td><code>destMax ≤ ext(dest)</code></td>
-<td></td>
+<td>同 F-03 的 <code>destMax</code> 规则</td>
 </tr>
 <tr>
 <td><strong>F-05</strong></td>
@@ -1154,9 +1154,15 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/&lt;tu&g
 <td>报（Possible）</td>
 </tr>
 <tr>
+<td><strong>F-12b</strong></td>
+<td><strong>守卫界判定</strong></td>
+<td>还含当前函数的接口符号，但 <code>have</code> 已知、且这些符号都被<strong>代码给出的界</strong>框住（访问侧校验带上来的守卫、调用点处成立的守卫——如条件效应收窄出来的）：按界的最值套用 F-10 / F-11 / F-12</td>
+<td>当场判定，不再上传（LV3-03、LV4-06）。理由：访问侧的校验就是代码自己声明的"接受范围"，它与对象大小不匹配本身就是缺陷</td>
+</tr>
+<tr>
 <td><strong>F-13</strong></td>
 <td><strong>上传</strong></td>
-<td>还含当前函数的接口符号</td>
+<td>还含当前函数的接口符号（F-12b 不适用时）</td>
 <td>代换成当前函数的 Req，<code>depth + 1</code></td>
 </tr>
 <tr>
@@ -1345,6 +1351,13 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/&lt;tu&g
 <td>int</td>
 <td><code>0</code></td>
 <td><code>1</code>：每 TU 一行统计；<code>2</code>：每函数一行</td>
+</tr>
+<tr>
+<td>I-24</td>
+<td><code>CallTrace</code></td>
+<td>string</td>
+<td><code>full</code></td>
+<td>摘要里 <code>calls[]</code> 调用点记录的详细程度：<code>full</code>（实参、局部区间、守卫、结局，调试用）/ <code>results</code>（只留结局）/ <code>none</code>。全量跑出来体积过大时降级</td>
 </tr>
 </tbody>
 </table></div>
@@ -1630,8 +1643,13 @@ pure:                           # 不改任何被跟踪内存、返回值无约�
 <p><strong>D-14 边</strong>：<code>succ: [{to, assume?}]</code>。<code>if</code> / 循环条件降成两条边上的 <code>assume E</code> / <code>assume ["lnot", E]</code>；<code>switch</code> 降成每个 <code>case</code> 一条
 <code>assume x == c</code> 与 <code>default</code> 一条（<code>case</code> 超过 16 个时 <code>default</code> 不带 assume）。<code>&amp;&amp;</code>、<code>||</code>、<code>?:</code> 由 Clang CFG 拆好，
 <code>?:</code> 的结果在两个前驱块末尾各补一条 <code>set tmp</code>（<strong>A-04</strong>）。</p>
-<h3>5.3 摘要（<code>oobsum-summary/1</code>）</h3>
-<p><strong>D-20 接口符号</strong>：</p>
+<h3>5.3 摘要（<code>oobsum-summary/1</code>）——v3.13 定稿</h3>
+<blockquote>
+<p><strong>一个函数一份 JSON</strong>，表达式都写成人能直接读的字符串。完整字段定义：<code>cases/summaries/summary.schema.json</code>（JSON Schema）；
+16 个用例的 104 份实样与逐步回放：<code>08-options-and-summary-examples.md</code> Part B 与 <code>cases/summaries/</code>。
+全量运行时落在 <code>WorkDir/summaries/&lt;00..ff&gt;.jsonl</code>（按函数键哈希分片，一行一份）；<code>oobsum.py show &lt;函数名&gt;</code> 打印成实样那样。</p>
+</blockquote>
+<p><strong>D-20 接口符号</strong>（摘要里允许出现的符号）：</p>
 <div class="tw"><table>
 <thead>
 <tr>
@@ -1641,62 +1659,152 @@ pure:                           # 不改任何被跟踪内存、返回值无约�
 </thead>
 <tbody>
 <tr>
-<td><code>p#i</code></td>
-<td>第 i 个形参在入口处的值（整数，或指针的"值"本身，用于判空 / 比较）</td>
+<td><code>p0</code>、<code>p1</code>…</td>
+<td>第 i 个形参在入口处的值（<code>params</code> 数组按下标给出名字与类型）</td>
 </tr>
 <tr>
-<td><code>ext(p#i)</code></td>
-<td>形参指针所指对象的剩余字节数</td>
+<td><code>ext(p0)</code></td>
+<td>形参指针所指对象从该指针起还剩多少字节</td>
 </tr>
 <tr>
-<td><code>p#i-&gt;o:s</code>、<code>p#i-&gt;o1-&gt;o2:s</code></td>
-<td>经形参可达的字段在入口处的值（偏移 <code>o</code>、大小 <code>s</code>；最多两次解引用）；打印时带字段名，如 <code>p#0-&gt;ulLen</code></td>
+<td><code>p0-&gt;ulLen</code>、<code>p0-&gt;pstNext-&gt;ulLen</code></td>
+<td>经形参可达的字段在入口处的值（最多两次解引用）；偏移、大小、类型在顶层 <code>fields</code> 表里</td>
 </tr>
 <tr>
-<td><code>ext(&lt;指针符号&gt;)</code></td>
-<td>任一指针型符号（字段、全局指针）所指对象的剩余字节数</td>
+<td><code>ext(p0-&gt;pucBuf)</code></td>
+<td>指针型字段所指对象的剩余字节数</td>
 </tr>
 <tr>
-<td><code>g:K</code>、<code>ext(g:K)</code>、<code>size(g:K)</code></td>
-<td>全局在入口处的值；全局指针的剩余字节数；不完整类型全局的大小（求解时由定义所在 TU 给出）</td>
+<td><code>g:g_x</code>、<code>ext(g:g_px)</code></td>
+<td>全局在入口处的值（P0 只记录、不跟踪传播）；全局指针的剩余字节数</td>
 </tr>
 <tr>
-<td><code>&lt;op …&gt;</code></td>
-<td>不透明项：<code>&lt;mul p#1 p#2&gt;</code>、<code>&lt;div p#1 32&gt;</code>、<code>&lt;wrap32 p#1-1&gt;</code>；代换后变成常数才参与判定</td>
+<td><code>div(e, n)</code>、<code>mod(e, n)</code>、<code>wrap32(e)</code>、<code>wrap16(e)</code>、<code>mul(a, b)</code></td>
+<td>不透明项：除以常数、取模、无符号回绕、两个变量相乘；代换后内层是常数才求值</td>
 </tr>
 </tbody>
 </table></div>
-<p><strong>D-21 线性式</strong> <code>LE</code>：<code>{"c": 常数, "t": [[系数, 符号], …], "o": [不透明项…], "txt": "16*p#1 + 4"}</code>；系数、常数为 64 位有符号整数，
-溢出即整式降为不透明项。<strong>D-22 界</strong> <code>B</code>：<code>LE</code>、<code>"+inf"</code>、<code>"-inf"</code>，带来源标签 <code>src</code>（§6.2）。</p>
-<p><strong>D-23 函数摘要</strong>：</p>
-<pre><code class="language-json">{ &quot;key&quot;: &quot;F:Ue_InitTbl&quot;, &quot;name&quot;: &quot;Ue_InitTbl&quot;, &quot;tu&quot;: &quot;…&quot;, &quot;status&quot;: &quot;analyzed&quot;,
-  &quot;reqs&quot;: [ { &quot;id&quot;: 1, &quot;kind&quot;: &quot;W&quot;, &quot;obj&quot;: &quot;p#0&quot;, &quot;have&quot;: { &quot;c&quot;: 0, &quot;t&quot;: [[1, &quot;ext(p#0)&quot;]] },
-              &quot;lo&quot;: { &quot;c&quot;: 0 }, &quot;hi&quot;: { &quot;c&quot;: -16, &quot;t&quot;: [[16, &quot;p#1&quot;]] }, &quot;size&quot;: { &quot;c&quot;: 4 }, &quot;hi_src&quot;: [&quot;loop&quot;],
-              &quot;guard&quot;: [ { &quot;c&quot;: 1, &quot;t&quot;: [[-1, &quot;p#1&quot;]] } ],
-              &quot;access&quot;: { &quot;fn&quot;: &quot;F:Ue_InitOne&quot;, &quot;loc&quot;: [&quot;ue_tbl.c&quot;, 42, 5], &quot;ord&quot;: 0 },
-              &quot;path&quot;: [ { &quot;fn&quot;: &quot;F:Ue_InitTbl&quot;, &quot;site&quot;: [&quot;ue_init.c&quot;, 61, 9] } ],
-              &quot;depth&quot;: 1, &quot;eff_depth&quot;: 0, &quot;blind&quot;: false,
-              &quot;txt&quot;: &quot;p#1 &gt;= 1 =&gt; W4 @ p#0 + [0, 16*p#1-16]   need 16*p#1-12 &lt;= ext(p#0)&quot; } ],
-  &quot;effs&quot;: [], &quot;reps&quot;: [], &quot;opens&quot;: [],
-  &quot;stats&quot;: { &quot;blocks&quot;: 9, &quot;iters&quot;: 14, &quot;ms&quot;: 0.4 } }
+<p>调用点记录（<code>calls[]</code>）里还会出现<strong>调用方的局部名</strong>（如 <code>i</code>、<code>ulOff</code>），只用来描述"实参是什么"，<strong>不进 Req / Eff</strong>。</p>
+<p><strong>D-21 表达式语法</strong>：</p>
+<pre><code>expr   := ['-'] term (('+' | '-') term)*
+term   := factor ('*' factor)*              至多一个非常数因子；两个都不是常数时成为 mul(a, b)
+factor := INT | '(' expr ')' | name | 'ext(' name ')' | op '(' expr [',' expr] ')'
+name   := IDENT [':' IDENT] ('-&gt;' IDENT)*    p0、p1-&gt;ulLen、g:g_x、调用方局部名
+op     := 'div' | 'mod' | 'wrap32' | 'wrap16' | 'mul'
+cond   := expr ('&lt;=' | '&lt;' | '&gt;=' | '&gt;' | '==') expr
 </code></pre>
+<p>读入时解析成线性式（64 位有符号系数，溢出则整式降为不透明项）；<strong>比较两条表达式一律比规范形式</strong>：
+形参 → 字段 → <code>ext(…)</code> → 全局 → 局部 → 不透明项，常数最后（<code>16*p1 - 12</code>）。C++ 侧的解析器约 200 行，Python 侧见 <code>replay.py</code>。</p>
+<p><strong>D-22 来源标签</strong> <code>bound</code>：<code>exact</code>（没有区间）、<code>const</code>、<code>check</code>、<code>mask</code>、<code>branch</code>、<code>loop</code>、<code>ret</code>、<code>guard</code>（以上是代码给出的界，可判 L2）；
+<code>type</code>、<code>widen</code>、<code>data</code>（不可判 L2，只能记账）。</p>
+<p><strong>D-23 顶层与 Req</strong>：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>顶层字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>schema</code></td>
+<td><code>"oobsum-summary/1"</code></td>
+</tr>
+<tr>
+<td><code>fn</code>、<code>key</code>、<code>tu</code>、<code>loc</code></td>
+<td>函数名、键（D-01…D-08）、定义所在 TU（跨 TU 时）、定义位置</td>
+</tr>
+<tr>
+<td><code>params</code></td>
+<td><code>["名字: 类型", …]</code></td>
+</tr>
+<tr>
+<td><code>fields</code></td>
+<td><code>{"p0-&gt;ulBufLen": {"off": 4, "size": 4, "type": "UINT32"}, …}</code></td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>D-28</td>
+</tr>
+<tr>
+<td><code>reqs</code> / <code>effs</code> / <code>calls</code> / <code>reps</code> / <code>opens</code></td>
+<td>前置条件 / 效果 / 调用点记录 / 本函数判定的越界 / 账本</td>
+</tr>
+</tbody>
+</table></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Req 字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code>、<code>kind</code>、<code>bytes</code>、<code>obj</code></td>
+<td>编号、<code>R</code> / <code>W</code>、访问字节数（说明用）、对象描述</td>
+</tr>
+<tr>
+<td><code>have</code></td>
+<td>从基址起对象还剩多少字节：常数、<code>ext(…)</code></td>
+</tr>
+<tr>
+<td><code>end</code></td>
+<td><code>[下界, 上界]</code>：访问末端（偏移 + 字节数）的范围。<strong>安全条件就是 <code>end[1] &lt;= have</code></strong></td>
+</tr>
+<tr>
+<td><code>start</code></td>
+<td>最小偏移（判负偏移用）</td>
+</tr>
+<tr>
+<td><code>bound</code></td>
+<td><code>end[1]</code> 的来源标签（D-22）</td>
+</tr>
+<tr>
+<td><code>guard</code></td>
+<td>守卫：只有它们成立时才发生这次访问</td>
+</tr>
+<tr>
+<td><code>access</code></td>
+<td><code>{fn, at, code}</code>：真正的访问点（代换过程中不变）</td>
+</tr>
+<tr>
+<td><code>path</code></td>
+<td>从本函数到访问点经过的调用点</td>
+</tr>
+<tr>
+<td><code>depth</code>、<code>eff_depth</code>、<code>blind</code></td>
+<td>F-20、F-21</td>
+</tr>
+<tr>
+<td><code>absorbed</code></td>
+<td>被本条覆盖、不再单列的较弱访问（A-44）</td>
+</tr>
+<tr>
+<td><code>note</code>、<code>text</code></td>
+<td>说明；用形参名渲染的可读形式（派生字段，读入时忽略）</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>D-24 效果</strong> <code>effs[].kind</code>：<code>ret_new</code>（<code>size</code>、<code>maybe_null</code>、<code>eff_depth</code>、<code>via</code>）、<code>ret_ptr</code>、<code>ret_int</code>（<code>range</code>、<code>bound</code>）、
+<code>ret_cond</code>（<code>when: "ret == c"</code>、<code>then: [条件…]</code>，至多 4 条）、<code>out_new</code> / <code>out_int</code>、<code>field</code>（<code>target: "p0-&gt;ulUsed"</code>、<code>value</code>）、<code>global</code>、<code>invalidate</code>。</p>
+<p><strong>D-25 调用点记录</strong> <code>calls[]</code>：<code>site</code>、<code>callee</code>、<code>model</code>（<code>access</code> / <code>alloc</code> / <code>pure</code> / <code>unknown</code>，被调者是模型或未知时）、
+<code>args</code>（整数实参写表达式；指针实参写 <code>{ptr: 原文, have: 剩余字节数, alias?: 就是调用方的哪个形参, fields?: 栈帧里记着的字段值, eff_depth?}</code>；与越界无关的写 <code>null</code>）、
+<code>locals</code>（<code>{名字: {range: [lo, hi], bound}}</code>）、<code>guards</code>（<code>[{cond, bound, from}]</code>）、<code>results</code>（被调者每条 Req / Eff 的结局：
+<code>{req, outcome: up|safe|L1|L2|open, as|report|reason}</code>、<code>{eff, value}</code>、<code>{note}</code>）。详细程度由 <code>CallTrace</code>（I-24）控制。</p>
+<p><strong>D-26 判定</strong> <code>reps[]</code> 与全局告警记录 <code>reports.json</code>：<code>{id, level, reported, site, access, object, have, end, bound, depth, eff_depth, chain, msg, fp}</code>；
+<code>reports.json</code> 每条另带 <code>decision_fn</code>、<code>decision_tu</code>（<code>report</code> 阶段按它分发）。</p>
 <ul>
-<li>条件统一写成 <code>lo + size ≤ have</code> 与 <code>hi + size ≤ have</code>（再加 <code>lo ≥ 0</code>）：<code>have</code> 是对象剩余字节数，可以是常数（数组在被调者里，偏移来自形参，LV1-01）、
-  <code>ext(符号)</code> 或 <code>size(g:K)</code>；<code>obj</code> 只用于描述对象。<code>guard</code> 是若干个 <code>LE ≤ 0</code> 的合取（例中 <code>1 − p#1 ≤ 0</code>，即 <code>p#1 ≥ 1</code>）。</li>
-<li><strong>D-24 效果</strong> <code>effs[].k</code>：<code>ret_new</code>（<code>size</code>、<code>off</code>、<code>maybe_null</code>、<code>eff_depth</code>）、<code>ret_ptr</code>（返回指向形参 / 全局对象内部的指针：<code>base</code>、<code>off</code>）、
-  <code>ret_int</code>（<code>lo</code>、<code>hi</code>、<code>src</code>）、<code>ret_cond</code>（<code>ret == c ⇒ atoms</code>，最多 4 条，校验函数 S4.6）、<code>out_new</code> / <code>out_int</code>（<code>*p#i</code> 或其字段）、
-  <code>field</code>（<code>p#i-&gt;…</code> 被写成什么）、<code>global</code>（被写的全局，P0 只记录）、<code>invalidate</code>（经形参按类型失效）。</li>
-<li><strong>D-25 已判定</strong> <code>reps[]</code> 与 <strong>D-26 告警记录</strong>（<code>reports.json</code>）：
-  <code>{fp, level, filtered, decision_fn, decision_tu, site, access{fn,loc,kind,size,ord}, object, size_txt, need_txt, depth, eff_depth, blind, bound_src, chain[{fn,loc}], size_origin[{fn,loc}], msg}</code>。</li>
-<li><strong>D-27 账本</strong> <code>opens[]</code> / <code>ledger.jsonl</code>：<code>{reason, fn, loc, detail}</code>。<code>reason</code> 取值：
+<li><strong>D-27 账本</strong> <code>opens[]</code> / <code>ledger.jsonl</code>：<code>{reason, at, detail, req?}</code>（<code>req</code> 指向入口处到此为止的那条 Req）。<code>reason</code> 取值：
   <code>01-</code> §3.12 的 16 类（<code>fptr</code>、<code>unknown_callee</code>、<code>recursion</code>、<code>msg_edge</code>、<code>global_value</code>、<code>global_ptr_target</code>、<code>field_written_by_callee</code>、
   <code>alloc_size_unknown</code>、<code>flexible_array</code>、<code>struct_overlay</code>、<code>pointer_stepping</code>、<code>string_length</code>、<code>nonlinear</code>、<code>type_range_only</code>、<code>entry_unproven</code>、<code>cond_truncated</code>）
-  加运行类 10 个：<code>ambiguous_callee</code>、<code>not_exported</code>（被调者不在 cdb 里）、<code>not_in_tu</code>（inline 模式下的跨 TU 被调者）、<code>cfg_too_large</code>、<code>timeout</code>、
-  <code>iter_limit</code>、<code>unsupported_construct</code>、<code>struct_by_value</code>、<code>inline_asm</code>、<code>imprecise_join</code>（两个不可比的符号界合并后丢失）。</li>
+  加运行类 11 个：<code>ambiguous_callee</code>、<code>not_exported</code>（被调者不在 cdb 里）、<code>not_in_tu</code>（inline 模式下的跨 TU 被调者）、<code>cfg_too_large</code>、<code>timeout</code>、
+  <code>iter_limit</code>、<code>unsupported_construct</code>、<code>struct_by_value</code>、<code>inline_asm</code>、<code>imprecise_join</code>（两个不可比的符号界合并后丢失）、
+  <code>untracked_pointer</code>（指针来自数组元素或超过两层的字段，不跟踪它指向多大）。</li>
 <li><strong>D-28 状态</strong> <code>status</code>：<code>analyzed</code>；<code>partial:iter_limit|cond_truncated</code>；<code>skipped:cfg_too_large|timeout|no_body</code>。</li>
 </ul>
-<p><strong>D-29 规范文本记法</strong>：<code>Dump=summary</code> 与 <code>oobsum.py explain</code> 都用 <code>05-</code> §2.1 的记法输出（<code>req R1 W4 @ p#0 + 16*p#1   需 16*p#1+4 &lt;= ext(p#0)</code>），
-与用例文件头的"摘要"块同形，便于人工对照（T-06 的快照测试也比这个文本）。</p>
+<p><strong>D-29 可读输出</strong>：<code>text</code> 字段、<code>Dump=summary</code> 与 <code>oobsum.py show / explain</code> 都用形参名渲染（<code>ulNum &gt;= 1 ⇒ W4 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 &lt;= ext(pstTbl)</code>），
+与用例文件头的"摘要"块同形。T-06 的快照测试比的是 JSON（规范形式），不比 <code>text</code>。</p>
 <h3>5.4 大小与布局（ExtentModel 的 P0 部分）</h3>
 <div class="tw"><table>
 <thead>
@@ -1723,7 +1831,7 @@ pure:                           # 不改任何被跟踪内存、返回值无约�
 <tr>
 <td>D-32</td>
 <td>形参指针</td>
-<td>符号 <code>ext(p#i)</code></td>
+<td>符号 <code>ext(p0)</code> 等</td>
 <td>#10</td>
 </tr>
 <tr>
@@ -1824,12 +1932,12 @@ pure:                           # 不改任何被跟踪内存、返回值无约�
   每个界带<strong>来源标签</strong>集合 <code>src ⊆ {const, check, mask, branch, loop, ret, guard, type, widen, data, unknown}</code>（F-12 用）；另带 <code>via</code>（经效果传了几层，饱和于 255）。</li>
 <li><strong>A-11 指针值</strong> <code>PtrVal = (base, off: AbsInt 字节, maybeNull, via)</code>。<code>base</code> 种类：<code>Param(i)</code>、<code>ParamField(i, path)</code>、<code>Global(K)</code>、<code>GlobalPtr(K)</code>、<code>Local(id)</code>、
   <code>Sub(父, 偏移, 大小, 名字)</code>（数组成员子对象）、<code>Alloc(调用点, size: LE)</code>、<code>Str(len)</code>、<code>Ret(调用点)</code>（大小未知）、<code>Func(K)</code>、<code>Unknown(原因)</code>。
-  <code>have(PtrVal)</code> = <code>size(base) − off</code>，其中 <code>size(Param(i)) := ext(p#i)</code> 并约定 <code>off</code> 相对形参指针。</li>
-<li><strong>A-12 内存格</strong> <code>cells: (base, 常量偏移, 大小) → 值</code>。形参可达的格第一次读到时取初值符号 <code>p#i-&gt;o:s</code>（两次解引用以内）；局部对象的格初值未知；
+  <code>have(PtrVal)</code> = <code>size(base) − off</code>，其中 <code>size(Param(i)) := ext(p&lt;i&gt;)</code> 并约定 <code>off</code> 相对形参指针。</li>
+<li><strong>A-12 内存格</strong> <code>cells: (base, 常量偏移, 大小) → 值</code>。形参可达的格第一次读到时取初值符号 <code>p&lt;i&gt;-&gt;字段</code>（两次解引用以内，偏移与大小记在 <code>fields</code> 表）；局部对象的格初值未知；
   非常量偏移的写 → 失效该 base 上重叠的格；经 <code>Unknown</code> 基址的写 → 失效所有非局部对象的格（按类型细分留 P1）。</li>
 <li><strong>A-13 定义式</strong> <code>defs: 局部 → Expr</code>（只含局部与接口符号，深度 ≤ 4）：记录"<code>rem = total − off</code>"这类关系，操作数被重新赋值时失效。用于 §6.4 的同类项抵消（<code>01-</code> §3.6）。</li>
 <li><strong>A-14 守卫</strong> <code>guards</code>：至多 8 个原子 <code>LE ≤ 0</code>（只含接口符号），先进先出。来源：<code>assume</code> 边（把局部的确切符号值代进去后仍含接口符号的比较）；
-  带符号界的区间非空约束（<code>i ∈ [0, p#1−1]</code> ⇒ <code>p#1 ≥ 1</code>）。</li>
+  带符号界的区间非空约束（<code>i ∈ [0, p1−1]</code> ⇒ <code>p1 ≥ 1</code>）。</li>
 <li><strong>A-15 合并</strong>：值逐点合并；两个界差为常数时取数值较大 / 较小者；一个是常数一个是 <code>LE</code> 时取 <code>max(c, LE)</code> / <code>min(c, LE)</code>；其余 → <code>±∞</code> 并带 <code>imprecise_join</code>。
   指针同 base 合并偏移；不同 base → <code>Unknown(base_join)</code>；一边是空指针常量 → <code>maybeNull</code>。守卫取交集；定义式保留两边相同的。</li>
 <li><strong>A-16 widening</strong>：在 WTO 分量头，前 2 次合并照常，之后按阈值外推：阈值集 = 函数里所有比较中的常数 <code>c</code> 的 <code>{c−1, c, c+1}</code>，
@@ -1923,8 +2031,9 @@ pure:                           # 不改任何被跟踪内存、返回值无约�
 <li><strong>A-42 代区间</strong>：<code>D</code> 里剩下的局部换成它们的界（系数为正取上界、为负取下界），得到 <code>D</code> 的上界 <code>U</code> 与下界 <code>L</code>（只含接口符号），并记下所用界的来源标签；
    另对 <code>offExpr</code> 求下界，检查 <code>off ≥ 0</code>。</li>
 <li><strong>A-43 当场判定</strong>：<code>U</code>、<code>L</code> 不含符号时按 F-10…F-14 判；<code>depth = 0</code>，判出的进 <code>reps</code>（只有 F-21 / F-22 时才会报出，其余被 F-20 过滤，但照样入 <code>reports.json</code> 并标 <code>filtered</code>）。</li>
-<li><strong>A-44 生成 Req</strong>：含接口符号时，先用守卫判蕴含（§6.5）：<code>U ≤ 0</code> 成立 → 安全，丢弃；否则生成 Req：<code>have</code>、<code>lo</code>、<code>hi</code>、<code>size</code>、<code>hi_src</code>、
-   与 Req 符号相关的守卫原子、访问位置与序号、<code>depth = 0</code>、<code>blind</code>（A-07）。同一 <code>have</code>、同一访问位置的 Req 只留最强的一条。</li>
+<li><strong>A-44 生成 Req</strong>：含接口符号时，先用守卫判蕴含（§6.5）：<code>U ≤ 0</code> 成立 → 安全，丢弃；否则生成 Req：<code>have</code>、<code>end</code>（末端的 [下界, 上界]）、<code>start</code>、<code>bytes</code>、<code>bound</code>、
+   与 Req 符号相关的守卫原子、访问位置与序号、<code>depth = 0</code>、<code>blind</code>（A-07）。<strong>覆盖合并</strong>：同一 <code>have</code>、守卫相同的两条 Req，若一条的 <code>end[1]</code> 恒不大于另一条
+（差为非正常数），弱的那条并进强的、记进 <code>absorbed</code>（LV1-02 的 <code>pszName[0]</code>、<code>pszName[1]</code>）；守卫不同的不合并（LV2-03 TN 的 <code>R3</code>）。</li>
 <li><strong>A-45 记账</strong>：<code>have</code> 无法表示（<code>Ret</code> / <code>Unknown</code> base、未知大小的分配）→ 记账 <code>alloc_size_unknown</code> / 对应原因；上界只来自 <code>type</code> / <code>widen</code> / <code>data</code> → <code>type_range_only</code> / <code>pointer_stepping</code>；含 <code>nonlinear</code> → <code>nonlinear</code>。</li>
 </ol>
 <h3>6.5 蕴含判定（守卫 ⇒ 条件）</h3>
@@ -1954,7 +2063,7 @@ pure:                           # 不改任何被跟踪内存、返回值无约�
 <tr>
 <td>② 代换表</td>
 <td>A-61</td>
-<td><code>p#i ↦</code> 实参的值与符号形；<code>ext(p#i) ↦ have(实参指针)</code>；<code>p#i-&gt;o:s ↦</code> 调用方在（实参 base，实参偏移 + o，s）处的格值——实参 base 是调用方形参时改写成调用方的字段符号（路径加一层，超过两次解引用则未知）；<code>g:K ↦ g:K</code></td>
+<td><code>p&lt;i&gt; ↦</code> 实参的值与符号形；<code>ext(p&lt;i&gt;) ↦ have(实参指针)</code>；<code>p&lt;i&gt;-&gt;字段 ↦</code> 调用方在（实参 base，实参偏移 + o，s）处的格值——实参 base 是调用方形参时改写成调用方的字段符号（路径加一层，超过两次解引用则未知）；<code>g:K ↦ g:K</code></td>
 </tr>
 <tr>
 <td>③ 代换并判定</td>
@@ -2308,7 +2417,7 @@ pure:                           # 不改任何被跟踪内存、返回值无约�
 <tr>
 <td><strong>T-06</strong></td>
 <td>摘要快照</td>
-<td>约 20 个关键函数的 <code>Dump=summary</code> 文本快照（与用例头"摘要"块对照后冻结），改动须有意更新</td>
+<td><strong>金标准是 <code>cases/summaries/</code> 的 104 份 JSON</strong>（16 个用例，v3.13 手写并经 <code>replay.py</code> 回放核对）：引擎在这些函数上的输出按规范形式逐字段比对；其余用例的摘要在 WP4 起由引擎产出、与用例头"摘要"块对照后冻结。改动须有意更新</td>
 <td>沙箱</td>
 <td>每次交付</td>
 </tr>

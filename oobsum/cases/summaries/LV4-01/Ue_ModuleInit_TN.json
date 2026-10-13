@@ -1,0 +1,26 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Ue_ModuleInit_TN",
+  "key": "F:Ue_ModuleInit_TN",
+  "loc": "lv4_01_wrapper_alloc_spec.c:75",
+  "params": [],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv4_01_wrapper_alloc_spec.c:77",
+      "callee": "Ue_AllocTbl",
+      "args": [],
+      "results": [{"eff": 0, "value": "new(512) | NULL"}]
+    },
+    {
+      "site": "lv4_01_wrapper_alloc_spec.c:81",
+      "callee": "Ue_Setup_OK",
+      "args": [{"ptr": "pstTbl", "have": "512", "eff_depth": 3}],
+      "results": [{"req": "R1", "outcome": "safe"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

@@ -1,5 +1,45 @@
 # CHANGELOG
 
+## v3.13 — 2026-10-13
+
+**方案备选按五个独立问题重排；摘要格式定稿为可读 JSON，并给出 16 个用例 104 个函数的真实摘要与逐步回放。**
+
+使用方反馈【立项输入】：A–G 不正交（有的是生成、有的是消费，而完整方案应同时包含两者），要更清晰；用例本身不用改，
+但要看到"这些用例怎么检查出来的、每个函数的摘要到底什么样"，并且摘要要有完整可读、可落盘（如 JSON）的形式，便于调试。
+
+### 新增 `08-summary2-design/08-options-and-summary-examples.md`（讨论稿）
+
+* **Part A 方案**：一个完整方案 = 对五个问题各选一个答案——Q1 摘要里存什么、Q2 怎么生成、Q3 按什么顺序生成、Q4 在哪消费与判定、Q5 跨文件怎么跑；
+  每个问题列 3–4 个选项（做法、代表、好处、代价）。旧 A–G 逐个放回格子（A 是 Q1②+Q3①+Q4①，F 只是 Q4②，等）。
+  拼成 6 个完整方案 S1–S6 对比；推荐 S1（= 规格），P1 加 Q4②（CSA 二次确认，可在现有 SummaryApplyChecker 上演进），2027 加按需与 AI；
+  列出 5 个请专家拍板的问题。
+* **Part B 摘要实样**：摘要文件逐字段说明、表达式写法、调用点上的判定表；16 个用例（Lv1–Lv10 每级至少一个，承诺 / 尽力 / 记账三种结局都有）
+  逐个给出要点、代码、每个函数一行的摘要一览、关键函数的完整 JSON、回放过程（B.5 由回放器生成）。
+* 网页版 `08-options-and-summary-examples-offline.html`：方案矩阵可点选（S1–S6、旧 A–G 高亮各自落在哪几格）；用例浏览器逐函数展开 JSON。
+
+### 新增 `08-summary2-design/cases/summaries/`
+
+* **104 份函数摘要 JSON**（16 个用例）：前置条件 Req（`have`、`end` 区间、`bound` 来源、`guard`、访问点、`path`、`depth`、`absorbed`）、
+  效果 Eff（`ret_new`、`ret_int`、`ret_cond`、`field`）、**调用点记录** `calls`（实参、局部区间、守卫、每条被调者 Req / Eff 的结局——调试主入口）、
+  判定 `reps`（级别、层数、trace、英文告警文本、指纹）、账本 `opens`。
+* `summary.schema.json`：JSON Schema，104 份全部校验通过。
+* `replay.py`（只依赖 Python 3 标准库）：读 JSON，在每个调用点重做"代换 → 化简 → 判定 / 上传 / 记账"，核对 JSON 记录的结论与调用方的 Req，
+  再对照用例头的 `@expect`。**16 个用例 32 个入口全部一致，0 处不一致**【实测数据】；故意改坏 JSON 时能定位到具体调用点（已验证）。
+  它是 `06-` §6.6 与 F-10…F-22 的参考实现，也是 C++ 引擎 T-06 快照测试的金标准。
+
+### `06-spec.md` 修订
+
+* §5.3 摘要格式定稿：表达式写成字符串（`16*p1 - 12`、`ext(p0->pucBuf)`、`div(p1, 32)`、`wrap32(p1 - 1)`），给出语法与规范形式；
+  Req 用末端区间 `end: [下界, 上界]` 表示（安全条件 `end[1] <= have`）；顶层 `fields`、`calls`；形参符号由 `p#i` 改为 `p0`、`p1`。
+* F-03 / F-04 按 securec（libboundscheck）真实语义细化【文档】：`destMax == 0` 或 `> SECUREC_MEM_MAX_LEN`（0x7fffffff）直接返回不写；
+  `count > destMax` 时先清零 `destMax` 字节、不读源 → 目的总写 `destMax` 字节、源只在 `count <= destMax` 时读；可能回绕的 `destMax` 生成守卫。
+* 新增 F-12b 守卫界判定（对象已知、剩余符号被代码给出的界框住时当场判定，LV3-03、LV4-06）；A-44 覆盖合并（`absorbed`）；
+  账本原因加 `untracked_pointer`（共 27 类）；选项 I-24 `CallTrace`；T-06 金标准改为 `cases/summaries/`。
+
+### 同步
+
+`05-` §5 注明 A–G 已按维度重排；`07-` WP4 验收加 T-06 对照；README、CHANGELOG；规格与计划网页同步。
+
 ## v3.12 — 2026-10-13
 
 **开工准备：P0 规格说明（`06-spec.md`）、编码实施计划（`07-dev-plan.md`）、I0 集成探针。**

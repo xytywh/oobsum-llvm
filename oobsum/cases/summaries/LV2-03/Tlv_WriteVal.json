@@ -1,0 +1,66 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Tlv_WriteVal",
+  "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal",
+  "loc": "lv2_03_tlv_destmax_no_off.c:29",
+  "params": ["pucPkt: UINT8*", "ulOff: UINT32", "pucVal: UINT8*", "ulValLen: UINT32"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "128",
+      "obj": "*pucPkt",
+      "have": "ext(p0)",
+      "end": ["p1 + 128", "p1 + 128"],
+      "start": "p1",
+      "bound": "exact",
+      "guard": [],
+      "access": {
+        "fn": "Tlv_WriteVal",
+        "at": "lv2_03_tlv_destmax_no_off.c:31",
+        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+      },
+      "path": ["Tlv_WriteVal@lv2_03_tlv_destmax_no_off.c:31"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "note": "memcpy_s 的目的：写 destMax = 128 字节",
+      "text": "W128 @ *pucPkt，末端 ulOff + 128；需 ulOff + 128 <= ext(pucPkt)"
+    },
+    {
+      "id": "R2",
+      "kind": "R",
+      "bytes": "p3",
+      "obj": "*pucVal",
+      "have": "ext(p2)",
+      "end": ["p3", "p3"],
+      "start": "0",
+      "bound": "exact",
+      "guard": ["p3 <= 128"],
+      "access": {
+        "fn": "Tlv_WriteVal",
+        "at": "lv2_03_tlv_destmax_no_off.c:31",
+        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+      },
+      "path": ["Tlv_WriteVal@lv2_03_tlv_destmax_no_off.c:31"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "note": "memcpy_s 的源：只有 count <= destMax 时才读",
+      "text": "ulValLen <= 128 ⇒ RulValLen @ *pucVal，末端 ulValLen；需 ulValLen <= ext(pucVal)"
+    }
+  ],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv2_03_tlv_destmax_no_off.c:31",
+      "callee": "memcpy_s",
+      "model": "access",
+      "args": [{"ptr": "pucPkt + ulOff", "have": "ext(p0) - p1"}, "128", {"ptr": "pucVal", "have": "ext(p2)"}, "p3"],
+      "results": [{"note": "访问类模型 memcpy_s → 生成本函数的 R1（目的）与 R2（源）"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

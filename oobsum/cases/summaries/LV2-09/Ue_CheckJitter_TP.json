@@ -1,0 +1,42 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Ue_CheckJitter_TP",
+  "key": "F:Ue_CheckJitter_TP",
+  "loc": "lv2_09_unsigned_wrap.c:45",
+  "params": [],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv2_09_unsigned_wrap.c:48",
+      "callee": "Ue_UpdateJitter",
+      "args": [{"ptr": "aucHist", "have": "16"}, "0"],
+      "results": [{"req": "R1", "outcome": "L1", "report": "RPT1"}]
+    }
+  ],
+  "reps": [
+    {
+      "id": "RPT1",
+      "level": "L1",
+      "reported": true,
+      "site": "lv2_09_unsigned_wrap.c:48",
+      "access": "Hist_GetPrev@lv2_09_unsigned_wrap.c:29",
+      "object": "aucHist",
+      "have": "16",
+      "end": ["4294967296", "4294967296"],
+      "bound": "exact",
+      "depth": 3,
+      "eff_depth": 0,
+      "chain": [
+        "Ue_CheckJitter_TP@lv2_09_unsigned_wrap.c:48",
+        "Ue_UpdateJitter@lv2_09_unsigned_wrap.c:42",
+        "Ue_CalcJitter@lv2_09_unsigned_wrap.c:40",
+        "Hist_GetPrev@lv2_09_unsigned_wrap.c:29"
+      ],
+      "msg": "Definite out-of-bound read through a 3-level call chain: up to byte 4294967296 of 'aucHist' (16 bytes) is accessed",
+      "fp": "c5fa4651a3eb05ff"
+    }
+  ],
+  "opens": []
+}

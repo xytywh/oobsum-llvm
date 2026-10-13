@@ -1,0 +1,43 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Msg_Encode_TP",
+  "key": "F:Msg_Encode_TP",
+  "loc": "lv3_07_pkt_loop_destmax.c:71",
+  "params": ["astIe: IE_S*", "ulIeNum: UINT32"],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv3_07_pkt_loop_destmax.c:74",
+      "callee": "Msg_BuildBody",
+      "args": [{"ptr": "aucPkt", "have": "128"}, "128", {"ptr": "astIe", "have": "ext(p0)", "alias": "p0"}, "p1"],
+      "results": [{"req": "R1", "outcome": "L2", "report": "RPT1"}],
+      "note": "aucPkt 128 字节，ulPktLen = sizeof(aucPkt) = 128"
+    }
+  ],
+  "reps": [
+    {
+      "id": "RPT1",
+      "level": "L2",
+      "reported": true,
+      "site": "lv3_07_pkt_loop_destmax.c:74",
+      "access": "Pkt_PutIes@lv3_07_pkt_loop_destmax.c:58",
+      "object": "aucPkt",
+      "have": "128",
+      "end": ["128", "256"],
+      "bound": "check",
+      "depth": 3,
+      "eff_depth": 0,
+      "chain": [
+        "Msg_Encode_TP@lv3_07_pkt_loop_destmax.c:74",
+        "Msg_BuildBody@lv3_07_pkt_loop_destmax.c:68",
+        "Body_PutIes@lv3_07_pkt_loop_destmax.c:66",
+        "Pkt_PutIes@lv3_07_pkt_loop_destmax.c:58"
+      ],
+      "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 256 of 'aucPkt' (128 bytes) may be accessed; the bound comes from a check in Pkt_PutIes",
+      "fp": "9c907dff54fea69f"
+    }
+  ],
+  "opens": []
+}

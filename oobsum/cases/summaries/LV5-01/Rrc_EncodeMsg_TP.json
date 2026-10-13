@@ -1,0 +1,55 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Rrc_EncodeMsg_TP",
+  "key": "F:Rrc_EncodeMsg_TP",
+  "loc": "lv5_01_ctx_filled_at_top.c:43",
+  "params": [],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv5_01_ctx_filled_at_top.c:51",
+      "callee": "Enc_Encode",
+      "args": [
+        {
+          "ptr": "&stCtx",
+          "have": "12",
+          "fields": {"pucBuf": {"ptr": "aucBuf", "have": "128"}, "ulBufLen": "256"}
+        },
+        {"ptr": "aucIe", "have": "16"},
+        "16"
+      ],
+      "results": [
+        {"req": "R1", "outcome": "L1", "report": "RPT1"},
+        {"req": "R2", "outcome": "safe"},
+        {"eff": 0, "value": "p0->ulUsed := 16"}
+      ],
+      "note": "帧内字段：stCtx.pucBuf = aucBuf（128 字节），stCtx.ulBufLen = ENC_BUF_LEN = 256"
+    }
+  ],
+  "reps": [
+    {
+      "id": "RPT1",
+      "level": "L1",
+      "reported": true,
+      "site": "lv5_01_ctx_filled_at_top.c:51",
+      "access": "Enc_PutBytes@lv5_01_ctx_filled_at_top.c:36",
+      "object": "aucBuf (via stCtx.pucBuf)",
+      "have": "128",
+      "end": ["256", "256"],
+      "bound": "exact",
+      "depth": 3,
+      "eff_depth": 0,
+      "chain": [
+        "Rrc_EncodeMsg_TP@lv5_01_ctx_filled_at_top.c:51",
+        "Enc_Encode@lv5_01_ctx_filled_at_top.c:41",
+        "Enc_PutIe@lv5_01_ctx_filled_at_top.c:40",
+        "Enc_PutBytes@lv5_01_ctx_filled_at_top.c:36"
+      ],
+      "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 256 of 'aucBuf' (128 bytes) is accessed",
+      "fp": "fa2e9f1df5e880d9"
+    }
+  ],
+  "opens": []
+}

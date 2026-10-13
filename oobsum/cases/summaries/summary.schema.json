@@ -1,0 +1,130 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "oobsum-summary/1",
+  "title": "OobSummary 函数摘要（一个函数一份；06-spec.md §5.3）",
+  "type": "object",
+  "required": ["schema", "fn", "key", "loc", "params", "status", "reqs", "effs", "calls", "reps", "opens"],
+  "properties": {
+    "schema": { "const": "oobsum-summary/1" },
+    "fn": { "type": "string", "description": "函数名" },
+    "key": { "type": "string", "description": "函数键：外部链接 F:<名字>；内部链接 F@<定义文件>:<名字>（06- D-01…D-08）" },
+    "tu": { "type": "string", "description": "定义所在的 TU（跨 TU 时有）" },
+    "loc": { "type": "string", "description": "定义位置 文件:行" },
+    "params": { "type": "array", "items": { "type": "string" }, "description": "形参 \"名字: 类型\"；表达式里的 p0、p1… 按下标对应" },
+    "fields": {
+      "type": "object",
+      "description": "摘要里用到的字段符号：\"p0->ulBufLen\" → 偏移、大小、类型（按被分析 TU 的目标 ABI）",
+      "additionalProperties": {
+        "type": "object", "required": ["off", "size"],
+        "properties": { "off": { "type": "integer" }, "size": { "type": "integer" }, "type": { "type": "string" } }
+      }
+    },
+    "status": { "type": "string", "pattern": "^(analyzed|partial:[a-z_]+|skipped:[a-z_]+)$" },
+    "note": { "type": "string" },
+    "reqs": { "type": "array", "items": { "$ref": "#/definitions/req" } },
+    "effs": { "type": "array", "items": { "$ref": "#/definitions/eff" } },
+    "calls": { "type": "array", "items": { "$ref": "#/definitions/call" } },
+    "reps": { "type": "array", "items": { "$ref": "#/definitions/rep" } },
+    "opens": { "type": "array", "items": { "$ref": "#/definitions/open" } }
+  },
+  "definitions": {
+    "expr": {
+      "type": "string",
+      "description": "规范表达式：整数、p<i>、p<i>->字段、ext(指针符号)、g:<全局>、调用点局部名；+ - 与常数乘；不透明项 div(e,n) mod(e,n) wrap32(e) mul(a,b)"
+    },
+    "cond": { "type": "string", "description": "expr (<=|<|>=|>|==) expr" },
+    "tag": { "enum": ["exact", "const", "check", "mask", "branch", "loop", "ret", "guard", "type", "widen", "data"] },
+    "req": {
+      "type": "object",
+      "required": ["id", "kind", "bytes", "obj", "have", "end", "bound", "guard", "access", "path", "depth", "eff_depth", "blind", "text"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "enum": ["R", "W"] },
+        "bytes": { "$ref": "#/definitions/expr", "description": "访问字节数（说明用；判定只看 end）" },
+        "obj": { "type": "string", "description": "对象的描述（本函数的说法）" },
+        "have": { "$ref": "#/definitions/expr", "description": "从基址起对象还剩多少字节：常数、ext(…)" },
+        "end": { "type": "array", "items": { "$ref": "#/definitions/expr" }, "minItems": 2, "maxItems": 2,
+                 "description": "访问末端（偏移 + 字节数）的 [下界, 上界]；安全条件就是 上界 <= have" },
+        "start": { "$ref": "#/definitions/expr", "description": "最小偏移（判负偏移用）" },
+        "bound": { "$ref": "#/definitions/tag", "description": "end 上界的来源；只有代码给出的来源才能判 L2" },
+        "guard": { "type": "array", "items": { "$ref": "#/definitions/cond" }, "description": "只有守卫成立时才会发生这次访问" },
+        "access": { "type": "object", "required": ["fn", "at"],
+                    "properties": { "fn": { "type": "string" }, "at": { "type": "string" }, "code": { "type": "string" } } },
+        "path": { "type": "array", "items": { "type": "string" }, "description": "从本函数到访问点经过的调用点" },
+        "depth": { "type": "integer", "minimum": 0 },
+        "eff_depth": { "type": "integer", "minimum": 0 },
+        "blind": { "type": "boolean", "description": "CSA 已知盲区（不做层数过滤）" },
+        "absorbed": { "type": "array", "items": { "type": "string" }, "description": "被本条覆盖、不再单列的较弱访问" },
+        "note": { "type": "string" },
+        "text": { "type": "string", "description": "用形参名渲染的可读形式（派生，读入时忽略）" }
+      }
+    },
+    "eff": {
+      "type": "object", "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["ret_new", "ret_ptr", "ret_int", "ret_cond", "out_new", "out_int", "field", "global", "invalidate"] },
+        "size": { "$ref": "#/definitions/expr" },
+        "maybe_null": { "type": "boolean" },
+        "range": { "type": "array", "items": { "$ref": "#/definitions/expr" } },
+        "when": { "$ref": "#/definitions/cond" },
+        "then": { "type": "array", "items": { "$ref": "#/definitions/cond" } },
+        "target": { "type": "string" },
+        "value": { "$ref": "#/definitions/expr" },
+        "eff_depth": { "type": "integer" },
+        "bound": { "$ref": "#/definitions/tag" },
+        "via": { "type": "string" },
+        "text": { "type": ["string", "null"] }
+      }
+    },
+    "arg": {
+      "oneOf": [
+        { "$ref": "#/definitions/expr" },
+        { "type": "null", "description": "与越界无关的实参（字符串、数据指针等）" },
+        { "type": "object", "required": ["ptr", "have"],
+          "properties": {
+            "ptr": { "type": "string", "description": "实参原文" },
+            "have": { "$ref": "#/definitions/expr", "description": "实参指针还剩多少字节（调用方的说法）" },
+            "alias": { "type": "string", "description": "实参就是调用方的某个形参：被调者的字段符号直接改写成调用方的" },
+            "eff_depth": { "type": "integer" },
+            "fields": { "type": "object", "description": "调用方栈帧里记着的、实参所指结构体的字段值" }
+          } }
+      ]
+    },
+    "call": {
+      "type": "object", "required": ["site", "callee", "args", "results"],
+      "description": "调用点记录：本函数的摘要是怎么由被调者的摘要代换出来的（调试与追溯用）",
+      "properties": {
+        "site": { "type": "string" },
+        "callee": { "type": "string" },
+        "model": { "enum": ["access", "alloc", "pure", "unknown"] },
+        "args": { "type": "array", "items": { "$ref": "#/definitions/arg" } },
+        "locals": { "type": "object", "description": "实参里用到的本函数局部在调用点的区间：{名字: {range: [lo, hi], bound}}" },
+        "guards": { "type": "array", "items": { "type": "object", "required": ["cond"] }, "description": "调用点处成立的守卫（如条件效应收窄出来的）" },
+        "results": { "type": "array", "items": { "type": "object" },
+                     "description": "{req, outcome: up|safe|L1|L2|open, as|report|reason} 或 {eff, value} 或 {note}" },
+        "note": { "type": "string" }
+      }
+    },
+    "rep": {
+      "type": "object",
+      "required": ["id", "level", "reported", "site", "access", "object", "have", "end", "bound", "depth", "eff_depth", "chain", "msg", "fp"],
+      "properties": {
+        "level": { "enum": ["L1", "L2"] },
+        "reported": { "type": "boolean", "description": "max(depth, eff_depth) > InlineDepth 或盲区 / 评估模式" },
+        "fp": { "type": "string", "description": "告警指纹（实现用 xxHash64；示例里用 blake2b 演示）" }
+      }
+    },
+    "open": {
+      "type": "object", "required": ["reason", "at", "detail"],
+      "properties": {
+        "reason": { "enum": ["fptr", "unknown_callee", "recursion", "msg_edge", "global_value", "global_ptr_target",
+                             "field_written_by_callee", "alloc_size_unknown", "flexible_array", "struct_overlay",
+                             "pointer_stepping", "string_length", "nonlinear", "type_range_only", "entry_unproven",
+                             "cond_truncated", "ambiguous_callee", "not_exported", "not_in_tu", "cfg_too_large", "timeout",
+                             "iter_limit", "unsupported_construct", "struct_by_value", "inline_asm", "imprecise_join",
+                             "untracked_pointer"] },
+        "req": { "type": "string", "description": "入口处到此为止的 Req" }
+      }
+    }
+  }
+}

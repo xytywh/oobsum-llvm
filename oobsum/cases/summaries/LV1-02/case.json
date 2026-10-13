@@ -1,0 +1,14 @@
+{
+  "id": "LV1-02",
+  "title": "名字缓冲区逐层下传，最底层按\"长度\"位置写结尾符",
+  "files": [
+    "lv1/lv1_02_name_terminator.c"
+  ],
+  "point": "和 LV1-01 反过来：访问的偏移是常数，**对象大小是符号** `ext(p0)`，等链顶给出实参数组才知道。中间层自己也写了 `pszName[0]`、`pszName[1]`，它们被更强的条件覆盖，记在 `absorbed` 里不单列。",
+  "show_open": [
+    "Name_Terminate",
+    "Name_Format",
+    "Ue_ShowInfo_TP"
+  ],
+  "code": "#define UE_NAME_LEN 16\n\nstatic void Name_Terminate(CHAR *pszName)\n{\n    pszName[UE_NAME_LEN] = '\\0';                              /* ★1 */\n}\n\nstatic void Name_Format(CHAR *pszName, UINT32 ulUeId)\n{\n    pszName[0] = 'U';\n    pszName[1] = (CHAR)('0' + (ulUeId % 10));\n    Name_Terminate(pszName);\n}\n\nstatic void Ue_BuildName(CHAR *pszName, UINT32 ulUeId)\n{\n    Name_Format(pszName, ulUeId);\n}\n\nvoid Ue_ShowInfo_TP(UINT32 ulUeId)\n{\n    CHAR szName[UE_NAME_LEN];\n    Ue_BuildName(szName, ulUeId);\n    LOG_Print(3, \"ue %s\", szName);\n}\n\nvoid Ue_ShowInfo_TN(UINT32 ulUeId)\n{\n    CHAR szName[UE_NAME_LEN + 1];\n    Ue_BuildName(szName, ulUeId);\n    LOG_Print(3, \"ue %s\", szName);\n}"
+}

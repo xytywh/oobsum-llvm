@@ -1,0 +1,43 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Cell_OnSetupTimeout_TP",
+  "key": "F:Cell_OnSetupTimeout_TP",
+  "loc": "lv1_01_stat_enum_butt.c:52",
+  "params": ["ulCellId: UINT32"],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv1_01_stat_enum_butt.c:54",
+      "callee": "Cell_RecordFail",
+      "args": ["p0", "4"],
+      "results": [{"req": "R1", "outcome": "L1", "report": "RPT1"}],
+      "note": "CELL_STAT_BUTT = 4"
+    }
+  ],
+  "reps": [
+    {
+      "id": "RPT1",
+      "level": "L1",
+      "reported": true,
+      "site": "lv1_01_stat_enum_butt.c:54",
+      "access": "Stat_Inc@lv1_01_stat_enum_butt.c:37",
+      "object": "g_aulCellStat",
+      "have": "16",
+      "end": ["20", "20"],
+      "bound": "exact",
+      "depth": 3,
+      "eff_depth": 0,
+      "chain": [
+        "Cell_OnSetupTimeout_TP@lv1_01_stat_enum_butt.c:54",
+        "Cell_RecordFail@lv1_01_stat_enum_butt.c:49",
+        "Cell_UpdateStat@lv1_01_stat_enum_butt.c:43",
+        "Stat_Inc@lv1_01_stat_enum_butt.c:37"
+      ],
+      "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 20 of 'g_aulCellStat' (16 bytes) is accessed",
+      "fp": "0e286fe42ea23461"
+    }
+  ],
+  "opens": []
+}

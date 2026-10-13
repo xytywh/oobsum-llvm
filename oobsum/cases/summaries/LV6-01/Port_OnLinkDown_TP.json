@@ -1,0 +1,44 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Port_OnLinkDown_TP",
+  "key": "F:Port_OnLinkDown_TP",
+  "tu": "port_stat_use.c",
+  "loc": "port_stat_use.c:30",
+  "params": [],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "port_stat_use.c:30",
+      "callee": "Port_HandleDown",
+      "args": ["16"],
+      "results": [{"req": "R1", "outcome": "L1", "report": "RPT1"}],
+      "note": "MAX_PORT_NUM = 16"
+    }
+  ],
+  "reps": [
+    {
+      "id": "RPT1",
+      "level": "L1",
+      "reported": true,
+      "site": "port_stat_use.c:30",
+      "access": "Stat_PortInc@port_stat_use.c:26",
+      "object": "g_aulPortStat",
+      "have": "64",
+      "end": ["68", "68"],
+      "bound": "exact",
+      "depth": 3,
+      "eff_depth": 0,
+      "chain": [
+        "Port_OnLinkDown_TP@port_stat_use.c:30",
+        "Port_HandleDown@port_stat_use.c:28",
+        "Port_CountDown@port_stat_use.c:27",
+        "Stat_PortInc@port_stat_use.c:26"
+      ],
+      "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 68 of 'g_aulPortStat' (64 bytes) is accessed",
+      "fp": "e6c2f36be69dcb7c"
+    }
+  ],
+  "opens": []
+}

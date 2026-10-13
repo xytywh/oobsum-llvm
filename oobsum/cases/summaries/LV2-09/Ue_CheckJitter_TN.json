@@ -1,0 +1,20 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Ue_CheckJitter_TN",
+  "key": "F:Ue_CheckJitter_TN",
+  "loc": "lv2_09_unsigned_wrap.c:51",
+  "params": [],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv2_09_unsigned_wrap.c:54",
+      "callee": "Ue_UpdateJitter_OK",
+      "args": [{"ptr": "aucHist", "have": "16"}, "0"],
+      "results": [{"req": "R1", "outcome": "safe"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

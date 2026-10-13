@@ -82,7 +82,7 @@
 | **WP1** 降级 | A-01…A-09；T-02 快照 | `lower/Lowering`、`lower/TypeLayout` | WP0 | 70 个用例文件全部降级无 `unsupported`（除用例故意构造的）；10 个 FIR 快照 | W05 |
 | **WP2** 表达式代数 | A-10…A-17、A-21…A-27 | `core/LinExpr`、`core/Bound`、`core/Value` | —— | T-01 约 120 条 | W05 |
 | **WP3** 解释器与访问检查 | A-20、A-28…A-33、A-40…A-45、A-50…A-52 | `core/State`、`core/Wto`、`core/Interp`、`core/Transfer`、`core/Access`、`core/Entail` | WP1、WP2 | 函数内判定正确（各用例里 depth = 0 的访问）；`Dump=summary` 与用例头"摘要"块逐个对照 | W05–W06 |
-| **WP4** 摘要、代换、调度、出告警 | A-60…A-62、A-80…A-82、A-90、A-91、F-20…F-35、D-23…D-29 | `core/Summary*`、`core/Apply`、`core/Solver`、`core/Dump`、入口的告警部分 | WP3 | **G1**：Lv1 + Lv2（含跨 TU 的 LV1-07） | W06 |
+| **WP4** 摘要、代换、调度、出告警 | A-60…A-62、A-80…A-82、A-90、A-91、F-20…F-35、D-20…D-29 | `core/Summary*`、`core/Apply`、`core/Solver`、`core/Dump`、入口的告警部分 | WP3 | **G1**：Lv1 + Lv2（含跨 TU 的 LV1-07）；`cases/summaries/` 里 Lv1、Lv2 的 JSON 与引擎输出一致（T-06） | W06 |
 | **WP5** 安全函数族模型 | F-03…F-05、A-65 的访问类 | `core/Models` | WP3 | LV1-05、LV1-08、LV2-02、LV2-03 | W06 |
 | **WP6** 链长生成器 | T-04 四类模板 × N | `cases/gen_chain.py` | —— | 生成的用例全部能编译 | W05–W06 |
 | **WP7** 循环与守卫 | F-07、A-14、A-16、A-17、A-13 的定义式抵消、A-64 前半 | `core/State`、`core/Interp` | WP4 | Lv3 全部承诺用例；LV3-07 的 TN | W07 |

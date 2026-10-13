@@ -1,0 +1,33 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Rrc_EncodeMsg_TN",
+  "key": "F:Rrc_EncodeMsg_TN",
+  "loc": "lv5_01_ctx_filled_at_top.c:54",
+  "params": [],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv5_01_ctx_filled_at_top.c:62",
+      "callee": "Enc_Encode",
+      "args": [
+        {
+          "ptr": "&stCtx",
+          "have": "12",
+          "fields": {"pucBuf": {"ptr": "aucBuf", "have": "128"}, "ulBufLen": "128"}
+        },
+        {"ptr": "aucIe", "have": "16"},
+        "16"
+      ],
+      "results": [
+        {"req": "R1", "outcome": "safe"},
+        {"req": "R2", "outcome": "safe"},
+        {"eff": 0, "value": "p0->ulUsed := 16"}
+      ],
+      "note": "帧内字段：stCtx.pucBuf = aucBuf（128 字节），stCtx.ulBufLen = sizeof(aucBuf) = 128"
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

@@ -1,0 +1,24 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Om_CollectReg",
+  "key": "F@lv7_04_pointer_stepping.c:Om_CollectReg",
+  "loc": "lv7_04_pointer_stepping.c:32",
+  "params": ["pucOut: UINT8*", "pucIn: UINT8*", "ulCnt: UINT32"],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv7_04_pointer_stepping.c:32",
+      "callee": "Reg_Snapshot",
+      "args": [
+        {"ptr": "pucOut", "have": "ext(p0)", "alias": "p0"},
+        {"ptr": "pucIn", "have": "ext(p1)", "alias": "p1"},
+        "p2"
+      ],
+      "results": [{"note": "被调者的摘要里没有条件 → 本函数也没有"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

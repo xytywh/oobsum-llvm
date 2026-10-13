@@ -1,0 +1,20 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Cell_ResetUeMap_TN",
+  "key": "F:Cell_ResetUeMap_TN",
+  "loc": "lv2_05_bitmap_cast_words.c:57",
+  "params": [],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv2_05_bitmap_cast_words.c:60",
+      "callee": "Cell_ClearUeMap_OK",
+      "args": [{"ptr": "(UINT8 *)aulAlign", "have": "8"}, "64"],
+      "results": [{"req": "R1", "outcome": "safe"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

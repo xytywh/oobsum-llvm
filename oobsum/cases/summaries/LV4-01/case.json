@@ -1,0 +1,15 @@
+{
+  "id": "LV4-01",
+  "title": "三层封装的分配器按老规格申请，初始化按新规格遍历",
+  "files": [
+    "lv4/lv4_01_wrapper_alloc_spec.c"
+  ],
+  "point": "**V 形**：大小经 `ret_new` 效果往上走三层（`Pub_MemAlloc → Cell_MemAlloc → Ue_AllocTbl`，模型表只配了 `VOS_MemAlloc` 的字节数在第 3 个形参），访问条件经 Req 往上走三层（`Ue_InitOne → Ue_InitTbl → Ue_Setup`），在 `Ue_ModuleInit_TP` 相遇。循环把 `ulIdx` 换成 `[0, ulNum − 1]`，同时生成\"循环至少执行一次\"的守卫 `ulNum >= 1`。报告的层数取两侧的最大值：`depth = 3`、`eff_depth = 3`。",
+  "show_open": [
+    "Pub_MemAlloc",
+    "Ue_AllocTbl",
+    "Ue_InitTbl",
+    "Ue_ModuleInit_TP"
+  ],
+  "code": "/* common.h */\nstatic inline void *Pub_MemAlloc(UINT32 ulSize)\n{\n    return VOS_MemAlloc(PID_CELL, 0, ulSize);\n}\n\n/* lv4_01_wrapper_alloc_spec.c */\n#define MAX_UE_NUM     32\n#define MAX_UE_NUM_EX  64\n\ntypedef struct {\n    UINT32 ulState;\n    UINT32 ulUeId;\n    UINT32 ulTimer;\n    UINT32 ulRsv;\n} UE_S;\n\nstatic void *Cell_MemAlloc(UINT32 ulSize)\n{\n    void *p = Pub_MemAlloc(ulSize);\n    if (p == VOS_NULL_PTR) {\n        LOG_Print(1, \"cell alloc %u fail\", ulSize);\n    }\n    return p;\n}\n\nstatic UE_S *Ue_AllocTbl(void)\n{\n    return (UE_S *)Cell_MemAlloc(MAX_UE_NUM * (UINT32)sizeof(UE_S));\n}\n\nstatic void Ue_InitOne(UE_S *pstTbl, UINT32 ulIdx)\n{\n    pstTbl[ulIdx].ulState = 0;                                /* ★1 */\n}\n\nstatic void Ue_InitTbl(UE_S *pstTbl, UINT32 ulNum)\n{\n    UINT32 i;\n    for (i = 0; i < ulNum; i++) {\n        Ue_InitOne(pstTbl, i);\n    }\n}\n\nstatic void Ue_Setup(UE_S *pstTbl)    { Ue_InitTbl(pstTbl, MAX_UE_NUM_EX); }\nstatic void Ue_Setup_OK(UE_S *pstTbl) { Ue_InitTbl(pstTbl, MAX_UE_NUM); }\n\nvoid Ue_ModuleInit_TP(void)\n{\n    UE_S *pstTbl = Ue_AllocTbl();\n    if (pstTbl == VOS_NULL_PTR) {\n        return;\n    }\n    Ue_Setup(pstTbl);\n}\n\nvoid Ue_ModuleInit_TN(void)\n{\n    UE_S *pstTbl = Ue_AllocTbl();\n    if (pstTbl == VOS_NULL_PTR) {\n        return;\n    }\n    Ue_Setup_OK(pstTbl);\n}"
+}

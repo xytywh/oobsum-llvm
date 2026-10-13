@@ -1,0 +1,21 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Cell_OnSetupTimeout_TN",
+  "key": "F:Cell_OnSetupTimeout_TN",
+  "loc": "lv1_01_stat_enum_butt.c:57",
+  "params": ["ulCellId: UINT32"],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv1_01_stat_enum_butt.c:59",
+      "callee": "Cell_RecordFail",
+      "args": ["p0", "1"],
+      "results": [{"req": "R1", "outcome": "safe"}],
+      "note": "CELL_STAT_SETUP_FAIL = 1"
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

@@ -1,6 +1,7 @@
 # CSA Summary 2.0 规格说明（P0 · 2026-12-15 交付）
 
 > 调研包 v3.12 · 2026-10-13 · 状态：**评审稿**（§12 的决策点头后定稿，代码按定稿写）
+> **v3.13**：§5.3 的摘要格式定稿为"表达式写成字符串"的可读 JSON（附 JSON Schema 与 16 个用例的 104 份实样、回放器）；F-03 / F-04 按 securec 真实语义细化；新增 F-12b（守卫界判定）、A-44 的覆盖合并、账本原因 `untracked_pointer`、选项 `CallTrace`。方案备选按维度重排，见 `08-options-and-summary-examples.md`。
 >
 > 这份文件回答"代码写成什么样"：功能边界、对外接口、数据格式、算法、跨 TU 执行、非功能要求、测试与验收。
 > "什么时候写、谁做、按什么顺序"在 **`07-dev-plan.md`**。设计理由在 `01-architecture.md`（本文件细化它，改动处列在 §13），
@@ -61,7 +62,7 @@ S2 级（符号可疑）输出。
 | 术语 | 含义 |
 |---|---|
 | **FIR** | Function IR：本引擎的函数级中间表示（§5.2），由 checker 从 Clang AST + CFG 降级得到，JSON 可序列化 |
-| **接口符号** | 摘要里允许出现的符号：形参值 `p#i`、形参指向对象的剩余字节数 `ext(p#i)`、经形参可达的字段（深度 ≤ 2）`p#i->f`、全局 `g:K`（§5.3） |
+| **接口符号** | 摘要里允许出现的符号：形参值 `p0`、`p1`…、形参指向对象的剩余字节数 `ext(p0)`、经形参可达的字段（深度 ≤ 2）`p0->ulLen`、全局 `g:g_x`（§5.3） |
 | **Req / Eff / Rep / Open** | 前置条件 / 效果 / 已判定的越界 / 账本（`05-` §1.1） |
 | **汇合点** | 访问侧条件与大小侧信息都已知、能判定的那个函数（调用点） |
 | **depth / effDepth** | 访问点到汇合点经过的调用层数 / 大小、偏移或长度经效果（返回值、出参、字段）向上传了几层；报告过滤用两者的最大值（§3.3） |
@@ -114,8 +115,8 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 |---|---|---|---|
 | **F-01** | 数组下标读 / 写 `a[i]`、`p[i]`、`s.arr[i]`、`p->arr[i]`、`g.arr[i]` | `off + size ≤ ext(base)`，且 `off ≥ 0` | 结构体成员数组以**成员**为对象（子对象边界，`01-` §3.1 #2–#7、#11） |
 | **F-02** | 指针解引用 `*p`、`*(p + k)`、`p->f`（`p` 指向的对象可能比类型小） | `off(f) + sizeof(f) ≤ ext(p)` | 覆盖"按大结构体访问小对象"（LV1-05、LV4-02） |
-| **F-03** | `memcpy_s` / `memmove_s(dest, destMax, src, count)` | `destMax ≤ ext(dest)`；`count ≤ ext(src)` | `count > destMax` 运行时被拦，不算越界（`01-` §3.7.3） |
-| **F-04** | `memset_s(dest, destMax, c, count)` | `destMax ≤ ext(dest)` | |
+| **F-03** | `memcpy_s` / `memmove_s(dest, destMax, src, count)` | 目的：`destMax ≤ ext(dest)`；源：`count ≤ destMax ⇒ count ≤ ext(src)` | 按 securec（libboundscheck）的实现【文档】：`destMax == 0` 或 `> SECUREC_MEM_MAX_LEN`（默认 `0x7fffffff`）直接返回、不写；`count > destMax` 时先把 `dest` 的 `destMax` 字节清零再返回、不读源。所以目的一侧总是写 `destMax` 字节，源一侧只在 `count ≤ destMax` 时读。`destMax` 是**可能回绕的无符号减法**（`128 − ulOff`）时，回绕后的值必然大于上限 → 生成守卫"减法不为负"（LV2-03 TN） |
+| **F-04** | `memset_s(dest, destMax, c, count)` | `destMax ≤ ext(dest)` | 同 F-03 的 `destMax` 规则 |
 | **F-05** | libc `memcpy` / `memmove` / `memset` | `n ≤ ext(dest)`；`n ≤ ext(src)` | 代价很小，顺带支持 |
 | **F-06** | 模型表里配置的其它访问函数（内部封装） | 按配置（§4.4） | 清单由你提供（`07-` 输入 I8） |
 | **F-07** | 循环里的访问 | 下标取循环后的区间（阈值 widening + narrowing） | **任何循环都必须产出结果**，不得 unsupported |
@@ -132,7 +133,8 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 | **F-10** | **Safe** | `need` 的上界 ≤ `have` 的下界（区间或经守卫蕴含，§6.5） | 丢弃 |
 | **F-11** | **L1** | `need` 的**下界** > `have` 的上界（对所有取值都越界） | 报（Definite） |
 | **F-12** | **L2** | 下界不越界、上界越界，**且上界来自代码**：校验、掩码、`%`、分支常量、循环界、被调者返回值范围、守卫 | 报（Possible） |
-| **F-13** | **上传** | 还含当前函数的接口符号 | 代换成当前函数的 Req，`depth + 1` |
+| **F-12b** | **守卫界判定** | 还含当前函数的接口符号，但 `have` 已知、且这些符号都被**代码给出的界**框住（访问侧校验带上来的守卫、调用点处成立的守卫——如条件效应收窄出来的）：按界的最值套用 F-10 / F-11 / F-12 | 当场判定，不再上传（LV3-03、LV4-06）。理由：访问侧的校验就是代码自己声明的"接受范围"，它与对象大小不匹配本身就是缺陷 |
+| **F-13** | **上传** | 还含当前函数的接口符号（F-12b 不适用时） | 代换成当前函数的 Req，`depth + 1` |
 | **F-14** | **记账** | 到入口仍含符号；或上界只来自类型范围（`UINT16` 的 65535）、widening 的 ∞、不透明非线性项、读自内存内容的无约束值 | 不报；账本记原因 |
 
 上界的**来源标签**随值一起传播（§6.2），F-12 只认标签集合 ⊆ {`check`, `mask`, `branch`, `loop`, `ret`, `guard`, `const`} 的上界。
@@ -208,6 +210,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 | I-21 | `Dump` | string | `""` | 调试输出：`fir`、`summary`、`trace` 的逗号组合，打印到 stderr（规范记法） |
 | I-22 | `FuncFilter` | string | `""` | 只对名字匹配的函数打印调试输出（正则） |
 | I-23 | `Verbose` | int | `0` | `1`：每 TU 一行统计；`2`：每函数一行 |
+| I-24 | `CallTrace` | string | `full` | 摘要里 `calls[]` 调用点记录的详细程度：`full`（实参、局部区间、守卫、结局，调试用）/ `results`（只留结局）/ `none`。全量跑出来体积过大时降级 |
 
 ### 4.3 运行命令
 
@@ -384,53 +387,88 @@ FIR 是"能决定越界的最少信息"：类型只留大小与字段布局，�
 `assume x == c` 与 `default` 一条（`case` 超过 16 个时 `default` 不带 assume）。`&&`、`||`、`?:` 由 Clang CFG 拆好，
 `?:` 的结果在两个前驱块末尾各补一条 `set tmp`（**A-04**）。
 
-### 5.3 摘要（`oobsum-summary/1`）
+### 5.3 摘要（`oobsum-summary/1`）——v3.13 定稿
 
-**D-20 接口符号**：
+> **一个函数一份 JSON**，表达式都写成人能直接读的字符串。完整字段定义：`cases/summaries/summary.schema.json`（JSON Schema）；
+> 16 个用例的 104 份实样与逐步回放：`08-options-and-summary-examples.md` Part B 与 `cases/summaries/`。
+> 全量运行时落在 `WorkDir/summaries/<00..ff>.jsonl`（按函数键哈希分片，一行一份）；`oobsum.py show <函数名>` 打印成实样那样。
+
+**D-20 接口符号**（摘要里允许出现的符号）：
 
 | 符号 | 含义 |
 |---|---|
-| `p#i` | 第 i 个形参在入口处的值（整数，或指针的"值"本身，用于判空 / 比较） |
-| `ext(p#i)` | 形参指针所指对象的剩余字节数 |
-| `p#i->o:s`、`p#i->o1->o2:s` | 经形参可达的字段在入口处的值（偏移 `o`、大小 `s`；最多两次解引用）；打印时带字段名，如 `p#0->ulLen` |
-| `ext(<指针符号>)` | 任一指针型符号（字段、全局指针）所指对象的剩余字节数 |
-| `g:K`、`ext(g:K)`、`size(g:K)` | 全局在入口处的值；全局指针的剩余字节数；不完整类型全局的大小（求解时由定义所在 TU 给出） |
-| `<op …>` | 不透明项：`<mul p#1 p#2>`、`<div p#1 32>`、`<wrap32 p#1-1>`；代换后变成常数才参与判定 |
+| `p0`、`p1`… | 第 i 个形参在入口处的值（`params` 数组按下标给出名字与类型） |
+| `ext(p0)` | 形参指针所指对象从该指针起还剩多少字节 |
+| `p0->ulLen`、`p0->pstNext->ulLen` | 经形参可达的字段在入口处的值（最多两次解引用）；偏移、大小、类型在顶层 `fields` 表里 |
+| `ext(p0->pucBuf)` | 指针型字段所指对象的剩余字节数 |
+| `g:g_x`、`ext(g:g_px)` | 全局在入口处的值（P0 只记录、不跟踪传播）；全局指针的剩余字节数 |
+| `div(e, n)`、`mod(e, n)`、`wrap32(e)`、`wrap16(e)`、`mul(a, b)` | 不透明项：除以常数、取模、无符号回绕、两个变量相乘；代换后内层是常数才求值 |
 
-**D-21 线性式** `LE`：`{"c": 常数, "t": [[系数, 符号], …], "o": [不透明项…], "txt": "16*p#1 + 4"}`；系数、常数为 64 位有符号整数，
-溢出即整式降为不透明项。**D-22 界** `B`：`LE`、`"+inf"`、`"-inf"`，带来源标签 `src`（§6.2）。
+调用点记录（`calls[]`）里还会出现**调用方的局部名**（如 `i`、`ulOff`），只用来描述"实参是什么"，**不进 Req / Eff**。
 
-**D-23 函数摘要**：
+**D-21 表达式语法**：
 
-```json
-{ "key": "F:Ue_InitTbl", "name": "Ue_InitTbl", "tu": "…", "status": "analyzed",
-  "reqs": [ { "id": 1, "kind": "W", "obj": "p#0", "have": { "c": 0, "t": [[1, "ext(p#0)"]] },
-              "lo": { "c": 0 }, "hi": { "c": -16, "t": [[16, "p#1"]] }, "size": { "c": 4 }, "hi_src": ["loop"],
-              "guard": [ { "c": 1, "t": [[-1, "p#1"]] } ],
-              "access": { "fn": "F:Ue_InitOne", "loc": ["ue_tbl.c", 42, 5], "ord": 0 },
-              "path": [ { "fn": "F:Ue_InitTbl", "site": ["ue_init.c", 61, 9] } ],
-              "depth": 1, "eff_depth": 0, "blind": false,
-              "txt": "p#1 >= 1 => W4 @ p#0 + [0, 16*p#1-16]   need 16*p#1-12 <= ext(p#0)" } ],
-  "effs": [], "reps": [], "opens": [],
-  "stats": { "blocks": 9, "iters": 14, "ms": 0.4 } }
+```
+expr   := ['-'] term (('+' | '-') term)*
+term   := factor ('*' factor)*              至多一个非常数因子；两个都不是常数时成为 mul(a, b)
+factor := INT | '(' expr ')' | name | 'ext(' name ')' | op '(' expr [',' expr] ')'
+name   := IDENT [':' IDENT] ('->' IDENT)*    p0、p1->ulLen、g:g_x、调用方局部名
+op     := 'div' | 'mod' | 'wrap32' | 'wrap16' | 'mul'
+cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 ```
 
-* 条件统一写成 `lo + size ≤ have` 与 `hi + size ≤ have`（再加 `lo ≥ 0`）：`have` 是对象剩余字节数，可以是常数（数组在被调者里，偏移来自形参，LV1-01）、
-  `ext(符号)` 或 `size(g:K)`；`obj` 只用于描述对象。`guard` 是若干个 `LE ≤ 0` 的合取（例中 `1 − p#1 ≤ 0`，即 `p#1 ≥ 1`）。
-* **D-24 效果** `effs[].k`：`ret_new`（`size`、`off`、`maybe_null`、`eff_depth`）、`ret_ptr`（返回指向形参 / 全局对象内部的指针：`base`、`off`）、
-  `ret_int`（`lo`、`hi`、`src`）、`ret_cond`（`ret == c ⇒ atoms`，最多 4 条，校验函数 S4.6）、`out_new` / `out_int`（`*p#i` 或其字段）、
-  `field`（`p#i->…` 被写成什么）、`global`（被写的全局，P0 只记录）、`invalidate`（经形参按类型失效）。
-* **D-25 已判定** `reps[]` 与 **D-26 告警记录**（`reports.json`）：
-  `{fp, level, filtered, decision_fn, decision_tu, site, access{fn,loc,kind,size,ord}, object, size_txt, need_txt, depth, eff_depth, blind, bound_src, chain[{fn,loc}], size_origin[{fn,loc}], msg}`。
-* **D-27 账本** `opens[]` / `ledger.jsonl`：`{reason, fn, loc, detail}`。`reason` 取值：
+读入时解析成线性式（64 位有符号系数，溢出则整式降为不透明项）；**比较两条表达式一律比规范形式**：
+形参 → 字段 → `ext(…)` → 全局 → 局部 → 不透明项，常数最后（`16*p1 - 12`）。C++ 侧的解析器约 200 行，Python 侧见 `replay.py`。
+
+**D-22 来源标签** `bound`：`exact`（没有区间）、`const`、`check`、`mask`、`branch`、`loop`、`ret`、`guard`（以上是代码给出的界，可判 L2）；
+`type`、`widen`、`data`（不可判 L2，只能记账）。
+
+**D-23 顶层与 Req**：
+
+| 顶层字段 | 含义 |
+|---|---|
+| `schema` | `"oobsum-summary/1"` |
+| `fn`、`key`、`tu`、`loc` | 函数名、键（D-01…D-08）、定义所在 TU（跨 TU 时）、定义位置 |
+| `params` | `["名字: 类型", …]` |
+| `fields` | `{"p0->ulBufLen": {"off": 4, "size": 4, "type": "UINT32"}, …}` |
+| `status` | D-28 |
+| `reqs` / `effs` / `calls` / `reps` / `opens` | 前置条件 / 效果 / 调用点记录 / 本函数判定的越界 / 账本 |
+
+| Req 字段 | 含义 |
+|---|---|
+| `id`、`kind`、`bytes`、`obj` | 编号、`R` / `W`、访问字节数（说明用）、对象描述 |
+| `have` | 从基址起对象还剩多少字节：常数、`ext(…)` |
+| `end` | `[下界, 上界]`：访问末端（偏移 + 字节数）的范围。**安全条件就是 `end[1] <= have`** |
+| `start` | 最小偏移（判负偏移用） |
+| `bound` | `end[1]` 的来源标签（D-22） |
+| `guard` | 守卫：只有它们成立时才发生这次访问 |
+| `access` | `{fn, at, code}`：真正的访问点（代换过程中不变） |
+| `path` | 从本函数到访问点经过的调用点 |
+| `depth`、`eff_depth`、`blind` | F-20、F-21 |
+| `absorbed` | 被本条覆盖、不再单列的较弱访问（A-44） |
+| `note`、`text` | 说明；用形参名渲染的可读形式（派生字段，读入时忽略） |
+
+**D-24 效果** `effs[].kind`：`ret_new`（`size`、`maybe_null`、`eff_depth`、`via`）、`ret_ptr`、`ret_int`（`range`、`bound`）、
+`ret_cond`（`when: "ret == c"`、`then: [条件…]`，至多 4 条）、`out_new` / `out_int`、`field`（`target: "p0->ulUsed"`、`value`）、`global`、`invalidate`。
+
+**D-25 调用点记录** `calls[]`：`site`、`callee`、`model`（`access` / `alloc` / `pure` / `unknown`，被调者是模型或未知时）、
+`args`（整数实参写表达式；指针实参写 `{ptr: 原文, have: 剩余字节数, alias?: 就是调用方的哪个形参, fields?: 栈帧里记着的字段值, eff_depth?}`；与越界无关的写 `null`）、
+`locals`（`{名字: {range: [lo, hi], bound}}`）、`guards`（`[{cond, bound, from}]`）、`results`（被调者每条 Req / Eff 的结局：
+`{req, outcome: up|safe|L1|L2|open, as|report|reason}`、`{eff, value}`、`{note}`）。详细程度由 `CallTrace`（I-24）控制。
+
+**D-26 判定** `reps[]` 与全局告警记录 `reports.json`：`{id, level, reported, site, access, object, have, end, bound, depth, eff_depth, chain, msg, fp}`；
+`reports.json` 每条另带 `decision_fn`、`decision_tu`（`report` 阶段按它分发）。
+
+* **D-27 账本** `opens[]` / `ledger.jsonl`：`{reason, at, detail, req?}`（`req` 指向入口处到此为止的那条 Req）。`reason` 取值：
   `01-` §3.12 的 16 类（`fptr`、`unknown_callee`、`recursion`、`msg_edge`、`global_value`、`global_ptr_target`、`field_written_by_callee`、
   `alloc_size_unknown`、`flexible_array`、`struct_overlay`、`pointer_stepping`、`string_length`、`nonlinear`、`type_range_only`、`entry_unproven`、`cond_truncated`）
-  加运行类 10 个：`ambiguous_callee`、`not_exported`（被调者不在 cdb 里）、`not_in_tu`（inline 模式下的跨 TU 被调者）、`cfg_too_large`、`timeout`、
-  `iter_limit`、`unsupported_construct`、`struct_by_value`、`inline_asm`、`imprecise_join`（两个不可比的符号界合并后丢失）。
+  加运行类 11 个：`ambiguous_callee`、`not_exported`（被调者不在 cdb 里）、`not_in_tu`（inline 模式下的跨 TU 被调者）、`cfg_too_large`、`timeout`、
+  `iter_limit`、`unsupported_construct`、`struct_by_value`、`inline_asm`、`imprecise_join`（两个不可比的符号界合并后丢失）、
+  `untracked_pointer`（指针来自数组元素或超过两层的字段，不跟踪它指向多大）。
 * **D-28 状态** `status`：`analyzed`；`partial:iter_limit|cond_truncated`；`skipped:cfg_too_large|timeout|no_body`。
 
-**D-29 规范文本记法**：`Dump=summary` 与 `oobsum.py explain` 都用 `05-` §2.1 的记法输出（`req R1 W4 @ p#0 + 16*p#1   需 16*p#1+4 <= ext(p#0)`），
-与用例文件头的"摘要"块同形，便于人工对照（T-06 的快照测试也比这个文本）。
+**D-29 可读输出**：`text` 字段、`Dump=summary` 与 `oobsum.py show / explain` 都用形参名渲染（`ulNum >= 1 ⇒ W4 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 <= ext(pstTbl)`），
+与用例文件头的"摘要"块同形。T-06 的快照测试比的是 JSON（规范形式），不比 `text`。
 
 ### 5.4 大小与布局（ExtentModel 的 P0 部分）
 
@@ -438,7 +476,7 @@ FIR 是"能决定越界的最少信息"：类型只留大小与字段布局，�
 |---|---|---|---|
 | D-30 | 局部 / static / 全局数组、结构体（含无初始化器） | `ASTContext` 的类型大小 | `01-` §3.1 #1–#8 |
 | D-31 | 数组成员（含嵌套、结构体数组元素的成员、形参结构体指针的成员） | 成员类型大小；访问以成员为界（`fld`） | #2–#7、#11 |
-| D-32 | 形参指针 | 符号 `ext(p#i)` | #10 |
+| D-32 | 形参指针 | 符号 `ext(p0)` 等 | #10 |
 | D-33 | 分配器 / 封装分配器的返回值、出参 | 模型表的 `size` 代入实参；封装函数由 `ret_new` 效果逐层推出 | #12、#13、#15、#20 |
 | D-34 | `extern` 全局 | 求解时取定义所在 TU 的大小；全工程都没有定义的 → 未知 | #9 |
 | D-35 | 字符串字面量 | 长度 + 1 | #19 |
@@ -473,12 +511,12 @@ FIR 是"能决定越界的最少信息"：类型只留大小与字段布局，�
   每个界带**来源标签**集合 `src ⊆ {const, check, mask, branch, loop, ret, guard, type, widen, data, unknown}`（F-12 用）；另带 `via`（经效果传了几层，饱和于 255）。
 * **A-11 指针值** `PtrVal = (base, off: AbsInt 字节, maybeNull, via)`。`base` 种类：`Param(i)`、`ParamField(i, path)`、`Global(K)`、`GlobalPtr(K)`、`Local(id)`、
   `Sub(父, 偏移, 大小, 名字)`（数组成员子对象）、`Alloc(调用点, size: LE)`、`Str(len)`、`Ret(调用点)`（大小未知）、`Func(K)`、`Unknown(原因)`。
-  `have(PtrVal)` = `size(base) − off`，其中 `size(Param(i)) := ext(p#i)` 并约定 `off` 相对形参指针。
-* **A-12 内存格** `cells: (base, 常量偏移, 大小) → 值`。形参可达的格第一次读到时取初值符号 `p#i->o:s`（两次解引用以内）；局部对象的格初值未知；
+  `have(PtrVal)` = `size(base) − off`，其中 `size(Param(i)) := ext(p<i>)` 并约定 `off` 相对形参指针。
+* **A-12 内存格** `cells: (base, 常量偏移, 大小) → 值`。形参可达的格第一次读到时取初值符号 `p<i>->字段`（两次解引用以内，偏移与大小记在 `fields` 表）；局部对象的格初值未知；
   非常量偏移的写 → 失效该 base 上重叠的格；经 `Unknown` 基址的写 → 失效所有非局部对象的格（按类型细分留 P1）。
 * **A-13 定义式** `defs: 局部 → Expr`（只含局部与接口符号，深度 ≤ 4）：记录"`rem = total − off`"这类关系，操作数被重新赋值时失效。用于 §6.4 的同类项抵消（`01-` §3.6）。
 * **A-14 守卫** `guards`：至多 8 个原子 `LE ≤ 0`（只含接口符号），先进先出。来源：`assume` 边（把局部的确切符号值代进去后仍含接口符号的比较）；
-  带符号界的区间非空约束（`i ∈ [0, p#1−1]` ⇒ `p#1 ≥ 1`）。
+  带符号界的区间非空约束（`i ∈ [0, p1−1]` ⇒ `p1 ≥ 1`）。
 * **A-15 合并**：值逐点合并；两个界差为常数时取数值较大 / 较小者；一个是常数一个是 `LE` 时取 `max(c, LE)` / `min(c, LE)`；其余 → `±∞` 并带 `imprecise_join`。
   指针同 base 合并偏移；不同 base → `Unknown(base_join)`；一边是空指针常量 → `maybeNull`。守卫取交集；定义式保留两边相同的。
 * **A-16 widening**：在 WTO 分量头，前 2 次合并照常，之后按阈值外推：阈值集 = 函数里所有比较中的常数 `c` 的 `{c−1, c, c+1}`，
@@ -515,8 +553,9 @@ FIR 是"能决定越界的最少信息"：类型只留大小与字段布局，�
 3. **A-42 代区间**：`D` 里剩下的局部换成它们的界（系数为正取上界、为负取下界），得到 `D` 的上界 `U` 与下界 `L`（只含接口符号），并记下所用界的来源标签；
    另对 `offExpr` 求下界，检查 `off ≥ 0`。
 4. **A-43 当场判定**：`U`、`L` 不含符号时按 F-10…F-14 判；`depth = 0`，判出的进 `reps`（只有 F-21 / F-22 时才会报出，其余被 F-20 过滤，但照样入 `reports.json` 并标 `filtered`）。
-5. **A-44 生成 Req**：含接口符号时，先用守卫判蕴含（§6.5）：`U ≤ 0` 成立 → 安全，丢弃；否则生成 Req：`have`、`lo`、`hi`、`size`、`hi_src`、
-   与 Req 符号相关的守卫原子、访问位置与序号、`depth = 0`、`blind`（A-07）。同一 `have`、同一访问位置的 Req 只留最强的一条。
+5. **A-44 生成 Req**：含接口符号时，先用守卫判蕴含（§6.5）：`U ≤ 0` 成立 → 安全，丢弃；否则生成 Req：`have`、`end`（末端的 [下界, 上界]）、`start`、`bytes`、`bound`、
+   与 Req 符号相关的守卫原子、访问位置与序号、`depth = 0`、`blind`（A-07）。**覆盖合并**：同一 `have`、守卫相同的两条 Req，若一条的 `end[1]` 恒不大于另一条
+（差为非正常数），弱的那条并进强的、记进 `absorbed`（LV1-02 的 `pszName[0]`、`pszName[1]`）；守卫不同的不合并（LV2-03 TN 的 `R3`）。
 6. **A-45 记账**：`have` 无法表示（`Ret` / `Unknown` base、未知大小的分配）→ 记账 `alloc_size_unknown` / 对应原因；上界只来自 `type` / `widen` / `data` → `type_range_only` / `pointer_stepping`；含 `nonlinear` → `nonlinear`。
 
 ### 6.5 蕴含判定（守卫 ⇒ 条件）
@@ -535,7 +574,7 @@ FIR 是"能决定越界的最少信息"：类型只留大小与字段布局，�
 | 步 | 编号 | 规则 |
 |---|---|---|
 | ① 取摘要 | A-60 | 直接调用 → 求解阶段已算好的摘要（SCC 逆拓扑序保证被调者先算）或模型；间接调用 → 被调表达式是定义式为 `faddr` 常量的局部时当直接调用（S9.1 尽力），否则记账 `fptr` |
-| ② 代换表 | A-61 | `p#i ↦` 实参的值与符号形；`ext(p#i) ↦ have(实参指针)`；`p#i->o:s ↦` 调用方在（实参 base，实参偏移 + o，s）处的格值——实参 base 是调用方形参时改写成调用方的字段符号（路径加一层，超过两次解引用则未知）；`g:K ↦ g:K` |
+| ② 代换表 | A-61 | `p<i> ↦` 实参的值与符号形；`ext(p<i>) ↦ have(实参指针)`；`p<i>->字段 ↦` 调用方在（实参 base，实参偏移 + o，s）处的格值——实参 base 是调用方形参时改写成调用方的字段符号（路径加一层，超过两次解引用则未知）；`g:K ↦ g:K` |
 | ③ 代换并判定 | A-62 | 每条 Req：代换 `have` / `lo` / `hi` / `size` / 守卫，按 §6.4 第 2–6 步判定：安全 / L1 / L2 / 上传（`depth + 1`，`path` 前加本调用点，`eff_depth` 取所用值的 `via` 最大值）/ 记账。守卫代换后为假 → 这次调用不会走到访问 → 安全；守卫判不了且含调用方局部 → **不报**（避免误报），记账 `entry_unproven` |
 | ④ 效果 | A-63 | `ret_new` → 结果为 `Alloc(调用点, 代换后的大小)`、`via + 1`；`ret_ptr` / `ret_int` → 代换后的值、`src` 加 `ret`；`out_*` / `field` → 写调用方的格；`invalidate` → 失效调用方相应的格；`global` → P0 只失效调用方对该全局的缓存 |
 | ⑤ 条件效应 | A-64 | `ret_cond` 挂在接收返回值的局部上；之后在该局部上的 `assume` 选中 `ret == c` 那一侧时，把代换后的原子加入守卫并收窄实参对应的局部（LV4-06 `if (Check(id) != OK) return;`） |
@@ -658,7 +697,7 @@ FIR 是"能决定越界的最少信息"：类型只留大小与字段布局，�
 | **T-03** | 语料验收 | `cases/` 全部 134 个入口按 `@expect` 对照（下述口径） | 沙箱 + fork | 每次交付；检查点 |
 | **T-04** | 链长 | `cases/gen_chain.py` 生成 4 类模板（形参透传、偏移累加、封装分配器链、跨 TU 链）× N ∈ {2, 3, 5, 10, 17, 20} | 沙箱 + fork | G1 起 |
 | **T-05** | fork 用例 | `TestCase/OobSummaryChecker/`（由 `cases/` 生成）跑驱动，告警数与 `EXPECTED.md` 一致 | fork | 每次集成 |
-| **T-06** | 摘要快照 | 约 20 个关键函数的 `Dump=summary` 文本快照（与用例头"摘要"块对照后冻结），改动须有意更新 | 沙箱 | 每次交付 |
+| **T-06** | 摘要快照 | **金标准是 `cases/summaries/` 的 104 份 JSON**（16 个用例，v3.13 手写并经 `replay.py` 回放核对）：引擎在这些函数上的输出按规范形式逐字段比对；其余用例的摘要在 WP4 起由引擎产出、与用例头"摘要"块对照后冻结。改动须有意更新 | 沙箱 | 每次交付 |
 | **T-07** | 健壮性 | 本包 `05-experiments/`、`07-capability-boundary/corpus/`、`cases/` 全部跑 export + solve 不崩溃、全函数性成立 | 沙箱 | 每次交付 |
 | **T-08** | 真实代码 | 子集（几个顶层目录）→ 全量：告警按级别 / 层数、账本按原因、耗时 / 内存；抽样 50 条 L1 由你研判精确率 | fork | W10 起 |
 

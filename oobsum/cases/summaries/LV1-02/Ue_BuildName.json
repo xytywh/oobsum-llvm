@@ -1,0 +1,42 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Ue_BuildName",
+  "key": "F@lv1_02_name_terminator.c:Ue_BuildName",
+  "loc": "lv1_02_name_terminator.c:39",
+  "params": ["pszName: CHAR*", "ulUeId: UINT32"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "1",
+      "obj": "*pszName",
+      "have": "ext(p0)",
+      "end": ["17", "17"],
+      "start": "16",
+      "bound": "exact",
+      "guard": [],
+      "access": {"fn": "Name_Terminate", "at": "lv1_02_name_terminator.c:29", "code": "pszName[UE_NAME_LEN] = '\\0'"},
+      "path": [
+        "Ue_BuildName@lv1_02_name_terminator.c:41",
+        "Name_Format@lv1_02_name_terminator.c:36",
+        "Name_Terminate@lv1_02_name_terminator.c:29"
+      ],
+      "depth": 2,
+      "eff_depth": 0,
+      "blind": false,
+      "text": "W1 @ *pszName，末端 17；需 17 <= ext(pszName)"
+    }
+  ],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv1_02_name_terminator.c:41",
+      "callee": "Name_Format",
+      "args": [{"ptr": "pszName", "have": "ext(p0)", "alias": "p0"}, "p1"],
+      "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

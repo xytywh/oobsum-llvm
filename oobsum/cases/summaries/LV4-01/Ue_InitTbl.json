@@ -1,0 +1,39 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Ue_InitTbl",
+  "key": "F@lv4_01_wrapper_alloc_spec.c:Ue_InitTbl",
+  "loc": "lv4_01_wrapper_alloc_spec.c:55",
+  "params": ["pstTbl: UE_S*", "ulNum: UINT32"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "4",
+      "obj": "*pstTbl",
+      "have": "ext(p0)",
+      "end": ["4", "16*p1 - 12"],
+      "start": "0",
+      "bound": "loop",
+      "guard": ["p1 >= 1"],
+      "access": {"fn": "Ue_InitOne", "at": "lv4_01_wrapper_alloc_spec.c:52", "code": "pstTbl[ulIdx].ulState = 0"},
+      "path": ["Ue_InitTbl@lv4_01_wrapper_alloc_spec.c:59", "Ue_InitOne@lv4_01_wrapper_alloc_spec.c:52"],
+      "depth": 1,
+      "eff_depth": 0,
+      "blind": false,
+      "text": "ulNum >= 1 ⇒ W4 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 <= ext(pstTbl)"
+    }
+  ],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv4_01_wrapper_alloc_spec.c:59",
+      "callee": "Ue_InitOne",
+      "args": [{"ptr": "pstTbl", "have": "ext(p0)", "alias": "p0"}, "i"],
+      "locals": {"i": {"range": ["0", "p1 - 1"], "bound": "loop"}},
+      "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

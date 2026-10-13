@@ -1,0 +1,75 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Enc_PutBytes",
+  "key": "F@lv5_01_ctx_filled_at_top.c:Enc_PutBytes",
+  "loc": "lv5_01_ctx_filled_at_top.c:34",
+  "params": ["pstCtx: ENC_CTX_S*", "pucData: UINT8*", "ulLen: UINT32"],
+  "fields": {
+    "p0->pucBuf": {"off": 0, "size": 4, "type": "UINT8*"},
+    "p0->ulBufLen": {"off": 4, "size": 4, "type": "UINT32"},
+    "p0->ulUsed": {"off": 8, "size": 4, "type": "UINT32"}
+  },
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "p0->ulBufLen",
+      "obj": "*pstCtx->pucBuf",
+      "have": "ext(p0->pucBuf)",
+      "end": ["p0->ulBufLen", "p0->ulBufLen"],
+      "start": "0",
+      "bound": "exact",
+      "guard": [],
+      "access": {
+        "fn": "Enc_PutBytes",
+        "at": "lv5_01_ctx_filled_at_top.c:36",
+        "code": "memcpy_s(pstCtx->pucBuf, pstCtx->ulBufLen, pucData, ulLen)"
+      },
+      "path": ["Enc_PutBytes@lv5_01_ctx_filled_at_top.c:36"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "text": "WpstCtx->ulBufLen @ *pstCtx->pucBuf，末端 pstCtx->ulBufLen；需 pstCtx->ulBufLen <= ext(pstCtx->pucBuf)"
+    },
+    {
+      "id": "R2",
+      "kind": "R",
+      "bytes": "p2",
+      "obj": "*pucData",
+      "have": "ext(p1)",
+      "end": ["p2", "p2"],
+      "start": "0",
+      "bound": "exact",
+      "guard": ["p2 <= p0->ulBufLen"],
+      "access": {
+        "fn": "Enc_PutBytes",
+        "at": "lv5_01_ctx_filled_at_top.c:36",
+        "code": "memcpy_s(pstCtx->pucBuf, pstCtx->ulBufLen, pucData, ulLen)"
+      },
+      "path": ["Enc_PutBytes@lv5_01_ctx_filled_at_top.c:36"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "note": "count <= destMax 才读",
+      "text": "ulLen <= pstCtx->ulBufLen ⇒ RulLen @ *pucData，末端 ulLen；需 ulLen <= ext(pucData)"
+    }
+  ],
+  "effs": [{"kind": "field", "target": "p0->ulUsed", "value": "p2", "text": "pstCtx->ulUsed := ulLen"}],
+  "calls": [
+    {
+      "site": "lv5_01_ctx_filled_at_top.c:36",
+      "callee": "memcpy_s",
+      "model": "access",
+      "args": [
+        {"ptr": "pstCtx->pucBuf", "have": "ext(p0->pucBuf)"},
+        "p0->ulBufLen",
+        {"ptr": "pucData", "have": "ext(p1)"},
+        "p2"
+      ],
+      "results": [{"note": "访问类模型 memcpy_s → R1、R2"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

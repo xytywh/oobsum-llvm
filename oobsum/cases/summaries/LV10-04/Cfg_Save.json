@@ -1,0 +1,66 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Cfg_Save",
+  "key": "F@lv10_04_unchecked_ext_len.c:Cfg_Save",
+  "loc": "lv10_04_unchecked_ext_len.c:34",
+  "params": ["pucBody: UINT8*", "ulLen: UINT32"],
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "p1",
+      "obj": "g_aucCfg",
+      "have": "256",
+      "end": ["p1", "p1"],
+      "start": "0",
+      "bound": "exact",
+      "guard": [],
+      "access": {
+        "fn": "Cfg_Save",
+        "at": "lv10_04_unchecked_ext_len.c:36",
+        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
+      },
+      "path": ["Cfg_Save@lv10_04_unchecked_ext_len.c:36"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "note": "目的：destMax = ulLen",
+      "text": "WulLen @ g_aucCfg，末端 ulLen；需 ulLen <= 256"
+    },
+    {
+      "id": "R2",
+      "kind": "R",
+      "bytes": "p1",
+      "obj": "*pucBody",
+      "have": "ext(p0)",
+      "end": ["p1", "p1"],
+      "start": "0",
+      "bound": "exact",
+      "guard": [],
+      "access": {
+        "fn": "Cfg_Save",
+        "at": "lv10_04_unchecked_ext_len.c:36",
+        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
+      },
+      "path": ["Cfg_Save@lv10_04_unchecked_ext_len.c:36"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "note": "源：count = destMax，守卫 count <= destMax 恒真，已去掉",
+      "text": "RulLen @ *pucBody，末端 ulLen；需 ulLen <= ext(pucBody)"
+    }
+  ],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv10_04_unchecked_ext_len.c:36",
+      "callee": "memcpy_s",
+      "model": "access",
+      "args": [{"ptr": "g_aucCfg", "have": "256"}, "p1", {"ptr": "pucBody", "have": "ext(p0)"}, "p1"],
+      "results": [{"note": "访问类模型 memcpy_s → R1、R2"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

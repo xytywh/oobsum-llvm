@@ -1,0 +1,13 @@
+{
+  "id": "LV7-04",
+  "title": "循环中指针步进拷贝：个数来自三层之上，比目的缓冲区大",
+  "files": [
+    "lv7/lv7_04_pointer_stepping.c"
+  ],
+  "point": "**年内记账的样子**：`*pucOut++` 的偏移在循环头被 widening 成 `[0, +inf)`，和 `ulCnt` 的关系丢了。widening 出来的无穷上界不算代码给出的界，所以**不生成 Req**（否则 TN 也会报），只在 `opens` 里记一条 `pointer_stepping`。上层函数的摘要因此是空的，链顶不报。2027 记住\"偏移 = 已迭代次数 ∈ [0, ulCnt − 1]\"之后，这里会出现 `ulCnt >= 1 ⇒ 需 ulCnt <= ext(pucOut)`。",
+  "show_open": [
+    "Buf_CopyStep",
+    "Om_DumpReg_TP"
+  ],
+  "code": "static void Buf_CopyStep(UINT8 *pucOut, const UINT8 *pucIn, UINT32 ulCnt)\n{\n    while (ulCnt-- > 0) {\n        *pucOut++ = *pucIn++;                                 /* ★1 */\n    }\n}\n\nstatic void Reg_Snapshot(UINT8 *pucOut, const UINT8 *pucIn, UINT32 ulCnt)  { Buf_CopyStep(pucOut, pucIn, ulCnt); }\nstatic void Om_CollectReg(UINT8 *pucOut, const UINT8 *pucIn, UINT32 ulCnt) { Reg_Snapshot(pucOut, pucIn, ulCnt); }\n\nvoid Om_DumpReg_TP(void)\n{\n    UINT8 aucIn[32] = { 0 };\n    UINT8 aucOut[16];\n    Om_CollectReg(aucOut, aucIn, sizeof(aucIn));\n}\n\nvoid Om_DumpReg_TN(void)\n{\n    UINT8 aucIn[32] = { 0 };\n    UINT8 aucOut[16];\n    Om_CollectReg(aucOut, aucIn, sizeof(aucOut));\n}"
+}

@@ -1,0 +1,49 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Ue_ModuleInit_TP",
+  "key": "F:Ue_ModuleInit_TP",
+  "loc": "lv4_01_wrapper_alloc_spec.c:66",
+  "params": [],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv4_01_wrapper_alloc_spec.c:68",
+      "callee": "Ue_AllocTbl",
+      "args": [],
+      "results": [{"eff": 0, "value": "new(512) | NULL"}],
+      "note": "pstTbl := new(512) 或 NULL；随后 if (pstTbl == NULL) return 排除了 NULL"
+    },
+    {
+      "site": "lv4_01_wrapper_alloc_spec.c:72",
+      "callee": "Ue_Setup",
+      "args": [{"ptr": "pstTbl", "have": "512", "eff_depth": 3}],
+      "results": [{"req": "R1", "outcome": "L2", "report": "RPT1"}]
+    }
+  ],
+  "reps": [
+    {
+      "id": "RPT1",
+      "level": "L2",
+      "reported": true,
+      "site": "lv4_01_wrapper_alloc_spec.c:72",
+      "access": "Ue_InitOne@lv4_01_wrapper_alloc_spec.c:52",
+      "object": "heap object allocated at lv4_01_wrapper_alloc_spec.c:68",
+      "have": "512",
+      "end": ["4", "1012"],
+      "bound": "loop",
+      "depth": 3,
+      "eff_depth": 3,
+      "chain": [
+        "Ue_ModuleInit_TP@lv4_01_wrapper_alloc_spec.c:72",
+        "Ue_Setup@lv4_01_wrapper_alloc_spec.c:63",
+        "Ue_InitTbl@lv4_01_wrapper_alloc_spec.c:59",
+        "Ue_InitOne@lv4_01_wrapper_alloc_spec.c:52"
+      ],
+      "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 1012 of heap object allocated at lv4_01_wrapper_alloc_spec.c:68 (512 bytes) may be accessed; the bound comes from a loop bound in Ue_InitTbl",
+      "fp": "684eb8aec5c6ebff"
+    }
+  ],
+  "opens": []
+}

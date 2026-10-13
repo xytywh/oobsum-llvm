@@ -1,0 +1,15 @@
+{
+  "id": "LV4-06",
+  "title": "校验封装在独立函数里（返回布尔），校验函数自己差了一",
+  "files": [
+    "lv4/lv4_06_validator_func.c"
+  ],
+  "point": "**条件效应**：`Cell_IsValidId` 的摘要不是 Req，而是 `ret == 1 ⇒ ulCellId <= 16`；`Cell_CheckPara` 把它沿返回值再包一层（`ret == 0 ⇒ ulCellId <= 16`）。链顶 `if (Cell_CheckPara(id) != VOS_OK) return;` 之后，这条效应变成调用点上的守卫 `ulCellId <= 16`（来源：校验）。访问侧的 Req `32*ulCellId + 32 <= 512` 代进来，对象已知、符号被校验框住 → L2。年内尽力项。",
+  "show_open": [
+    "Cell_IsValidId",
+    "Cell_CheckPara",
+    "Ctx_Clear",
+    "Cell_OnDelReq_TP"
+  ],
+  "code": "#define MAX_CELL_NUM 16\n\ntypedef struct {\n    UINT32 ulState;\n    UINT32 ulUeNum;\n    UINT8  aucRsv[24];\n} CELL_CTX_S;\n\nstatic CELL_CTX_S g_astCellCtx[MAX_CELL_NUM];\n\nstatic UINT32 Cell_IsValidId(UINT32 ulCellId)    { return (ulCellId <= MAX_CELL_NUM) ? VOS_TRUE : VOS_FALSE; }\nstatic UINT32 Cell_IsValidId_OK(UINT32 ulCellId) { return (ulCellId < MAX_CELL_NUM) ? VOS_TRUE : VOS_FALSE; }\n\nstatic UINT32 Cell_CheckPara(UINT32 ulCellId)\n{\n    if (Cell_IsValidId(ulCellId) == VOS_FALSE) {\n        return VOS_ERR;\n    }\n    return VOS_OK;\n}\n\nstatic UINT32 Cell_CheckPara_OK(UINT32 ulCellId)\n{\n    if (Cell_IsValidId_OK(ulCellId) == VOS_FALSE) {\n        return VOS_ERR;\n    }\n    return VOS_OK;\n}\n\nstatic void Ctx_Clear(UINT32 ulCellId)\n{\n    (void)memset_s(&g_astCellCtx[ulCellId], sizeof(CELL_CTX_S), 0, sizeof(CELL_CTX_S));   /* ★1 */\n}\n\nstatic void Cell_FreeCtx(UINT32 ulCellId) { Ctx_Clear(ulCellId); }\nstatic void Cell_Delete(UINT32 ulCellId)  { Cell_FreeCtx(ulCellId); }\n\nUINT32 Cell_OnDelReq_TP(UINT32 ulCellId)\n{\n    if (Cell_CheckPara(ulCellId) != VOS_OK) {\n        return VOS_ERR;\n    }\n    Cell_Delete(ulCellId);\n    return VOS_OK;\n}\n\nUINT32 Cell_OnDelReq_TN(UINT32 ulCellId)\n{\n    if (Cell_CheckPara_OK(ulCellId) != VOS_OK) {\n        return VOS_ERR;\n    }\n    Cell_Delete(ulCellId);\n    return VOS_OK;\n}"
+}

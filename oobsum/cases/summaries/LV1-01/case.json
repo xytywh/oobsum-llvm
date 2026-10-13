@@ -1,0 +1,13 @@
+{
+  "id": "LV1-01",
+  "title": "统计计数：枚举结束标记 BUTT 被当成下标逐层传下去",
+  "files": [
+    "lv1/lv1_01_stat_enum_butt.c"
+  ],
+  "point": "最基本的形态：数组在最底层（大小当场已知），下标一路从形参传上来。摘要里只有一条 Req，`have` 是常数 16、末端是形参的线性式；它原样上传三层，到常量实参处变成 `20 <= 16` 不成立 → L1。两处 `LOG_Print` 和 `ulCellId` 从头到尾不出现在任何摘要里。",
+  "show_open": [
+    "Stat_Inc",
+    "Cell_OnSetupTimeout_TP"
+  ],
+  "code": "typedef enum {\n    CELL_STAT_SETUP_SUCC,\n    CELL_STAT_SETUP_FAIL,\n    CELL_STAT_REL,\n    CELL_STAT_HO,\n    CELL_STAT_BUTT\n} CELL_STAT_E;\n\nstatic UINT32 g_aulCellStat[CELL_STAT_BUTT];\n\nstatic void Stat_Inc(UINT32 ulType)\n{\n    g_aulCellStat[ulType]++;                                  /* ★1 */\n}\n\nstatic void Cell_UpdateStat(UINT32 ulType)\n{\n    LOG_Print(3, \"update stat %u\", ulType);\n    Stat_Inc(ulType);\n}\n\nstatic void Cell_RecordFail(UINT32 ulCellId, UINT32 ulCause)\n{\n    LOG_Print(2, \"cell %u setup fail\", ulCellId);\n    Cell_UpdateStat(ulCause);\n}\n\nvoid Cell_OnSetupTimeout_TP(UINT32 ulCellId)\n{\n    Cell_RecordFail(ulCellId, CELL_STAT_BUTT);\n}\n\nvoid Cell_OnSetupTimeout_TN(UINT32 ulCellId)\n{\n    Cell_RecordFail(ulCellId, CELL_STAT_SETUP_FAIL);\n}"
+}

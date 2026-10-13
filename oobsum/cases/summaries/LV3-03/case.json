@@ -1,0 +1,14 @@
+{
+  "id": "LV3-03",
+  "title": "访问函数自己校验了，但校验的界比多层之上传进来的数组大",
+  "files": [
+    "lv3/lv3_03_callee_guard_wrong.c"
+  ],
+  "point": "**条件带守卫**：`ulPortId <= 31 ⇒ 需 24*ulPortId + 4 <= ext(astPort)`。如果只留区间 `[0, 31]`，条件会变成 `748 <= ext`，常量 3 的调用点（TN）也会被判越界。到链顶对象已知（全局表 384 字节），而 `ulPortId` 是链顶自己的形参、只被守卫框在 `[0, 31]` —— 这是代码自己写出来的界，按 06- F-12 判 L2（最大末端 748、最小末端 4）。",
+  "show_open": [
+    "Port_SetMode",
+    "Board_OnCfgMsg_TP",
+    "Board_InitDefault_TN"
+  ],
+  "code": "#define MAX_PORT_NUM     16\n#define MAX_PORT_NUM_V2  32\n\ntypedef struct {\n    UINT32 ulMode;\n    UINT32 ulSpeed;\n    UINT8  aucMac[16];\n} PORT_S;\n\nstatic PORT_S g_astBoardPort[MAX_PORT_NUM];\n\nstatic void Port_SetMode(PORT_S *astPort, UINT32 ulPortId, UINT32 ulMode)\n{\n    if (ulPortId >= MAX_PORT_NUM_V2) {\n        return;\n    }\n    astPort[ulPortId].ulMode = ulMode;                        /* ★1 */\n}\n\nstatic void Port_ApplyCfg(PORT_S *astPort, UINT32 ulPortId, UINT32 ulMode) { Port_SetMode(astPort, ulPortId, ulMode); }\nstatic void Board_CfgPort(PORT_S *astPort, UINT32 ulPortId, UINT32 ulMode) { Port_ApplyCfg(astPort, ulPortId, ulMode); }\n\nvoid Board_OnCfgMsg_TP(UINT32 ulPortId, UINT32 ulMode) { Board_CfgPort(g_astBoardPort, ulPortId, ulMode); }\nvoid Board_InitDefault_TN(void)                        { Board_CfgPort(g_astBoardPort, 3, 0); }"
+}

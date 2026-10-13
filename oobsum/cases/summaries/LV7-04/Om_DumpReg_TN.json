@@ -1,0 +1,20 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Om_DumpReg_TN",
+  "key": "F:Om_DumpReg_TN",
+  "loc": "lv7_04_pointer_stepping.c:41",
+  "params": [],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv7_04_pointer_stepping.c:45",
+      "callee": "Om_CollectReg",
+      "args": [{"ptr": "aucOut", "have": "16"}, {"ptr": "aucIn", "have": "32"}, "16"],
+      "results": [{"note": "被调者没有条件 → 不报；漏报在 Buf_CopyStep 的账本里"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

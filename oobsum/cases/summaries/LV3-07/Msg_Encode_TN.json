@@ -1,0 +1,20 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Msg_Encode_TN",
+  "key": "F:Msg_Encode_TN",
+  "loc": "lv3_07_pkt_loop_destmax.c:77",
+  "params": ["astIe: IE_S*", "ulIeNum: UINT32"],
+  "status": "analyzed",
+  "reqs": [],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv3_07_pkt_loop_destmax.c:80",
+      "callee": "Msg_BuildBody_OK",
+      "args": [{"ptr": "aucPkt", "have": "128"}, "128", {"ptr": "astIe", "have": "ext(p0)", "alias": "p0"}, "p1"],
+      "results": [{"req": "R1", "outcome": "safe"}]
+    }
+  ],
+  "reps": [],
+  "opens": []
+}

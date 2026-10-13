@@ -1,0 +1,88 @@
+{
+  "schema": "oobsum-summary/1",
+  "fn": "Om_OnSaveCfg_TP",
+  "key": "F:Om_OnSaveCfg_TP",
+  "loc": "lv10_04_unchecked_ext_len.c:42",
+  "params": ["pstMsg: OM_MSG_S*"],
+  "fields": {"p0->usMsgLen": {"off": 2, "size": 2, "type": "UINT16"}},
+  "status": "analyzed",
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "W",
+      "bytes": "p0->usMsgLen",
+      "obj": "g_aucCfg",
+      "have": "256",
+      "end": ["p0->usMsgLen", "p0->usMsgLen"],
+      "start": "0",
+      "bound": "exact",
+      "guard": [],
+      "access": {
+        "fn": "Cfg_Save",
+        "at": "lv10_04_unchecked_ext_len.c:36",
+        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
+      },
+      "path": [
+        "Om_OnSaveCfg_TP@lv10_04_unchecked_ext_len.c:42",
+        "Om_SaveCfg@lv10_04_unchecked_ext_len.c:40",
+        "Cfg_Store@lv10_04_unchecked_ext_len.c:39",
+        "Cfg_Save@lv10_04_unchecked_ext_len.c:36"
+      ],
+      "depth": 3,
+      "eff_depth": 0,
+      "blind": false,
+      "text": "WpstMsg->usMsgLen @ g_aucCfg，末端 pstMsg->usMsgLen；需 pstMsg->usMsgLen <= 256"
+    },
+    {
+      "id": "R2",
+      "kind": "R",
+      "bytes": "p0->usMsgLen",
+      "obj": "pstMsg->aucBody",
+      "have": "1024",
+      "end": ["p0->usMsgLen", "p0->usMsgLen"],
+      "start": "0",
+      "bound": "exact",
+      "guard": [],
+      "access": {
+        "fn": "Cfg_Save",
+        "at": "lv10_04_unchecked_ext_len.c:36",
+        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
+      },
+      "path": [
+        "Om_OnSaveCfg_TP@lv10_04_unchecked_ext_len.c:42",
+        "Om_SaveCfg@lv10_04_unchecked_ext_len.c:40",
+        "Cfg_Store@lv10_04_unchecked_ext_len.c:39",
+        "Cfg_Save@lv10_04_unchecked_ext_len.c:36"
+      ],
+      "depth": 3,
+      "eff_depth": 0,
+      "blind": false,
+      "text": "RpstMsg->usMsgLen @ pstMsg->aucBody，末端 pstMsg->usMsgLen；需 pstMsg->usMsgLen <= 1024"
+    }
+  ],
+  "effs": [],
+  "calls": [
+    {
+      "site": "lv10_04_unchecked_ext_len.c:42",
+      "callee": "Om_SaveCfg",
+      "args": [{"ptr": "pstMsg->aucBody", "have": "1024"}, "p0->usMsgLen"],
+      "results": [{"req": "R1", "outcome": "up", "as": "R1"}, {"req": "R2", "outcome": "up", "as": "R2"}],
+      "note": "aucBody 是成员数组，子对象 1024 字节；usMsgLen 只有 UINT16 的类型范围"
+    }
+  ],
+  "reps": [],
+  "opens": [
+    {
+      "reason": "type_range_only",
+      "at": "lv10_04_unchecked_ext_len.c:42",
+      "detail": "入口：usMsgLen 只有类型范围 [0, 65535]，最大会写到 65535 > 256；不是代码给出的界，不报 L2，留给 AI 研判",
+      "req": "R1"
+    },
+    {
+      "reason": "type_range_only",
+      "at": "lv10_04_unchecked_ext_len.c:42",
+      "detail": "同上：最大读到 65535 > 1024",
+      "req": "R2"
+    }
+  ]
+}
