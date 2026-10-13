@@ -3,7 +3,7 @@
   "fn": "Ue_ShowInfo_TN",
   "key": "F:Ue_ShowInfo_TN",
   "loc": "lv1_02_name_terminator.c:51",
-  "params": ["ulUeId: UINT32"],
+  "params": [{"name": "ulUeId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [],
@@ -11,16 +11,17 @@
     {
       "site": "lv1_02_name_terminator.c:54",
       "callee": "Ue_BuildName",
-      "args": [{"ptr": "szName", "have": "17"}, "p0"],
+      "args": [{"obj": "local:szName", "have": "17", "doc": "szName"}, "p0"],
       "results": [{"req": "R1", "outcome": "safe"}],
-      "note": "CHAR szName[UE_NAME_LEN + 1]，17 字节"
+      "doc": "CHAR szName[UE_NAME_LEN + 1]，17 字节"
     },
     {
       "site": "lv1_02_name_terminator.c:55",
       "callee": "LOG_Print",
       "model": "pure",
       "args": ["3", null, null],
-      "results": [{"note": "LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件"}]
+      "results": [{"pure": true}],
+      "doc": "LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件"
     }
   ],
   "reps": [],

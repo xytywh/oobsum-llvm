@@ -2,6 +2,8 @@
 
 > 调研包 v3.12 · 2026-10-13 · 状态：**评审稿**（§12 的决策点头后定稿，代码按定稿写）
 > **v3.13**：§5.3 的摘要格式定稿为"表达式写成字符串"的可读 JSON（附 JSON Schema 与 16 个用例的 104 份实样、回放器）；F-03 / F-04 按 securec 真实语义细化；新增 F-12b（守卫界判定）、A-44 的覆盖合并、账本原因 `untracked_pointer`、选项 `CallTrace`。方案备选按维度重排，见 `08-options-and-summary-examples.md`。
+> **v3.14**：§5.3 新增 D-30——摘要分**机器字段**与键名为 `doc` 的说明两类，引擎不读 `doc`，去掉 `doc` 就是完整摘要；对象写法 `obj`、访问标识 `access{fn,key,at,end}`、
+> 结构化的调用点结局入规格；F-32 消息、F-33 总链 note、F-34 指纹改为全部由机器字段生成（指纹改用访问末端式、实测与 `llvm::xxHash64` 一致）；新增选项 `Emit`（I-25）、决策 D14 / D15。
 >
 > 这份文件回答"代码写成什么样"：功能边界、对外接口、数据格式、算法、跨 TU 执行、非功能要求、测试与验收。
 > "什么时候写、谁做、按什么顺序"在 **`07-dev-plan.md`**。设计理由在 `01-architecture.md`（本文件细化它，改动处列在 §13），
@@ -30,6 +32,8 @@
 | **D12** | 告警报在**汇合点的调用表达式**上；跨文件的 trace 写进 note 文本 | CSA 的 note 只能指向本 TU 可见的文件，被调者在别的 `.c` 里时无法定位 |
 | **D13** | 函数 / 全局用**自定义键**（外部链接用名字，内部链接带定义文件），不用 USR | C 没有重载，名字即可；不依赖 `clangIndex`；头文件 static inline 可跨 TU 去重 |
 | **D7** | 新 checker：`rb.enhance.ipa.OobSummary`（类 `OobSummaryChecker`） | 跨 TU 规则按 `csa-checker-dev` 约定须与你确认包；它不用 CSA 的 IPA，`ipa` 取值不影响它 |
+| **D14** | 摘要里的说明文字一律放在键名为 **`doc`** 的字段里，引擎不读；去掉 `doc` 就是完整摘要（§5.3 D-30） | 自然语言静态分析消费不了，只能给人看；分开放才能保证判定与告警不依赖它，也能一键去掉 |
+| **D15** | L2 消息的 `{source}` P0 只写界的种类（`a loop condition`），出处函数靠调用链 note；`bound_at` 留到 P1 | 出处函数要随代换多维护一个字段；先保证消息全部由机器字段生成 |
 
 ---
 
@@ -160,14 +164,21 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
   L2: Possible out-of-bound {write|read} through a {N}-level call chain: up to byte {needHi} of {object} ({size} bytes) may be accessed; the bound comes from {source}
   ```
 
-  `{object}` 是汇合点处对象的描述：变量名（`'aucName'`）、成员路径（`'pstCtx->aucBuf'`，结构体名按 typedef 反查）、
-  堆对象（`heap object allocated at alm_top.c:42`）；`{size}`、`{need}` 可以是符号式（LV2-04：`4*ulNum+4` 对 `4*ulNum`）。
+  **全部占位都取自判定记录的机器字段**（D-26），不读 `doc`：`{N}` = `depth`，`{need}` / `{needHi}` = `end[1]`，`{size}` = `have`，
+  `{object}` 由 `obj` 渲染——`g:` / `local:` 写变量名（`'aucName'`），`heap@位置` 写 `heap object allocated at alm_top.c:42`，
+  `*pK->f` 等按形参名渲染（`'pstCtx->aucBuf'`）；有 `via` 时在大小后面加 `; via stCtx.pucBuf`。
+  `{source}` = `bound` 的短语（`a loop condition`、`a check`、`a guard condition`、`a bit mask`、`a branch constant`、`a return value range`、`a constant`）。
+  调用链跨了文件时，消息末尾附整条链 `[A (a.c:22) -> B (b.c:6) -> …]`（F-33 ③）。`{size}`、`{need}` 可以是符号式（LV2-04：`4*ulNum+4` 对 `4*ulNum`）。
+  （v3.13 样例里 L2 写的 "a loop bound **in Ue_InitTbl**" 是手写的：界在哪个函数给出，机器字段里没有。要的话 P1 给 Req 加 `bound_at`，见 §12。）
 * **F-33 trace（note）**：
-  ① 一条**总链 note**，锚在告警位置：`Call chain: Ue_Setup (ue_init.c:80) -> Ue_InitTbl (ue_init.c:60) -> Ue_InitOne (ue_tbl.c:40): write of 4 bytes at offset 16*ulIdx`；
+  ① 一条**总链 note**，锚在告警位置：`Call chain: Ue_Setup (ue_init.c:80) -> Ue_InitTbl (ue_init.c:60) -> Ue_InitOne (ue_tbl.c:40)`（由 `chain` 生成；
+  访问的字节数和偏移式看访问点那条 note 指着的源码行）；
   ② 链上每一跳、访问点、大小来源（分配点）里**位于本 TU 可见文件**的，各一条 note 指向那一行；
   ③ 不在本 TU 的只出现在 ① 的文本里（D12）。
-* **F-34 指纹**：`xxHash64("OobSummary|" + level + "|" + 汇合点函数键 + "|" + 访问函数键 + "|" + R/W + "|" + 访问序号 + "|" + 对象描述)`，
-  **不含行号**（`01-` §3.10）；访问序号＝该访问在其函数 FIR 里同类访问中的序号。同一指纹全工程只报一次。
+* **F-34 指纹**：`llvm::xxHash64("OobSummary|" + level + "|" + 汇合点函数键 + "|" + access.key + "|" + R/W + "|" + access.end + "|" + obj)`，
+  十六进制 16 位，**不含行号**（`01-` §3.10）。访问用"访问函数键 + 访问点自身的末端式"标识（v3.14 起替代"访问序号"：
+  序号要看整个 FIR 才能定，末端式就在摘要里；同一函数里同类、同末端式的两次访问本来就是同一个检查，合并正合适）。
+  同一指纹全工程只报一次。`replay.py` 里的 XXH64 与 LLVM 14 的 `llvm::xxHash64` 逐位相同【实测数据：同一输入两边都是 `dc29cb0defb73e92`】。
 * **F-35 确定性**：同一 TU 的告警按（文件、行、列、指纹）排序后发出（`csa-checker-dev` 约定）。
 
 ### 3.5 账本与可查性
@@ -211,6 +222,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 | I-22 | `FuncFilter` | string | `""` | 只对名字匹配的函数打印调试输出（正则） |
 | I-23 | `Verbose` | int | `0` | `1`：每 TU 一行统计；`2`：每函数一行 |
 | I-24 | `CallTrace` | string | `full` | 摘要里 `calls[]` 调用点记录的详细程度：`full`（实参、局部区间、守卫、结局，调试用）/ `results`（只留结局）/ `none`。全量跑出来体积过大时降级 |
+| I-25 | `Emit` | string | `machine` | 摘要里写不写说明：`machine`（只写机器字段，D-30）/ `doc`（另生成 `doc`：形参名渲染的一句话、源码原文、宏值，调试与评审用；判定结果不变） |
 
 ### 4.3 运行命令
 
@@ -387,13 +399,25 @@ FIR 是"能决定越界的最少信息"：类型只留大小与字段布局，�
 `assume x == c` 与 `default` 一条（`case` 超过 16 个时 `default` 不带 assume）。`&&`、`||`、`?:` 由 Clang CFG 拆好，
 `?:` 的结果在两个前驱块末尾各补一条 `set tmp`（**A-04**）。
 
-### 5.3 摘要（`oobsum-summary/1`）——v3.13 定稿
+### 5.3 摘要（`oobsum-summary/1`）——v3.13 定稿，v3.14 划清机器字段与说明
 
 > **一个函数一份 JSON**，表达式都写成人能直接读的字符串。完整字段定义：`cases/summaries/summary.schema.json`（JSON Schema）；
 > 16 个用例的 104 份实样与逐步回放：`08-options-and-summary-examples.md` Part B 与 `cases/summaries/`。
 > 全量运行时落在 `WorkDir/summaries/<00..ff>.jsonl`（按函数键哈希分片，一行一份）；`oobsum.py show <函数名>` 打印成实样那样。
 
-**D-20 接口符号**（摘要里允许出现的符号）：
+**D-30 机器字段与 `doc`（v3.14）**：摘要里只有两类内容。
+
+* **键名为 `doc` 的**（任意层级，字符串或对象）：只给人看的说明——用形参名渲染的可读形式、源码原文、宏的值、"为什么"。
+  **引擎读入时把所有 `doc` 整棵删掉，任何计算（代换、判定、出告警、指纹）都不读它。**
+* **其余全部是机器字段**：整数、枚举、规范表达式（D-21）、对象（D-20）、位置（`文件:行`）、函数键。**去掉 `doc` 后就是完整摘要**——
+  逐个调用点的判定、上传、记账，以及最终告警的位置、消息（F-32 由模板生成）、调用链 note（F-33）、指纹（F-34）都只用它们算出来。
+* 保证手段：① schema 里除 `doc` 外每个对象都是 `additionalProperties: false`，多一个键（比如顺手加的 `note`）校验就不过；
+  ② `replay.py` 检查 `doc` 之外不出现中文或成句的英文；③ `replay.py --strip DIR` 生成去掉 `doc` 的机器版，`--dir DIR` 从机器版重跑，
+  结果与读原文件**逐字节相同**（v3.14 实测：13 条最终告警的 JSON 一致，回放输出只有实参的显示名不同）。
+* `Emit=machine`（I-25，默认）只写机器字段；`Emit=doc` 额外生成 `doc`，供调试与评审。T-06 快照比的是去掉 `doc` 后的 JSON。
+* 用例目录里的 `case.json`（标题、要点、代码）是走查文档用的元数据，**不是摘要**，引擎不产生也不读。
+
+**D-20 接口符号**（摘要里允许出现的符号）与**对象写法**：
 
 | 符号 | 含义 |
 |---|---|
@@ -403,6 +427,15 @@ FIR 是"能决定越界的最少信息"：类型只留大小与字段布局，�
 | `ext(p0->pucBuf)` | 指针型字段所指对象的剩余字节数 |
 | `g:g_x`、`ext(g:g_px)` | 全局在入口处的值（P0 只记录、不跟踪传播）；全局指针的剩余字节数 |
 | `div(e, n)`、`mod(e, n)`、`wrap32(e)`、`wrap16(e)`、`mul(a, b)` | 不透明项：除以常数、取模、无符号回绕、两个变量相乘；代换后内层是常数才求值 |
+
+| 对象 `obj` | 含义 | 在调用点怎么代换 |
+|---|---|---|
+| `g:g_aulCellStat` | 全局对象 | 不变 |
+| `local:aucPkt` | 本函数的局部对象 | 不变（只出现在判定和实参里） |
+| `heap@ue.c:68` | 在这个调用点分配的堆对象 | 不变 |
+| `*p0` | 第 0 个形参所指的对象 | 换成第 0 个指针实参的 `obj` |
+| `*p0->pucBuf` | 形参所指结构体里指针字段 `pucBuf` 所指的对象 | 换成实参 `fields.pucBuf.obj`（判定里记 `via`）；实参是形参别名时改写成调用方的 `*pK->pucBuf` |
+| `p0->aucBody` | 形参所指结构体里的数组成员 | 实参是形参别名时改写成 `pK->aucBody` |
 
 调用点记录（`calls[]`）里还会出现**调用方的局部名**（如 `i`、`ulOff`），只用来描述"实参是什么"，**不进 Req / Eff**。
 
@@ -423,43 +456,57 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 **D-22 来源标签** `bound`：`exact`（没有区间）、`const`、`check`、`mask`、`branch`、`loop`、`ret`、`guard`（以上是代码给出的界，可判 L2）；
 `type`、`widen`、`data`（不可判 L2，只能记账）。
 
-**D-23 顶层与 Req**：
+**D-23 顶层与 Req**（下表只列机器字段；每个对象都可以另带 `doc`）：
 
 | 顶层字段 | 含义 |
 |---|---|
 | `schema` | `"oobsum-summary/1"` |
 | `fn`、`key`、`tu`、`loc` | 函数名、键（D-01…D-08）、定义所在 TU（跨 TU 时）、定义位置 |
-| `params` | `["名字: 类型", …]` |
+| `params` | `[{name, type}, …]`，下标即 `p0`、`p1`… |
 | `fields` | `{"p0->ulBufLen": {"off": 4, "size": 4, "type": "UINT32"}, …}` |
 | `status` | D-28 |
 | `reqs` / `effs` / `calls` / `reps` / `opens` | 前置条件 / 效果 / 调用点记录 / 本函数判定的越界 / 账本 |
 
 | Req 字段 | 含义 |
 |---|---|
-| `id`、`kind`、`bytes`、`obj` | 编号、`R` / `W`、访问字节数（说明用）、对象描述 |
-| `have` | 从基址起对象还剩多少字节：常数、`ext(…)` |
+| `id`、`kind` | 编号、`R` / `W` |
+| `have`、`obj` | 从基址起对象还剩多少字节（常数、`ext(…)`）；是哪个对象（D-20 写法） |
 | `end` | `[下界, 上界]`：访问末端（偏移 + 字节数）的范围。**安全条件就是 `end[1] <= have`** |
 | `start` | 最小偏移（判负偏移用） |
 | `bound` | `end[1]` 的来源标签（D-22） |
 | `guard` | 守卫：只有它们成立时才发生这次访问 |
-| `access` | `{fn, at, code}`：真正的访问点（代换过程中不变） |
-| `path` | 从本函数到访问点经过的调用点 |
+| `access` | `{fn, key, at, end}`：真正的访问点——函数、函数键、位置、访问点自身的末端上界（访问函数的符号）。代换过程中原样上传，`key + end` 用于指纹 |
+| `path` | 从本函数到访问点经过的调用点（`函数@文件:行`） |
 | `depth`、`eff_depth`、`blind` | F-20、F-21 |
-| `absorbed` | 被本条覆盖、不再单列的较弱访问（A-44） |
-| `note`、`text` | 说明；用形参名渲染的可读形式（派生字段，读入时忽略） |
+| `absorbed` | 被本条覆盖、不再单列的较弱访问 `[{kind, end, at}]`（A-44） |
+| `doc` | `{text, obj, bytes, code, note}`：用形参名渲染的一句话、对象名、访问字节数、源码原文、说明 |
 
-**D-24 效果** `effs[].kind`：`ret_new`（`size`、`maybe_null`、`eff_depth`、`via`）、`ret_ptr`、`ret_int`（`range`、`bound`）、
+**D-24 效果** `effs[].kind`：`ret_new`（`size`、`maybe_null`、`eff_depth`）、`ret_ptr`、`ret_int`（`range`、`bound`）、
 `ret_cond`（`when: "ret == c"`、`then: [条件…]`，至多 4 条）、`out_new` / `out_int`、`field`（`target: "p0->ulUsed"`、`value`）、`global`、`invalidate`。
+`doc.via` 记效果是从哪个分配器 / 封装传上来的（只给人看）。
 
 **D-25 调用点记录** `calls[]`：`site`、`callee`、`model`（`access` / `alloc` / `pure` / `unknown`，被调者是模型或未知时）、
-`args`（整数实参写表达式；指针实参写 `{ptr: 原文, have: 剩余字节数, alias?: 就是调用方的哪个形参, fields?: 栈帧里记着的字段值, eff_depth?}`；与越界无关的写 `null`）、
-`locals`（`{名字: {range: [lo, hi], bound}}`）、`guards`（`[{cond, bound, from}]`）、`results`（被调者每条 Req / Eff 的结局：
-`{req, outcome: up|safe|L1|L2|open, as|report|reason}`、`{eff, value}`、`{note}`）。详细程度由 `CallTrace`（I-24）控制。
+`args`（整数实参写表达式；指针实参写 `{obj, have, alias?, fields?, eff_depth?}`——指向哪个对象、从这个指针起还剩多少字节、
+就是调用方的哪个形参、栈帧里记着的字段值；与越界无关的写 `null`）、`locals`（`{名字: {range: [lo, hi], bound}}`）、
+`guards`（`[{cond, bound}]`）、`results`——被调者每条 Req / Eff 在这里的结局，全部结构化：
 
-**D-26 判定** `reps[]` 与全局告警记录 `reports.json`：`{id, level, reported, site, access, object, have, end, bound, depth, eff_depth, chain, msg, fp}`；
-`reports.json` 每条另带 `decision_fn`、`decision_tu`（`report` 阶段按它分发）。
+| `results[]` 形状 | 含义 |
+|---|---|
+| `{req, outcome: "up", as}` | 代换后上传成本函数的 `as` |
+| `{req, outcome: "safe"}` | 这里已证明安全 |
+| `{req, outcome: "L1"\|"L2", report}` | 这里判出越界，记在 `reps[]` 的 `report` |
+| `{req, outcome: "open", reason}` | 到此为止，记账 |
+| `{eff, apply}` | 被调者第 `eff` 条效果代进来后的样子（`apply` 与效果同形，用调用方的符号） |
+| `{gen: [Req id…]}` / `{gen_eff: [序号…]}` | 访问类 / 分配器模型在本函数生成的 Req / 效果 |
+| `{pure: true}` / `{open: reason}` | 纯函数模型 / 未知函数记账 |
 
-* **D-27 账本** `opens[]` / `ledger.jsonl`：`{reason, at, detail, req?}`（`req` 指向入口处到此为止的那条 Req）。`reason` 取值：
+详细程度由 `CallTrace`（I-24）控制。
+
+**D-26 判定** `reps[]`：`{id, level, reported, site, access, kind, obj, via?, have, end, bound, depth, eff_depth, chain, fp}`，`doc.msg` 是 F-32 模板的生成结果（副本）。
+全局告警记录 `reports.json` 每条是 F-30…F-35 的成品（`checker`、`bug_type`、`category`、`level`、`fn`、`loc`、`msg`、`notes`、`fp`），
+另带 `decision_fn`、`decision_tu`（`report` 阶段按它分发）。`replay.py --alerts FILE` 输出的就是这个形状。
+
+* **D-27 账本** `opens[]` / `ledger.jsonl`：`{reason, at, req?}`（`req` 指向入口处到此为止的那条 Req），`doc` 写细节。`reason` 取值：
   `01-` §3.12 的 16 类（`fptr`、`unknown_callee`、`recursion`、`msg_edge`、`global_value`、`global_ptr_target`、`field_written_by_callee`、
   `alloc_size_unknown`、`flexible_array`、`struct_overlay`、`pointer_stepping`、`string_length`、`nonlinear`、`type_range_only`、`entry_unproven`、`cond_truncated`）
   加运行类 11 个：`ambiguous_callee`、`not_exported`（被调者不在 cdb 里）、`not_in_tu`（inline 模式下的跨 TU 被调者）、`cfg_too_large`、`timeout`、
@@ -467,8 +514,8 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
   `untracked_pointer`（指针来自数组元素或超过两层的字段，不跟踪它指向多大）。
 * **D-28 状态** `status`：`analyzed`；`partial:iter_limit|cond_truncated`；`skipped:cfg_too_large|timeout|no_body`。
 
-**D-29 可读输出**：`text` 字段、`Dump=summary` 与 `oobsum.py show / explain` 都用形参名渲染（`ulNum >= 1 ⇒ W4 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 <= ext(pstTbl)`），
-与用例文件头的"摘要"块同形。T-06 的快照测试比的是 JSON（规范形式），不比 `text`。
+**D-29 可读输出**：`doc.text`、`Dump=summary` 与 `oobsum.py show / explain` 都用形参名渲染（`ulNum >= 1 ⇒ 写 4 字节 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 <= ext(pstTbl)`），
+与用例文件头的"摘要"块同形。它们都是从机器字段**派生**的；T-06 的快照测试比的是去掉 `doc` 的 JSON（规范形式）。
 
 ### 5.4 大小与布局（ExtentModel 的 P0 部分）
 
@@ -600,6 +647,8 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 * **A-90**：`solve` 给每条未被过滤的判定定一个汇合点 TU（汇合点函数的 FIR 所在 TU），写进 `decisions/<tu>.json`。
 * **A-91**：`report` / `inline` 阶段把 `[文件, 行, 列]` 经 `FileManager` + `SourceManager::translateFileLineCol` 换成 `SourceLocation`；
   换不出来（文件不在本 TU）→ 退回汇合点函数的声明位置，并把原位置写进消息。按 F-33 组 note，按 F-35 排序后发出；同一进程内按指纹去重。
+* **A-92**（v3.14）：告警成品（位置、BugType、消息、note、指纹）**只由判定记录的机器字段生成**，不读任何 `doc`；
+  参考实现是 `replay.py` 的 `alert_msg`、`make_alert`、`fingerprint`，C++ 的 `Report.cpp` 在 T-06 用例上的输出须与 `replay.py --alerts` 逐条相同。
 
 ### 6.10 全函数性与上限
 
@@ -697,7 +746,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | **T-03** | 语料验收 | `cases/` 全部 134 个入口按 `@expect` 对照（下述口径） | 沙箱 + fork | 每次交付；检查点 |
 | **T-04** | 链长 | `cases/gen_chain.py` 生成 4 类模板（形参透传、偏移累加、封装分配器链、跨 TU 链）× N ∈ {2, 3, 5, 10, 17, 20} | 沙箱 + fork | G1 起 |
 | **T-05** | fork 用例 | `TestCase/OobSummaryChecker/`（由 `cases/` 生成）跑驱动，告警数与 `EXPECTED.md` 一致 | fork | 每次集成 |
-| **T-06** | 摘要快照 | **金标准是 `cases/summaries/` 的 104 份 JSON**（16 个用例，v3.13 手写并经 `replay.py` 回放核对）：引擎在这些函数上的输出按规范形式逐字段比对；其余用例的摘要在 WP4 起由引擎产出、与用例头"摘要"块对照后冻结。改动须有意更新 | 沙箱 | 每次交付 |
+| **T-06** | 摘要快照 | **金标准是 `cases/summaries/` 的 104 份 JSON 去掉 `doc` 后的机器版**（16 个用例，v3.13 手写、v3.14 划清 `doc`，经 `replay.py` 逐调用点核对与"从局部事实推到底"两种方式验证）：引擎在这些函数上的输出按规范形式逐字段比对，最终告警与 `replay.py --alerts` 逐条比对（含消息与指纹）；其余用例的摘要在 WP4 起由引擎产出、与用例头"摘要"块对照后冻结。改动须有意更新 | 沙箱 | 每次交付 |
 | **T-07** | 健壮性 | 本包 `05-experiments/`、`07-capability-boundary/corpus/`、`cases/` 全部跑 export + solve 不崩溃、全函数性成立 | 沙箱 | 每次交付 |
 | **T-08** | 真实代码 | 子集（几个顶层目录）→ 全量：告警按级别 / 层数、账本按原因、耗时 / 内存；抽样 50 条 L1 由你研判精确率 | fork | W10 起 |
 
@@ -746,6 +795,8 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | **D12** | 告警位置与 trace | 汇合点调用表达式 + 文本 trace | 报在访问点 | 访问点常在别的 TU 里，CSA 的告警位置必须在本 TU 可见文件内 |
 | **D13** | 键 | 名字 / 定义文件 + 名字 | Clang USR | USR 要链接 `clangIndex`（fork 里是否可用待确认），对 C 没有额外好处 |
 | **X-04** | solve 宿主 | 桩 TU（不改 BXPlugin 构建） | 独立可执行 `oobsum-solve` | 后者更干净，但要在 BXPlugin 的 CMake 里加一个可执行目标 |
+| **D14** | 摘要里的说明文字（v3.14） | 放在键名为 `doc` 的字段里，引擎不读；默认不写（`Emit=machine`） | 不要说明 / 说明与机器字段混写 | 不要说明调试时得对着 FIR 猜；混写则无法保证引擎不依赖自然语言 |
+| **D15** | L2 消息里界的出处函数（v3.14） | P0 只写界的种类（`a loop condition`），出处靠调用链 note | P1 给 Req 加 `bound_at`（界在哪个函数 / 哪一行给出），沿上传保留 | 多一个随代换维护的字段；收益是消息里能直接写 "in Ue_InitTbl" |
 
 ---
 

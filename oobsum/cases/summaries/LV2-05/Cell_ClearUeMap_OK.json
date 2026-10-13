@@ -3,20 +3,24 @@
   "fn": "Cell_ClearUeMap_OK",
   "key": "F@lv2_05_bitmap_cast_words.c:Cell_ClearUeMap_OK",
   "loc": "lv2_05_bitmap_cast_words.c:49",
-  "params": ["pucMap: UINT8*", "ulBits: UINT32"],
+  "params": [{"name": "pucMap", "type": "UINT8*"}, {"name": "ulBits", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "4",
-      "obj": "*pucMap",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["4", "4*div(p1 + 31, 32)"],
       "start": "0",
       "bound": "loop",
       "guard": ["div(p1 + 31, 32) >= 1"],
-      "access": {"fn": "Map_ClearWords_OK", "at": "lv2_05_bitmap_cast_words.c:42", "code": "pulMap[i] = 0"},
+      "access": {
+        "fn": "Map_ClearWords_OK",
+        "key": "F@lv2_05_bitmap_cast_words.c:Map_ClearWords_OK",
+        "at": "lv2_05_bitmap_cast_words.c:42",
+        "end": "4*div(p1 + 31, 32)"
+      },
       "path": [
         "Cell_ClearUeMap_OK@lv2_05_bitmap_cast_words.c:49",
         "Ue_ResetMap_OK@lv2_05_bitmap_cast_words.c:47",
@@ -25,7 +29,12 @@
       "depth": 2,
       "eff_depth": 0,
       "blind": false,
-      "text": "div(ulBits + 31, 32) >= 1 ⇒ W4 @ *pucMap，末端 [4, 4*div(ulBits + 31, 32)]；需 4*div(ulBits + 31, 32) <= ext(pucMap)"
+      "doc": {
+        "text": "div(ulBits + 31, 32) >= 1 ⇒ 写 4 字节 @ *pucMap，末端 [4, 4*div(ulBits + 31, 32)]；需 4*div(ulBits + 31, 32) <= ext(pucMap)",
+        "obj": "*pucMap",
+        "bytes": "4",
+        "code": "pulMap[i] = 0"
+      }
     }
   ],
   "effs": [],
@@ -33,7 +42,7 @@
     {
       "site": "lv2_05_bitmap_cast_words.c:49",
       "callee": "Ue_ResetMap_OK",
-      "args": [{"ptr": "pucMap", "have": "ext(p0)", "alias": "p0"}, "p1"],
+      "args": [{"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "pucMap"}, "p1"],
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
     }
   ],

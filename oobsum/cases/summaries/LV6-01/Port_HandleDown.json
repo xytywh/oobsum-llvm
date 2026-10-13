@@ -4,20 +4,24 @@
   "key": "F@port_stat_use.c:Port_HandleDown",
   "tu": "port_stat_use.c",
   "loc": "port_stat_use.c:28",
-  "params": ["ulPort: UINT32"],
+  "params": [{"name": "ulPort", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "4",
-      "obj": "g_aulPortStat",
       "have": "64",
+      "obj": "g:g_aulPortStat",
       "end": ["4*p0 + 4", "4*p0 + 4"],
       "start": "4*p0",
       "bound": "exact",
       "guard": [],
-      "access": {"fn": "Stat_PortInc", "at": "port_stat_use.c:26", "code": "g_aulPortStat[ulPort]++"},
+      "access": {
+        "fn": "Stat_PortInc",
+        "key": "F@port_stat_use.c:Stat_PortInc",
+        "at": "port_stat_use.c:26",
+        "end": "4*p0 + 4"
+      },
       "path": [
         "Port_HandleDown@port_stat_use.c:28",
         "Port_CountDown@port_stat_use.c:27",
@@ -26,7 +30,12 @@
       "depth": 2,
       "eff_depth": 0,
       "blind": false,
-      "text": "W4 @ g_aulPortStat，末端 4*ulPort + 4；需 4*ulPort + 4 <= 64"
+      "doc": {
+        "text": "写 4 字节 @ g_aulPortStat，末端 4*ulPort + 4；需 4*ulPort + 4 <= 64",
+        "obj": "g_aulPortStat",
+        "bytes": "4",
+        "code": "g_aulPortStat[ulPort]++"
+      }
     }
   ],
   "effs": [],

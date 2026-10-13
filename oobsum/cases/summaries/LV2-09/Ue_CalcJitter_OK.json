@@ -3,25 +3,34 @@
   "fn": "Ue_CalcJitter_OK",
   "key": "F@lv2_09_unsigned_wrap.c:Ue_CalcJitter_OK",
   "loc": "lv2_09_unsigned_wrap.c:41",
-  "params": ["pucHist: UINT8*", "ulPos: UINT32"],
+  "params": [{"name": "pucHist", "type": "UINT8*"}, {"name": "ulPos", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "R",
-      "bytes": "1",
-      "obj": "*pucHist",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["p1", "p1"],
       "start": "p1 - 1",
       "bound": "exact",
       "guard": ["p1 >= 1"],
-      "access": {"fn": "Hist_GetPrevSafe", "at": "lv2_09_unsigned_wrap.c:37", "code": "pucHist[ulPos - 1]"},
+      "access": {
+        "fn": "Hist_GetPrevSafe",
+        "key": "F@lv2_09_unsigned_wrap.c:Hist_GetPrevSafe",
+        "at": "lv2_09_unsigned_wrap.c:37",
+        "end": "p1"
+      },
       "path": ["Ue_CalcJitter_OK@lv2_09_unsigned_wrap.c:41", "Hist_GetPrevSafe@lv2_09_unsigned_wrap.c:37"],
       "depth": 1,
       "eff_depth": 0,
       "blind": false,
-      "text": "ulPos >= 1 ⇒ R1 @ *pucHist，末端 ulPos；需 ulPos <= ext(pucHist)"
+      "doc": {
+        "text": "ulPos >= 1 ⇒ 读 1 字节 @ *pucHist，末端 ulPos；需 ulPos <= ext(pucHist)",
+        "obj": "*pucHist",
+        "bytes": "1",
+        "code": "pucHist[ulPos - 1]"
+      }
     }
   ],
   "effs": [],
@@ -29,7 +38,7 @@
     {
       "site": "lv2_09_unsigned_wrap.c:41",
       "callee": "Hist_GetPrevSafe",
-      "args": [{"ptr": "pucHist", "have": "ext(p0)", "alias": "p0"}, "p1"],
+      "args": [{"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "pucHist"}, "p1"],
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
     }
   ],

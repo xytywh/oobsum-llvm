@@ -3,7 +3,7 @@
   "fn": "Cell_MemAlloc",
   "key": "F@lv4_01_wrapper_alloc_spec.c:Cell_MemAlloc",
   "loc": "lv4_01_wrapper_alloc_spec.c:36",
-  "params": ["ulSize: UINT32"],
+  "params": [{"name": "ulSize", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [
@@ -12,8 +12,7 @@
       "size": "p0",
       "maybe_null": true,
       "eff_depth": 2,
-      "via": "Pub_MemAlloc",
-      "text": "ret = new(ulSize) 或 NULL"
+      "doc": {"text": "ret = new(ulSize) 或 NULL", "via": "Pub_MemAlloc"}
     }
   ],
   "calls": [
@@ -21,14 +20,15 @@
       "site": "lv4_01_wrapper_alloc_spec.c:38",
       "callee": "Pub_MemAlloc",
       "args": ["p0"],
-      "results": [{"eff": 0, "value": "new(p0) | NULL"}]
+      "results": [{"eff": 0, "apply": {"kind": "ret_new", "size": "p0", "maybe_null": true}}]
     },
     {
       "site": "lv4_01_wrapper_alloc_spec.c:40",
       "callee": "LOG_Print",
       "model": "pure",
       "args": ["1", null, "p0"],
-      "results": [{"note": "LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件"}]
+      "results": [{"pure": true}],
+      "doc": "LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件"
     }
   ],
   "reps": [],

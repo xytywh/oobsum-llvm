@@ -13,19 +13,20 @@
       "callee": "Enc_Encode",
       "args": [
         {
-          "ptr": "&stCtx",
+          "obj": "local:stCtx",
           "have": "12",
-          "fields": {"pucBuf": {"ptr": "aucBuf", "have": "128"}, "ulBufLen": "128"}
+          "fields": {"pucBuf": {"obj": "local:aucBuf", "have": "128", "doc": "aucBuf"}, "ulBufLen": "128"},
+          "doc": "&stCtx"
         },
-        {"ptr": "aucIe", "have": "16"},
+        {"obj": "local:aucIe", "have": "16", "doc": "aucIe"},
         "16"
       ],
       "results": [
         {"req": "R1", "outcome": "safe"},
         {"req": "R2", "outcome": "safe"},
-        {"eff": 0, "value": "p0->ulUsed := 16"}
+        {"eff": 0, "apply": {"kind": "field", "arg": 0, "field": "ulUsed", "value": "16"}}
       ],
-      "note": "帧内字段：stCtx.pucBuf = aucBuf（128 字节），stCtx.ulBufLen = sizeof(aucBuf) = 128"
+      "doc": "帧内字段：stCtx.pucBuf = aucBuf（128 字节），stCtx.ulBufLen = sizeof(aucBuf) = 128"
     }
   ],
   "reps": [],

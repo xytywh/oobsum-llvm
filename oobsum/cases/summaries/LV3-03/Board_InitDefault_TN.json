@@ -11,7 +11,7 @@
     {
       "site": "lv3_03_callee_guard_wrong.c:47",
       "callee": "Board_CfgPort",
-      "args": [{"ptr": "g_astBoardPort", "have": "384"}, "3", "0"],
+      "args": [{"obj": "g:g_astBoardPort", "have": "384", "doc": "g_astBoardPort"}, "3", "0"],
       "results": [{"req": "R1", "outcome": "safe"}]
     }
   ],

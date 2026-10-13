@@ -13,19 +13,20 @@
       "callee": "Enc_Encode",
       "args": [
         {
-          "ptr": "&stCtx",
+          "obj": "local:stCtx",
           "have": "12",
-          "fields": {"pucBuf": {"ptr": "aucBuf", "have": "128"}, "ulBufLen": "256"}
+          "fields": {"pucBuf": {"obj": "local:aucBuf", "have": "128", "doc": "aucBuf"}, "ulBufLen": "256"},
+          "doc": "&stCtx"
         },
-        {"ptr": "aucIe", "have": "16"},
+        {"obj": "local:aucIe", "have": "16", "doc": "aucIe"},
         "16"
       ],
       "results": [
         {"req": "R1", "outcome": "L1", "report": "RPT1"},
         {"req": "R2", "outcome": "safe"},
-        {"eff": 0, "value": "p0->ulUsed := 16"}
+        {"eff": 0, "apply": {"kind": "field", "arg": 0, "field": "ulUsed", "value": "16"}}
       ],
-      "note": "帧内字段：stCtx.pucBuf = aucBuf（128 字节），stCtx.ulBufLen = ENC_BUF_LEN = 256"
+      "doc": "帧内字段：stCtx.pucBuf = aucBuf（128 字节），stCtx.ulBufLen = ENC_BUF_LEN = 256"
     }
   ],
   "reps": [
@@ -34,8 +35,15 @@
       "level": "L1",
       "reported": true,
       "site": "lv5_01_ctx_filled_at_top.c:51",
-      "access": "Enc_PutBytes@lv5_01_ctx_filled_at_top.c:36",
-      "object": "aucBuf (via stCtx.pucBuf)",
+      "access": {
+        "fn": "Enc_PutBytes",
+        "key": "F@lv5_01_ctx_filled_at_top.c:Enc_PutBytes",
+        "at": "lv5_01_ctx_filled_at_top.c:36",
+        "end": "p0->ulBufLen"
+      },
+      "kind": "W",
+      "obj": "local:aucBuf",
+      "via": "local:stCtx.pucBuf",
       "have": "128",
       "end": ["256", "256"],
       "bound": "exact",
@@ -47,8 +55,10 @@
         "Enc_PutIe@lv5_01_ctx_filled_at_top.c:40",
         "Enc_PutBytes@lv5_01_ctx_filled_at_top.c:36"
       ],
-      "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 256 of 'aucBuf' (128 bytes) is accessed",
-      "fp": "fa2e9f1df5e880d9"
+      "fp": "dfa3e964ffe3b219",
+      "doc": {
+        "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 256 of 'aucBuf' (128 bytes; via stCtx.pucBuf) is accessed"
+      }
     }
   ],
   "opens": []

@@ -3,26 +3,35 @@
   "fn": "Ue_InitOne",
   "key": "F@lv4_01_wrapper_alloc_spec.c:Ue_InitOne",
   "loc": "lv4_01_wrapper_alloc_spec.c:50",
-  "params": ["pstTbl: UE_S*", "ulIdx: UINT32"],
+  "params": [{"name": "pstTbl", "type": "UE_S*"}, {"name": "ulIdx", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "4",
-      "obj": "*pstTbl",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["16*p1 + 4", "16*p1 + 4"],
       "start": "16*p1",
       "bound": "exact",
       "guard": [],
-      "access": {"fn": "Ue_InitOne", "at": "lv4_01_wrapper_alloc_spec.c:52", "code": "pstTbl[ulIdx].ulState = 0"},
+      "access": {
+        "fn": "Ue_InitOne",
+        "key": "F@lv4_01_wrapper_alloc_spec.c:Ue_InitOne",
+        "at": "lv4_01_wrapper_alloc_spec.c:52",
+        "end": "16*p1 + 4"
+      },
       "path": ["Ue_InitOne@lv4_01_wrapper_alloc_spec.c:52"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "UE_S 16 字节，ulState 在偏移 0",
-      "text": "W4 @ *pstTbl，末端 16*ulIdx + 4；需 16*ulIdx + 4 <= ext(pstTbl)"
+      "doc": {
+        "text": "写 4 字节 @ *pstTbl，末端 16*ulIdx + 4；需 16*ulIdx + 4 <= ext(pstTbl)",
+        "obj": "*pstTbl",
+        "bytes": "4",
+        "code": "pstTbl[ulIdx].ulState = 0",
+        "note": "UE_S 16 字节，ulState 在偏移 0"
+      }
     }
   ],
   "effs": [],

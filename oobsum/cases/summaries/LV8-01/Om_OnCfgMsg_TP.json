@@ -3,29 +3,29 @@
   "fn": "Om_OnCfgMsg_TP",
   "key": "F:Om_OnCfgMsg_TP",
   "loc": "lv8_01_tlv_relative_check.c:57",
-  "params": ["pucIn: UINT8*"],
+  "params": [{"name": "pucIn", "type": "UINT8*"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "R",
-      "bytes": "64",
-      "obj": "*pucIn",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["64", "64"],
       "start": "0",
       "bound": "exact",
       "guard": [],
-      "access": {
-        "fn": "Om_OnCfgMsg_TP",
-        "at": "lv8_01_tlv_relative_check.c:61",
-        "code": "memcpy_s(aucMsg, sizeof(aucMsg), pucIn, sizeof(aucMsg))"
-      },
+      "access": {"fn": "Om_OnCfgMsg_TP", "key": "F:Om_OnCfgMsg_TP", "at": "lv8_01_tlv_relative_check.c:61", "end": "64"},
       "path": ["Om_OnCfgMsg_TP@lv8_01_tlv_relative_check.c:61"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "text": "R64 @ *pucIn，末端 64；需 64 <= ext(pucIn)"
+      "doc": {
+        "text": "读 64 字节 @ *pucIn，末端 64；需 64 <= ext(pucIn)",
+        "obj": "*pucIn",
+        "bytes": "64",
+        "code": "memcpy_s(aucMsg, sizeof(aucMsg), pucIn, sizeof(aucMsg))"
+      }
     }
   ],
   "effs": [],
@@ -34,13 +34,23 @@
       "site": "lv8_01_tlv_relative_check.c:61",
       "callee": "memcpy_s",
       "model": "access",
-      "args": [{"ptr": "aucMsg", "have": "64"}, "64", {"ptr": "pucIn", "have": "ext(p0)"}, "64"],
-      "results": [{"note": "目的 64 <= 64 当场安全；源生成本函数的 R1（64 <= ext(pucIn)）"}]
+      "args": [
+        {"obj": "local:aucMsg", "have": "64", "doc": "aucMsg"},
+        "64",
+        {"obj": "*p0", "have": "ext(p0)", "doc": "pucIn"},
+        "64"
+      ],
+      "results": [{"gen": ["R1"]}],
+      "doc": "目的 64 <= 64 当场安全；源生成本函数的 R1（64 <= ext(pucIn)）"
     },
     {
       "site": "lv8_01_tlv_relative_check.c:62",
       "callee": "Om_HandleCfg",
-      "args": [{"ptr": "aucMsg", "have": "64"}, "64", {"ptr": "aucOut", "have": "256"}],
+      "args": [
+        {"obj": "local:aucMsg", "have": "64", "doc": "aucMsg"},
+        "64",
+        {"obj": "local:aucOut", "have": "256", "doc": "aucOut"}
+      ],
       "results": [{"req": "R1", "outcome": "L2", "report": "RPT1"}, {"req": "R2", "outcome": "safe"}]
     }
   ],
@@ -50,8 +60,14 @@
       "level": "L2",
       "reported": true,
       "site": "lv8_01_tlv_relative_check.c:62",
-      "access": "Tlv_ParseAll@lv8_01_tlv_relative_check.c:34",
-      "object": "aucMsg",
+      "access": {
+        "fn": "Tlv_ParseAll",
+        "key": "F@lv8_01_tlv_relative_check.c:Tlv_ParseAll",
+        "at": "lv8_01_tlv_relative_check.c:34",
+        "end": "p1 + 2"
+      },
+      "kind": "R",
+      "obj": "local:aucMsg",
       "have": "64",
       "end": ["2", "66"],
       "bound": "check",
@@ -63,16 +79,18 @@
         "Msg_ParseBody@lv8_01_tlv_relative_check.c:52",
         "Tlv_ParseAll@lv8_01_tlv_relative_check.c:34"
       ],
-      "msg": "Possible out-of-bound read through a 3-level call chain: up to byte 66 of 'aucMsg' (64 bytes) may be accessed; the bound comes from a check in Tlv_ParseAll",
-      "fp": "6e77b710003251cb"
+      "fp": "a4da4c9aad6edb16",
+      "doc": {
+        "msg": "Possible out-of-bound read through a 3-level call chain: up to byte 66 of 'aucMsg' (64 bytes) may be accessed; the bound comes from a check"
+      }
     }
   ],
   "opens": [
     {
       "reason": "entry_unproven",
       "at": "lv8_01_tlv_relative_check.c:61",
-      "detail": "入口形参 pucIn 要求至少 64 字节；没有调用方能证明",
-      "req": "R1"
+      "req": "R1",
+      "doc": "入口形参 pucIn 要求至少 64 字节；没有调用方能证明"
     }
   ]
 }

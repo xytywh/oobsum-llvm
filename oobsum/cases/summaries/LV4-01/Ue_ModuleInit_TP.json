@@ -12,13 +12,13 @@
       "site": "lv4_01_wrapper_alloc_spec.c:68",
       "callee": "Ue_AllocTbl",
       "args": [],
-      "results": [{"eff": 0, "value": "new(512) | NULL"}],
-      "note": "pstTbl := new(512) 或 NULL；随后 if (pstTbl == NULL) return 排除了 NULL"
+      "results": [{"eff": 0, "apply": {"kind": "ret_new", "size": "512", "maybe_null": true}}],
+      "doc": "pstTbl := new(512) 或 NULL；随后 if (pstTbl == NULL) return 排除了 NULL"
     },
     {
       "site": "lv4_01_wrapper_alloc_spec.c:72",
       "callee": "Ue_Setup",
-      "args": [{"ptr": "pstTbl", "have": "512", "eff_depth": 3}],
+      "args": [{"obj": "heap@lv4_01_wrapper_alloc_spec.c:68", "have": "512", "eff_depth": 3, "doc": "pstTbl"}],
       "results": [{"req": "R1", "outcome": "L2", "report": "RPT1"}]
     }
   ],
@@ -28,8 +28,14 @@
       "level": "L2",
       "reported": true,
       "site": "lv4_01_wrapper_alloc_spec.c:72",
-      "access": "Ue_InitOne@lv4_01_wrapper_alloc_spec.c:52",
-      "object": "heap object allocated at lv4_01_wrapper_alloc_spec.c:68",
+      "access": {
+        "fn": "Ue_InitOne",
+        "key": "F@lv4_01_wrapper_alloc_spec.c:Ue_InitOne",
+        "at": "lv4_01_wrapper_alloc_spec.c:52",
+        "end": "16*p1 + 4"
+      },
+      "kind": "W",
+      "obj": "heap@lv4_01_wrapper_alloc_spec.c:68",
       "have": "512",
       "end": ["4", "1012"],
       "bound": "loop",
@@ -41,8 +47,10 @@
         "Ue_InitTbl@lv4_01_wrapper_alloc_spec.c:59",
         "Ue_InitOne@lv4_01_wrapper_alloc_spec.c:52"
       ],
-      "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 1012 of heap object allocated at lv4_01_wrapper_alloc_spec.c:68 (512 bytes) may be accessed; the bound comes from a loop bound in Ue_InitTbl",
-      "fp": "684eb8aec5c6ebff"
+      "fp": "7aa2a3fdb22f5ade",
+      "doc": {
+        "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 1012 of heap object allocated at lv4_01_wrapper_alloc_spec.c:68 (512 bytes) may be accessed; the bound comes from a loop condition"
+      }
     }
   ],
   "opens": []

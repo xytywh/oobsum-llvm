@@ -3,23 +3,23 @@
   "fn": "Om_SaveCfg",
   "key": "F@lv10_04_unchecked_ext_len.c:Om_SaveCfg",
   "loc": "lv10_04_unchecked_ext_len.c:40",
-  "params": ["p: UINT8*", "n: UINT32"],
+  "params": [{"name": "p", "type": "UINT8*"}, {"name": "n", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "p1",
-      "obj": "g_aucCfg",
       "have": "256",
+      "obj": "g:g_aucCfg",
       "end": ["p1", "p1"],
       "start": "0",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Cfg_Save",
+        "key": "F@lv10_04_unchecked_ext_len.c:Cfg_Save",
         "at": "lv10_04_unchecked_ext_len.c:36",
-        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
+        "end": "p1"
       },
       "path": [
         "Om_SaveCfg@lv10_04_unchecked_ext_len.c:40",
@@ -29,22 +29,27 @@
       "depth": 2,
       "eff_depth": 0,
       "blind": false,
-      "text": "Wn @ g_aucCfg，末端 n；需 n <= 256"
+      "doc": {
+        "text": "写 n 字节 @ g_aucCfg，末端 n；需 n <= 256",
+        "obj": "g_aucCfg",
+        "bytes": "p1",
+        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
+      }
     },
     {
       "id": "R2",
       "kind": "R",
-      "bytes": "p1",
-      "obj": "*p",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["p1", "p1"],
       "start": "0",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Cfg_Save",
+        "key": "F@lv10_04_unchecked_ext_len.c:Cfg_Save",
         "at": "lv10_04_unchecked_ext_len.c:36",
-        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
+        "end": "p1"
       },
       "path": [
         "Om_SaveCfg@lv10_04_unchecked_ext_len.c:40",
@@ -54,7 +59,12 @@
       "depth": 2,
       "eff_depth": 0,
       "blind": false,
-      "text": "Rn @ *p，末端 n；需 n <= ext(p)"
+      "doc": {
+        "text": "读 n 字节 @ *p，末端 n；需 n <= ext(p)",
+        "obj": "*p",
+        "bytes": "p1",
+        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
+      }
     }
   ],
   "effs": [],
@@ -62,7 +72,7 @@
     {
       "site": "lv10_04_unchecked_ext_len.c:40",
       "callee": "Cfg_Store",
-      "args": [{"ptr": "p", "have": "ext(p0)", "alias": "p0"}, "p1"],
+      "args": [{"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "p"}, "p1"],
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}, {"req": "R2", "outcome": "up", "as": "R2"}]
     }
   ],

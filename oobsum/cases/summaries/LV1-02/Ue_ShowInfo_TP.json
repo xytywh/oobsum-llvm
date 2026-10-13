@@ -3,7 +3,7 @@
   "fn": "Ue_ShowInfo_TP",
   "key": "F:Ue_ShowInfo_TP",
   "loc": "lv1_02_name_terminator.c:44",
-  "params": ["ulUeId: UINT32"],
+  "params": [{"name": "ulUeId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [],
@@ -11,16 +11,17 @@
     {
       "site": "lv1_02_name_terminator.c:47",
       "callee": "Ue_BuildName",
-      "args": [{"ptr": "szName", "have": "16"}, "p0"],
+      "args": [{"obj": "local:szName", "have": "16", "doc": "szName"}, "p0"],
       "results": [{"req": "R1", "outcome": "L1", "report": "RPT1"}],
-      "note": "CHAR szName[UE_NAME_LEN]，16 字节"
+      "doc": "CHAR szName[UE_NAME_LEN]，16 字节"
     },
     {
       "site": "lv1_02_name_terminator.c:48",
       "callee": "LOG_Print",
       "model": "pure",
       "args": ["3", null, null],
-      "results": [{"note": "LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件"}]
+      "results": [{"pure": true}],
+      "doc": "LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件"
     }
   ],
   "reps": [
@@ -29,8 +30,14 @@
       "level": "L1",
       "reported": true,
       "site": "lv1_02_name_terminator.c:47",
-      "access": "Name_Terminate@lv1_02_name_terminator.c:29",
-      "object": "szName",
+      "access": {
+        "fn": "Name_Terminate",
+        "key": "F@lv1_02_name_terminator.c:Name_Terminate",
+        "at": "lv1_02_name_terminator.c:29",
+        "end": "17"
+      },
+      "kind": "W",
+      "obj": "local:szName",
       "have": "16",
       "end": ["17", "17"],
       "bound": "exact",
@@ -42,8 +49,10 @@
         "Name_Format@lv1_02_name_terminator.c:36",
         "Name_Terminate@lv1_02_name_terminator.c:29"
       ],
-      "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 17 of 'szName' (16 bytes) is accessed",
-      "fp": "da30a4888779f6eb"
+      "fp": "b65f334b52a45ae7",
+      "doc": {
+        "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 17 of 'szName' (16 bytes) is accessed"
+      }
     }
   ],
   "opens": []

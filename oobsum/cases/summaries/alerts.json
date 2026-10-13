@@ -1,0 +1,233 @@
+[
+  {
+    "checker": "OobSummary",
+    "bug_type": "Out-of-bound access via call chain (definite)",
+    "category": "Memory error",
+    "level": "L1",
+    "fn": "Cell_OnSetupTimeout_TP",
+    "loc": "lv1_01_stat_enum_butt.c:54",
+    "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 20 of 'g_aulCellStat' (16 bytes) is accessed",
+    "notes": [
+      "Call chain: Cell_OnSetupTimeout_TP (lv1_01_stat_enum_butt.c:54) -> Cell_RecordFail (lv1_01_stat_enum_butt.c:49) -> Cell_UpdateStat (lv1_01_stat_enum_butt.c:43) -> Stat_Inc (lv1_01_stat_enum_butt.c:37)",
+      "lv1_01_stat_enum_butt.c:54: call to Cell_RecordFail",
+      "lv1_01_stat_enum_butt.c:49: call to Cell_UpdateStat",
+      "lv1_01_stat_enum_butt.c:43: call to Stat_Inc",
+      "lv1_01_stat_enum_butt.c:37: the write happens here"
+    ],
+    "fp": "dc29cb0defb73e92",
+    "case": "LV1-01"
+  },
+  {
+    "checker": "OobSummary",
+    "bug_type": "Out-of-bound access via call chain (definite)",
+    "category": "Memory error",
+    "level": "L1",
+    "fn": "Ue_ShowInfo_TP",
+    "loc": "lv1_02_name_terminator.c:47",
+    "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 17 of 'szName' (16 bytes) is accessed",
+    "notes": [
+      "Call chain: Ue_ShowInfo_TP (lv1_02_name_terminator.c:47) -> Ue_BuildName (lv1_02_name_terminator.c:41) -> Name_Format (lv1_02_name_terminator.c:36) -> Name_Terminate (lv1_02_name_terminator.c:29)",
+      "lv1_02_name_terminator.c:47: call to Ue_BuildName",
+      "lv1_02_name_terminator.c:41: call to Name_Format",
+      "lv1_02_name_terminator.c:36: call to Name_Terminate",
+      "lv1_02_name_terminator.c:29: the write happens here"
+    ],
+    "fp": "b65f334b52a45ae7",
+    "case": "LV1-02"
+  },
+  {
+    "checker": "OobSummary",
+    "bug_type": "Out-of-bound access via call chain (definite)",
+    "category": "Memory error",
+    "level": "L1",
+    "fn": "Alm_ReportAll_TP",
+    "loc": "alm_top.c:22",
+    "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 4 of 'g_aucAlmFlag' (3 bytes) is accessed [Alm_ReportAll_TP (alm_top.c:22) -> Alm_Dispatch (alm_mid.c:6) -> Alm_RaiseOne (alm_low.c:12) -> Alm_SetFlag (alm_low.c:7)]",
+    "notes": [
+      "Call chain: Alm_ReportAll_TP (alm_top.c:22) -> Alm_Dispatch (alm_mid.c:6) -> Alm_RaiseOne (alm_low.c:12) -> Alm_SetFlag (alm_low.c:7)",
+      "alm_top.c:22: call to Alm_Dispatch"
+    ],
+    "fp": "8b2c67bdaec717ba",
+    "case": "LV1-07"
+  },
+  {
+    "checker": "OobSummary",
+    "bug_type": "Out-of-bound access via call chain (definite)",
+    "category": "Memory error",
+    "level": "L1",
+    "fn": "Pkt_Build_TP",
+    "loc": "lv2_03_tlv_destmax_no_off.c:57",
+    "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 148 of 'aucPkt' (128 bytes) is accessed",
+    "notes": [
+      "Call chain: Pkt_Build_TP (lv2_03_tlv_destmax_no_off.c:57) -> Pkt_AddIe (lv2_03_tlv_destmax_no_off.c:51) -> Tlv_Append (lv2_03_tlv_destmax_no_off.c:42) -> Tlv_WriteVal (lv2_03_tlv_destmax_no_off.c:31)",
+      "lv2_03_tlv_destmax_no_off.c:57: call to Pkt_AddIe",
+      "lv2_03_tlv_destmax_no_off.c:51: call to Tlv_Append",
+      "lv2_03_tlv_destmax_no_off.c:42: call to Tlv_WriteVal",
+      "lv2_03_tlv_destmax_no_off.c:31: the write happens here"
+    ],
+    "fp": "aed893dfe3df6207",
+    "case": "LV2-03"
+  },
+  {
+    "checker": "OobSummary",
+    "bug_type": "Out-of-bound access via call chain (possible)",
+    "category": "Memory error",
+    "level": "L2",
+    "fn": "Cell_ResetUeMap_TP",
+    "loc": "lv2_05_bitmap_cast_words.c:54",
+    "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 12 of 'aulAlign' (8 bytes) may be accessed; the bound comes from a loop condition",
+    "notes": [
+      "Call chain: Cell_ResetUeMap_TP (lv2_05_bitmap_cast_words.c:54) -> Cell_ClearUeMap (lv2_05_bitmap_cast_words.c:48) -> Ue_ResetMap (lv2_05_bitmap_cast_words.c:46) -> Map_ClearWords (lv2_05_bitmap_cast_words.c:33)",
+      "lv2_05_bitmap_cast_words.c:54: call to Cell_ClearUeMap",
+      "lv2_05_bitmap_cast_words.c:48: call to Ue_ResetMap",
+      "lv2_05_bitmap_cast_words.c:46: call to Map_ClearWords",
+      "lv2_05_bitmap_cast_words.c:33: the write happens here"
+    ],
+    "fp": "cd166ab96605bd8e",
+    "case": "LV2-05"
+  },
+  {
+    "checker": "OobSummary",
+    "bug_type": "Out-of-bound access via call chain (definite)",
+    "category": "Memory error",
+    "level": "L1",
+    "fn": "Ue_CheckJitter_TP",
+    "loc": "lv2_09_unsigned_wrap.c:48",
+    "msg": "Definite out-of-bound read through a 3-level call chain: up to byte 4294967296 of 'aucHist' (16 bytes) is accessed",
+    "notes": [
+      "Call chain: Ue_CheckJitter_TP (lv2_09_unsigned_wrap.c:48) -> Ue_UpdateJitter (lv2_09_unsigned_wrap.c:42) -> Ue_CalcJitter (lv2_09_unsigned_wrap.c:40) -> Hist_GetPrev (lv2_09_unsigned_wrap.c:29)",
+      "lv2_09_unsigned_wrap.c:48: call to Ue_UpdateJitter",
+      "lv2_09_unsigned_wrap.c:42: call to Ue_CalcJitter",
+      "lv2_09_unsigned_wrap.c:40: call to Hist_GetPrev",
+      "lv2_09_unsigned_wrap.c:29: the read happens here"
+    ],
+    "fp": "a9ee5cc44f6115e0",
+    "case": "LV2-09"
+  },
+  {
+    "checker": "OobSummary",
+    "bug_type": "Out-of-bound access via call chain (possible)",
+    "category": "Memory error",
+    "level": "L2",
+    "fn": "Board_OnCfgMsg_TP",
+    "loc": "lv3_03_callee_guard_wrong.c:46",
+    "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 748 of 'g_astBoardPort' (384 bytes) may be accessed; the bound comes from a guard condition",
+    "notes": [
+      "Call chain: Board_OnCfgMsg_TP (lv3_03_callee_guard_wrong.c:46) -> Board_CfgPort (lv3_03_callee_guard_wrong.c:44) -> Port_ApplyCfg (lv3_03_callee_guard_wrong.c:43) -> Port_SetMode (lv3_03_callee_guard_wrong.c:40)",
+      "lv3_03_callee_guard_wrong.c:46: call to Board_CfgPort",
+      "lv3_03_callee_guard_wrong.c:44: call to Port_ApplyCfg",
+      "lv3_03_callee_guard_wrong.c:43: call to Port_SetMode",
+      "lv3_03_callee_guard_wrong.c:40: the write happens here"
+    ],
+    "fp": "614bd9acdc215cf8",
+    "case": "LV3-03"
+  },
+  {
+    "checker": "OobSummary",
+    "bug_type": "Out-of-bound access via call chain (possible)",
+    "category": "Memory error",
+    "level": "L2",
+    "fn": "Msg_Encode_TP",
+    "loc": "lv3_07_pkt_loop_destmax.c:74",
+    "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 256 of 'aucPkt' (128 bytes) may be accessed; the bound comes from a check",
+    "notes": [
+      "Call chain: Msg_Encode_TP (lv3_07_pkt_loop_destmax.c:74) -> Msg_BuildBody (lv3_07_pkt_loop_destmax.c:68) -> Body_PutIes (lv3_07_pkt_loop_destmax.c:66) -> Pkt_PutIes (lv3_07_pkt_loop_destmax.c:58)",
+      "lv3_07_pkt_loop_destmax.c:74: call to Msg_BuildBody",
+      "lv3_07_pkt_loop_destmax.c:68: call to Body_PutIes",
+      "lv3_07_pkt_loop_destmax.c:66: call to Pkt_PutIes",
+      "lv3_07_pkt_loop_destmax.c:58: the write happens here"
+    ],
+    "fp": "91f5413c08837c9e",
+    "case": "LV3-07"
+  },
+  {
+    "checker": "OobSummary",
+    "bug_type": "Out-of-bound access via call chain (possible)",
+    "category": "Memory error",
+    "level": "L2",
+    "fn": "Ue_ModuleInit_TP",
+    "loc": "lv4_01_wrapper_alloc_spec.c:72",
+    "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 1012 of heap object allocated at lv4_01_wrapper_alloc_spec.c:68 (512 bytes) may be accessed; the bound comes from a loop condition",
+    "notes": [
+      "Call chain: Ue_ModuleInit_TP (lv4_01_wrapper_alloc_spec.c:72) -> Ue_Setup (lv4_01_wrapper_alloc_spec.c:63) -> Ue_InitTbl (lv4_01_wrapper_alloc_spec.c:59) -> Ue_InitOne (lv4_01_wrapper_alloc_spec.c:52)",
+      "lv4_01_wrapper_alloc_spec.c:72: call to Ue_Setup",
+      "lv4_01_wrapper_alloc_spec.c:63: call to Ue_InitTbl",
+      "lv4_01_wrapper_alloc_spec.c:59: call to Ue_InitOne",
+      "lv4_01_wrapper_alloc_spec.c:52: the write happens here"
+    ],
+    "fp": "7aa2a3fdb22f5ade",
+    "case": "LV4-01"
+  },
+  {
+    "checker": "OobSummary",
+    "bug_type": "Out-of-bound access via call chain (possible)",
+    "category": "Memory error",
+    "level": "L2",
+    "fn": "Cell_OnDelReq_TP",
+    "loc": "lv4_06_validator_func.c:65",
+    "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 544 of 'g_astCellCtx' (512 bytes) may be accessed; the bound comes from a check",
+    "notes": [
+      "Call chain: Cell_OnDelReq_TP (lv4_06_validator_func.c:65) -> Cell_Delete (lv4_06_validator_func.c:58) -> Cell_FreeCtx (lv4_06_validator_func.c:57) -> Ctx_Clear (lv4_06_validator_func.c:54)",
+      "lv4_06_validator_func.c:65: call to Cell_Delete",
+      "lv4_06_validator_func.c:58: call to Cell_FreeCtx",
+      "lv4_06_validator_func.c:57: call to Ctx_Clear",
+      "lv4_06_validator_func.c:54: the write happens here"
+    ],
+    "fp": "4d216e4ae4174b92",
+    "case": "LV4-06"
+  },
+  {
+    "checker": "OobSummary",
+    "bug_type": "Out-of-bound access via call chain (definite)",
+    "category": "Memory error",
+    "level": "L1",
+    "fn": "Rrc_EncodeMsg_TP",
+    "loc": "lv5_01_ctx_filled_at_top.c:51",
+    "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 256 of 'aucBuf' (128 bytes; via stCtx.pucBuf) is accessed",
+    "notes": [
+      "Call chain: Rrc_EncodeMsg_TP (lv5_01_ctx_filled_at_top.c:51) -> Enc_Encode (lv5_01_ctx_filled_at_top.c:41) -> Enc_PutIe (lv5_01_ctx_filled_at_top.c:40) -> Enc_PutBytes (lv5_01_ctx_filled_at_top.c:36)",
+      "lv5_01_ctx_filled_at_top.c:51: call to Enc_Encode",
+      "lv5_01_ctx_filled_at_top.c:41: call to Enc_PutIe",
+      "lv5_01_ctx_filled_at_top.c:40: call to Enc_PutBytes",
+      "lv5_01_ctx_filled_at_top.c:36: the write happens here"
+    ],
+    "fp": "dfa3e964ffe3b219",
+    "case": "LV5-01"
+  },
+  {
+    "checker": "OobSummary",
+    "bug_type": "Out-of-bound access via call chain (definite)",
+    "category": "Memory error",
+    "level": "L1",
+    "fn": "Port_OnLinkDown_TP",
+    "loc": "port_stat_use.c:30",
+    "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 68 of 'g_aulPortStat' (64 bytes) is accessed",
+    "notes": [
+      "Call chain: Port_OnLinkDown_TP (port_stat_use.c:30) -> Port_HandleDown (port_stat_use.c:28) -> Port_CountDown (port_stat_use.c:27) -> Stat_PortInc (port_stat_use.c:26)",
+      "port_stat_use.c:30: call to Port_HandleDown",
+      "port_stat_use.c:28: call to Port_CountDown",
+      "port_stat_use.c:27: call to Stat_PortInc",
+      "port_stat_use.c:26: the write happens here"
+    ],
+    "fp": "5ff4f8b3fb118c9a",
+    "case": "LV6-01"
+  },
+  {
+    "checker": "OobSummary",
+    "bug_type": "Out-of-bound access via call chain (possible)",
+    "category": "Memory error",
+    "level": "L2",
+    "fn": "Om_OnCfgMsg_TP",
+    "loc": "lv8_01_tlv_relative_check.c:62",
+    "msg": "Possible out-of-bound read through a 3-level call chain: up to byte 66 of 'aucMsg' (64 bytes) may be accessed; the bound comes from a check",
+    "notes": [
+      "Call chain: Om_OnCfgMsg_TP (lv8_01_tlv_relative_check.c:62) -> Om_HandleCfg (lv8_01_tlv_relative_check.c:54) -> Msg_ParseBody (lv8_01_tlv_relative_check.c:52) -> Tlv_ParseAll (lv8_01_tlv_relative_check.c:34)",
+      "lv8_01_tlv_relative_check.c:62: call to Om_HandleCfg",
+      "lv8_01_tlv_relative_check.c:54: call to Msg_ParseBody",
+      "lv8_01_tlv_relative_check.c:52: call to Tlv_ParseAll",
+      "lv8_01_tlv_relative_check.c:34: the read happens here"
+    ],
+    "fp": "a4da4c9aad6edb16",
+    "case": "LV8-01"
+  }
+]

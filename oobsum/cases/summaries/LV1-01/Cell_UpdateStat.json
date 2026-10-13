@@ -3,25 +3,34 @@
   "fn": "Cell_UpdateStat",
   "key": "F@lv1_01_stat_enum_butt.c:Cell_UpdateStat",
   "loc": "lv1_01_stat_enum_butt.c:40",
-  "params": ["ulType: UINT32"],
+  "params": [{"name": "ulType", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "4",
-      "obj": "g_aulCellStat",
       "have": "16",
+      "obj": "g:g_aulCellStat",
       "end": ["4*p0 + 4", "4*p0 + 4"],
       "start": "4*p0",
       "bound": "exact",
       "guard": [],
-      "access": {"fn": "Stat_Inc", "at": "lv1_01_stat_enum_butt.c:37", "code": "g_aulCellStat[ulType]++"},
+      "access": {
+        "fn": "Stat_Inc",
+        "key": "F@lv1_01_stat_enum_butt.c:Stat_Inc",
+        "at": "lv1_01_stat_enum_butt.c:37",
+        "end": "4*p0 + 4"
+      },
       "path": ["Cell_UpdateStat@lv1_01_stat_enum_butt.c:43", "Stat_Inc@lv1_01_stat_enum_butt.c:37"],
       "depth": 1,
       "eff_depth": 0,
       "blind": false,
-      "text": "W4 @ g_aulCellStat，末端 4*ulType + 4；需 4*ulType + 4 <= 16"
+      "doc": {
+        "text": "写 4 字节 @ g_aulCellStat，末端 4*ulType + 4；需 4*ulType + 4 <= 16",
+        "obj": "g_aulCellStat",
+        "bytes": "4",
+        "code": "g_aulCellStat[ulType]++"
+      }
     }
   ],
   "effs": [],
@@ -31,7 +40,8 @@
       "callee": "LOG_Print",
       "model": "pure",
       "args": ["3", null, "p0"],
-      "results": [{"note": "LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件"}]
+      "results": [{"pure": true}],
+      "doc": "LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件"
     },
     {
       "site": "lv1_01_stat_enum_butt.c:43",

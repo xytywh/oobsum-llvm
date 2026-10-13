@@ -3,21 +3,34 @@
   "fn": "Cell_CheckPara_OK",
   "key": "F@lv4_06_validator_func.c:Cell_CheckPara_OK",
   "loc": "lv4_06_validator_func.c:44",
-  "params": ["ulCellId: UINT32"],
+  "params": [{"name": "ulCellId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [
-    {"kind": "ret_cond", "when": "ret == 0", "then": ["p0 <= 15"], "text": "ret == 0 ⇒ ulCellId <= 15"},
-    {"kind": "ret_cond", "when": "ret == 1", "then": ["p0 >= 16"], "text": "ret == 1 ⇒ ulCellId >= 16"},
-    {"kind": "ret_int", "range": ["0", "1"], "bound": "const", "text": "ret ∈ [0, 1]"}
+    {
+      "kind": "ret_cond",
+      "when": "ret == 0",
+      "then": ["p0 <= 15"],
+      "doc": {"text": "ret == 0 ⇒ ulCellId <= 15"}
+    },
+    {
+      "kind": "ret_cond",
+      "when": "ret == 1",
+      "then": ["p0 >= 16"],
+      "doc": {"text": "ret == 1 ⇒ ulCellId >= 16"}
+    },
+    {"kind": "ret_int", "range": ["0", "1"], "bound": "const", "doc": {"text": "ret ∈ [0, 1]"}}
   ],
   "calls": [
     {
       "site": "lv4_06_validator_func.c:46",
       "callee": "Cell_IsValidId_OK",
       "args": ["p0"],
-      "results": [{"eff": 0, "value": "ret == 1 ⇒ p0 <= 15"}, {"eff": 1, "value": "ret == 0 ⇒ p0 >= 16"}],
-      "note": "== VOS_FALSE 那一侧 return VOS_ERR(1)，另一侧 return VOS_OK(0) → 本函数的两条 ret_cond"
+      "results": [
+        {"eff": 0, "apply": {"kind": "ret_cond", "when": "ret == 1", "then": ["p0 <= 15"]}},
+        {"eff": 1, "apply": {"kind": "ret_cond", "when": "ret == 0", "then": ["p0 >= 16"]}}
+      ],
+      "doc": "== VOS_FALSE 那一侧 return VOS_ERR(1)，另一侧 return VOS_OK(0) → 本函数的两条 ret_cond"
     }
   ],
   "reps": [],

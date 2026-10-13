@@ -11,8 +11,13 @@
     {
       "site": "lv7_04_pointer_stepping.c:45",
       "callee": "Om_CollectReg",
-      "args": [{"ptr": "aucOut", "have": "16"}, {"ptr": "aucIn", "have": "32"}, "16"],
-      "results": [{"note": "被调者没有条件 → 不报；漏报在 Buf_CopyStep 的账本里"}]
+      "args": [
+        {"obj": "local:aucOut", "have": "16", "doc": "aucOut"},
+        {"obj": "local:aucIn", "have": "32", "doc": "aucIn"},
+        "16"
+      ],
+      "results": [],
+      "doc": "被调者没有条件 → 不报；漏报在 Buf_CopyStep 的账本里"
     }
   ],
   "reps": [],

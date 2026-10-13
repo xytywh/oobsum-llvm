@@ -3,25 +3,34 @@
   "fn": "Ue_CalcJitter",
   "key": "F@lv2_09_unsigned_wrap.c:Ue_CalcJitter",
   "loc": "lv2_09_unsigned_wrap.c:40",
-  "params": ["pucHist: UINT8*", "ulPos: UINT32"],
+  "params": [{"name": "pucHist", "type": "UINT8*"}, {"name": "ulPos", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "R",
-      "bytes": "1",
-      "obj": "*pucHist",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["wrap32(p1 - 1) + 1", "wrap32(p1 - 1) + 1"],
       "start": "wrap32(p1 - 1)",
       "bound": "exact",
       "guard": [],
-      "access": {"fn": "Hist_GetPrev", "at": "lv2_09_unsigned_wrap.c:29", "code": "pucHist[ulPos - 1]"},
+      "access": {
+        "fn": "Hist_GetPrev",
+        "key": "F@lv2_09_unsigned_wrap.c:Hist_GetPrev",
+        "at": "lv2_09_unsigned_wrap.c:29",
+        "end": "wrap32(p1 - 1) + 1"
+      },
       "path": ["Ue_CalcJitter@lv2_09_unsigned_wrap.c:40", "Hist_GetPrev@lv2_09_unsigned_wrap.c:29"],
       "depth": 1,
       "eff_depth": 0,
       "blind": false,
-      "text": "R1 @ *pucHist，末端 wrap32(ulPos - 1) + 1；需 wrap32(ulPos - 1) + 1 <= ext(pucHist)"
+      "doc": {
+        "text": "读 1 字节 @ *pucHist，末端 wrap32(ulPos - 1) + 1；需 wrap32(ulPos - 1) + 1 <= ext(pucHist)",
+        "obj": "*pucHist",
+        "bytes": "1",
+        "code": "pucHist[ulPos - 1]"
+      }
     }
   ],
   "effs": [],
@@ -29,7 +38,7 @@
     {
       "site": "lv2_09_unsigned_wrap.c:40",
       "callee": "Hist_GetPrev",
-      "args": [{"ptr": "pucHist", "have": "ext(p0)", "alias": "p0"}, "p1"],
+      "args": [{"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "pucHist"}, "p1"],
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
     }
   ],

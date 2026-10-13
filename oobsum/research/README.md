@@ -1,4 +1,4 @@
-# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.13）
+# Infer 跨过程分析与函数摘要机制 —— 调研包（当前 v3.14）
 
 一句话：**这个包里只有一份"正文"（报告），其余全是为了让你能亲手复现、读懂、并在自己代码库上用起来的材料。**
 
@@ -16,6 +16,8 @@
 > —— 写代码前先在 fork 里跑一次 I0 集成探针（`probes/i0-integration/`）。
 > **v3.13：方案备选按五个独立问题重排、摘要看真实 JSON，见 [`08-summary2-design/08-options-and-summary-examples.md`](08-summary2-design/08-options-and-summary-examples.md)**
 > —— 16 个用例、104 份函数摘要在 `cases/summaries/`，`python3 replay.py` 在每个调用点重做代换并对照期望。
+> **v3.14：摘要里的自然语言只在键名为 `doc` 的字段里、只给人看，引擎不读；去掉 `doc` 就是完整摘要**——
+> `replay.py` 只读机器字段，从每个函数的局部事实推到 13 条最终告警（含消息、指纹），见 08- 的 B.1 与 `cases/summaries/README.md`。
 
 调研基线：`facebook/infer` commit `3d38229b04b649024fee065621f6a4c838f6d029`（main，2026-09-10）；
 实验用官方预编译 `infer v1.3.0`，以及从源码自建的 `v1.3.0-3d38229b`（含本包里的 MiniOobChecker）。

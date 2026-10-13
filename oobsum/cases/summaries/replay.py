@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """摘要实样回放器：读每个函数的摘要 JSON，在每个调用点做"代换 → 判定"，核对 JSON 里记录的结论，再对照用例头的 @expect。
 
+**它只读机器字段**：计算前先把所有键名为 doc 的内容删掉（自然语言只给人看，引擎不读）。
+
+两件事：
+  1. 逐个调用点核对：被调者的每条 Req / Eff 代进来，结论是否与调用方 JSON 里记的一致（check）；
+  2. 从局部事实推到底（derive）：只拿每个函数"自己算出来的"东西——本函数访问点生成的 Req（depth 0，含被覆盖的）、
+     效果、调用点处的实参 / 局部区间 / 守卫——自底向上把所有上传的 Req、判定、入口账本**重新推一遍**，
+     与 JSON 比对，最后得到告警清单，与用例头的 @expect 比对。
+
 它是 06-spec.md §6.6（调用点五步的第 ②③④ 步）与 F-10…F-22（判定与报告）的**参考实现**：
 C++ 引擎在这些用例上产出的摘要，必须与这里的 JSON 一致（06- T-06 快照测试的金标准）。
 它不生成摘要（那是引擎从 FIR 算出来的），只验证"摘要这种形式足够把多层越界串起来判出来"，
@@ -10,6 +18,10 @@ C++ 引擎在这些用例上产出的摘要，必须与这里的 JSON 一致（0
     python3 replay.py                     # 回放全部用例，逐条核对
     python3 replay.py LV4-01 -v           # 只回放一个用例，打印每一步
     python3 replay.py --md out.md         # 生成逐用例的走查文档（摘要 JSON + 回放过程）
+    python3 replay.py --strip DIR         # 把 104 份摘要去掉 doc 后写到 DIR（引擎实际存的"机器版"）
+    python3 replay.py --dir DIR           # 从 DIR 读摘要（比如上面去掉 doc 的那份）：结果应与读原文件完全相同
+    python3 replay.py --alerts FILE       # 把"从局部事实推到底"得到的最终告警写成 JSON（位置、消息、调用链、指纹）；
+                                          # 本目录的 alerts.json 就是这样生成的，全量回放时自动与它比对
 只依赖 Python 3 标准库。
 """
 import argparse
@@ -20,6 +32,7 @@ import sys
 from fractions import Fraction
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+SUMS = HERE                       # 摘要从哪里读（--dir 可换成去掉 doc 的那份）
 CASES = os.path.dirname(HERE)
 CODE_TAGS = {'exact', 'const', 'check', 'mask', 'branch', 'loop', 'ret', 'guard'}
 INLINE_DEPTH = 2
@@ -334,7 +347,7 @@ class Env(object):
     def __init__(self, params, fields):
         self.lo, self.hi = {}, {}
         for i, p in enumerate(params):
-            ty = p.split(':', 1)[1].strip() if ':' in p else ''
+            ty = p.get('type', '') if isinstance(p, dict) else (p.split(':', 1)[1].strip() if ':' in p else '')
             self._type('p%d' % i, ty)
         for f, d in fields.items():
             self._type(f, d.get('type', ''))
@@ -425,11 +438,17 @@ def entails_le0(d, guards, env):
 # ---------------------------------------------------------------- 载入
 REQUIRED = {
     'fn': ['schema', 'fn', 'key', 'loc', 'params', 'status', 'reqs', 'effs', 'calls', 'reps', 'opens'],
-    'req': ['id', 'kind', 'bytes', 'obj', 'have', 'end', 'bound', 'guard', 'access', 'path', 'depth', 'eff_depth', 'blind', 'text'],
+    'req': ['id', 'kind', 'have', 'obj', 'end', 'bound', 'guard', 'access', 'path', 'depth', 'eff_depth', 'blind'],
     'call': ['site', 'callee', 'args', 'results'],
-    'rep': ['id', 'level', 'reported', 'site', 'access', 'object', 'have', 'end', 'bound', 'depth', 'eff_depth', 'chain', 'msg', 'fp'],
-    'open': ['reason', 'at', 'detail'],
+    'rep': ['id', 'level', 'reported', 'site', 'access', 'kind', 'obj', 'have', 'end', 'bound', 'depth', 'eff_depth', 'chain', 'fp'],
+    'open': ['reason', 'at'],
+    'access': ['fn', 'key', 'at', 'end'],
+    'ptr': ['obj', 'have'],
 }
+# 对象（机器写法）：g:全局名 | local:局部名 | heap@分配调用点 | *pK（第 K 个形参所指对象）| *pK->f（形参所指结构体里指针字段 f 所指对象）
+#                   | pK->f（形参所指结构体里的数组成员 f）
+OBJ = re.compile(r'^(?:(?:g|local):\w+|heap@[\w./-]+:\d+|\*?p\d+(?:->\w+)?)$')
+VIA = re.compile(r'^(?:g|local):\w+\.\w+$')
 REASONS = {'fptr', 'unknown_callee', 'recursion', 'msg_edge', 'global_value', 'global_ptr_target', 'field_written_by_callee',
            'alloc_size_unknown', 'flexible_array', 'struct_overlay', 'pointer_stepping', 'string_length', 'nonlinear',
            'type_range_only', 'entry_unproven', 'cond_truncated', 'ambiguous_callee', 'not_exported', 'not_in_tu',
@@ -437,19 +456,61 @@ REASONS = {'fptr', 'unknown_callee', 'recursion', 'msg_edge', 'global_value', 'g
            'imprecise_join', 'untracked_pointer'}
 
 
+NL = re.compile(r'[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]|[A-Za-z]{2,}\s+[A-Za-z]{2,}\s+[A-Za-z]{2,}')
+
+
+def strip_doc(o):
+    """删掉所有键名为 doc 的内容：剩下的就是引擎读写的机器字段。"""
+    if isinstance(o, dict):
+        return {k: strip_doc(v) for k, v in o.items() if k != 'doc'}
+    if isinstance(o, list):
+        return [strip_doc(x) for x in o]
+    return o
+
+
+def nl_outside_doc(o, path='$'):
+    """doc 之外不允许出现自然语言（中文、成句的英文）。"""
+    out = []
+    if isinstance(o, dict):
+        for k, v in o.items():
+            if k != 'doc':
+                out += nl_outside_doc(v, path + '.' + k)
+    elif isinstance(o, list):
+        for i, x in enumerate(o):
+            out += nl_outside_doc(x, '%s[%d]' % (path, i))
+    elif isinstance(o, str) and NL.search(o):
+        out.append('%s = %r' % (path, o))
+    return out
+
+
 def check_shape(s):
-    """落盘格式的结构检查（字段齐全、表达式都能解析、账本原因在枚举里）。"""
+    """落盘格式的结构检查（字段齐全、表达式都能解析、账本原因在枚举里、doc 之外没有自然语言）。"""
     probs = [k for k in REQUIRED['fn'] if k not in s]
+    probs += ['doc 之外有自然语言：%s' % x for x in nl_outside_doc(s)]
     for r in s.get('reqs', []):
         probs += ['req %s 缺 %s' % (r.get('id'), k) for k in REQUIRED['req'] if k not in r]
-        for x in [r['have'], r['end'][0], r['end'][1], r.get('start', '0')]:
+        probs += ['req %s.access 缺 %s' % (r.get('id'), k) for k in REQUIRED['access'] if k not in r.get('access', {})]
+        if not OBJ.match(r.get('obj', '')):
+            probs.append('req %s 的 obj 写法不对：%r' % (r.get('id'), r.get('obj')))
+        for x in [r['have'], r['end'][0], r['end'][1], r.get('start', '0'), r['access'].get('end', '0')]:
             P(x)
+        if r.get('depth') == 0 and (r['access'].get('fn') != s.get('fn') or P(r['access'].get('end', '0')) != P(r['end'][1])):
+            probs.append('req %s 是本函数的访问（depth 0），access.fn / access.end 应与本函数、end 上界一致' % r.get('id'))
         for g in r.get('guard', []):
             C(g)
     for c in s.get('calls', []):
         probs += ['call %s 缺 %s' % (c.get('site'), k) for k in REQUIRED['call'] if k not in c]
+        for a in c.get('args', []):
+            for x in [a] + list((a.get('fields') or {}).values()) if isinstance(a, dict) else []:
+                if isinstance(x, dict):
+                    probs += ['call %s 的指针实参缺 %s' % (c.get('site'), k) for k in REQUIRED['ptr'] if k not in x]
+                    if not OBJ.match(x.get('obj', '')):
+                        probs.append('call %s 的指针实参 obj 写法不对：%r' % (c.get('site'), x.get('obj')))
     for r in s.get('reps', []):
         probs += ['rep %s 缺 %s' % (r.get('id'), k) for k in REQUIRED['rep'] if k not in r]
+        probs += ['rep %s.access 缺 %s' % (r.get('id'), k) for k in REQUIRED['access'] if k not in r.get('access', {})]
+        if not OBJ.match(r.get('obj', '')) or ('via' in r and not VIA.match(r['via'])):
+            probs.append('rep %s 的 obj / via 写法不对' % r.get('id'))
     for o in s.get('opens', []):
         probs += ['open 缺 %s' % k for k in REQUIRED['open'] if k not in o]
         if o.get('reason') not in REASONS:
@@ -458,8 +519,8 @@ def check_shape(s):
 
 
 def load_case(cid):
-    d = os.path.join(HERE, cid)
-    meta = json.load(open(os.path.join(d, 'case.json'), encoding='utf-8'))
+    d = os.path.join(SUMS, cid)
+    meta = json.load(open(os.path.join(HERE, cid, 'case.json'), encoding='utf-8'))   # case.json 是走查用的元数据（标题、代码），不是摘要
     fns = {}
     for f in sorted(os.listdir(d)):
         if f.endswith('.json') and f != 'case.json':
@@ -470,6 +531,130 @@ def load_case(cid):
             fns[s['fn']] = s
     meta['expect'] = read_expect(meta['files'])
     return meta, fns
+
+
+def pretty(o, ind=0, width=110):
+    """摘要 JSON 的排版：放得下就一行，放不下再展开（与 cases/summaries/ 里的文件同一种排法）。"""
+    one = json.dumps(o, ensure_ascii=False)
+    if len(one) + ind <= width or not isinstance(o, (dict, list)) or not o:
+        return one
+    pad = ' ' * (ind + 2)
+    if isinstance(o, list):
+        return '[\n' + ',\n'.join(pad + pretty(x, ind + 2, width) for x in o) + '\n' + ' ' * ind + ']'
+    items = [pad + json.dumps(k, ensure_ascii=False) + ': ' + pretty(v, ind + 2, width) for k, v in o.items()]
+    return '{\n' + ',\n'.join(items) + '\n' + ' ' * ind + '}'
+
+
+def machine(fns):
+    return {k: strip_doc(v) for k, v in fns.items()}
+
+
+# ---------------------------------------------------------------- 对象、告警文本、指纹（06- F-32 / F-34）
+def subst_obj(obj, call):
+    """被调者 Req 的对象代进调用点。*pK → 第 K 个指针实参的 obj；*pK->f → 它的 fields.f 的 obj（经由 via）。返回 (对象, via)。"""
+    m = re.match(r'^(\*?)p(\d+)(?:->(\w+))?$', obj)
+    if not m:
+        return obj, None                        # g: / local: / heap@ 与调用点无关，原样上传
+    star, k, f = m.group(1), int(m.group(2)), m.group(3)
+    args = call.get('args', [])
+    arg = args[k] if k < len(args) else None
+    if not isinstance(arg, dict):
+        return '?', None
+    base = arg['obj']
+    if f is None:
+        return base, None
+    bm = re.match(r'^\*(p\d+)$', base)
+    if star:
+        sub = (arg.get('fields') or {}).get(f)
+        if isinstance(sub, dict):
+            return sub['obj'], (base + '.' + f if base.startswith(('g:', 'local:')) else None)
+        return ('*%s->%s' % (bm.group(1), f), None) if bm else ('?', None)
+    return ('%s->%s' % (bm.group(1), f), None) if bm else ('?', None)
+
+
+def obj_name(obj, params=()):
+    """告警里对象的写法（F-32 的 {object}）。"""
+    if obj.startswith(('g:', 'local:')):
+        return "'%s'" % obj.split(':', 1)[1]
+    if obj.startswith('heap@'):
+        return 'heap object allocated at %s' % obj[5:]
+    names = [p['name'] if isinstance(p, dict) else p for p in params]
+    return "'%s'" % re.sub(r'p(\d+)', lambda m: names[int(m.group(1))] if int(m.group(1)) < len(names) else m.group(0), obj)
+
+
+BOUND_PHRASE = {'loop': 'a loop condition', 'check': 'a check', 'guard': 'a guard condition', 'mask': 'a bit mask',
+                'branch': 'a branch constant', 'ret': 'a return value range', 'const': 'a constant'}
+
+
+def alert_msg(rep, params=()):
+    """F-32 消息模板：只用 rep 的机器字段。跨文件的链把整条链附在末尾（F-33 ③）。"""
+    w = 'write' if rep['kind'] == 'W' else 'read'
+    name = obj_name(rep['obj'], params)
+    size = '%s bytes' % rep['have'] + ('; via %s' % rep['via'].split(':', 1)[1] if rep.get('via') else '')
+    if rep['level'] == 'L1':
+        s = 'Definite out-of-bound %s through a %d-level call chain: up to byte %s of %s (%s) is accessed' % (
+            w, rep['depth'], rep['end'][1], name, size)
+    else:
+        s = 'Possible out-of-bound %s through a %d-level call chain: up to byte %s of %s (%s) may be accessed; the bound comes from %s' % (
+            w, rep['depth'], rep['end'][1], name, size, BOUND_PHRASE.get(rep['bound'], rep['bound']))
+    hops = [x.split('@', 1) for x in rep['chain']]
+    if len({site.rsplit(':', 1)[0] for _, site in hops}) > 1:
+        s += ' [%s]' % ' -> '.join('%s (%s)' % (f, site) for f, site in hops)
+    return s
+
+
+def xxh64(data, seed=0):
+    """XXH64，与 LLVM 14 的 llvm::xxHash64(StringRef) 逐位相同（实测）。"""
+    M = (1 << 64) - 1
+    P1, P2, P3, P4, P5 = 11400714785074694791, 14029467366897019727, 1609587929392839161, 9650029242287828579, 2870177450012600261
+    rotl = lambda x, r: ((x << r) | (x >> (64 - r))) & M
+    rnd = lambda acc, lane: (rotl((acc + lane * P2) & M, 31) * P1) & M
+    n, i = len(data), 0
+    if n >= 32:
+        v = [(seed + P1 + P2) & M, (seed + P2) & M, seed & M, (seed - P1) & M]
+        while i + 32 <= n:
+            for j in range(4):
+                v[j] = rnd(v[j], int.from_bytes(data[i + 8 * j:i + 8 * j + 8], 'little'))
+            i += 32
+        h = (rotl(v[0], 1) + rotl(v[1], 7) + rotl(v[2], 12) + rotl(v[3], 18)) & M
+        for x in v:
+            h = ((h ^ rnd(0, x)) * P1 + P4) & M
+    else:
+        h = (seed + P5) & M
+    h = (h + n) & M
+    while i + 8 <= n:
+        h = (rotl(h ^ rnd(0, int.from_bytes(data[i:i + 8], 'little')), 27) * P1 + P4) & M
+        i += 8
+    if i + 4 <= n:
+        h = (rotl(h ^ ((int.from_bytes(data[i:i + 4], 'little') * P1) & M), 23) * P2 + P3) & M
+        i += 4
+    while i < n:
+        h = (rotl(h ^ ((data[i] * P5) & M), 11) * P1) & M
+        i += 1
+    h = ((h ^ (h >> 33)) * P2) & M
+    h = ((h ^ (h >> 29)) * P3) & M
+    return h ^ (h >> 32)
+
+
+def fingerprint(level, entry_key, access, kind, obj):
+    """F-34：不含行号。访问用"访问函数键 + 访问点自身的末端式"标识，对象用机器写法。"""
+    s = 'OobSummary|%s|%s|%s|%s|%s|%s' % (level, entry_key, access['key'], kind, access['end'], obj)
+    return '%016x' % xxh64(s.encode('utf-8'))
+
+
+def make_alert(fn, s, rep):
+    """最终告警（06- F-30…F-35）：全部由机器字段生成。note 只给汇合点所在文件里的那几跳（F-33 ②），别的文件只在总链里（③）。"""
+    hops = [x.split('@', 1) for x in rep['chain']]
+    here = rep['site'].rsplit(':', 1)[0]
+    notes = ['Call chain: ' + ' -> '.join('%s (%s)' % (f, site) for f, site in hops)]
+    for i, (f, site) in enumerate(hops):
+        if site.rsplit(':', 1)[0] == here:
+            notes.append('%s: %s' % (site, 'call to %s' % hops[i + 1][0] if i + 1 < len(hops)
+                                     else 'the %s happens here' % ('write' if rep['kind'] == 'W' else 'read')))
+    return {'checker': 'OobSummary',
+            'bug_type': 'Out-of-bound access via call chain (%s)' % ('definite' if rep['level'] == 'L1' else 'possible'),
+            'category': 'Memory error', 'level': rep['level'], 'fn': fn, 'loc': rep['site'],
+            'msg': alert_msg(rep, s.get('params', [])), 'notes': notes, 'fp': rep['fp']}
 
 
 def read_expect(files):
@@ -552,7 +737,8 @@ def classify(req, call, caller, callee, env_guards):
     env = Env(caller.get('params', []), caller.get('fields', {}))
     for g, tag in env_guards:
         env.add_guard(g, tag)
-    trace = {'have': have, 'end': (elo, ehi), 'guards': guards}
+    obj2, via = subst_obj(req['obj'], call)
+    trace = {'have': have, 'end': (elo, ehi), 'guards': guards, 'obj': obj2, 'via': via}
     # ① 守卫：常量假 → 这次调用走不到访问
     live = []
     for g in guards:
@@ -622,25 +808,89 @@ def same_req(r, mine):
         probs.append('guard: JSON %s / 回放 %s' % (sorted(show_atom_le0(g) for g in jg), sorted(show_atom_le0(g) for g in mg)))
     if r.get('depth') != mine['depth']:
         probs.append('depth: JSON %s / 回放 %s' % (r.get('depth'), mine['depth']))
+    if r.get('obj') != mine['obj']:
+        probs.append('obj: JSON %s / 回放 %s' % (r.get('obj'), mine['obj']))
     return probs
 
 
-def check_eff(eff, call):
+def rep_of(mine, call, fn, s, r_callee):
+    """调用点判出 L1 / L2 时，按机器字段组装判定记录（与 JSON reps[] 同形，不含 id / doc）。"""
+    rep = {'level': mine['outcome'], 'reported': max(mine['depth'], mine['eff_depth']) > INLINE_DEPTH, 'site': call['site'],
+           'access': r_callee['access'], 'kind': r_callee['kind'], 'obj': mine['obj']}
+    if mine.get('via'):
+        rep['via'] = mine['via']
+    lo, hi = mine['end2']
+    if mine.get('hi_end') is not None:                 # 守卫界判定（F-12b）：末端取守卫给出的范围
+        hi = Lin(int(mine['hi_end']))
+        if mine.get('lo_end') is not None:
+            lo = Lin(int(mine['lo_end']))
+    rep.update({'have': show(mine['have']), 'end': [show(lo), show(hi)], 'bound': mine['bound'], 'depth': mine['depth'],
+                'eff_depth': mine['eff_depth'], 'chain': ['%s@%s' % (fn, call['site'])] + r_callee['path']})
+    rep['fp'] = fingerprint(rep['level'], s['key'], rep['access'], rep['kind'], rep['obj'])
+    return rep
+
+
+def diff_rep(want, got):
+    keys = [k for k in REQUIRED['rep'] if k != 'id'] + ['via']
+    return ['%s: JSON %s / 推出 %s' % (k, json.dumps(want.get(k), ensure_ascii=False), json.dumps(got.get(k), ensure_ascii=False))
+            for k in keys if want.get(k) != got.get(k)]
+
+
+def apply_eff(eff, call):
+    """被调者的效果代进调用点 → 结构化的"应用后的效果"（与 JSON 里 results[].apply 同形）。"""
     m, effd = build_map(call, None)
     if eff['kind'] == 'ret_new':
-        return 'new(%s)%s' % (show(subst(P(eff['size']), m)), ' | NULL' if eff.get('maybe_null') else '')
+        return {'kind': 'ret_new', 'size': show(subst(P(eff['size']), m)), 'maybe_null': bool(eff.get('maybe_null'))}
     if eff['kind'] == 'ret_int':
-        return '[%s, %s]' % tuple(show(subst(P(x), m)) for x in eff['range'])
+        return {'kind': 'ret_int', 'range': [show(subst(P(x), m)) for x in eff['range']]}
     if eff['kind'] == 'ret_cond':
-        return '%s ⇒ %s' % (eff['when'], ', '.join(subst_cond(s, m) for s in eff['then']))
+        return {'kind': 'ret_cond', 'when': eff['when'], 'then': [canon_cond(subst_cond(s, m)) for s in eff['then']]}
     if eff['kind'] == 'field':
-        return '%s := %s' % (eff['target'], show(subst(P(eff['value']), m)))
+        k, f = re.match(r'p(\d+)->(\w+)$', eff['target']).groups()
+        return {'kind': 'field', 'arg': int(k), 'field': f, 'value': show(subst(P(eff['value']), m))}
     return None
 
 
+def canon_cond(s):
+    return ' && '.join(show_atom_le0(g) for g in C(s))
+
+
+def same_apply(a, b):
+    if a is None or b is None or a['kind'] != b['kind']:
+        return False
+    if a['kind'] == 'ret_new':
+        return P(a['size']) == P(b['size']) and a['maybe_null'] == b.get('maybe_null', False)
+    if a['kind'] == 'ret_cond':
+        return a['when'] == b['when'] and sorted(a['then']) == sorted(canon_cond(x) for x in b['then'])
+    if a['kind'] == 'field':
+        return a['arg'] == b['arg'] and a['field'] == b['field'] and P(a['value']) == P(b['value'])
+    if a['kind'] == 'ret_int':
+        return [P(x) for x in a['range']] == [P(x) for x in b['range']]
+    return False
+
+
+def fmt_apply(a):
+    if a is None:
+        return '?'
+    if a['kind'] == 'ret_new':
+        return 'new(%s)%s' % (a['size'], ' 或 NULL' if a['maybe_null'] else '')
+    if a['kind'] == 'ret_cond':
+        return '%s ⇒ %s' % (a['when'], ' 且 '.join(a['then']))
+    if a['kind'] == 'field':
+        return '实参 %d 所指对象的 %s := %s' % (a['arg'], a['field'], a['value'])
+    return json.dumps(a, ensure_ascii=False)
+
+
 # ---------------------------------------------------------------- 回放一个用例
+def label(a):
+    if isinstance(a, dict):
+        return a.get('doc') or a['obj']          # 有 doc 用原文，没有就用机器写法
+    return '…' if a is None else str(a)
+
+
 def replay(cid, verbose=False, out=None):
-    meta, fns = load_case(cid)
+    meta, fns_doc = load_case(cid)
+    fns = machine(fns_doc)            # 计算只用机器字段
     order = topo(fns)
     callers = callers_of(fns)
     errors, lines, decided = [], [], {}
@@ -657,22 +907,28 @@ def replay(cid, verbose=False, out=None):
         reps = {r['id']: r for r in s.get('reps', [])}
         for call in s.get('calls', []):
             callee = fns.get(call['callee'])
-            say('- %s @ %s  调用 %s(%s)' % (fn, call['site'], call['callee'], ', '.join(
-                (a['ptr'] if isinstance(a, dict) else '…' if a is None else str(a)) for a in call['args'])))
+            dcall = next(c for c in fns_doc[fn]['calls'] if c['site'] == call['site'] and c['callee'] == call['callee'])
+            say('- %s @ %s  调用 %s(%s)' % (fn, call['site'], call['callee'], ', '.join(label(a) for a in dcall['args'])))
+            if not call.get('results'):
+                say('    · 被调者没有 Req、没有要用的 Eff')
             if callee is None:
                 for res in call.get('results', []):
-                    say('    · %s' % res.get('note', res.get('outcome')))
+                    if 'gen' in res:
+                        say('    · 访问类模型 %s → 在本函数生成 %s' % (call['callee'], '、'.join(res['gen'])))
+                    elif 'gen_eff' in res:
+                        say('    · 分配器模型 %s → 本函数的效果 %s' % (call['callee'], '、'.join('effs[%d]' % i for i in res['gen_eff'])))
+                    elif 'pure' in res:
+                        say('    · 纯函数模型 %s：不失效、不产生条件' % call['callee'])
+                    elif 'open' in res:
+                        say('    · 未知函数 %s：记账 %s' % (call['callee'], res['open']))
                 continue
             env_guards = [(g, x.get('bound', 'guard')) for x in call.get('guards', []) for g in C(x['cond'])]
             for res in call.get('results', []):
-                if 'note' in res:
-                    say('    · %s' % res['note'])
-                    continue
                 if 'eff' in res:
                     eff = callee['effs'][res['eff']]
-                    got = check_eff(eff, call)
-                    ok = got is None or norm_text(got) == norm_text(res['value'])
-                    say('    · 效果 %s → %s %s' % (eff['kind'], got, '' if ok else '✗ JSON 记的是 %s' % res['value']))
+                    got = apply_eff(eff, call)
+                    ok = same_apply(got, res['apply'])
+                    say('    · 效果 %s → %s %s' % (eff['kind'], fmt_apply(got), '' if ok else '✗ JSON 记的是 %s' % res['apply']))
                     if not ok:
                         errors.append('%s %s 效果不一致' % (cid, fn))
                     continue
@@ -691,7 +947,7 @@ def replay(cid, verbose=False, out=None):
                     show_end += '，守卫 %s' % ' 且 '.join(show_atom_le0(g) for g in gs)
                 if any(g.const() is not None for g in mine.get('guards', [])):
                     show_end += '，守卫在此%s' % ('不成立' if any(g.const() > 0 for g in mine['guards'] if g.const() is not None) else '成立')
-                msg = '    · %s.%s：末端 %s，对象 %s → %s' % (call['callee'], r['id'], show_end, show(mine['have']), mine['outcome'])
+                msg = '    · %s.%s：末端 %s，对象 %s（%s 字节）→ %s' % (call['callee'], r['id'], show_end, mine['obj'], show(mine['have']), mine['outcome'])
                 if mine.get('why'):
                     msg += '（%s）' % mine['why']
                 ok = mine['outcome'] == res['outcome']
@@ -703,10 +959,16 @@ def replay(cid, verbose=False, out=None):
                         msg += ' ✗ ' + '；'.join(probs)
                 if ok and mine['outcome'] in ('L1', 'L2'):
                     rep = reps.get(res['report'])
-                    reported = max(mine['depth'], mine['eff_depth']) > INLINE_DEPTH
-                    if rep is None or rep['level'] != mine['outcome'] or rep['depth'] != mine['depth'] or rep['reported'] != reported:
+                    got = rep_of(mine, call, fn, s, r)
+                    reported = got['reported']
+                    bad = diff_rep(rep, got) if rep else ['JSON 里没有 %s' % res['report']]
+                    drep = next((x for x in fns_doc[fn]['reps'] if x['id'] == res['report']), {})
+                    dmsg = (drep.get('doc') or {}).get('msg')
+                    if rep and dmsg is not None and alert_msg(got, s.get('params', [])) != dmsg:   # 没有 doc（机器版）就不比
+                        bad.append('告警文本与 doc.msg 不同')
+                    if bad:
                         ok = False
-                        msg += ' ✗ 报告记录不一致'
+                        msg += ' ✗ 判定记录不一致：' + '；'.join(bad)
                     else:
                         msg += ' → %s（depth %d, eff_depth %d，%s）' % (res['report'], mine['depth'], mine['eff_depth'], '报' if reported else '≤ %d 层，交现有规则' % INLINE_DEPTH)
                         decided[(fn, rep['id'])] = rep
@@ -735,15 +997,120 @@ def replay(cid, verbose=False, out=None):
         say('- 期望 %s %s pa=%s → 回放 %s %s' % (e['kind'], e['entry'], e['pa'], got, '✓' if ok else '✗'))
         if not ok:
             errors.append('%s %s 期望 %s 回放 %s' % (cid, e['entry'], e['pa'], got))
-    return lines, errors, verdicts, meta, fns, order
+    return lines, errors, verdicts, meta, fns_doc, order
+
+
+# ---------------------------------------------------------------- 从局部事实推到底
+def req_key(have, obj, lo, hi, guards, depth):
+    return (show(have), obj, show(lo), show(hi), frozenset(show_atom_le0(g) for g in guards), depth)
+
+
+def json_req_key(r):
+    return req_key(P(r['have']), r['obj'], P(r['end'][0]), P(r['end'][1]), [g for s in r.get('guard', []) for g in C(s)], r['depth'])
+
+
+def absorb(reqs):
+    """覆盖合并（06- A-44）：同一对象、同样守卫，end 上界恒不大于另一条的那条并进去。"""
+    keep = []
+    for i, r in enumerate(reqs):
+        dominated = False
+        for j, r2 in enumerate(reqs):
+            if i == j or show(r['have']) != show(r2['have']) or r['obj'] != r2['obj'] or r['gkey'] != r2['gkey']:
+                continue
+            d = (r['hi'] - r2['hi']).const()
+            if d is not None and (d < 0 or (d == 0 and j < i)):
+                dominated = True
+                break
+        if not dominated:
+            keep.append(r)
+    return keep
+
+
+def derive(cid):
+    """只用每个函数自己的局部事实，自底向上推出全部上传 Req、判定与入口账本，组装最终告警，再与 JSON 和 @expect 对照。
+
+    "局部事实"＝本函数访问点当场生成的 Req（depth 0，含被覆盖的 absorbed）、调用点处的实参（值、指针的 obj / have / 字段）、
+    局部区间、守卫。上传来的 Req（depth ≥ 1）和 reps / opens 一概不读，全部重新推出来。
+    """
+    meta, fns_doc = load_case(cid)
+    fns = machine(fns_doc)
+    order = topo(fns)
+    callers = callers_of(fns)
+    dreqs, alerts, probs, stat = {}, [], [], {'up': 0, 'rep': 0, 'entry': 0}
+    for fn in order:
+        s = fns[fn]
+        cand = []
+        for r in s['reqs']:
+            if r['depth'] != 0:
+                continue                                   # 上传来的不拿，自己推
+            g = [x for c in r.get('guard', []) for x in C(c)]
+            for kind, end, at in [(r['kind'], r['end'], r['access']['at'])] + [(a['kind'], a['end'], a['at']) for a in r.get('absorbed', [])]:
+                cand.append({'have': P(r['have']), 'obj': r['obj'], 'lo': P(end[0]), 'hi': P(end[1]), 'guards': g,
+                             'gkey': frozenset(show_atom_le0(x) for x in g), 'depth': 0, 'eff_depth': r['eff_depth'], 'bound': r['bound'],
+                             'path': r['path'], 'access': r['access'], 'kind': kind})
+        reps = []
+        for call in s['calls']:
+            callee = fns.get(call['callee'])
+            if callee is None:
+                continue
+            env_guards = [(g, x.get('bound', 'guard')) for x in call.get('guards', []) for g in C(x['cond'])]
+            for r in dreqs[call['callee']]:
+                rj = {'have': show(r['have']), 'obj': r['obj'], 'end': [show(r['lo']), show(r['hi'])],
+                      'guard': [show_atom_le0(g) for g in r['guards']], 'depth': r['depth'], 'eff_depth': r['eff_depth'], 'bound': r['bound']}
+                mine = classify(rj, call, s, callee, env_guards)
+                path = ['%s@%s' % (fn, call['site'])] + r['path']
+                if mine['outcome'] == 'up':
+                    g = mine.get('guards2', [])
+                    cand.append({'have': mine['have'], 'obj': mine['obj'], 'lo': mine['end2'][0], 'hi': mine['end2'][1], 'guards': g,
+                                 'gkey': frozenset(show_atom_le0(x) for x in g), 'depth': mine['depth'], 'eff_depth': mine['eff_depth'],
+                                 'bound': mine['bound'], 'path': path, 'access': r['access'], 'kind': r['kind']})
+                    stat['up'] += 1
+                elif mine['outcome'] in ('L1', 'L2'):
+                    reps.append(rep_of(mine, call, fn, s, r))
+                    stat['rep'] += 1
+        mine_reqs = absorb(cand)
+        dreqs[fn] = mine_reqs
+        got = sorted(req_key(r['have'], r['obj'], r['lo'], r['hi'], r['guards'], r['depth']) for r in mine_reqs)
+        want = sorted(json_req_key(r) for r in s['reqs'])
+        if [repr(x) for x in got] != [repr(x) for x in want]:
+            probs.append('%s %s：推出的 Req 与 JSON 不同\n      推出 %s\n      JSON %s' % (cid, fn, got, want))
+        # 判定：推出的每条与 JSON reps[] 的机器字段逐项比；告警文本由模板生成，与 doc.msg 比（doc 只用来对照，不参与计算）
+        jreps = list(s['reps'])
+        if len(reps) != len(jreps):
+            probs.append('%s %s：推出 %d 条判定 / JSON %d 条' % (cid, fn, len(reps), len(jreps)))
+        for rep in reps:
+            want_rep = next((x for x in jreps if x['site'] == rep['site'] and x['access'] == rep['access']), None)
+            bad = diff_rep(want_rep, rep) if want_rep else ['JSON 里没有这条']
+            doc_msg = next((((x.get('doc') or {}).get('msg')) for x in fns_doc[fn]['reps'] if want_rep and x['id'] == want_rep['id']), None)
+            if doc_msg is not None and alert_msg(rep, s.get('params', [])) != doc_msg:   # 没有 doc（机器版）就不比
+                bad.append('告警文本与 doc.msg 不同')
+            if bad:
+                probs.append('%s %s @ %s：推出的判定与 JSON 不同：%s' % (cid, fn, rep['site'], '；'.join(bad)))
+            if rep['reported']:
+                alerts.append(make_alert(fn, s, rep))
+        if fn not in callers:
+            for r in mine_reqs:
+                env = Env(s.get('params', []), s.get('fields', {}))
+                _, tag = env.range_of(r['hi'] - r['have'], True)
+                reason = 'type_range_only' if r['have'].const() is not None and tag == 'type' else 'entry_unproven'
+                stat['entry'] += 1
+                if reason not in [o['reason'] for o in s['opens'] if o.get('req')]:
+                    probs.append('%s %s：入口账本应为 %s' % (cid, fn, reason))
+    verdicts = []
+    for e in meta['expect']:
+        mine = [a for a in alerts if a['fn'] == e['entry']]
+        got = mine[0]['level'] if mine else '-'
+        want = e['pa'] if e['pa'] in ('L1', 'L2') else '-'
+        verdicts.append((e, got, got == want and len(mine) <= 1))
+        if not verdicts[-1][2]:
+            probs.append('%s %s：推出的告警 %s / 期望 %s' % (cid, e['entry'], got, e['pa']))
+    for a in alerts:
+        a['case'] = cid
+    return alerts, probs, verdicts, stat
 
 
 def fmt_range(r):
     return show(r[0]) if r[0] == r[1] else '[%s, %s]' % (show(r[0]), show(r[1]))
-
-
-def norm_text(s):
-    return re.sub(r'\s+', '', s)
 
 
 def all_cases():
@@ -752,25 +1119,45 @@ def all_cases():
 
 
 def main():
+    global SUMS
     ap = argparse.ArgumentParser()
     ap.add_argument('cases', nargs='*')
     ap.add_argument('-v', '--verbose', action='store_true')
     ap.add_argument('--md')
+    ap.add_argument('--strip', metavar='DIR')
+    ap.add_argument('--dir', metavar='DIR')
+    ap.add_argument('--alerts', metavar='FILE')
     a = ap.parse_args()
+    if a.dir:
+        SUMS = os.path.abspath(a.dir)
+        print('摘要从 %s 读' % SUMS)
     ids = a.cases or all_cases()
     total_err, rows = [], []
+    nfile, nl_hits = 0, []
+    for cid in ids:
+        for f in sorted(os.listdir(os.path.join(SUMS, cid))):
+            if f.endswith('.json') and f != 'case.json':
+                nfile += 1
+                nl_hits += ['%s/%s %s' % (cid, f, x) for x in nl_outside_doc(json.load(open(os.path.join(SUMS, cid, f), encoding='utf-8')))]
     try:
         import jsonschema
         schema = json.load(open(os.path.join(HERE, 'summary.schema.json'), encoding='utf-8'))
-        n = 0
+        bad = []
         for cid in ids:
-            for f in sorted(os.listdir(os.path.join(HERE, cid))):
+            for f in sorted(os.listdir(os.path.join(SUMS, cid))):
                 if f.endswith('.json') and f != 'case.json':
-                    jsonschema.validate(json.load(open(os.path.join(HERE, cid, f), encoding='utf-8')), schema)
-                    n += 1
-        print('结构检查：%d 份摘要按 summary.schema.json 校验通过' % n)
+                    try:
+                        jsonschema.validate(json.load(open(os.path.join(SUMS, cid, f), encoding='utf-8')), schema)
+                    except jsonschema.ValidationError as e:
+                        bad.append('%s/%s 不符合 schema：%s（位置 %s）' % (cid, f, e.message, '/'.join(str(x) for x in e.absolute_path)))
+        print('结构检查：%d 份摘要按 summary.schema.json 校验%s；doc 之外的自然语言 %d 处' % (
+            nfile, '通过' if not bad else '有 %d 份不通过' % len(bad), len(nl_hits)))
+        for b in bad:
+            print('  ✗', b)
+        if bad:
+            sys.exit(1)
     except ImportError:
-        print('结构检查：没装 jsonschema，只做内置检查（字段齐全、表达式可解析、账本原因在枚举里）')
+        print('结构检查：没装 jsonschema，只做内置检查（字段齐全、表达式可解析、账本原因在枚举里）；doc 之外的自然语言 %d 处' % len(nl_hits))
     for cid in ids:
         lines, errors, verdicts, meta, fns, order = replay(cid, a.verbose)
         total_err.extend(errors)
@@ -779,10 +1166,68 @@ def main():
             print('%-7s %-3s 个函数  %s' % (cid, len(fns), '  '.join('%s %s→%s%s' % (e['kind'], e['pa'], g, '' if ok else '✗') for e, g, ok in verdicts)))
     if a.md:
         write_md(a.md, rows)
-    print('\n回放 %d 个用例，%d 处不一致' % (len(ids), len(total_err)))
+    print('\n① 逐调用点核对：%d 个用例，%d 处不一致' % (len(ids), len(total_err)))
+    total_err += nl_hits
+    dprobs, allalerts, st = [], [], {'up': 0, 'rep': 0, 'entry': 0}
+    for cid in ids:
+        alerts, probs, verdicts, stat = derive(cid)
+        dprobs += probs
+        allalerts += alerts
+        for k in st:
+            st[k] += stat[k]
+    print('② 从局部事实推到底：推出上传 Req %d 条、判定 %d 条、入口账本 %d 条，与 JSON %s；'
+          '最终告警 %d 条（位置、消息、调用链、指纹都由机器字段生成），与 @expect %s'
+          % (st['up'], st['rep'], st['entry'], '一致' if not dprobs else '有 %d 处不同' % len(dprobs), len(allalerts),
+             '一致' if not [p for p in dprobs if '期望' in p] else '不一致'))
+    if a.verbose or dprobs:
+        for x in allalerts:
+            print('    告警  %-7s %-2s %-24s @ %-34s fp %s' % (x['case'], x['level'], x['fn'], x['loc'], x['fp']))
+    for p in dprobs:
+        print('  ✗', p)
+    total_err += dprobs
+    gold = os.path.join(HERE, 'alerts.json')
+    if not a.cases and os.path.exists(gold) and not a.alerts:
+        same = json.load(open(gold, encoding='utf-8')) == allalerts
+        print('   与 alerts.json（Report.cpp 的金标准）%s' % ('逐条相同' if same else '不同 ✗'))
+        if not same:
+            total_err.append('最终告警与 alerts.json 不同（有意修改就用 --alerts alerts.json 重新生成）')
+    if a.alerts:
+        open(a.alerts, 'w', encoding='utf-8').write(pretty(allalerts) + '\n')
+        print('   最终告警已写到 %s' % a.alerts)
+    if a.strip:
+        n = 0
+        for cid in ids:
+            os.makedirs(os.path.join(a.strip, cid), exist_ok=True)
+            for f in sorted(os.listdir(os.path.join(SUMS, cid))):
+                if f.endswith('.json') and f != 'case.json':
+                    s = strip_doc(json.load(open(os.path.join(SUMS, cid, f), encoding='utf-8')))
+                    open(os.path.join(a.strip, cid, f), 'w', encoding='utf-8').write(pretty(s) + '\n')
+                    n += 1
+        print('③ 去掉 doc 的机器版已写到 %s（%d 份）；用 --dir %s 再跑一遍，结果应完全相同' % (a.strip, n, a.strip))
     for e in total_err:
         print('  ✗', e)
     sys.exit(1 if total_err else 0)
+
+
+def m_req(r):
+    """Req 的机器写法（一行）：[守卫 ⇒] 末端 ≤ have @ 对象 · 界的来源。"""
+    lo, hi = r['end']
+    rng = hi if lo == hi else '[%s, %s]' % (lo, hi)
+    g = ' && '.join(r.get('guard', []))
+    return '`%s%s <= %s` @ `%s` · %s%s' % (g + ' ⇒ ' if g else '', rng, r['have'], r['obj'], r['bound'],
+                                         '（depth %d）' % r['depth'] if r['depth'] else '')
+
+
+def m_eff(e):
+    if e['kind'] == 'ret_new':
+        return '`ret = new(%s)%s`' % (e['size'], ' | NULL' if e.get('maybe_null') else '')
+    if e['kind'] == 'ret_int':
+        return '`ret ∈ [%s, %s]`' % tuple(e['range'])
+    if e['kind'] == 'ret_cond':
+        return '`%s ⇒ %s`' % (e['when'], ' && '.join(e['then']))
+    if e['kind'] == 'field':
+        return '`%s := %s`' % (e['target'], e['value'])
+    return '`%s`' % json.dumps({k: v for k, v in e.items() if k != 'doc'}, ensure_ascii=False)
 
 
 def write_md(path, rows):
@@ -791,14 +1236,16 @@ def write_md(path, rows):
         out.append('### %s %s\n' % (cid, meta['title']))
         out.append(meta.get('point', '') + '\n')
         out.append('**代码**（`%s`；只保留函数体，头注释略）\n\n```c\n%s\n```\n' % ('`、`'.join(meta['files']), meta['code'].rstrip()))
-        out.append('**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/%s/<函数名>.json`）\n' % cid)
+        out.append('**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；'
+                   '完整 JSON 在 `cases/summaries/%s/<函数名>.json`）\n' % cid)
         out.append('| 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |\n|---|---|---|---|')
         for fn in order:
             s = fns[fn]
-            req = '<br>'.join('**%s** %s' % (r['id'], cell(r['text'])) + ('（depth %d）' % r['depth'] if r['depth'] else '') for r in s['reqs']) or '—'
-            eff = '<br>'.join(cell(e['text'] or e['kind']) for e in s['effs']) or '—'
-            dec = ['**%s %s**（depth %d%s）%s' % (r['id'], r['level'], r['depth'], '' if not r['eff_depth'] else ', eff_depth %d' % r['eff_depth'],
-                                                 '' if r['reported'] else ' 不报') for r in s['reps']]
+            req = '<br>'.join('**%s** %s' % (r['id'], cell(m_req(r))) for r in s['reqs']) or '—'
+            eff = '<br>'.join(cell(m_eff(e)) for e in s['effs']) or '—'
+            dec = ['**%s %s** `%s` 末端 %s > %s（depth %d%s）%s' % (r['id'], r['level'], r['obj'], r['end'][1], r['have'], r['depth'],
+                                                              '' if not r['eff_depth'] else ', eff_depth %d' % r['eff_depth'],
+                                                              '' if r['reported'] else ' 不报') for r in s['reps']]
             dec += ['账本 `%s`%s' % (o['reason'], '（%s）' % o['req'] if o.get('req') else '') for o in s['opens']]
             out.append('| `%s` | %s | %s | %s |' % (fn, req, eff, '<br>'.join(dec) or '—'))
         out.append('')
@@ -817,19 +1264,6 @@ def write_md(path, rows):
 
 def cell(s):
     return s.replace('|', '\\|')
-
-
-def one_line(s):
-    bits = []
-    if s.get('reqs'):
-        bits.append('%d 条 Req' % len(s['reqs']))
-    if s.get('effs'):
-        bits.append('%d 条 Eff' % len(s['effs']))
-    if s.get('reps'):
-        bits.append('%d 条判定' % len(s['reps']))
-    if s.get('opens'):
-        bits.append('%d 条账本' % len(s['opens']))
-    return '、'.join(bits) or '空摘要（不影响任何访问）'
 
 
 if __name__ == '__main__':

@@ -187,7 +187,7 @@ footer p{max-width:none}
 </style>
 <div class="wrap">
 <header class="mast">
-  <div class="eyebrow">CSA Summary 2.0 · 调研包 v3.13 · 2026-10-13 · 评审稿</div>
+  <div class="eyebrow">CSA Summary 2.0 · 调研包 v3.14 · 2026-10-13 · 评审稿</div>
   <h1>开工前的规格与计划：代码写成什么样、按什么顺序写、需要你给什么</h1>
   <p class="thesis">写代码<strong>不用等任何输入</strong>：规格里不依赖待定决策的部分今天就开写，绝大部分调试在沙箱（上游 LLVM 14.0.6）里做完再交给你。
     本周只要你三件事；其余输入都有默认值和时间点。跨 TU 改为<strong>一遍导出 → 离线求解 → 一遍出告警</strong>，
@@ -195,7 +195,7 @@ footer p{max-width:none}
   <dl class="facts">
     <div><dt>剩余工作日</dt><dd>45<small>10-14 至 12-15，无法定假日</small></dd></div>
     <div><dt>本周要你做</dt><dd>3 件<small>点头决策 · 跑探针 · 定交付形态</small></dd></div>
-    <div><dt>待点头决策</dt><dd>8<small>规格 §12，不回则按推荐</small></dd></div>
+    <div><dt>待点头决策</dt><dd>10<small>规格 §12，不回则按推荐</small></dd></div>
     <div><dt>工作包</dt><dd>14<small>每周两次交付</small></dd></div>
     <div><dt>代码规模</dt><dd>≈9.7k<small>C++ 行；另有驱动 ≈0.9k 行 Python</small></dd></div>
   </dl>
@@ -206,7 +206,7 @@ footer p{max-width:none}
 <section id="now">
   <div class="sec-hd"><span class="secno">07- §0</span><h2>本周要你做的三件事</h2></div>
   <div class="three">
-    <div><span class="when">10-16 前</span><h3>点头 8 个决策</h3><p>规格 §12：方案 B、FIR、JSON 落盘、只挂 ASTDecl、告警位置、自定义键、包名、solve 宿主。不回就按推荐写。</p></div>
+    <div><span class="when">10-16 前</span><h3>点头 10 个决策</h3><p>规格 §12：方案 B、FIR、JSON 落盘、只挂 ASTDecl、告警位置、自定义键、包名、solve 宿主，以及 v3.14 的摘要说明放 <code>doc</code>、L2 出处留 P1。不回就按推荐写。</p></div>
     <div><span class="when">10-16 前（R3 可到 10-21）</span><h3>在 fork 里跑 I0 探针</h3><p><code>probes/i0-integration/</code>：五处落点、编译，R1 测试用例、R2 一个业务文件（看是否 ILP32）、R3 全量挂机，把输出发我。</p></div>
     <div><span class="when">10-16 前</span><h3>定代码交付形态与人力</h3><p>默认独立代码包 <code>oob-summary-v0.N</code>（目录镜像 BXPlugin）+ 提交信息；W07 起是否补 0.5 人做真实代码研判。</p></div>
   </div>
@@ -228,7 +228,7 @@ footer p{max-width:none}
 <tbody>
 <tr>
 <td><strong>I1</strong></td>
-<td>点头 <code>06-</code> §12 的 8 个决策（D5′、D7、D9–D13、X-04）</td>
+<td>点头 <code>06-</code> §12 的 10 个决策（D5′、D7、D9–D15、X-04）</td>
 <td>定稿；第一次 fork 集成</td>
 <td><strong>10-16</strong></td>
 <td>按推荐写</td>
@@ -415,6 +415,20 @@ footer p{max-width:none}
 <td>独立可执行 <code>oobsum-solve</code></td>
 <td>后者更干净，但要在 BXPlugin 的 CMake 里加一个可执行目标</td>
 </tr>
+<tr>
+<td><strong>D14</strong></td>
+<td>摘要里的说明文字（v3.14）</td>
+<td>放在键名为 <code>doc</code> 的字段里，引擎不读；默认不写（<code>Emit=machine</code>）</td>
+<td>不要说明 / 说明与机器字段混写</td>
+<td>不要说明调试时得对着 FIR 猜；混写则无法保证引擎不依赖自然语言</td>
+</tr>
+<tr>
+<td><strong>D15</strong></td>
+<td>L2 消息里界的出处函数（v3.14）</td>
+<td>P0 只写界的种类（<code>a loop condition</code>），出处靠调用链 note</td>
+<td>P1 给 Req 加 <code>bound_at</code>（界在哪个函数 / 哪一行给出），沿上传保留</td>
+<td>多一个随代换维护的字段；收益是消息里能直接写 "in Ue_InitTbl"</td>
+</tr>
 </tbody>
 </table></div>
 <hr />
@@ -448,7 +462,7 @@ footer p{max-width:none}
 </tr>
 <tr>
 <td>设计 / 规格</td>
-<td><code>01-</code> + <code>05-</code> + <strong><code>06-</code> 规格（本版）</strong>；8 个决策待点头</td>
+<td><code>01-</code> + <code>05-</code> + <strong><code>06-</code> 规格（本版）</strong>；10 个决策待点头</td>
 </tr>
 </tbody>
 </table></div>
@@ -517,10 +531,10 @@ footer p{max-width:none}
 </tr>
 <tr>
 <td><strong>WP4</strong> 摘要、代换、调度、出告警</td>
-<td>A-60…A-62、A-80…A-82、A-90、A-91、F-20…F-35、D-20…D-29</td>
+<td>A-60…A-62、A-80…A-82、A-90…A-92、F-20…F-35、D-20…D-30</td>
 <td><code>core/Summary*</code>、<code>core/Apply</code>、<code>core/Solver</code>、<code>core/Dump</code>、入口的告警部分</td>
 <td>WP3</td>
-<td><strong>G1</strong>：Lv1 + Lv2（含跨 TU 的 LV1-07）；<code>cases/summaries/</code> 里 Lv1、Lv2 的 JSON 与引擎输出一致（T-06）</td>
+<td><strong>G1</strong>：Lv1 + Lv2（含跨 TU 的 LV1-07）；<code>cases/summaries/</code> 里 Lv1、Lv2 的 JSON（去掉 <code>doc</code>）与引擎输出一致，告警与 <code>alerts.json</code> 逐条一致（含消息、指纹）（T-06）</td>
 <td>W06</td>
 </tr>
 <tr>
@@ -902,6 +916,16 @@ footer p{max-width:none}
 <td>新 checker：<code>rb.enhance.ipa.OobSummary</code>（类 <code>OobSummaryChecker</code>）</td>
 <td>跨 TU 规则按 <code>csa-checker-dev</code> 约定须与你确认包；它不用 CSA 的 IPA，<code>ipa</code> 取值不影响它</td>
 </tr>
+<tr>
+<td><strong>D14</strong></td>
+<td>摘要里的说明文字一律放在键名为 <strong><code>doc</code></strong> 的字段里，引擎不读；去掉 <code>doc</code> 就是完整摘要（§5.3 D-30）</td>
+<td>自然语言静态分析消费不了，只能给人看；分开放才能保证判定与告警不依赖它，也能一键去掉</td>
+</tr>
+<tr>
+<td><strong>D15</strong></td>
+<td>L2 消息的 <code>{source}</code> P0 只写界的种类（<code>a loop condition</code>），出处函数靠调用链 note；<code>bound_at</code> 留到 P1</td>
+<td>出处函数要随代换多维护一个字段；先保证消息全部由机器字段生成</td>
+</tr>
 </tbody>
 </table></div>
 <hr />
@@ -1192,14 +1216,21 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/&lt;tu&g
 </ul>
 <p><code>L1: Definite out-of-bound {write|read} through a {N}-level call chain: up to byte {need} of {object} ({size} bytes) is accessed
   L2: Possible out-of-bound {write|read} through a {N}-level call chain: up to byte {needHi} of {object} ({size} bytes) may be accessed; the bound comes from {source}</code></p>
-<p><code>{object}</code> 是汇合点处对象的描述：变量名（<code>'aucName'</code>）、成员路径（<code>'pstCtx-&gt;aucBuf'</code>，结构体名按 typedef 反查）、
-  堆对象（<code>heap object allocated at alm_top.c:42</code>）；<code>{size}</code>、<code>{need}</code> 可以是符号式（LV2-04：<code>4*ulNum+4</code> 对 <code>4*ulNum</code>）。
+<p><strong>全部占位都取自判定记录的机器字段</strong>（D-26），不读 <code>doc</code>：<code>{N}</code> = <code>depth</code>，<code>{need}</code> / <code>{needHi}</code> = <code>end[1]</code>，<code>{size}</code> = <code>have</code>，
+  <code>{object}</code> 由 <code>obj</code> 渲染——<code>g:</code> / <code>local:</code> 写变量名（<code>'aucName'</code>），<code>heap@位置</code> 写 <code>heap object allocated at alm_top.c:42</code>，
+  <code>*pK-&gt;f</code> 等按形参名渲染（<code>'pstCtx-&gt;aucBuf'</code>）；有 <code>via</code> 时在大小后面加 <code>; via stCtx.pucBuf</code>。
+  <code>{source}</code> = <code>bound</code> 的短语（<code>a loop condition</code>、<code>a check</code>、<code>a guard condition</code>、<code>a bit mask</code>、<code>a branch constant</code>、<code>a return value range</code>、<code>a constant</code>）。
+  调用链跨了文件时，消息末尾附整条链 <code>[A (a.c:22) -&gt; B (b.c:6) -&gt; …]</code>（F-33 ③）。<code>{size}</code>、<code>{need}</code> 可以是符号式（LV2-04：<code>4*ulNum+4</code> 对 <code>4*ulNum</code>）。
+  （v3.13 样例里 L2 写的 "a loop bound <strong>in Ue_InitTbl</strong>" 是手写的：界在哪个函数给出，机器字段里没有。要的话 P1 给 Req 加 <code>bound_at</code>，见 §12。）
 * <strong>F-33 trace（note）</strong>：
-  ① 一条<strong>总链 note</strong>，锚在告警位置：<code>Call chain: Ue_Setup (ue_init.c:80) -&gt; Ue_InitTbl (ue_init.c:60) -&gt; Ue_InitOne (ue_tbl.c:40): write of 4 bytes at offset 16*ulIdx</code>；
+  ① 一条<strong>总链 note</strong>，锚在告警位置：<code>Call chain: Ue_Setup (ue_init.c:80) -&gt; Ue_InitTbl (ue_init.c:60) -&gt; Ue_InitOne (ue_tbl.c:40)</code>（由 <code>chain</code> 生成；
+  访问的字节数和偏移式看访问点那条 note 指着的源码行）；
   ② 链上每一跳、访问点、大小来源（分配点）里<strong>位于本 TU 可见文件</strong>的，各一条 note 指向那一行；
   ③ 不在本 TU 的只出现在 ① 的文本里（D12）。
-* <strong>F-34 指纹</strong>：<code>xxHash64("OobSummary|" + level + "|" + 汇合点函数键 + "|" + 访问函数键 + "|" + R/W + "|" + 访问序号 + "|" + 对象描述)</code>，
-  <strong>不含行号</strong>（<code>01-</code> §3.10）；访问序号＝该访问在其函数 FIR 里同类访问中的序号。同一指纹全工程只报一次。
+* <strong>F-34 指纹</strong>：<code>llvm::xxHash64("OobSummary|" + level + "|" + 汇合点函数键 + "|" + access.key + "|" + R/W + "|" + access.end + "|" + obj)</code>，
+  十六进制 16 位，<strong>不含行号</strong>（<code>01-</code> §3.10）。访问用"访问函数键 + 访问点自身的末端式"标识（v3.14 起替代"访问序号"：
+  序号要看整个 FIR 才能定，末端式就在摘要里；同一函数里同类、同末端式的两次访问本来就是同一个检查，合并正合适）。
+  同一指纹全工程只报一次。<code>replay.py</code> 里的 XXH64 与 LLVM 14 的 <code>llvm::xxHash64</code> 逐位相同<span class="ev">实测数据</span>。
 * <strong>F-35 确定性</strong>：同一 TU 的告警按（文件、行、列、指纹）排序后发出（<code>csa-checker-dev</code> 约定）。</p>
 <h3>3.5 账本与可查性</h3>
 <ul>
@@ -1358,6 +1389,13 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/&lt;tu&g
 <td>string</td>
 <td><code>full</code></td>
 <td>摘要里 <code>calls[]</code> 调用点记录的详细程度：<code>full</code>（实参、局部区间、守卫、结局，调试用）/ <code>results</code>（只留结局）/ <code>none</code>。全量跑出来体积过大时降级</td>
+</tr>
+<tr>
+<td>I-25</td>
+<td><code>Emit</code></td>
+<td>string</td>
+<td><code>machine</code></td>
+<td>摘要里写不写说明：<code>machine</code>（只写机器字段，D-30）/ <code>doc</code>（另生成 <code>doc</code>：形参名渲染的一句话、源码原文、宏值，调试与评审用；判定结果不变）</td>
 </tr>
 </tbody>
 </table></div>
@@ -1643,13 +1681,25 @@ pure:                           # 不改任何被跟踪内存、返回值无约�
 <p><strong>D-14 边</strong>：<code>succ: [{to, assume?}]</code>。<code>if</code> / 循环条件降成两条边上的 <code>assume E</code> / <code>assume ["lnot", E]</code>；<code>switch</code> 降成每个 <code>case</code> 一条
 <code>assume x == c</code> 与 <code>default</code> 一条（<code>case</code> 超过 16 个时 <code>default</code> 不带 assume）。<code>&amp;&amp;</code>、<code>||</code>、<code>?:</code> 由 Clang CFG 拆好，
 <code>?:</code> 的结果在两个前驱块末尾各补一条 <code>set tmp</code>（<strong>A-04</strong>）。</p>
-<h3>5.3 摘要（<code>oobsum-summary/1</code>）——v3.13 定稿</h3>
+<h3>5.3 摘要（<code>oobsum-summary/1</code>）——v3.13 定稿，v3.14 划清机器字段与说明</h3>
 <blockquote>
 <p><strong>一个函数一份 JSON</strong>，表达式都写成人能直接读的字符串。完整字段定义：<code>cases/summaries/summary.schema.json</code>（JSON Schema）；
 16 个用例的 104 份实样与逐步回放：<code>08-options-and-summary-examples.md</code> Part B 与 <code>cases/summaries/</code>。
 全量运行时落在 <code>WorkDir/summaries/&lt;00..ff&gt;.jsonl</code>（按函数键哈希分片，一行一份）；<code>oobsum.py show &lt;函数名&gt;</code> 打印成实样那样。</p>
 </blockquote>
-<p><strong>D-20 接口符号</strong>（摘要里允许出现的符号）：</p>
+<p><strong>D-30 机器字段与 <code>doc</code>（v3.14）</strong>：摘要里只有两类内容。</p>
+<ul>
+<li><strong>键名为 <code>doc</code> 的</strong>（任意层级，字符串或对象）：只给人看的说明——用形参名渲染的可读形式、源码原文、宏的值、"为什么"。
+  <strong>引擎读入时把所有 <code>doc</code> 整棵删掉，任何计算（代换、判定、出告警、指纹）都不读它。</strong></li>
+<li><strong>其余全部是机器字段</strong>：整数、枚举、规范表达式（D-21）、对象（D-20）、位置（<code>文件:行</code>）、函数键。<strong>去掉 <code>doc</code> 后就是完整摘要</strong>——
+  逐个调用点的判定、上传、记账，以及最终告警的位置、消息（F-32 由模板生成）、调用链 note（F-33）、指纹（F-34）都只用它们算出来。</li>
+<li>保证手段：① schema 里除 <code>doc</code> 外每个对象都是 <code>additionalProperties: false</code>，多一个键（比如顺手加的 <code>note</code>）校验就不过；
+  ② <code>replay.py</code> 检查 <code>doc</code> 之外不出现中文或成句的英文；③ <code>replay.py --strip DIR</code> 生成去掉 <code>doc</code> 的机器版，<code>--dir DIR</code> 从机器版重跑，
+  结果与读原文件<strong>逐字节相同</strong>（v3.14 实测：13 条最终告警的 JSON 一致，回放输出只有实参的显示名不同）。</li>
+<li><code>Emit=machine</code>（I-25，默认）只写机器字段；<code>Emit=doc</code> 额外生成 <code>doc</code>，供调试与评审。T-06 快照比的是去掉 <code>doc</code> 后的 JSON。</li>
+<li>用例目录里的 <code>case.json</code>（标题、要点、代码）是走查文档用的元数据，<strong>不是摘要</strong>，引擎不产生也不读。</li>
+</ul>
+<p><strong>D-20 接口符号</strong>（摘要里允许出现的符号）与<strong>对象写法</strong>：</p>
 <div class="tw"><table>
 <thead>
 <tr>
@@ -1684,6 +1734,47 @@ pure:                           # 不改任何被跟踪内存、返回值无约�
 </tr>
 </tbody>
 </table></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>对象 <code>obj</code></th>
+<th>含义</th>
+<th>在调用点怎么代换</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>g:g_aulCellStat</code></td>
+<td>全局对象</td>
+<td>不变</td>
+</tr>
+<tr>
+<td><code>local:aucPkt</code></td>
+<td>本函数的局部对象</td>
+<td>不变（只出现在判定和实参里）</td>
+</tr>
+<tr>
+<td><code>heap@ue.c:68</code></td>
+<td>在这个调用点分配的堆对象</td>
+<td>不变</td>
+</tr>
+<tr>
+<td><code>*p0</code></td>
+<td>第 0 个形参所指的对象</td>
+<td>换成第 0 个指针实参的 <code>obj</code></td>
+</tr>
+<tr>
+<td><code>*p0-&gt;pucBuf</code></td>
+<td>形参所指结构体里指针字段 <code>pucBuf</code> 所指的对象</td>
+<td>换成实参 <code>fields.pucBuf.obj</code>（判定里记 <code>via</code>）；实参是形参别名时改写成调用方的 <code>*pK-&gt;pucBuf</code></td>
+</tr>
+<tr>
+<td><code>p0-&gt;aucBody</code></td>
+<td>形参所指结构体里的数组成员</td>
+<td>实参是形参别名时改写成 <code>pK-&gt;aucBody</code></td>
+</tr>
+</tbody>
+</table></div>
 <p>调用点记录（<code>calls[]</code>）里还会出现<strong>调用方的局部名</strong>（如 <code>i</code>、<code>ulOff</code>），只用来描述"实参是什么"，<strong>不进 Req / Eff</strong>。</p>
 <p><strong>D-21 表达式语法</strong>：</p>
 <pre><code>expr   := ['-'] term (('+' | '-') term)*
@@ -1697,7 +1788,7 @@ cond   := expr ('&lt;=' | '&lt;' | '&gt;=' | '&gt;' | '==') expr
 形参 → 字段 → <code>ext(…)</code> → 全局 → 局部 → 不透明项，常数最后（<code>16*p1 - 12</code>）。C++ 侧的解析器约 200 行，Python 侧见 <code>replay.py</code>。</p>
 <p><strong>D-22 来源标签</strong> <code>bound</code>：<code>exact</code>（没有区间）、<code>const</code>、<code>check</code>、<code>mask</code>、<code>branch</code>、<code>loop</code>、<code>ret</code>、<code>guard</code>（以上是代码给出的界，可判 L2）；
 <code>type</code>、<code>widen</code>、<code>data</code>（不可判 L2，只能记账）。</p>
-<p><strong>D-23 顶层与 Req</strong>：</p>
+<p><strong>D-23 顶层与 Req</strong>（下表只列机器字段；每个对象都可以另带 <code>doc</code>）：</p>
 <div class="tw"><table>
 <thead>
 <tr>
@@ -1716,7 +1807,7 @@ cond   := expr ('&lt;=' | '&lt;' | '&gt;=' | '&gt;' | '==') expr
 </tr>
 <tr>
 <td><code>params</code></td>
-<td><code>["名字: 类型", …]</code></td>
+<td><code>[{name, type}, …]</code>，下标即 <code>p0</code>、<code>p1</code>…</td>
 </tr>
 <tr>
 <td><code>fields</code></td>
@@ -1741,12 +1832,12 @@ cond   := expr ('&lt;=' | '&lt;' | '&gt;=' | '&gt;' | '==') expr
 </thead>
 <tbody>
 <tr>
-<td><code>id</code>、<code>kind</code>、<code>bytes</code>、<code>obj</code></td>
-<td>编号、<code>R</code> / <code>W</code>、访问字节数（说明用）、对象描述</td>
+<td><code>id</code>、<code>kind</code></td>
+<td>编号、<code>R</code> / <code>W</code></td>
 </tr>
 <tr>
-<td><code>have</code></td>
-<td>从基址起对象还剩多少字节：常数、<code>ext(…)</code></td>
+<td><code>have</code>、<code>obj</code></td>
+<td>从基址起对象还剩多少字节（常数、<code>ext(…)</code>）；是哪个对象（D-20 写法）</td>
 </tr>
 <tr>
 <td><code>end</code></td>
@@ -1766,11 +1857,11 @@ cond   := expr ('&lt;=' | '&lt;' | '&gt;=' | '&gt;' | '==') expr
 </tr>
 <tr>
 <td><code>access</code></td>
-<td><code>{fn, at, code}</code>：真正的访问点（代换过程中不变）</td>
+<td><code>{fn, key, at, end}</code>：真正的访问点——函数、函数键、位置、访问点自身的末端上界（访问函数的符号）。代换过程中原样上传，<code>key + end</code> 用于指纹</td>
 </tr>
 <tr>
 <td><code>path</code></td>
-<td>从本函数到访问点经过的调用点</td>
+<td>从本函数到访问点经过的调用点（<code>函数@文件:行</code>）</td>
 </tr>
 <tr>
 <td><code>depth</code>、<code>eff_depth</code>、<code>blind</code></td>
@@ -1778,24 +1869,65 @@ cond   := expr ('&lt;=' | '&lt;' | '&gt;=' | '&gt;' | '==') expr
 </tr>
 <tr>
 <td><code>absorbed</code></td>
-<td>被本条覆盖、不再单列的较弱访问（A-44）</td>
+<td>被本条覆盖、不再单列的较弱访问 <code>[{kind, end, at}]</code>（A-44）</td>
 </tr>
 <tr>
-<td><code>note</code>、<code>text</code></td>
-<td>说明；用形参名渲染的可读形式（派生字段，读入时忽略）</td>
+<td><code>doc</code></td>
+<td><code>{text, obj, bytes, code, note}</code>：用形参名渲染的一句话、对象名、访问字节数、源码原文、说明</td>
 </tr>
 </tbody>
 </table></div>
-<p><strong>D-24 效果</strong> <code>effs[].kind</code>：<code>ret_new</code>（<code>size</code>、<code>maybe_null</code>、<code>eff_depth</code>、<code>via</code>）、<code>ret_ptr</code>、<code>ret_int</code>（<code>range</code>、<code>bound</code>）、
-<code>ret_cond</code>（<code>when: "ret == c"</code>、<code>then: [条件…]</code>，至多 4 条）、<code>out_new</code> / <code>out_int</code>、<code>field</code>（<code>target: "p0-&gt;ulUsed"</code>、<code>value</code>）、<code>global</code>、<code>invalidate</code>。</p>
+<p><strong>D-24 效果</strong> <code>effs[].kind</code>：<code>ret_new</code>（<code>size</code>、<code>maybe_null</code>、<code>eff_depth</code>）、<code>ret_ptr</code>、<code>ret_int</code>（<code>range</code>、<code>bound</code>）、
+<code>ret_cond</code>（<code>when: "ret == c"</code>、<code>then: [条件…]</code>，至多 4 条）、<code>out_new</code> / <code>out_int</code>、<code>field</code>（<code>target: "p0-&gt;ulUsed"</code>、<code>value</code>）、<code>global</code>、<code>invalidate</code>。
+<code>doc.via</code> 记效果是从哪个分配器 / 封装传上来的（只给人看）。</p>
 <p><strong>D-25 调用点记录</strong> <code>calls[]</code>：<code>site</code>、<code>callee</code>、<code>model</code>（<code>access</code> / <code>alloc</code> / <code>pure</code> / <code>unknown</code>，被调者是模型或未知时）、
-<code>args</code>（整数实参写表达式；指针实参写 <code>{ptr: 原文, have: 剩余字节数, alias?: 就是调用方的哪个形参, fields?: 栈帧里记着的字段值, eff_depth?}</code>；与越界无关的写 <code>null</code>）、
-<code>locals</code>（<code>{名字: {range: [lo, hi], bound}}</code>）、<code>guards</code>（<code>[{cond, bound, from}]</code>）、<code>results</code>（被调者每条 Req / Eff 的结局：
-<code>{req, outcome: up|safe|L1|L2|open, as|report|reason}</code>、<code>{eff, value}</code>、<code>{note}</code>）。详细程度由 <code>CallTrace</code>（I-24）控制。</p>
-<p><strong>D-26 判定</strong> <code>reps[]</code> 与全局告警记录 <code>reports.json</code>：<code>{id, level, reported, site, access, object, have, end, bound, depth, eff_depth, chain, msg, fp}</code>；
-<code>reports.json</code> 每条另带 <code>decision_fn</code>、<code>decision_tu</code>（<code>report</code> 阶段按它分发）。</p>
+<code>args</code>（整数实参写表达式；指针实参写 <code>{obj, have, alias?, fields?, eff_depth?}</code>——指向哪个对象、从这个指针起还剩多少字节、
+就是调用方的哪个形参、栈帧里记着的字段值；与越界无关的写 <code>null</code>）、<code>locals</code>（<code>{名字: {range: [lo, hi], bound}}</code>）、
+<code>guards</code>（<code>[{cond, bound}]</code>）、<code>results</code>——被调者每条 Req / Eff 在这里的结局，全部结构化：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th><code>results[]</code> 形状</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>{req, outcome: "up", as}</code></td>
+<td>代换后上传成本函数的 <code>as</code></td>
+</tr>
+<tr>
+<td><code>{req, outcome: "safe"}</code></td>
+<td>这里已证明安全</td>
+</tr>
+<tr>
+<td><code>{req, outcome: "L1"\|"L2", report}</code></td>
+<td>这里判出越界，记在 <code>reps[]</code> 的 <code>report</code></td>
+</tr>
+<tr>
+<td><code>{req, outcome: "open", reason}</code></td>
+<td>到此为止，记账</td>
+</tr>
+<tr>
+<td><code>{eff, apply}</code></td>
+<td>被调者第 <code>eff</code> 条效果代进来后的样子（<code>apply</code> 与效果同形，用调用方的符号）</td>
+</tr>
+<tr>
+<td><code>{gen: [Req id…]}</code> / <code>{gen_eff: [序号…]}</code></td>
+<td>访问类 / 分配器模型在本函数生成的 Req / 效果</td>
+</tr>
+<tr>
+<td><code>{pure: true}</code> / <code>{open: reason}</code></td>
+<td>纯函数模型 / 未知函数记账</td>
+</tr>
+</tbody>
+</table></div>
+<p>详细程度由 <code>CallTrace</code>（I-24）控制。</p>
+<p><strong>D-26 判定</strong> <code>reps[]</code>：<code>{id, level, reported, site, access, kind, obj, via?, have, end, bound, depth, eff_depth, chain, fp}</code>，<code>doc.msg</code> 是 F-32 模板的生成结果（副本）。
+全局告警记录 <code>reports.json</code> 每条是 F-30…F-35 的成品（<code>checker</code>、<code>bug_type</code>、<code>category</code>、<code>level</code>、<code>fn</code>、<code>loc</code>、<code>msg</code>、<code>notes</code>、<code>fp</code>），
+另带 <code>decision_fn</code>、<code>decision_tu</code>（<code>report</code> 阶段按它分发）。<code>replay.py --alerts FILE</code> 输出的就是这个形状。</p>
 <ul>
-<li><strong>D-27 账本</strong> <code>opens[]</code> / <code>ledger.jsonl</code>：<code>{reason, at, detail, req?}</code>（<code>req</code> 指向入口处到此为止的那条 Req）。<code>reason</code> 取值：
+<li><strong>D-27 账本</strong> <code>opens[]</code> / <code>ledger.jsonl</code>：<code>{reason, at, req?}</code>（<code>req</code> 指向入口处到此为止的那条 Req），<code>doc</code> 写细节。<code>reason</code> 取值：
   <code>01-</code> §3.12 的 16 类（<code>fptr</code>、<code>unknown_callee</code>、<code>recursion</code>、<code>msg_edge</code>、<code>global_value</code>、<code>global_ptr_target</code>、<code>field_written_by_callee</code>、
   <code>alloc_size_unknown</code>、<code>flexible_array</code>、<code>struct_overlay</code>、<code>pointer_stepping</code>、<code>string_length</code>、<code>nonlinear</code>、<code>type_range_only</code>、<code>entry_unproven</code>、<code>cond_truncated</code>）
   加运行类 11 个：<code>ambiguous_callee</code>、<code>not_exported</code>（被调者不在 cdb 里）、<code>not_in_tu</code>（inline 模式下的跨 TU 被调者）、<code>cfg_too_large</code>、<code>timeout</code>、
@@ -1803,8 +1935,8 @@ cond   := expr ('&lt;=' | '&lt;' | '&gt;=' | '&gt;' | '==') expr
   <code>untracked_pointer</code>（指针来自数组元素或超过两层的字段，不跟踪它指向多大）。</li>
 <li><strong>D-28 状态</strong> <code>status</code>：<code>analyzed</code>；<code>partial:iter_limit|cond_truncated</code>；<code>skipped:cfg_too_large|timeout|no_body</code>。</li>
 </ul>
-<p><strong>D-29 可读输出</strong>：<code>text</code> 字段、<code>Dump=summary</code> 与 <code>oobsum.py show / explain</code> 都用形参名渲染（<code>ulNum &gt;= 1 ⇒ W4 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 &lt;= ext(pstTbl)</code>），
-与用例文件头的"摘要"块同形。T-06 的快照测试比的是 JSON（规范形式），不比 <code>text</code>。</p>
+<p><strong>D-29 可读输出</strong>：<code>doc.text</code>、<code>Dump=summary</code> 与 <code>oobsum.py show / explain</code> 都用形参名渲染（<code>ulNum &gt;= 1 ⇒ 写 4 字节 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 &lt;= ext(pstTbl)</code>），
+与用例文件头的"摘要"块同形。它们都是从机器字段<strong>派生</strong>的；T-06 的快照测试比的是去掉 <code>doc</code> 的 JSON（规范形式）。</p>
 <h3>5.4 大小与布局（ExtentModel 的 P0 部分）</h3>
 <div class="tw"><table>
 <thead>
@@ -2100,6 +2232,8 @@ cond   := expr ('&lt;=' | '&lt;' | '&gt;=' | '&gt;' | '==') expr
 <li><strong>A-90</strong>：<code>solve</code> 给每条未被过滤的判定定一个汇合点 TU（汇合点函数的 FIR 所在 TU），写进 <code>decisions/&lt;tu&gt;.json</code>。</li>
 <li><strong>A-91</strong>：<code>report</code> / <code>inline</code> 阶段把 <code>[文件, 行, 列]</code> 经 <code>FileManager</code> + <code>SourceManager::translateFileLineCol</code> 换成 <code>SourceLocation</code>；
   换不出来（文件不在本 TU）→ 退回汇合点函数的声明位置，并把原位置写进消息。按 F-33 组 note，按 F-35 排序后发出；同一进程内按指纹去重。</li>
+<li><strong>A-92</strong>（v3.14）：告警成品（位置、BugType、消息、note、指纹）<strong>只由判定记录的机器字段生成</strong>，不读任何 <code>doc</code>；
+  参考实现是 <code>replay.py</code> 的 <code>alert_msg</code>、<code>make_alert</code>、<code>fingerprint</code>，C++ 的 <code>Report.cpp</code> 在 T-06 用例上的输出须与 <code>replay.py --alerts</code> 逐条相同。</li>
 </ul>
 <h3>6.10 全函数性与上限</h3>
 <p><strong>A-95</strong> 任何函数都必须产出合法摘要：不支持的构造降为未知、迭代超限置 <code>±∞</code>、超时 / CFG 过大产出空摘要并标 <code>skipped</code>。
@@ -2417,7 +2551,7 @@ cond   := expr ('&lt;=' | '&lt;' | '&gt;=' | '&gt;' | '==') expr
 <tr>
 <td><strong>T-06</strong></td>
 <td>摘要快照</td>
-<td><strong>金标准是 <code>cases/summaries/</code> 的 104 份 JSON</strong>（16 个用例，v3.13 手写并经 <code>replay.py</code> 回放核对）：引擎在这些函数上的输出按规范形式逐字段比对；其余用例的摘要在 WP4 起由引擎产出、与用例头"摘要"块对照后冻结。改动须有意更新</td>
+<td><strong>金标准是 <code>cases/summaries/</code> 的 104 份 JSON 去掉 <code>doc</code> 后的机器版</strong>（16 个用例，v3.13 手写、v3.14 划清 <code>doc</code>，经 <code>replay.py</code> 逐调用点核对与"从局部事实推到底"两种方式验证）：引擎在这些函数上的输出按规范形式逐字段比对，最终告警与 <code>replay.py --alerts</code> 逐条比对（含消息与指纹）；其余用例的摘要在 WP4 起由引擎产出、与用例头"摘要"块对照后冻结。改动须有意更新</td>
 <td>沙箱</td>
 <td>每次交付</td>
 </tr>
@@ -2624,6 +2758,20 @@ cond   := expr ('&lt;=' | '&lt;' | '&gt;=' | '&gt;' | '==') expr
 <td>桩 TU（不改 BXPlugin 构建）</td>
 <td>独立可执行 <code>oobsum-solve</code></td>
 <td>后者更干净，但要在 BXPlugin 的 CMake 里加一个可执行目标</td>
+</tr>
+<tr>
+<td><strong>D14</strong></td>
+<td>摘要里的说明文字（v3.14）</td>
+<td>放在键名为 <code>doc</code> 的字段里，引擎不读；默认不写（<code>Emit=machine</code>）</td>
+<td>不要说明 / 说明与机器字段混写</td>
+<td>不要说明调试时得对着 FIR 猜；混写则无法保证引擎不依赖自然语言</td>
+</tr>
+<tr>
+<td><strong>D15</strong></td>
+<td>L2 消息里界的出处函数（v3.14）</td>
+<td>P0 只写界的种类（<code>a loop condition</code>），出处靠调用链 note</td>
+<td>P1 给 Req 加 <code>bound_at</code>（界在哪个函数 / 哪一行给出），沿上传保留</td>
+<td>多一个随代换维护的字段；收益是消息里能直接写 "in Ue_InitTbl"</td>
 </tr>
 </tbody>
 </table></div>

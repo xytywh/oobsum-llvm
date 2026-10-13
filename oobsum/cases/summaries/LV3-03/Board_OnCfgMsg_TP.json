@@ -3,7 +3,7 @@
   "fn": "Board_OnCfgMsg_TP",
   "key": "F:Board_OnCfgMsg_TP",
   "loc": "lv3_03_callee_guard_wrong.c:46",
-  "params": ["ulPortId: UINT32", "ulMode: UINT32"],
+  "params": [{"name": "ulPortId", "type": "UINT32"}, {"name": "ulMode", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [],
@@ -11,9 +11,9 @@
     {
       "site": "lv3_03_callee_guard_wrong.c:46",
       "callee": "Board_CfgPort",
-      "args": [{"ptr": "g_astBoardPort", "have": "384"}, "p0", "p1"],
+      "args": [{"obj": "g:g_astBoardPort", "have": "384", "doc": "g_astBoardPort"}, "p0", "p1"],
       "results": [{"req": "R1", "outcome": "L2", "report": "RPT1"}],
-      "note": "PORT_S g_astBoardPort[16]，384 字节"
+      "doc": "PORT_S g_astBoardPort[16]，384 字节"
     }
   ],
   "reps": [
@@ -22,8 +22,14 @@
       "level": "L2",
       "reported": true,
       "site": "lv3_03_callee_guard_wrong.c:46",
-      "access": "Port_SetMode@lv3_03_callee_guard_wrong.c:40",
-      "object": "g_astBoardPort",
+      "access": {
+        "fn": "Port_SetMode",
+        "key": "F@lv3_03_callee_guard_wrong.c:Port_SetMode",
+        "at": "lv3_03_callee_guard_wrong.c:40",
+        "end": "24*p1 + 4"
+      },
+      "kind": "W",
+      "obj": "g:g_astBoardPort",
       "have": "384",
       "end": ["4", "748"],
       "bound": "guard",
@@ -35,8 +41,10 @@
         "Port_ApplyCfg@lv3_03_callee_guard_wrong.c:43",
         "Port_SetMode@lv3_03_callee_guard_wrong.c:40"
       ],
-      "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 748 of 'g_astBoardPort' (384 bytes) may be accessed; the bound comes from the check in Port_SetMode",
-      "fp": "4d4e0d10fe4e1698"
+      "fp": "614bd9acdc215cf8",
+      "doc": {
+        "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 748 of 'g_astBoardPort' (384 bytes) may be accessed; the bound comes from a guard condition"
+      }
     }
   ],
   "opens": []

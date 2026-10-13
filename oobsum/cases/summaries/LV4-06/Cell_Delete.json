@@ -3,23 +3,23 @@
   "fn": "Cell_Delete",
   "key": "F@lv4_06_validator_func.c:Cell_Delete",
   "loc": "lv4_06_validator_func.c:58",
-  "params": ["ulCellId: UINT32"],
+  "params": [{"name": "ulCellId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "32",
-      "obj": "g_astCellCtx",
       "have": "512",
+      "obj": "g:g_astCellCtx",
       "end": ["32*p0 + 32", "32*p0 + 32"],
       "start": "32*p0",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Ctx_Clear",
+        "key": "F@lv4_06_validator_func.c:Ctx_Clear",
         "at": "lv4_06_validator_func.c:54",
-        "code": "memset_s(&g_astCellCtx[ulCellId], sizeof(CELL_CTX_S), 0, sizeof(CELL_CTX_S))"
+        "end": "32*p0 + 32"
       },
       "path": [
         "Cell_Delete@lv4_06_validator_func.c:58",
@@ -29,7 +29,12 @@
       "depth": 2,
       "eff_depth": 0,
       "blind": false,
-      "text": "W32 @ g_astCellCtx，末端 32*ulCellId + 32；需 32*ulCellId + 32 <= 512"
+      "doc": {
+        "text": "写 32 字节 @ g_astCellCtx，末端 32*ulCellId + 32；需 32*ulCellId + 32 <= 512",
+        "obj": "g_astCellCtx",
+        "bytes": "32",
+        "code": "memset_s(&g_astCellCtx[ulCellId], sizeof(CELL_CTX_S), 0, sizeof(CELL_CTX_S))"
+      }
     }
   ],
   "effs": [],

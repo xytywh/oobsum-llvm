@@ -3,51 +3,66 @@
   "fn": "Tlv_Append",
   "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_Append",
   "loc": "lv2_03_tlv_destmax_no_off.c:39",
-  "params": ["pucPkt: UINT8*", "ulOff: UINT32", "pucVal: UINT8*", "ulValLen: UINT32"],
+  "params": [
+    {"name": "pucPkt", "type": "UINT8*"},
+    {"name": "ulOff", "type": "UINT32"},
+    {"name": "pucVal", "type": "UINT8*"},
+    {"name": "ulValLen", "type": "UINT32"}
+  ],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "128",
-      "obj": "*pucPkt",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["p1 + 132", "p1 + 132"],
       "start": "p1 + 4",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Tlv_WriteVal",
+        "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal",
         "at": "lv2_03_tlv_destmax_no_off.c:31",
-        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+        "end": "p1 + 128"
       },
       "path": ["Tlv_Append@lv2_03_tlv_destmax_no_off.c:42", "Tlv_WriteVal@lv2_03_tlv_destmax_no_off.c:31"],
       "depth": 1,
       "eff_depth": 0,
       "blind": false,
-      "absorbed": ["W1 @ pucPkt + ulOff（lv2_03_tlv_destmax_no_off.c:41，末端 ulOff + 1，恒弱于本条）"],
-      "text": "W128 @ *pucPkt，末端 ulOff + 132；需 ulOff + 132 <= ext(pucPkt)"
+      "absorbed": [{"kind": "W", "end": ["p1 + 1", "p1 + 1"], "at": "lv2_03_tlv_destmax_no_off.c:41"}],
+      "doc": {
+        "text": "写 128 字节 @ *pucPkt，末端 ulOff + 132；需 ulOff + 132 <= ext(pucPkt)",
+        "obj": "*pucPkt",
+        "bytes": "128",
+        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+      }
     },
     {
       "id": "R2",
       "kind": "R",
-      "bytes": "p3",
-      "obj": "*pucVal",
       "have": "ext(p2)",
+      "obj": "*p2",
       "end": ["p3", "p3"],
       "start": "0",
       "bound": "exact",
       "guard": ["p3 <= 128"],
       "access": {
         "fn": "Tlv_WriteVal",
+        "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal",
         "at": "lv2_03_tlv_destmax_no_off.c:31",
-        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+        "end": "p3"
       },
       "path": ["Tlv_Append@lv2_03_tlv_destmax_no_off.c:42", "Tlv_WriteVal@lv2_03_tlv_destmax_no_off.c:31"],
       "depth": 1,
       "eff_depth": 0,
       "blind": false,
-      "text": "ulValLen <= 128 ⇒ RulValLen @ *pucVal，末端 ulValLen；需 ulValLen <= ext(pucVal)"
+      "doc": {
+        "text": "ulValLen <= 128 ⇒ 读 ulValLen 字节 @ *pucVal，末端 ulValLen；需 ulValLen <= ext(pucVal)",
+        "obj": "*pucVal",
+        "bytes": "p3",
+        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+      }
     }
   ],
   "effs": [],
@@ -56,9 +71,9 @@
       "site": "lv2_03_tlv_destmax_no_off.c:42",
       "callee": "Tlv_WriteVal",
       "args": [
-        {"ptr": "pucPkt", "have": "ext(p0)", "alias": "p0"},
+        {"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "pucPkt"},
         "p1 + 4",
-        {"ptr": "pucVal", "have": "ext(p2)", "alias": "p2"},
+        {"obj": "*p2", "have": "ext(p2)", "alias": "p2", "doc": "pucVal"},
         "p3"
       ],
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}, {"req": "R2", "outcome": "up", "as": "R2"}]

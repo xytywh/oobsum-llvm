@@ -3,23 +3,23 @@
   "fn": "Om_HandleCfg_OK",
   "key": "F@lv8_01_tlv_relative_check.c:Om_HandleCfg_OK",
   "loc": "lv8_01_tlv_relative_check.c:55",
-  "params": ["p: UINT8*", "n: UINT32", "o: UINT8*"],
+  "params": [{"name": "p", "type": "UINT8*"}, {"name": "n", "type": "UINT32"}, {"name": "o", "type": "UINT8*"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "R",
-      "bytes": "ulLen",
-      "obj": "*p",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["2", "p1"],
       "start": "2",
       "bound": "check",
       "guard": ["p1 >= 2"],
       "access": {
         "fn": "Tlv_ParseAll_OK",
+        "key": "F@lv8_01_tlv_relative_check.c:Tlv_ParseAll_OK",
         "at": "lv8_01_tlv_relative_check.c:47",
-        "code": "memcpy_s(pucOut, 256, pucBuf + ulOff + 2, ulLen)"
+        "end": "p1"
       },
       "path": [
         "Om_HandleCfg_OK@lv8_01_tlv_relative_check.c:55",
@@ -29,22 +29,27 @@
       "depth": 2,
       "eff_depth": 0,
       "blind": false,
-      "text": "n >= 2 ⇒ RulLen @ *p，末端 [2, n]；需 n <= ext(p)"
+      "doc": {
+        "text": "n >= 2 ⇒ 读 ulLen 字节 @ *p，末端 [2, n]；需 n <= ext(p)",
+        "obj": "*p",
+        "bytes": "ulLen",
+        "code": "memcpy_s(pucOut, 256, pucBuf + ulOff + 2, ulLen)"
+      }
     },
     {
       "id": "R2",
       "kind": "W",
-      "bytes": "256",
-      "obj": "*o",
       "have": "ext(p2)",
+      "obj": "*p2",
       "end": ["256", "256"],
       "start": "0",
       "bound": "exact",
       "guard": ["p1 >= 2"],
       "access": {
         "fn": "Tlv_ParseAll_OK",
+        "key": "F@lv8_01_tlv_relative_check.c:Tlv_ParseAll_OK",
         "at": "lv8_01_tlv_relative_check.c:47",
-        "code": "memcpy_s(pucOut, 256, pucBuf + ulOff + 2, ulLen)"
+        "end": "256"
       },
       "path": [
         "Om_HandleCfg_OK@lv8_01_tlv_relative_check.c:55",
@@ -54,7 +59,12 @@
       "depth": 2,
       "eff_depth": 0,
       "blind": false,
-      "text": "n >= 2 ⇒ W256 @ *o，末端 256；需 256 <= ext(o)"
+      "doc": {
+        "text": "n >= 2 ⇒ 写 256 字节 @ *o，末端 256；需 256 <= ext(o)",
+        "obj": "*o",
+        "bytes": "256",
+        "code": "memcpy_s(pucOut, 256, pucBuf + ulOff + 2, ulLen)"
+      }
     }
   ],
   "effs": [],
@@ -62,7 +72,11 @@
     {
       "site": "lv8_01_tlv_relative_check.c:55",
       "callee": "Msg_ParseBody_OK",
-      "args": [{"ptr": "p", "have": "ext(p0)", "alias": "p0"}, "p1", {"ptr": "o", "have": "ext(p2)", "alias": "p2"}],
+      "args": [
+        {"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "p"},
+        "p1",
+        {"obj": "*p2", "have": "ext(p2)", "alias": "p2", "doc": "o"}
+      ],
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}, {"req": "R2", "outcome": "up", "as": "R2"}]
     }
   ],

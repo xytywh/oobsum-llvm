@@ -4,25 +4,29 @@
   "key": "F:Alm_Dispatch",
   "tu": "alm_mid.c",
   "loc": "alm_mid.c:3",
-  "params": ["ulAlmId: UINT32", "ulCellId: UINT32"],
+  "params": [{"name": "ulAlmId", "type": "UINT32"}, {"name": "ulCellId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "1",
-      "obj": "g_aucAlmFlag",
       "have": "3",
+      "obj": "g:g_aucAlmFlag",
       "end": ["p0 + 1", "p0 + 1"],
       "start": "p0",
       "bound": "exact",
       "guard": [],
-      "access": {"fn": "Alm_SetFlag", "at": "alm_low.c:7", "code": "g_aucAlmFlag[ulAlmId] = 1"},
+      "access": {"fn": "Alm_SetFlag", "key": "F:Alm_SetFlag", "at": "alm_low.c:7", "end": "p0 + 1"},
       "path": ["Alm_Dispatch@alm_mid.c:6", "Alm_RaiseOne@alm_low.c:12", "Alm_SetFlag@alm_low.c:7"],
       "depth": 2,
       "eff_depth": 0,
       "blind": false,
-      "text": "W1 @ g_aucAlmFlag，末端 ulAlmId + 1；需 ulAlmId + 1 <= 3"
+      "doc": {
+        "text": "写 1 字节 @ g_aucAlmFlag，末端 ulAlmId + 1；需 ulAlmId + 1 <= 3",
+        "obj": "g_aucAlmFlag",
+        "bytes": "1",
+        "code": "g_aucAlmFlag[ulAlmId] = 1"
+      }
     }
   ],
   "effs": [],
@@ -32,14 +36,15 @@
       "callee": "LOG_Print",
       "model": "pure",
       "args": ["2", null, "p0", "p1"],
-      "results": [{"note": "LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件"}]
+      "results": [{"pure": true}],
+      "doc": "LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件"
     },
     {
       "site": "alm_mid.c:6",
       "callee": "Alm_RaiseOne",
       "args": ["p0"],
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}],
-      "note": "被调者在另一个 TU（alm_low.c）：solve 时从它的 FIR 求出的摘要"
+      "doc": "被调者在另一个 TU（alm_low.c）：solve 时从它的 FIR 求出的摘要"
     }
   ],
   "reps": [],

@@ -3,7 +3,7 @@
   "fn": "Cell_OnSetupTimeout_TN",
   "key": "F:Cell_OnSetupTimeout_TN",
   "loc": "lv1_01_stat_enum_butt.c:57",
-  "params": ["ulCellId: UINT32"],
+  "params": [{"name": "ulCellId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [],
@@ -13,7 +13,7 @@
       "callee": "Cell_RecordFail",
       "args": ["p0", "1"],
       "results": [{"req": "R1", "outcome": "safe"}],
-      "note": "CELL_STAT_SETUP_FAIL = 1"
+      "doc": "CELL_STAT_SETUP_FAIL = 1"
     }
   ],
   "reps": [],

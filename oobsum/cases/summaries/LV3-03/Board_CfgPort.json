@@ -3,23 +3,27 @@
   "fn": "Board_CfgPort",
   "key": "F@lv3_03_callee_guard_wrong.c:Board_CfgPort",
   "loc": "lv3_03_callee_guard_wrong.c:44",
-  "params": ["astPort: PORT_S*", "ulPortId: UINT32", "ulMode: UINT32"],
+  "params": [
+    {"name": "astPort", "type": "PORT_S*"},
+    {"name": "ulPortId", "type": "UINT32"},
+    {"name": "ulMode", "type": "UINT32"}
+  ],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "4",
-      "obj": "*astPort",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["24*p1 + 4", "24*p1 + 4"],
       "start": "24*p1",
       "bound": "exact",
       "guard": ["p1 <= 31"],
       "access": {
         "fn": "Port_SetMode",
+        "key": "F@lv3_03_callee_guard_wrong.c:Port_SetMode",
         "at": "lv3_03_callee_guard_wrong.c:40",
-        "code": "astPort[ulPortId].ulMode = ulMode"
+        "end": "24*p1 + 4"
       },
       "path": [
         "Board_CfgPort@lv3_03_callee_guard_wrong.c:44",
@@ -29,7 +33,12 @@
       "depth": 2,
       "eff_depth": 0,
       "blind": false,
-      "text": "ulPortId <= 31 ⇒ W4 @ *astPort，末端 24*ulPortId + 4；需 24*ulPortId + 4 <= ext(astPort)"
+      "doc": {
+        "text": "ulPortId <= 31 ⇒ 写 4 字节 @ *astPort，末端 24*ulPortId + 4；需 24*ulPortId + 4 <= ext(astPort)",
+        "obj": "*astPort",
+        "bytes": "4",
+        "code": "astPort[ulPortId].ulMode = ulMode"
+      }
     }
   ],
   "effs": [],
@@ -37,7 +46,7 @@
     {
       "site": "lv3_03_callee_guard_wrong.c:44",
       "callee": "Port_ApplyCfg",
-      "args": [{"ptr": "astPort", "have": "ext(p0)", "alias": "p0"}, "p1", "p2"],
+      "args": [{"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "astPort"}, "p1", "p2"],
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
     }
   ],

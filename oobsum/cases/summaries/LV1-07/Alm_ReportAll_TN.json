@@ -4,7 +4,7 @@
   "key": "F:Alm_ReportAll_TN",
   "tu": "alm_top.c",
   "loc": "alm_top.c:23",
-  "params": ["ulCellId: UINT32"],
+  "params": [{"name": "ulCellId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [],
@@ -14,7 +14,7 @@
       "callee": "Alm_Dispatch",
       "args": ["2", "p0"],
       "results": [{"req": "R1", "outcome": "safe"}],
-      "note": "ALM_ID_CLK_LOSS = 2"
+      "doc": "ALM_ID_CLK_LOSS = 2"
     }
   ],
   "reps": [],

@@ -3,30 +3,35 @@
   "fn": "Ctx_Clear",
   "key": "F@lv4_06_validator_func.c:Ctx_Clear",
   "loc": "lv4_06_validator_func.c:52",
-  "params": ["ulCellId: UINT32"],
+  "params": [{"name": "ulCellId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "32",
-      "obj": "g_astCellCtx",
       "have": "512",
+      "obj": "g:g_astCellCtx",
       "end": ["32*p0 + 32", "32*p0 + 32"],
       "start": "32*p0",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Ctx_Clear",
+        "key": "F@lv4_06_validator_func.c:Ctx_Clear",
         "at": "lv4_06_validator_func.c:54",
-        "code": "memset_s(&g_astCellCtx[ulCellId], sizeof(CELL_CTX_S), 0, sizeof(CELL_CTX_S))"
+        "end": "32*p0 + 32"
       },
       "path": ["Ctx_Clear@lv4_06_validator_func.c:54"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "CELL_CTX_S 32 字节 × 16 = 512",
-      "text": "W32 @ g_astCellCtx，末端 32*ulCellId + 32；需 32*ulCellId + 32 <= 512"
+      "doc": {
+        "text": "写 32 字节 @ g_astCellCtx，末端 32*ulCellId + 32；需 32*ulCellId + 32 <= 512",
+        "obj": "g_astCellCtx",
+        "bytes": "32",
+        "code": "memset_s(&g_astCellCtx[ulCellId], sizeof(CELL_CTX_S), 0, sizeof(CELL_CTX_S))",
+        "note": "CELL_CTX_S 32 字节 × 16 = 512"
+      }
     }
   ],
   "effs": [],
@@ -35,8 +40,9 @@
       "site": "lv4_06_validator_func.c:54",
       "callee": "memset_s",
       "model": "access",
-      "args": [{"ptr": "&g_astCellCtx[ulCellId]", "have": "512 - 32*p0"}, "32", "0", "32"],
-      "results": [{"note": "访问类模型 memset_s → R1"}]
+      "args": [{"obj": "g:g_astCellCtx", "have": "512 - 32*p0", "doc": "&g_astCellCtx[ulCellId]"}, "32", "0", "32"],
+      "results": [{"gen": ["R1"]}],
+      "doc": "访问类模型 memset_s → R1"
     }
   ],
   "reps": [],

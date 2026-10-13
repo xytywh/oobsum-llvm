@@ -1,10 +1,10 @@
 # 方案怎么比、摘要长什么样：按维度拆开的备选方案，以及 16 个用例的真实摘要
 
-> 调研包 v3.13 · 2026-10-13 · 给专家讨论用。**Part A** 回答"到底有哪些方案、怎么比"；**Part B** 回答"每个函数的摘要具体是什么、多层越界是怎么一步步判出来的"。
+> 调研包 v3.14 · 2026-10-13 · 给专家讨论用。**Part A** 回答"到底有哪些方案、怎么比"；**Part B** 回答"每个函数的摘要具体是什么、多层越界是怎么一步步判出来的"。
 >
 > 依据：`05-` §5（旧的 A–G）、`06-spec.md`（规格）、`cases/summaries/`：16 个代表用例、**104 份函数摘要 JSON**，
 > 以及回放器 `replay.py`（读 JSON、在每个调用点重做代换与判定、对照用例头的 `@expect`）——**16 个用例 32 个入口全部与期望一致，0 处不一致**【实测数据】。
-> 用例本身没有改动。
+> **v3.14**：摘要里的自然语言全部收进键名为 `doc` 的字段，引擎不读；去掉 `doc` 就是完整摘要，只读机器字段就能推到最终告警（B.1）。用例本身没有改动。
 
 ---
 
@@ -113,44 +113,155 @@ E、G 讲判定手段，F 只讲消费方。把它们放在一张表里比，相
 
 ## Part B　摘要实样：每个函数的摘要是什么，多层越界怎么判出来
 
-### B.1 一份摘要文件长什么样
+### B.1 先说清楚：摘要里的自然语言只给人看，去掉它就是完整摘要
 
-**一个函数一份 JSON。** 全量运行时落在 `WorkDir/summaries/<00..ff>.jsonl`（每行一份），`oobsum.py show <函数名>` 把一份打印成下面的样子；
-本包的 104 份样例在 `cases/summaries/<用例>/<函数名>.json`，格式定义在 `cases/summaries/summary.schema.json`（JSON Schema，104 份全部校验通过）。
+**结论**：摘要文件里的内容分两类。
 
-**顶层字段**
+* **键名为 `doc` 的**（出现在任何一层，字符串或对象）：**只给人看**——用形参名渲染的一句话、源码原文、宏的值、"为什么这样判"。
+  **引擎读入时把所有 `doc` 整棵删掉**，代换、判定、上传、记账、出告警、算指纹都不读它；生产运行默认根本不写（`06-` I-25 `Emit=machine`）。
+* **其余全部是机器字段**：整数、枚举、规范表达式、对象、位置、函数键。**去掉 `doc` 剩下的就是完整摘要**：
+  静态分析只读这些字段，就能在每个调用点代换、判定，并一路组合出最终告警——位置、英文消息、调用链 note、指纹全部由它们生成。
 
-| 字段 | 含义 | 例 |
-|---|---|---|
-| `fn`、`key`、`loc` | 函数名、跨 TU 唯一的键（`06-` D-01…D-08）、定义位置 | `"F:Ue_InitTbl"` |
-| `params` | 形参 `"名字: 类型"`；表达式里的 `p0`、`p1`… 按下标对应它们 | `["pstTbl: UE_S*", "ulNum: UINT32"]` |
-| `fields` | 摘要用到的字段符号：偏移、大小、类型（按目标 ABI） | `"p0->ulBufLen": {"off": 4, "size": 4}` |
-| `status` | `analyzed` / `partial:原因` / `skipped:原因`——"没分析"和"分析了没问题"分得开 | |
-| `reqs` | **前置条件**：调用方必须满足、否则本函数（或它调用的函数）里会越界 | 见下 |
-| `effs` | **效果**：对调用方有用的输出（新对象及大小、返回值范围、条件效应、写了哪个字段） | `{"kind": "ret_new", "size": "p0"}` |
-| `calls` | **调用点记录**：本函数的每个结论是从哪个调用点、哪次代换来的——调试与追溯就看它 | 见下 |
-| `reps` | **在本函数判定的越界**（汇合点在这里） | `{"level": "L2", "depth": 3, ...}` |
-| `opens` | **账本**：判不了的地方和原因（漏报都在这里留痕） | `{"reason": "pointer_stepping", ...}` |
+v3.13 的样例没把这条线划清：可读文本（`text`、`note`、`detail`、`msg`、实参原文 `ptr`、对象描述 `object`）和机器字段混在同一层。
+而且有两样东西**引擎其实要用、却只写在文本里**——访问的是哪个对象（告警里要写 `'szName'`，指纹要用它）、指针实参指向哪个对象。
+v3.14 把这两样改成机器字段 `obj`（写法见下），其余文字统一挪进 `doc`；L2 消息里 v3.13 手写的 "in Ue_InitTbl" 机器字段里没有，去掉了（`06-` D15）。
 
-**一条 Req**（以 `Ue_InitTbl` 为例：`ulIdx` 在循环里被换成了 `[0, ulNum − 1]`；`//` 后面是这里加的说明，文件里没有）
+**同一条 Req 的两种样子**（`Ue_InitTbl` 的 R1：`ulIdx` 在循环里被换成了 `[0, ulNum − 1]`）
 
-```jsonc
+文件里（带 `doc`，给人调试用）：
+
+```json
 {
-  "id": "R1", "kind": "W", "bytes": "4", "obj": "*pstTbl",
-  "have": "ext(p0)",                         // 从 pstTbl 起对象还剩多少字节
-  "end": ["4", "16*p1 - 12"],                // 访问末端（偏移 + 字节数）的 [下界, 上界]
-  "start": "0", "bound": "loop",             // 上界来自循环界——只有代码给出的上界才能判 L2
-  "guard": ["p1 >= 1"],                      // 循环至少执行一次才有这次访问
-  "access": {"fn": "Ue_InitOne", "at": "lv4_01_wrapper_alloc_spec.c:52", "code": "pstTbl[ulIdx].ulState = 0"},
+  "id": "R1",
+  "kind": "W",
+  "have": "ext(p0)",
+  "obj": "*p0",
+  "end": ["4", "16*p1 - 12"],
+  "start": "0",
+  "bound": "loop",
+  "guard": ["p1 >= 1"],
+  "access": {
+    "fn": "Ue_InitOne",
+    "key": "F@lv4_01_wrapper_alloc_spec.c:Ue_InitOne",
+    "at": "lv4_01_wrapper_alloc_spec.c:52",
+    "end": "16*p1 + 4"
+  },
   "path": ["Ue_InitTbl@lv4_01_wrapper_alloc_spec.c:59", "Ue_InitOne@lv4_01_wrapper_alloc_spec.c:52"],
-  "depth": 1, "eff_depth": 0, "blind": false,
-  "text": "ulNum >= 1 ⇒ W4 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 <= ext(pstTbl)"
+  "depth": 1,
+  "eff_depth": 0,
+  "blind": false,
+  "doc": {
+    "text": "ulNum >= 1 ⇒ 写 4 字节 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 <= ext(pstTbl)",
+    "obj": "*pstTbl",
+    "bytes": "4",
+    "code": "pstTbl[ulIdx].ulState = 0"
+  }
 }
 ```
 
-安全条件统一读作 **`end` 的上界 `<=` `have`**；`text` 是用形参名渲染的可读形式（派生字段，读入时忽略）。
+引擎读到的（`python3 replay.py --strip DIR` 输出的就是这个；`doc` 里的每一项都能由机器字段 + 源码重新生成，或者纯属解释）：
 
-**表达式写法**（都是字符串，人能直接读，C++ 侧用一个小解析器读）
+```json
+{
+  "id": "R1",
+  "kind": "W",
+  "have": "ext(p0)",
+  "obj": "*p0",
+  "end": ["4", "16*p1 - 12"],
+  "start": "0",
+  "bound": "loop",
+  "guard": ["p1 >= 1"],
+  "access": {
+    "fn": "Ue_InitOne",
+    "key": "F@lv4_01_wrapper_alloc_spec.c:Ue_InitOne",
+    "at": "lv4_01_wrapper_alloc_spec.c:52",
+    "end": "16*p1 + 4"
+  },
+  "path": ["Ue_InitTbl@lv4_01_wrapper_alloc_spec.c:59", "Ue_InitOne@lv4_01_wrapper_alloc_spec.c:52"],
+  "depth": 1,
+  "eff_depth": 0,
+  "blind": false
+}
+```
+
+安全条件统一读作 **`end[1] <= have`**：这里是 `16*p1 - 12 <= ext(p0)`，守卫 `p1 >= 1`，上界来自循环（`loop`，代码给出的界，可判 L2）。
+
+**怎么证明"只读机器字段就够"**（`cases/summaries/replay.py`，全部【实测数据】）
+
+| 检查 | 做法 | 结果 |
+|---|---|---|
+| 结构上关死 | `summary.schema.json` 里除 `doc` 外每个对象都是 `additionalProperties: false`：多出一个键（比如顺手加的 `"note": "…"`）校验就不过 | 104 份全部通过 |
+| 不许混入自然语言 | `doc` 之外出现中文或成句的英文就报错 | 0 处 |
+| 逐调用点核对 ① | 计算前先删掉全部 `doc`；在每个调用点把被调者的 Req / Eff 代进来，结论与 JSON 记的比 | 16 个用例 0 处不一致 |
+| **从局部事实推到底 ②** | 只拿每个函数**自己当场算出来的东西**——本函数访问点生成的 Req（depth 0）、调用点的实参（值、指针的 `obj` / `have` / 字段）、局部区间、守卫——自底向上把上传的 Req、判定、入口账本**全部重新推一遍**，再按 `06-` F-30…F-34 组装最终告警 | 推出上传 Req 58 条、判定 13 条、入口账本 8 条，与 JSON 一致；**最终告警 13 条，与 @expect 一致**，与 `alerts.json` 逐条相同 |
+| 删掉 doc 再跑 | `--strip DIR` 写出 104 份机器版，`--dir DIR` 从机器版重跑 | 最终告警文件逐字节相同；回放输出只有实参的显示名不同（没有原文就显示 `local:szName`） |
+| 改坏能抓到 | 在机器版里改一个 `obj`、改一个访问点的 `end`、塞一个 `note`、往字符串里写中文 | 分别报出：推出的 Req / 判定与 JSON 不同（指出字段与指纹）、depth-0 访问自相矛盾、schema 不过、doc 之外有自然语言 |
+
+**最终告警长什么样**（`cases/summaries/alerts.json`，13 条之一；`06-` F-30…F-35，全部由判定记录 `reps[]` 的机器字段生成）：
+
+```json
+{
+  "checker": "OobSummary",
+  "bug_type": "Out-of-bound access via call chain (possible)",
+  "category": "Memory error",
+  "level": "L2",
+  "fn": "Ue_ModuleInit_TP",
+  "loc": "lv4_01_wrapper_alloc_spec.c:72",
+  "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 1012 of heap object allocated at lv4_01_wrapper_alloc_spec.c:68 (512 bytes) may be accessed; the bound comes from a loop condition",
+  "notes": [
+    "Call chain: Ue_ModuleInit_TP (lv4_01_wrapper_alloc_spec.c:72) -> Ue_Setup (lv4_01_wrapper_alloc_spec.c:63) -> Ue_InitTbl (lv4_01_wrapper_alloc_spec.c:59) -> Ue_InitOne (lv4_01_wrapper_alloc_spec.c:52)",
+    "lv4_01_wrapper_alloc_spec.c:72: call to Ue_Setup",
+    "lv4_01_wrapper_alloc_spec.c:63: call to Ue_InitTbl",
+    "lv4_01_wrapper_alloc_spec.c:59: call to Ue_InitOne",
+    "lv4_01_wrapper_alloc_spec.c:52: the write happens here"
+  ],
+  "fp": "7aa2a3fdb22f5ade",
+  "case": "LV4-01"
+}
+```
+
+* `msg`：F-32 模板，占位全部取自机器字段——`depth` 3、`end[1]` 1012、`obj` `heap@…:68`、`have` 512、`bound` `loop` → "a loop condition"。
+* `notes`：第一条是总链（由 `chain` 生成）；其后是汇合点所在文件里的每一跳。跨文件的链（LV1-07）把整条链附在消息末尾。
+* `fp`：`xxHash64("OobSummary|L2|F:Ue_ModuleInit_TP|<access.key>|W|<access.end>|heap@…:68")`，不含行号；
+  `replay.py` 里的 XXH64 与 LLVM 14 的 `llvm::xxHash64` 逐位相同【实测数据】，C++ 侧算出来就是这个值。
+* `alerts.json` 就是 C++ `Report.cpp` 的金标准（`06-` T-06、A-92）。
+
+**`doc` 里放了什么**（全部可删）
+
+| 位置 | `doc` 的内容 |
+|---|---|
+| Req | `text`（用形参名渲染的一句话）、`obj`（对象的源码写法）、`bytes`（访问字节数）、`code`（访问点源码）、`note`（为什么） |
+| Eff | `text`、`via`（从哪个分配器 / 封装传上来的） |
+| 调用点 / 指针实参 / 守卫 | 宏的值、实参原文（`pstTbl`）、守卫来自哪个条件效应 |
+| 判定 | `msg`：F-32 模板生成的告警文本副本，方便看文件时对照 |
+| 账本 | 细节：哪个函数没建模、为什么不算代码给出的界 |
+| 顶层 | 函数级说明 |
+
+用例目录里的 `case.json`（标题、要点、代码）是本文件走查用的元数据，**不是摘要**，引擎不产生也不读。
+
+**机器字段一览**（完整定义见 `cases/summaries/summary.schema.json` 与 `06-` §5.3）
+
+| 位置 | 字段 | 含义 |
+|---|---|---|
+| 顶层 | `fn`、`key`、`tu`、`loc` | 函数名、跨 TU 唯一的键（`F:名字` / `F@文件:名字`）、定义所在 TU、定义位置 |
+| | `params` | `[{name, type}, …]`，下标就是表达式里的 `p0`、`p1`… |
+| | `fields` | 摘要用到的字段符号：`"p0->ulBufLen": {"off": 4, "size": 4, "type": "UINT32"}` |
+| | `status` | `analyzed` / `partial:原因` / `skipped:原因` |
+| Req | `kind`、`have`、`obj`、`end`、`start` | 读 / 写；从基址起还剩多少字节；哪个对象；访问末端 `[下界, 上界]`；最小偏移 |
+| | `bound`、`guard` | 上界的来源标签；只有守卫成立才会发生这次访问 |
+| | `access` | `{fn, key, at, end}`：真正的访问点（函数、函数键、位置、访问点自身的末端式），原样上传，指纹用它 |
+| | `path`、`depth`、`eff_depth`、`blind`、`absorbed` | 到访问点经过的调用点；层数；盲区；被覆盖的较弱访问 `[{kind, end, at}]` |
+| Eff | `kind` + 各自字段 | `ret_new`（`size`、`maybe_null`、`eff_depth`）、`ret_int`（`range`、`bound`）、`ret_cond`（`when`、`then`）、`field`（`target`、`value`）… |
+| 调用点 `calls[]` | `site`、`callee`、`model` | 位置、被调者、模型类别（`access` / `alloc` / `pure` / `unknown`） |
+| | `args` | 整数实参写表达式；指针实参写 `{obj, have, alias?, fields?, eff_depth?}`；无关的写 `null` |
+| | `locals`、`guards` | 实参里用到的本函数局部在调用点的区间 `{range, bound}`；调用点处成立的守卫 `{cond, bound}` |
+| | `results` | 被调者每条 Req / Eff 在这里的结局，全部结构化：`{req, outcome: up, as}`、`{req, outcome: safe}`、`{req, outcome: L1/L2, report}`、`{req, outcome: open, reason}`、`{eff, apply}`、`{gen: [Req…]}`、`{gen_eff: [序号…]}`、`{pure: true}`、`{open: reason}` |
+| 判定 `reps[]` | `level`、`reported`、`site`、`access`、`kind`、`obj`、`via?`、`have`、`end`、`bound`、`depth`、`eff_depth`、`chain`、`fp` | 告警的全部原料 |
+| 账本 `opens[]` | `reason`、`at`、`req?` | 27 类原因之一；位置；入口处到此为止的 Req |
+
+**调用点记录是调试的主要入口**：任何一条告警或漏报，都能顺着 `calls[].results` 一层层找到是哪一次代换得出的。
+
+**表达式与对象的写法**（都是字符串，人能直接读，C++ 侧用一个小解析器读）
 
 | 写法 | 含义 |
 |---|---|
@@ -160,23 +271,13 @@ E、G 讲判定手段，F 只讲消费方。把它们放在一张表里比，相
 | `g:g_x` | 全局在入口时的值 |
 | `div(p1, 32)`、`mod(e, n)`、`wrap32(p1 - 1)`、`mul(a, b)` | 不透明项：除以常数、取模、无符号回绕、两个变量相乘——代换成常数后才求值 |
 | `p1 <= 31`、`div(p1 + 31, 32) >= 1` | 守卫 / 条件 |
-
-**效果的种类**：`ret_new`（返回新对象，`size`、`maybe_null`、`eff_depth`）、`ret_ptr`、`ret_int`（返回值范围）、`ret_cond`（`ret == c ⇒ …`，校验函数）、
-`out_new` / `out_int`（出参）、`field`（写了形参指向的结构体的哪个字段）、`global`、`invalidate`。
-
-**调用点记录**（`calls[]`）：`site`、`callee`、`args`（整数实参写表达式；指针实参写 `{"ptr": 原文, "have": 还剩多少字节, "alias"?: 就是调用方的哪个形参, "fields"?: 栈帧里记着的字段值}`）、
-`locals`（实参里用到的本函数局部在调用点的区间）、`guards`（调用点处成立的守卫，比如条件效应收窄出来的）、`results`（被调者每条 Req / Eff 在这里的结局：
-`up` 上传成本函数的哪条、`safe`、`L1` / `L2` 对应哪条判定、`open` 记账原因）。**这一节是调试的主要入口**：任何一条告警或漏报，都能顺着 `calls` 一层层找到是哪一次代换得出的。
-
-**判定**（`reps[]`）：`level`、`reported`（是否真的报——层数过滤后）、`site`（告警位置：汇合点的调用表达式）、`access`、`object`、`have`、`end`、`bound`、
-`depth` / `eff_depth`、`chain`（逐层 trace）、`msg`（英文告警文本）、`fp`（指纹）。
-
-**账本**（`opens[]`）：`reason`（`06-` D-27 的枚举）、`at`、`detail`；入口处到此为止的 Req 带 `req` 指回去。
+| 对象 `g:g_aulCellStat`、`local:aucPkt`、`heap@ue.c:68` | 全局、局部、在该调用点分配的堆对象——代换时不变 |
+| 对象 `*p0`、`*p0->pucBuf`、`p0->aucBody` | 形参所指对象、形参所指结构体里指针字段所指对象、形参所指结构体里的数组成员——在调用点换成实参的 `obj` |
 
 ### B.2 调用点上怎么判（结合字段看）
 
 1. **取被调者的摘要**（`calls[].callee`）。
-2. **建代换表**：整数形参 `p_i` ↦ `args[i]`；`ext(p_i)` ↦ `args[i].have`；字段 `p_i->f` ↦ `args[i].fields.f`，或经 `alias` 改写成调用方自己的字段符号。
+2. **建代换表**：整数形参 `p_i` ↦ `args[i]`；`ext(p_i)` ↦ `args[i].have`；对象 `*p_i` ↦ `args[i].obj`；字段 `p_i->f` ↦ `args[i].fields.f`，或经 `alias` 改写成调用方自己的字段符号。
 3. **代换并化简**：`end`、`have`、`guard` 全部代进来，同类项先抵消；`locals` 里的局部换成区间，同时生成"区间非空"的守卫（循环至少执行一次）。
 4. **判定**：
 
@@ -231,12 +332,16 @@ E、G 讲判定手段，F 只讲消费方。把它们放在一张表里比，相
 
 ```bash
 cd 08-summary2-design/cases/summaries
-python3 replay.py                 # 16 个用例全部回放：每个调用点重做代换与判定，核对 JSON 与 @expect
-python3 replay.py LV4-01 -v       # 打印一个用例的每一步
+python3 replay.py                       # 全部用例：① 逐调用点核对 ② 从局部事实推到底、组装最终告警，对照 @expect 与 alerts.json
+python3 replay.py LV4-01 -v             # 打印一个用例的每一步
+python3 replay.py --strip /tmp/mach     # 写出去掉 doc 的机器版（引擎实际读写的样子）
+python3 replay.py --dir /tmp/mach       # 从机器版重跑：结论与上面完全相同
+python3 replay.py --alerts /tmp/a.json  # 把推出来的最终告警写成 JSON（alerts.json 就是这样生成的）
 python3 replay.py --md ../../08-options-and-summary-examples.md   # 重新生成本文件的 B.5
 ```
 
-改任何一份 JSON（比如把某条 Req 的 `end` 改掉），回放会指出是哪个调用点对不上——这也是 C++ 引擎接上以后的对照方法。
+改任何一份 JSON 的机器字段（比如把某条 Req 的 `end` 或 `obj` 改掉），回放会指出是哪个调用点、哪个字段对不上；改 `doc` 不影响任何结论。
+这也是 C++ 引擎接上以后的对照方法（`06-` T-06）。
 
 ### B.5 逐用例
 
@@ -287,15 +392,15 @@ void Cell_OnSetupTimeout_TN(UINT32 ulCellId)
 }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV1-01/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV1-01/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Stat_Inc` | **R1** W4 @ g_aulCellStat，末端 4*ulType + 4；需 4*ulType + 4 <= 16 | — | — |
-| `Cell_UpdateStat` | **R1** W4 @ g_aulCellStat，末端 4*ulType + 4；需 4*ulType + 4 <= 16（depth 1） | — | — |
-| `Cell_RecordFail` | **R1** W4 @ g_aulCellStat，末端 4*ulCause + 4；需 4*ulCause + 4 <= 16（depth 2） | — | — |
+| `Stat_Inc` | **R1** `4*p0 + 4 <= 16` @ `g:g_aulCellStat` · exact | — | — |
+| `Cell_UpdateStat` | **R1** `4*p0 + 4 <= 16` @ `g:g_aulCellStat` · exact（depth 1） | — | — |
+| `Cell_RecordFail` | **R1** `4*p1 + 4 <= 16` @ `g:g_aulCellStat` · exact（depth 2） | — | — |
 | `Cell_OnSetupTimeout_TN` | — | — | — |
-| `Cell_OnSetupTimeout_TP` | — | — | **RPT1 L1**（depth 3） |
+| `Cell_OnSetupTimeout_TP` | — | — | **RPT1 L1** `g:g_aulCellStat` 末端 20 > 16（depth 3） |
 
 <details open><summary><code>Stat_Inc.json</code></summary>
 
@@ -305,26 +410,35 @@ void Cell_OnSetupTimeout_TN(UINT32 ulCellId)
   "fn": "Stat_Inc",
   "key": "F@lv1_01_stat_enum_butt.c:Stat_Inc",
   "loc": "lv1_01_stat_enum_butt.c:35",
-  "params": ["ulType: UINT32"],
+  "params": [{"name": "ulType", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "4",
-      "obj": "g_aulCellStat",
       "have": "16",
+      "obj": "g:g_aulCellStat",
       "end": ["4*p0 + 4", "4*p0 + 4"],
       "start": "4*p0",
       "bound": "exact",
       "guard": [],
-      "access": {"fn": "Stat_Inc", "at": "lv1_01_stat_enum_butt.c:37", "code": "g_aulCellStat[ulType]++"},
+      "access": {
+        "fn": "Stat_Inc",
+        "key": "F@lv1_01_stat_enum_butt.c:Stat_Inc",
+        "at": "lv1_01_stat_enum_butt.c:37",
+        "end": "4*p0 + 4"
+      },
       "path": ["Stat_Inc@lv1_01_stat_enum_butt.c:37"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "absorbed": ["R4 @ g_aulCellStat + 4*ulType（同一位置的读，条件相同）"],
-      "text": "W4 @ g_aulCellStat，末端 4*ulType + 4；需 4*ulType + 4 <= 16"
+      "absorbed": [{"kind": "R", "end": ["4*p0 + 4", "4*p0 + 4"], "at": "lv1_01_stat_enum_butt.c:37"}],
+      "doc": {
+        "text": "写 4 字节 @ g_aulCellStat，末端 4*ulType + 4；需 4*ulType + 4 <= 16",
+        "obj": "g_aulCellStat",
+        "bytes": "4",
+        "code": "g_aulCellStat[ulType]++"
+      }
     }
   ],
   "effs": [],
@@ -343,7 +457,7 @@ void Cell_OnSetupTimeout_TN(UINT32 ulCellId)
   "fn": "Cell_OnSetupTimeout_TP",
   "key": "F:Cell_OnSetupTimeout_TP",
   "loc": "lv1_01_stat_enum_butt.c:52",
-  "params": ["ulCellId: UINT32"],
+  "params": [{"name": "ulCellId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [],
@@ -353,7 +467,7 @@ void Cell_OnSetupTimeout_TN(UINT32 ulCellId)
       "callee": "Cell_RecordFail",
       "args": ["p0", "4"],
       "results": [{"req": "R1", "outcome": "L1", "report": "RPT1"}],
-      "note": "CELL_STAT_BUTT = 4"
+      "doc": "CELL_STAT_BUTT = 4"
     }
   ],
   "reps": [
@@ -362,8 +476,14 @@ void Cell_OnSetupTimeout_TN(UINT32 ulCellId)
       "level": "L1",
       "reported": true,
       "site": "lv1_01_stat_enum_butt.c:54",
-      "access": "Stat_Inc@lv1_01_stat_enum_butt.c:37",
-      "object": "g_aulCellStat",
+      "access": {
+        "fn": "Stat_Inc",
+        "key": "F@lv1_01_stat_enum_butt.c:Stat_Inc",
+        "at": "lv1_01_stat_enum_butt.c:37",
+        "end": "4*p0 + 4"
+      },
+      "kind": "W",
+      "obj": "g:g_aulCellStat",
       "have": "16",
       "end": ["20", "20"],
       "bound": "exact",
@@ -375,8 +495,10 @@ void Cell_OnSetupTimeout_TN(UINT32 ulCellId)
         "Cell_UpdateStat@lv1_01_stat_enum_butt.c:43",
         "Stat_Inc@lv1_01_stat_enum_butt.c:37"
       ],
-      "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 20 of 'g_aulCellStat' (16 bytes) is accessed",
-      "fp": "0e286fe42ea23461"
+      "fp": "dc29cb0defb73e92",
+      "doc": {
+        "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 20 of 'g_aulCellStat' (16 bytes) is accessed"
+      }
     }
   ],
   "opens": []
@@ -388,17 +510,17 @@ void Cell_OnSetupTimeout_TN(UINT32 ulCellId)
 
 ```text
 - Cell_UpdateStat @ lv1_01_stat_enum_butt.c:42  调用 LOG_Print(3, …, p0)
-    · LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件
+    · 纯函数模型 LOG_Print：不失效、不产生条件
 - Cell_UpdateStat @ lv1_01_stat_enum_butt.c:43  调用 Stat_Inc(p0)
-    · Stat_Inc.R1：末端 4*p0 + 4，对象 16 → up → 本函数 R1
+    · Stat_Inc.R1：末端 4*p0 + 4，对象 g:g_aulCellStat（16 字节）→ up → 本函数 R1
 - Cell_RecordFail @ lv1_01_stat_enum_butt.c:48  调用 LOG_Print(2, …, p0)
-    · LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件
+    · 纯函数模型 LOG_Print：不失效、不产生条件
 - Cell_RecordFail @ lv1_01_stat_enum_butt.c:49  调用 Cell_UpdateStat(p1)
-    · Cell_UpdateStat.R1：末端 4*p1 + 4，对象 16 → up → 本函数 R1
+    · Cell_UpdateStat.R1：末端 4*p1 + 4，对象 g:g_aulCellStat（16 字节）→ up → 本函数 R1
 - Cell_OnSetupTimeout_TN @ lv1_01_stat_enum_butt.c:59  调用 Cell_RecordFail(p0, 1)
-    · Cell_RecordFail.R1：末端 8，对象 16 → safe（最大末端 8 ≤ 16）
+    · Cell_RecordFail.R1：末端 8，对象 g:g_aulCellStat（16 字节）→ safe（最大末端 8 ≤ 16）
 - Cell_OnSetupTimeout_TP @ lv1_01_stat_enum_butt.c:54  调用 Cell_RecordFail(p0, 4)
-    · Cell_RecordFail.R1：末端 20，对象 16 → L1（最小末端 20 > 16，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
+    · Cell_RecordFail.R1：末端 20，对象 g:g_aulCellStat（16 字节）→ L1（最小末端 20 > 16，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
 - 期望 TP Cell_OnSetupTimeout_TP pa=L1 → 回放 L1 ✓
 - 期望 TN Cell_OnSetupTimeout_TN pa=- → 回放 - ✓
 ```
@@ -444,15 +566,15 @@ void Ue_ShowInfo_TN(UINT32 ulUeId)
 }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV1-02/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV1-02/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Name_Terminate` | **R1** W1 @ *pszName，末端 17；需 17 <= ext(pszName) | — | — |
-| `Name_Format` | **R1** W1 @ *pszName，末端 17；需 17 <= ext(pszName)（depth 1） | — | — |
-| `Ue_BuildName` | **R1** W1 @ *pszName，末端 17；需 17 <= ext(pszName)（depth 2） | — | — |
+| `Name_Terminate` | **R1** `17 <= ext(p0)` @ `*p0` · exact | — | — |
+| `Name_Format` | **R1** `17 <= ext(p0)` @ `*p0` · exact（depth 1） | — | — |
+| `Ue_BuildName` | **R1** `17 <= ext(p0)` @ `*p0` · exact（depth 2） | — | — |
 | `Ue_ShowInfo_TN` | — | — | — |
-| `Ue_ShowInfo_TP` | — | — | **RPT1 L1**（depth 3） |
+| `Ue_ShowInfo_TP` | — | — | **RPT1 L1** `local:szName` 末端 17 > 16（depth 3） |
 
 <details open><summary><code>Name_Terminate.json</code></summary>
 
@@ -462,25 +584,34 @@ void Ue_ShowInfo_TN(UINT32 ulUeId)
   "fn": "Name_Terminate",
   "key": "F@lv1_02_name_terminator.c:Name_Terminate",
   "loc": "lv1_02_name_terminator.c:27",
-  "params": ["pszName: CHAR*"],
+  "params": [{"name": "pszName", "type": "CHAR*"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "1",
-      "obj": "*pszName",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["17", "17"],
       "start": "16",
       "bound": "exact",
       "guard": [],
-      "access": {"fn": "Name_Terminate", "at": "lv1_02_name_terminator.c:29", "code": "pszName[UE_NAME_LEN] = '\\0'"},
+      "access": {
+        "fn": "Name_Terminate",
+        "key": "F@lv1_02_name_terminator.c:Name_Terminate",
+        "at": "lv1_02_name_terminator.c:29",
+        "end": "17"
+      },
       "path": ["Name_Terminate@lv1_02_name_terminator.c:29"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "text": "W1 @ *pszName，末端 17；需 17 <= ext(pszName)"
+      "doc": {
+        "text": "写 1 字节 @ *pszName，末端 17；需 17 <= ext(pszName)",
+        "obj": "*pszName",
+        "bytes": "1",
+        "code": "pszName[UE_NAME_LEN] = '\\0'"
+      }
     }
   ],
   "effs": [],
@@ -499,29 +630,38 @@ void Ue_ShowInfo_TN(UINT32 ulUeId)
   "fn": "Name_Format",
   "key": "F@lv1_02_name_terminator.c:Name_Format",
   "loc": "lv1_02_name_terminator.c:32",
-  "params": ["pszName: CHAR*", "ulUeId: UINT32"],
+  "params": [{"name": "pszName", "type": "CHAR*"}, {"name": "ulUeId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "1",
-      "obj": "*pszName",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["17", "17"],
       "start": "16",
       "bound": "exact",
       "guard": [],
-      "access": {"fn": "Name_Terminate", "at": "lv1_02_name_terminator.c:29", "code": "pszName[UE_NAME_LEN] = '\\0'"},
+      "access": {
+        "fn": "Name_Terminate",
+        "key": "F@lv1_02_name_terminator.c:Name_Terminate",
+        "at": "lv1_02_name_terminator.c:29",
+        "end": "17"
+      },
       "path": ["Name_Format@lv1_02_name_terminator.c:36", "Name_Terminate@lv1_02_name_terminator.c:29"],
       "depth": 1,
       "eff_depth": 0,
       "blind": false,
       "absorbed": [
-        "W1 @ pszName + 0（lv1_02_name_terminator.c:34，末端 1）",
-        "W1 @ pszName + 1（lv1_02_name_terminator.c:35，末端 2）"
+        {"kind": "W", "end": ["1", "1"], "at": "lv1_02_name_terminator.c:34"},
+        {"kind": "W", "end": ["2", "2"], "at": "lv1_02_name_terminator.c:35"}
       ],
-      "text": "W1 @ *pszName，末端 17；需 17 <= ext(pszName)"
+      "doc": {
+        "text": "写 1 字节 @ *pszName，末端 17；需 17 <= ext(pszName)",
+        "obj": "*pszName",
+        "bytes": "1",
+        "code": "pszName[UE_NAME_LEN] = '\\0'"
+      }
     }
   ],
   "effs": [],
@@ -529,7 +669,7 @@ void Ue_ShowInfo_TN(UINT32 ulUeId)
     {
       "site": "lv1_02_name_terminator.c:36",
       "callee": "Name_Terminate",
-      "args": [{"ptr": "pszName", "have": "ext(p0)", "alias": "p0"}],
+      "args": [{"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "pszName"}],
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
     }
   ],
@@ -547,7 +687,7 @@ void Ue_ShowInfo_TN(UINT32 ulUeId)
   "fn": "Ue_ShowInfo_TP",
   "key": "F:Ue_ShowInfo_TP",
   "loc": "lv1_02_name_terminator.c:44",
-  "params": ["ulUeId: UINT32"],
+  "params": [{"name": "ulUeId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [],
@@ -555,16 +695,17 @@ void Ue_ShowInfo_TN(UINT32 ulUeId)
     {
       "site": "lv1_02_name_terminator.c:47",
       "callee": "Ue_BuildName",
-      "args": [{"ptr": "szName", "have": "16"}, "p0"],
+      "args": [{"obj": "local:szName", "have": "16", "doc": "szName"}, "p0"],
       "results": [{"req": "R1", "outcome": "L1", "report": "RPT1"}],
-      "note": "CHAR szName[UE_NAME_LEN]，16 字节"
+      "doc": "CHAR szName[UE_NAME_LEN]，16 字节"
     },
     {
       "site": "lv1_02_name_terminator.c:48",
       "callee": "LOG_Print",
       "model": "pure",
       "args": ["3", null, null],
-      "results": [{"note": "LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件"}]
+      "results": [{"pure": true}],
+      "doc": "LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件"
     }
   ],
   "reps": [
@@ -573,8 +714,14 @@ void Ue_ShowInfo_TN(UINT32 ulUeId)
       "level": "L1",
       "reported": true,
       "site": "lv1_02_name_terminator.c:47",
-      "access": "Name_Terminate@lv1_02_name_terminator.c:29",
-      "object": "szName",
+      "access": {
+        "fn": "Name_Terminate",
+        "key": "F@lv1_02_name_terminator.c:Name_Terminate",
+        "at": "lv1_02_name_terminator.c:29",
+        "end": "17"
+      },
+      "kind": "W",
+      "obj": "local:szName",
       "have": "16",
       "end": ["17", "17"],
       "bound": "exact",
@@ -586,8 +733,10 @@ void Ue_ShowInfo_TN(UINT32 ulUeId)
         "Name_Format@lv1_02_name_terminator.c:36",
         "Name_Terminate@lv1_02_name_terminator.c:29"
       ],
-      "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 17 of 'szName' (16 bytes) is accessed",
-      "fp": "da30a4888779f6eb"
+      "fp": "b65f334b52a45ae7",
+      "doc": {
+        "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 17 of 'szName' (16 bytes) is accessed"
+      }
     }
   ],
   "opens": []
@@ -599,17 +748,17 @@ void Ue_ShowInfo_TN(UINT32 ulUeId)
 
 ```text
 - Name_Format @ lv1_02_name_terminator.c:36  调用 Name_Terminate(pszName)
-    · Name_Terminate.R1：末端 17，对象 ext(p0) → up → 本函数 R1
+    · Name_Terminate.R1：末端 17，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Ue_BuildName @ lv1_02_name_terminator.c:41  调用 Name_Format(pszName, p1)
-    · Name_Format.R1：末端 17，对象 ext(p0) → up → 本函数 R1
+    · Name_Format.R1：末端 17，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Ue_ShowInfo_TN @ lv1_02_name_terminator.c:54  调用 Ue_BuildName(szName, p0)
-    · Ue_BuildName.R1：末端 17，对象 17 → safe（最大末端 17 ≤ 17）
+    · Ue_BuildName.R1：末端 17，对象 local:szName（17 字节）→ safe（最大末端 17 ≤ 17）
 - Ue_ShowInfo_TN @ lv1_02_name_terminator.c:55  调用 LOG_Print(3, …, …)
-    · LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件
+    · 纯函数模型 LOG_Print：不失效、不产生条件
 - Ue_ShowInfo_TP @ lv1_02_name_terminator.c:47  调用 Ue_BuildName(szName, p0)
-    · Ue_BuildName.R1：末端 17，对象 16 → L1（最小末端 17 > 16，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
+    · Ue_BuildName.R1：末端 17，对象 local:szName（16 字节）→ L1（最小末端 17 > 16，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
 - Ue_ShowInfo_TP @ lv1_02_name_terminator.c:48  调用 LOG_Print(3, …, …)
-    · LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件
+    · 纯函数模型 LOG_Print：不失效、不产生条件
 - 期望 TP Ue_ShowInfo_TP pa=L1 → 回放 L1 ✓
 - 期望 TN Ue_ShowInfo_TN pa=- → 回放 - ✓
 ```
@@ -646,15 +795,15 @@ void Alm_ReportAll_TP(UINT32 ulCellId) { Alm_Dispatch(ALM_ID_BUTT, ulCellId); }
 void Alm_ReportAll_TN(UINT32 ulCellId) { Alm_Dispatch(ALM_ID_CLK_LOSS, ulCellId); }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV1-07/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV1-07/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Alm_SetFlag` | **R1** W1 @ g_aucAlmFlag，末端 ulAlmId + 1；需 ulAlmId + 1 <= 3 | — | — |
-| `Alm_RaiseOne` | **R1** W1 @ g_aucAlmFlag，末端 ulAlmId + 1；需 ulAlmId + 1 <= 3（depth 1） | — | — |
-| `Alm_Dispatch` | **R1** W1 @ g_aucAlmFlag，末端 ulAlmId + 1；需 ulAlmId + 1 <= 3（depth 2） | — | — |
+| `Alm_SetFlag` | **R1** `p0 + 1 <= 3` @ `g:g_aucAlmFlag` · exact | — | — |
+| `Alm_RaiseOne` | **R1** `p0 + 1 <= 3` @ `g:g_aucAlmFlag` · exact（depth 1） | — | — |
+| `Alm_Dispatch` | **R1** `p0 + 1 <= 3` @ `g:g_aucAlmFlag` · exact（depth 2） | — | — |
 | `Alm_ReportAll_TN` | — | — | — |
-| `Alm_ReportAll_TP` | — | — | **RPT1 L1**（depth 3） |
+| `Alm_ReportAll_TP` | — | — | **RPT1 L1** `g:g_aucAlmFlag` 末端 4 > 3（depth 3） |
 
 <details open><summary><code>Alm_SetFlag.json</code></summary>
 
@@ -665,25 +814,29 @@ void Alm_ReportAll_TN(UINT32 ulCellId) { Alm_Dispatch(ALM_ID_CLK_LOSS, ulCellId)
   "key": "F:Alm_SetFlag",
   "tu": "alm_low.c",
   "loc": "alm_low.c:5",
-  "params": ["ulAlmId: UINT32"],
+  "params": [{"name": "ulAlmId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "1",
-      "obj": "g_aucAlmFlag",
       "have": "3",
+      "obj": "g:g_aucAlmFlag",
       "end": ["p0 + 1", "p0 + 1"],
       "start": "p0",
       "bound": "exact",
       "guard": [],
-      "access": {"fn": "Alm_SetFlag", "at": "alm_low.c:7", "code": "g_aucAlmFlag[ulAlmId] = 1"},
+      "access": {"fn": "Alm_SetFlag", "key": "F:Alm_SetFlag", "at": "alm_low.c:7", "end": "p0 + 1"},
       "path": ["Alm_SetFlag@alm_low.c:7"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "text": "W1 @ g_aucAlmFlag，末端 ulAlmId + 1；需 ulAlmId + 1 <= 3"
+      "doc": {
+        "text": "写 1 字节 @ g_aucAlmFlag，末端 ulAlmId + 1；需 ulAlmId + 1 <= 3",
+        "obj": "g_aucAlmFlag",
+        "bytes": "1",
+        "code": "g_aucAlmFlag[ulAlmId] = 1"
+      }
     }
   ],
   "effs": [],
@@ -703,7 +856,7 @@ void Alm_ReportAll_TN(UINT32 ulCellId) { Alm_Dispatch(ALM_ID_CLK_LOSS, ulCellId)
   "key": "F:Alm_ReportAll_TP",
   "tu": "alm_top.c",
   "loc": "alm_top.c:22",
-  "params": ["ulCellId: UINT32"],
+  "params": [{"name": "ulCellId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [],
@@ -713,7 +866,7 @@ void Alm_ReportAll_TN(UINT32 ulCellId) { Alm_Dispatch(ALM_ID_CLK_LOSS, ulCellId)
       "callee": "Alm_Dispatch",
       "args": ["3", "p0"],
       "results": [{"req": "R1", "outcome": "L1", "report": "RPT1"}],
-      "note": "ALM_ID_BUTT = 3"
+      "doc": "ALM_ID_BUTT = 3"
     }
   ],
   "reps": [
@@ -722,8 +875,9 @@ void Alm_ReportAll_TN(UINT32 ulCellId) { Alm_Dispatch(ALM_ID_CLK_LOSS, ulCellId)
       "level": "L1",
       "reported": true,
       "site": "alm_top.c:22",
-      "access": "Alm_SetFlag@alm_low.c:7",
-      "object": "g_aucAlmFlag",
+      "access": {"fn": "Alm_SetFlag", "key": "F:Alm_SetFlag", "at": "alm_low.c:7", "end": "p0 + 1"},
+      "kind": "W",
+      "obj": "g:g_aucAlmFlag",
       "have": "3",
       "end": ["4", "4"],
       "bound": "exact",
@@ -735,8 +889,10 @@ void Alm_ReportAll_TN(UINT32 ulCellId) { Alm_Dispatch(ALM_ID_CLK_LOSS, ulCellId)
         "Alm_RaiseOne@alm_low.c:12",
         "Alm_SetFlag@alm_low.c:7"
       ],
-      "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 4 of 'g_aucAlmFlag' (3 bytes) is accessed [Alm_ReportAll_TP (alm_top.c:22) -> Alm_Dispatch (alm_mid.c:6) -> Alm_RaiseOne (alm_low.c:12) -> Alm_SetFlag (alm_low.c:7)]",
-      "fp": "2ae2bab0c04cadb5"
+      "fp": "8b2c67bdaec717ba",
+      "doc": {
+        "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 4 of 'g_aucAlmFlag' (3 bytes) is accessed [Alm_ReportAll_TP (alm_top.c:22) -> Alm_Dispatch (alm_mid.c:6) -> Alm_RaiseOne (alm_low.c:12) -> Alm_SetFlag (alm_low.c:7)]"
+      }
     }
   ],
   "opens": []
@@ -748,15 +904,15 @@ void Alm_ReportAll_TN(UINT32 ulCellId) { Alm_Dispatch(ALM_ID_CLK_LOSS, ulCellId)
 
 ```text
 - Alm_RaiseOne @ alm_low.c:12  调用 Alm_SetFlag(p0)
-    · Alm_SetFlag.R1：末端 p0 + 1，对象 3 → up → 本函数 R1
+    · Alm_SetFlag.R1：末端 p0 + 1，对象 g:g_aucAlmFlag（3 字节）→ up → 本函数 R1
 - Alm_Dispatch @ alm_mid.c:5  调用 LOG_Print(2, …, p0, p1)
-    · LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件
+    · 纯函数模型 LOG_Print：不失效、不产生条件
 - Alm_Dispatch @ alm_mid.c:6  调用 Alm_RaiseOne(p0)
-    · Alm_RaiseOne.R1：末端 p0 + 1，对象 3 → up → 本函数 R1
+    · Alm_RaiseOne.R1：末端 p0 + 1，对象 g:g_aucAlmFlag（3 字节）→ up → 本函数 R1
 - Alm_ReportAll_TN @ alm_top.c:23  调用 Alm_Dispatch(2, p0)
-    · Alm_Dispatch.R1：末端 3，对象 3 → safe（最大末端 3 ≤ 3）
+    · Alm_Dispatch.R1：末端 3，对象 g:g_aucAlmFlag（3 字节）→ safe（最大末端 3 ≤ 3）
 - Alm_ReportAll_TP @ alm_top.c:22  调用 Alm_Dispatch(3, p0)
-    · Alm_Dispatch.R1：末端 4，对象 3 → L1（最小末端 4 > 3，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
+    · Alm_Dispatch.R1：末端 4，对象 g:g_aucAlmFlag（3 字节）→ L1（最小末端 4 > 3，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
 - 期望 TP Alm_ReportAll_TP pa=L1 → 回放 L1 ✓
 - 期望 TN Alm_ReportAll_TN pa=- → 回放 - ✓
 ```
@@ -809,18 +965,18 @@ void Pkt_Build_TN(const UINT8 *pucVal)
 }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV2-03/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV2-03/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Tlv_WriteVal` | **R1** W128 @ *pucPkt，末端 ulOff + 128；需 ulOff + 128 <= ext(pucPkt)<br>**R2** ulValLen <= 128 ⇒ RulValLen @ *pucVal，末端 ulValLen；需 ulValLen <= ext(pucVal) | — | — |
-| `Tlv_WriteVal_OK` | **R1** ulOff <= 128 ⇒ W128 - ulOff @ *pucPkt，末端 128；需 128 <= ext(pucPkt)<br>**R2** ulOff + ulValLen <= 128 ⇒ RulValLen @ *pucVal，末端 ulValLen；需 ulValLen <= ext(pucVal) | — | — |
-| `Tlv_Append` | **R1** W128 @ *pucPkt，末端 ulOff + 132；需 ulOff + 132 <= ext(pucPkt)（depth 1）<br>**R2** ulValLen <= 128 ⇒ RulValLen @ *pucVal，末端 ulValLen；需 ulValLen <= ext(pucVal)（depth 1） | — | — |
-| `Tlv_Append_OK` | **R1** ulOff <= 124 ⇒ W124 - ulOff @ *pucPkt，末端 128；需 128 <= ext(pucPkt)（depth 1）<br>**R2** ulOff + ulValLen <= 124 ⇒ RulValLen @ *pucVal，末端 ulValLen；需 ulValLen <= ext(pucVal)（depth 1）<br>**R3** W1 @ *pucPkt，末端 ulOff + 1；需 ulOff + 1 <= ext(pucPkt) | — | — |
-| `Pkt_AddIe` | **R1** W128 @ *pucPkt，末端 ulOff + 132；需 ulOff + 132 <= ext(pucPkt)（depth 2）<br>**R2** ulValLen <= 128 ⇒ RulValLen @ *pucVal，末端 ulValLen；需 ulValLen <= ext(pucVal)（depth 2） | — | — |
-| `Pkt_AddIe_OK` | **R1** ulOff <= 124 ⇒ W124 - ulOff @ *pucPkt，末端 128；需 128 <= ext(pucPkt)（depth 2）<br>**R2** ulOff + ulValLen <= 124 ⇒ RulValLen @ *pucVal，末端 ulValLen；需 ulValLen <= ext(pucVal)（depth 2）<br>**R3** W1 @ *pucPkt，末端 ulOff + 1；需 ulOff + 1 <= ext(pucPkt)（depth 1） | — | — |
-| `Pkt_Build_TN` | **R1** R8 @ *pucVal，末端 8；需 8 <= ext(pucVal)（depth 3） | — | 账本 `entry_unproven`（R1） |
-| `Pkt_Build_TP` | **R1** R8 @ *pucVal，末端 8；需 8 <= ext(pucVal)（depth 3） | — | **RPT1 L1**（depth 3）<br>账本 `entry_unproven`（R1） |
+| `Tlv_WriteVal` | **R1** `p1 + 128 <= ext(p0)` @ `*p0` · exact<br>**R2** `p3 <= 128 ⇒ p3 <= ext(p2)` @ `*p2` · exact | — | — |
+| `Tlv_WriteVal_OK` | **R1** `p1 <= 128 ⇒ 128 <= ext(p0)` @ `*p0` · exact<br>**R2** `p1 + p3 <= 128 ⇒ p3 <= ext(p2)` @ `*p2` · exact | — | — |
+| `Tlv_Append` | **R1** `p1 + 132 <= ext(p0)` @ `*p0` · exact（depth 1）<br>**R2** `p3 <= 128 ⇒ p3 <= ext(p2)` @ `*p2` · exact（depth 1） | — | — |
+| `Tlv_Append_OK` | **R1** `p1 <= 124 ⇒ 128 <= ext(p0)` @ `*p0` · exact（depth 1）<br>**R2** `p1 + p3 <= 124 ⇒ p3 <= ext(p2)` @ `*p2` · exact（depth 1）<br>**R3** `p1 + 1 <= ext(p0)` @ `*p0` · exact | — | — |
+| `Pkt_AddIe` | **R1** `p1 + 132 <= ext(p0)` @ `*p0` · exact（depth 2）<br>**R2** `p3 <= 128 ⇒ p3 <= ext(p2)` @ `*p2` · exact（depth 2） | — | — |
+| `Pkt_AddIe_OK` | **R1** `p1 <= 124 ⇒ 128 <= ext(p0)` @ `*p0` · exact（depth 2）<br>**R2** `p1 + p3 <= 124 ⇒ p3 <= ext(p2)` @ `*p2` · exact（depth 2）<br>**R3** `p1 + 1 <= ext(p0)` @ `*p0` · exact（depth 1） | — | — |
+| `Pkt_Build_TN` | **R1** `8 <= ext(p0)` @ `*p0` · exact（depth 3） | — | 账本 `entry_unproven`（R1） |
+| `Pkt_Build_TP` | **R1** `8 <= ext(p0)` @ `*p0` · exact（depth 3） | — | **RPT1 L1** `local:aucPkt` 末端 148 > 128（depth 3）<br>账本 `entry_unproven`（R1） |
 
 <details open><summary><code>Tlv_WriteVal.json</code></summary>
 
@@ -830,52 +986,67 @@ void Pkt_Build_TN(const UINT8 *pucVal)
   "fn": "Tlv_WriteVal",
   "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal",
   "loc": "lv2_03_tlv_destmax_no_off.c:29",
-  "params": ["pucPkt: UINT8*", "ulOff: UINT32", "pucVal: UINT8*", "ulValLen: UINT32"],
+  "params": [
+    {"name": "pucPkt", "type": "UINT8*"},
+    {"name": "ulOff", "type": "UINT32"},
+    {"name": "pucVal", "type": "UINT8*"},
+    {"name": "ulValLen", "type": "UINT32"}
+  ],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "128",
-      "obj": "*pucPkt",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["p1 + 128", "p1 + 128"],
       "start": "p1",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Tlv_WriteVal",
+        "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal",
         "at": "lv2_03_tlv_destmax_no_off.c:31",
-        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+        "end": "p1 + 128"
       },
       "path": ["Tlv_WriteVal@lv2_03_tlv_destmax_no_off.c:31"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "memcpy_s 的目的：写 destMax = 128 字节",
-      "text": "W128 @ *pucPkt，末端 ulOff + 128；需 ulOff + 128 <= ext(pucPkt)"
+      "doc": {
+        "text": "写 128 字节 @ *pucPkt，末端 ulOff + 128；需 ulOff + 128 <= ext(pucPkt)",
+        "obj": "*pucPkt",
+        "bytes": "128",
+        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)",
+        "note": "memcpy_s 的目的：写 destMax = 128 字节"
+      }
     },
     {
       "id": "R2",
       "kind": "R",
-      "bytes": "p3",
-      "obj": "*pucVal",
       "have": "ext(p2)",
+      "obj": "*p2",
       "end": ["p3", "p3"],
       "start": "0",
       "bound": "exact",
       "guard": ["p3 <= 128"],
       "access": {
         "fn": "Tlv_WriteVal",
+        "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal",
         "at": "lv2_03_tlv_destmax_no_off.c:31",
-        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+        "end": "p3"
       },
       "path": ["Tlv_WriteVal@lv2_03_tlv_destmax_no_off.c:31"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "memcpy_s 的源：只有 count <= destMax 时才读",
-      "text": "ulValLen <= 128 ⇒ RulValLen @ *pucVal，末端 ulValLen；需 ulValLen <= ext(pucVal)"
+      "doc": {
+        "text": "ulValLen <= 128 ⇒ 读 ulValLen 字节 @ *pucVal，末端 ulValLen；需 ulValLen <= ext(pucVal)",
+        "obj": "*pucVal",
+        "bytes": "p3",
+        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)",
+        "note": "memcpy_s 的源：只有 count <= destMax 时才读"
+      }
     }
   ],
   "effs": [],
@@ -884,8 +1055,14 @@ void Pkt_Build_TN(const UINT8 *pucVal)
       "site": "lv2_03_tlv_destmax_no_off.c:31",
       "callee": "memcpy_s",
       "model": "access",
-      "args": [{"ptr": "pucPkt + ulOff", "have": "ext(p0) - p1"}, "128", {"ptr": "pucVal", "have": "ext(p2)"}, "p3"],
-      "results": [{"note": "访问类模型 memcpy_s → 生成本函数的 R1（目的）与 R2（源）"}]
+      "args": [
+        {"obj": "*p0", "have": "ext(p0) - p1", "doc": "pucPkt + ulOff"},
+        "128",
+        {"obj": "*p2", "have": "ext(p2)", "doc": "pucVal"},
+        "p3"
+      ],
+      "results": [{"gen": ["R1", "R2"]}],
+      "doc": "访问类模型 memcpy_s → 生成本函数的 R1（目的）与 R2（源）"
     }
   ],
   "reps": [],
@@ -902,51 +1079,66 @@ void Pkt_Build_TN(const UINT8 *pucVal)
   "fn": "Tlv_Append",
   "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_Append",
   "loc": "lv2_03_tlv_destmax_no_off.c:39",
-  "params": ["pucPkt: UINT8*", "ulOff: UINT32", "pucVal: UINT8*", "ulValLen: UINT32"],
+  "params": [
+    {"name": "pucPkt", "type": "UINT8*"},
+    {"name": "ulOff", "type": "UINT32"},
+    {"name": "pucVal", "type": "UINT8*"},
+    {"name": "ulValLen", "type": "UINT32"}
+  ],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "128",
-      "obj": "*pucPkt",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["p1 + 132", "p1 + 132"],
       "start": "p1 + 4",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Tlv_WriteVal",
+        "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal",
         "at": "lv2_03_tlv_destmax_no_off.c:31",
-        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+        "end": "p1 + 128"
       },
       "path": ["Tlv_Append@lv2_03_tlv_destmax_no_off.c:42", "Tlv_WriteVal@lv2_03_tlv_destmax_no_off.c:31"],
       "depth": 1,
       "eff_depth": 0,
       "blind": false,
-      "absorbed": ["W1 @ pucPkt + ulOff（lv2_03_tlv_destmax_no_off.c:41，末端 ulOff + 1，恒弱于本条）"],
-      "text": "W128 @ *pucPkt，末端 ulOff + 132；需 ulOff + 132 <= ext(pucPkt)"
+      "absorbed": [{"kind": "W", "end": ["p1 + 1", "p1 + 1"], "at": "lv2_03_tlv_destmax_no_off.c:41"}],
+      "doc": {
+        "text": "写 128 字节 @ *pucPkt，末端 ulOff + 132；需 ulOff + 132 <= ext(pucPkt)",
+        "obj": "*pucPkt",
+        "bytes": "128",
+        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+      }
     },
     {
       "id": "R2",
       "kind": "R",
-      "bytes": "p3",
-      "obj": "*pucVal",
       "have": "ext(p2)",
+      "obj": "*p2",
       "end": ["p3", "p3"],
       "start": "0",
       "bound": "exact",
       "guard": ["p3 <= 128"],
       "access": {
         "fn": "Tlv_WriteVal",
+        "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal",
         "at": "lv2_03_tlv_destmax_no_off.c:31",
-        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+        "end": "p3"
       },
       "path": ["Tlv_Append@lv2_03_tlv_destmax_no_off.c:42", "Tlv_WriteVal@lv2_03_tlv_destmax_no_off.c:31"],
       "depth": 1,
       "eff_depth": 0,
       "blind": false,
-      "text": "ulValLen <= 128 ⇒ RulValLen @ *pucVal，末端 ulValLen；需 ulValLen <= ext(pucVal)"
+      "doc": {
+        "text": "ulValLen <= 128 ⇒ 读 ulValLen 字节 @ *pucVal，末端 ulValLen；需 ulValLen <= ext(pucVal)",
+        "obj": "*pucVal",
+        "bytes": "p3",
+        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+      }
     }
   ],
   "effs": [],
@@ -955,9 +1147,9 @@ void Pkt_Build_TN(const UINT8 *pucVal)
       "site": "lv2_03_tlv_destmax_no_off.c:42",
       "callee": "Tlv_WriteVal",
       "args": [
-        {"ptr": "pucPkt", "have": "ext(p0)", "alias": "p0"},
+        {"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "pucPkt"},
         "p1 + 4",
-        {"ptr": "pucVal", "have": "ext(p2)", "alias": "p2"},
+        {"obj": "*p2", "have": "ext(p2)", "alias": "p2", "doc": "pucVal"},
         "p3"
       ],
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}, {"req": "R2", "outcome": "up", "as": "R2"}]
@@ -977,23 +1169,23 @@ void Pkt_Build_TN(const UINT8 *pucVal)
   "fn": "Pkt_Build_TP",
   "key": "F:Pkt_Build_TP",
   "loc": "lv2_03_tlv_destmax_no_off.c:54",
-  "params": ["pucVal: UINT8*"],
+  "params": [{"name": "pucVal", "type": "UINT8*"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "R",
-      "bytes": "8",
-      "obj": "*pucVal",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["8", "8"],
       "start": "0",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Tlv_WriteVal",
+        "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal",
         "at": "lv2_03_tlv_destmax_no_off.c:31",
-        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+        "end": "p3"
       },
       "path": [
         "Pkt_Build_TP@lv2_03_tlv_destmax_no_off.c:57",
@@ -1004,7 +1196,12 @@ void Pkt_Build_TN(const UINT8 *pucVal)
       "depth": 3,
       "eff_depth": 0,
       "blind": false,
-      "text": "R8 @ *pucVal，末端 8；需 8 <= ext(pucVal)"
+      "doc": {
+        "text": "读 8 字节 @ *pucVal，末端 8；需 8 <= ext(pucVal)",
+        "obj": "*pucVal",
+        "bytes": "8",
+        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+      }
     }
   ],
   "effs": [],
@@ -1012,9 +1209,14 @@ void Pkt_Build_TN(const UINT8 *pucVal)
     {
       "site": "lv2_03_tlv_destmax_no_off.c:57",
       "callee": "Pkt_AddIe",
-      "args": [{"ptr": "aucPkt", "have": "128"}, "16", {"ptr": "pucVal", "have": "ext(p0)", "alias": "p0"}, "8"],
+      "args": [
+        {"obj": "local:aucPkt", "have": "128", "doc": "aucPkt"},
+        "16",
+        {"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "pucVal"},
+        "8"
+      ],
       "results": [{"req": "R1", "outcome": "L1", "report": "RPT1"}, {"req": "R2", "outcome": "up", "as": "R1"}],
-      "note": "UINT8 aucPkt[PKT_MAX_LEN]，128 字节"
+      "doc": "UINT8 aucPkt[PKT_MAX_LEN]，128 字节"
     }
   ],
   "reps": [
@@ -1023,8 +1225,14 @@ void Pkt_Build_TN(const UINT8 *pucVal)
       "level": "L1",
       "reported": true,
       "site": "lv2_03_tlv_destmax_no_off.c:57",
-      "access": "Tlv_WriteVal@lv2_03_tlv_destmax_no_off.c:31",
-      "object": "aucPkt",
+      "access": {
+        "fn": "Tlv_WriteVal",
+        "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal",
+        "at": "lv2_03_tlv_destmax_no_off.c:31",
+        "end": "p1 + 128"
+      },
+      "kind": "W",
+      "obj": "local:aucPkt",
       "have": "128",
       "end": ["148", "148"],
       "bound": "exact",
@@ -1036,16 +1244,18 @@ void Pkt_Build_TN(const UINT8 *pucVal)
         "Tlv_Append@lv2_03_tlv_destmax_no_off.c:42",
         "Tlv_WriteVal@lv2_03_tlv_destmax_no_off.c:31"
       ],
-      "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 148 of 'aucPkt' (128 bytes) is accessed",
-      "fp": "dc4edf4e255065c9"
+      "fp": "aed893dfe3df6207",
+      "doc": {
+        "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 148 of 'aucPkt' (128 bytes) is accessed"
+      }
     }
   ],
   "opens": [
     {
       "reason": "entry_unproven",
       "at": "lv2_03_tlv_destmax_no_off.c:54",
-      "detail": "入口形参 pucVal 指向的对象要求至少 8 字节；没有调用方能证明",
-      "req": "R1"
+      "req": "R1",
+      "doc": "入口形参 pucVal 指向的对象要求至少 8 字节；没有调用方能证明"
     }
   ]
 }
@@ -1056,30 +1266,30 @@ void Pkt_Build_TN(const UINT8 *pucVal)
 
 ```text
 - Tlv_WriteVal @ lv2_03_tlv_destmax_no_off.c:31  调用 memcpy_s(pucPkt + ulOff, 128, pucVal, p3)
-    · 访问类模型 memcpy_s → 生成本函数的 R1（目的）与 R2（源）
+    · 访问类模型 memcpy_s → 在本函数生成 R1、R2
 - Tlv_WriteVal_OK @ lv2_03_tlv_destmax_no_off.c:36  调用 memcpy_s(pucPkt + ulOff, 128 - ulOff, pucVal, p3)
-    · 访问类模型 memcpy_s → R1、R2
+    · 访问类模型 memcpy_s → 在本函数生成 R1、R2
 - Tlv_Append @ lv2_03_tlv_destmax_no_off.c:42  调用 Tlv_WriteVal(pucPkt, p1 + 4, pucVal, p3)
-    · Tlv_WriteVal.R1：末端 p1 + 132，对象 ext(p0) → up → 本函数 R1
-    · Tlv_WriteVal.R2：末端 p3，守卫 p3 <= 128，对象 ext(p2) → up → 本函数 R2
+    · Tlv_WriteVal.R1：末端 p1 + 132，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Tlv_WriteVal.R2：末端 p3，守卫 p3 <= 128，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
 - Tlv_Append_OK @ lv2_03_tlv_destmax_no_off.c:48  调用 Tlv_WriteVal_OK(pucPkt, p1 + 4, pucVal, p3)
-    · Tlv_WriteVal_OK.R1：末端 128，守卫 p1 <= 124，对象 ext(p0) → up → 本函数 R1
-    · Tlv_WriteVal_OK.R2：末端 p3，守卫 p1 + p3 <= 124，对象 ext(p2) → up → 本函数 R2
+    · Tlv_WriteVal_OK.R1：末端 128，守卫 p1 <= 124，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Tlv_WriteVal_OK.R2：末端 p3，守卫 p1 + p3 <= 124，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
 - Pkt_AddIe @ lv2_03_tlv_destmax_no_off.c:51  调用 Tlv_Append(pucPkt, p1, pucVal, p3)
-    · Tlv_Append.R1：末端 p1 + 132，对象 ext(p0) → up → 本函数 R1
-    · Tlv_Append.R2：末端 p3，守卫 p3 <= 128，对象 ext(p2) → up → 本函数 R2
+    · Tlv_Append.R1：末端 p1 + 132，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Tlv_Append.R2：末端 p3，守卫 p3 <= 128，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
 - Pkt_AddIe_OK @ lv2_03_tlv_destmax_no_off.c:52  调用 Tlv_Append_OK(pucPkt, p1, pucVal, p3)
-    · Tlv_Append_OK.R1：末端 128，守卫 p1 <= 124，对象 ext(p0) → up → 本函数 R1
-    · Tlv_Append_OK.R2：末端 p3，守卫 p1 + p3 <= 124，对象 ext(p2) → up → 本函数 R2
-    · Tlv_Append_OK.R3：末端 p1 + 1，对象 ext(p0) → up → 本函数 R3
+    · Tlv_Append_OK.R1：末端 128，守卫 p1 <= 124，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Tlv_Append_OK.R2：末端 p3，守卫 p1 + p3 <= 124，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
+    · Tlv_Append_OK.R3：末端 p1 + 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R3
 - Pkt_Build_TN @ lv2_03_tlv_destmax_no_off.c:63  调用 Pkt_AddIe_OK(aucPkt, 16, pucVal, 8)
-    · Pkt_AddIe_OK.R1：末端 128，守卫在此成立，对象 128 → safe（最大末端 128 ≤ 128）
-    · Pkt_AddIe_OK.R2：末端 8，守卫在此成立，对象 ext(p0) → up → 本函数 R1
-    · Pkt_AddIe_OK.R3：末端 17，对象 128 → safe（最大末端 17 ≤ 128）
+    · Pkt_AddIe_OK.R1：末端 128，守卫在此成立，对象 local:aucPkt（128 字节）→ safe（最大末端 128 ≤ 128）
+    · Pkt_AddIe_OK.R2：末端 8，守卫在此成立，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Pkt_AddIe_OK.R3：末端 17，对象 local:aucPkt（128 字节）→ safe（最大末端 17 ≤ 128）
 - Pkt_Build_TN 是入口（没有调用方）：R1 到此为止 → 记账 entry_unproven
 - Pkt_Build_TP @ lv2_03_tlv_destmax_no_off.c:57  调用 Pkt_AddIe(aucPkt, 16, pucVal, 8)
-    · Pkt_AddIe.R1：末端 148，对象 128 → L1（最小末端 148 > 128，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
-    · Pkt_AddIe.R2：末端 8，守卫在此成立，对象 ext(p0) → up → 本函数 R1
+    · Pkt_AddIe.R1：末端 148，对象 local:aucPkt（128 字节）→ L1（最小末端 148 > 128，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
+    · Pkt_AddIe.R2：末端 8，守卫在此成立，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Pkt_Build_TP 是入口（没有调用方）：R1 到此为止 → 记账 entry_unproven
 - 期望 TP Pkt_Build_TP pa=L1 → 回放 L1 ✓
 - 期望 TN Pkt_Build_TN pa=- → 回放 - ✓
@@ -1130,18 +1340,18 @@ void Cell_ResetUeMap_TN(void)
 }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV2-05/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV2-05/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Map_ClearWords` | **R1** W4 @ *pucMap，末端 [4, 4*div(ulBits, 32) + 4]；需 4*div(ulBits, 32) + 4 <= ext(pucMap) | — | — |
-| `Map_ClearWords_OK` | **R1** div(ulBits + 31, 32) >= 1 ⇒ W4 @ *pucMap，末端 [4, 4*div(ulBits + 31, 32)]；需 4*div(ulBits + 31, 32) <= ext(pucMap) | — | — |
-| `Ue_ResetMap` | **R1** W4 @ *pucMap，末端 [4, 4*div(ulBits, 32) + 4]；需 4*div(ulBits, 32) + 4 <= ext(pucMap)（depth 1） | — | — |
-| `Ue_ResetMap_OK` | **R1** div(ulBits + 31, 32) >= 1 ⇒ W4 @ *pucMap，末端 [4, 4*div(ulBits + 31, 32)]；需 4*div(ulBits + 31, 32) <= ext(pucMap)（depth 1） | — | — |
-| `Cell_ClearUeMap` | **R1** W4 @ *pucMap，末端 [4, 4*div(ulBits, 32) + 4]；需 4*div(ulBits, 32) + 4 <= ext(pucMap)（depth 2） | — | — |
-| `Cell_ClearUeMap_OK` | **R1** div(ulBits + 31, 32) >= 1 ⇒ W4 @ *pucMap，末端 [4, 4*div(ulBits + 31, 32)]；需 4*div(ulBits + 31, 32) <= ext(pucMap)（depth 2） | — | — |
+| `Map_ClearWords` | **R1** `[4, 4*div(p1, 32) + 4] <= ext(p0)` @ `*p0` · loop | — | — |
+| `Map_ClearWords_OK` | **R1** `div(p1 + 31, 32) >= 1 ⇒ [4, 4*div(p1 + 31, 32)] <= ext(p0)` @ `*p0` · loop | — | — |
+| `Ue_ResetMap` | **R1** `[4, 4*div(p1, 32) + 4] <= ext(p0)` @ `*p0` · loop（depth 1） | — | — |
+| `Ue_ResetMap_OK` | **R1** `div(p1 + 31, 32) >= 1 ⇒ [4, 4*div(p1 + 31, 32)] <= ext(p0)` @ `*p0` · loop（depth 1） | — | — |
+| `Cell_ClearUeMap` | **R1** `[4, 4*div(p1, 32) + 4] <= ext(p0)` @ `*p0` · loop（depth 2） | — | — |
+| `Cell_ClearUeMap_OK` | **R1** `div(p1 + 31, 32) >= 1 ⇒ [4, 4*div(p1 + 31, 32)] <= ext(p0)` @ `*p0` · loop（depth 2） | — | — |
 | `Cell_ResetUeMap_TN` | — | — | — |
-| `Cell_ResetUeMap_TP` | — | — | **RPT1 L2**（depth 3） |
+| `Cell_ResetUeMap_TP` | — | — | **RPT1 L2** `local:aulAlign` 末端 12 > 8（depth 3） |
 
 <details open><summary><code>Map_ClearWords.json</code></summary>
 
@@ -1151,26 +1361,35 @@ void Cell_ResetUeMap_TN(void)
   "fn": "Map_ClearWords",
   "key": "F@lv2_05_bitmap_cast_words.c:Map_ClearWords",
   "loc": "lv2_05_bitmap_cast_words.c:28",
-  "params": ["pucMap: UINT8*", "ulBits: UINT32"],
+  "params": [{"name": "pucMap", "type": "UINT8*"}, {"name": "ulBits", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "4",
-      "obj": "*pucMap",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["4", "4*div(p1, 32) + 4"],
       "start": "0",
       "bound": "loop",
       "guard": [],
-      "access": {"fn": "Map_ClearWords", "at": "lv2_05_bitmap_cast_words.c:33", "code": "pulMap[i] = 0"},
+      "access": {
+        "fn": "Map_ClearWords",
+        "key": "F@lv2_05_bitmap_cast_words.c:Map_ClearWords",
+        "at": "lv2_05_bitmap_cast_words.c:33",
+        "end": "4*div(p1, 32) + 4"
+      },
       "path": ["Map_ClearWords@lv2_05_bitmap_cast_words.c:33"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "i ∈ [0, ulBits / 32]（循环 i <= ulBits / 32）；pulMap 与 pucMap 同一基址",
-      "text": "W4 @ *pucMap，末端 [4, 4*div(ulBits, 32) + 4]；需 4*div(ulBits, 32) + 4 <= ext(pucMap)"
+      "doc": {
+        "text": "写 4 字节 @ *pucMap，末端 [4, 4*div(ulBits, 32) + 4]；需 4*div(ulBits, 32) + 4 <= ext(pucMap)",
+        "obj": "*pucMap",
+        "bytes": "4",
+        "code": "pulMap[i] = 0",
+        "note": "i ∈ [0, ulBits / 32]（循环 i <= ulBits / 32）；pulMap 与 pucMap 同一基址"
+      }
     }
   ],
   "effs": [],
@@ -1189,26 +1408,35 @@ void Cell_ResetUeMap_TN(void)
   "fn": "Map_ClearWords_OK",
   "key": "F@lv2_05_bitmap_cast_words.c:Map_ClearWords_OK",
   "loc": "lv2_05_bitmap_cast_words.c:37",
-  "params": ["pucMap: UINT8*", "ulBits: UINT32"],
+  "params": [{"name": "pucMap", "type": "UINT8*"}, {"name": "ulBits", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "4",
-      "obj": "*pucMap",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["4", "4*div(p1 + 31, 32)"],
       "start": "0",
       "bound": "loop",
       "guard": ["div(p1 + 31, 32) >= 1"],
-      "access": {"fn": "Map_ClearWords_OK", "at": "lv2_05_bitmap_cast_words.c:42", "code": "pulMap[i] = 0"},
+      "access": {
+        "fn": "Map_ClearWords_OK",
+        "key": "F@lv2_05_bitmap_cast_words.c:Map_ClearWords_OK",
+        "at": "lv2_05_bitmap_cast_words.c:42",
+        "end": "4*div(p1 + 31, 32)"
+      },
       "path": ["Map_ClearWords_OK@lv2_05_bitmap_cast_words.c:42"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "i ∈ [0, (ulBits + 31) / 32 − 1]；循环体要执行，至少一次 → 守卫",
-      "text": "div(ulBits + 31, 32) >= 1 ⇒ W4 @ *pucMap，末端 [4, 4*div(ulBits + 31, 32)]；需 4*div(ulBits + 31, 32) <= ext(pucMap)"
+      "doc": {
+        "text": "div(ulBits + 31, 32) >= 1 ⇒ 写 4 字节 @ *pucMap，末端 [4, 4*div(ulBits + 31, 32)]；需 4*div(ulBits + 31, 32) <= ext(pucMap)",
+        "obj": "*pucMap",
+        "bytes": "4",
+        "code": "pulMap[i] = 0",
+        "note": "i ∈ [0, (ulBits + 31) / 32 − 1]；循环体要执行，至少一次 → 守卫"
+      }
     }
   ],
   "effs": [],
@@ -1235,9 +1463,9 @@ void Cell_ResetUeMap_TN(void)
     {
       "site": "lv2_05_bitmap_cast_words.c:54",
       "callee": "Cell_ClearUeMap",
-      "args": [{"ptr": "(UINT8 *)aulAlign", "have": "8"}, "64"],
+      "args": [{"obj": "local:aulAlign", "have": "8", "doc": "(UINT8 *)aulAlign"}, "64"],
       "results": [{"req": "R1", "outcome": "L2", "report": "RPT1"}],
-      "note": "UINT32 aulAlign[64 / 32]，8 字节"
+      "doc": "UINT32 aulAlign[64 / 32]，8 字节"
     }
   ],
   "reps": [
@@ -1246,8 +1474,14 @@ void Cell_ResetUeMap_TN(void)
       "level": "L2",
       "reported": true,
       "site": "lv2_05_bitmap_cast_words.c:54",
-      "access": "Map_ClearWords@lv2_05_bitmap_cast_words.c:33",
-      "object": "aulAlign",
+      "access": {
+        "fn": "Map_ClearWords",
+        "key": "F@lv2_05_bitmap_cast_words.c:Map_ClearWords",
+        "at": "lv2_05_bitmap_cast_words.c:33",
+        "end": "4*div(p1, 32) + 4"
+      },
+      "kind": "W",
+      "obj": "local:aulAlign",
       "have": "8",
       "end": ["4", "12"],
       "bound": "loop",
@@ -1259,8 +1493,10 @@ void Cell_ResetUeMap_TN(void)
         "Ue_ResetMap@lv2_05_bitmap_cast_words.c:46",
         "Map_ClearWords@lv2_05_bitmap_cast_words.c:33"
       ],
-      "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 12 of 'aulAlign' (8 bytes) may be accessed; the bound comes from a loop bound in Map_ClearWords",
-      "fp": "8fc2c2ebe1bd96e9"
+      "fp": "cd166ab96605bd8e",
+      "doc": {
+        "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 12 of 'aulAlign' (8 bytes) may be accessed; the bound comes from a loop condition"
+      }
     }
   ],
   "opens": []
@@ -1272,17 +1508,17 @@ void Cell_ResetUeMap_TN(void)
 
 ```text
 - Ue_ResetMap @ lv2_05_bitmap_cast_words.c:46  调用 Map_ClearWords(pucMap, p1)
-    · Map_ClearWords.R1：末端 [4, 4*div(p1, 32) + 4]，对象 ext(p0) → up → 本函数 R1
+    · Map_ClearWords.R1：末端 [4, 4*div(p1, 32) + 4]，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Ue_ResetMap_OK @ lv2_05_bitmap_cast_words.c:47  调用 Map_ClearWords_OK(pucMap, p1)
-    · Map_ClearWords_OK.R1：末端 [4, 4*div(p1 + 31, 32)]，守卫 div(p1 + 31, 32) >= 1，对象 ext(p0) → up → 本函数 R1
+    · Map_ClearWords_OK.R1：末端 [4, 4*div(p1 + 31, 32)]，守卫 div(p1 + 31, 32) >= 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Cell_ClearUeMap @ lv2_05_bitmap_cast_words.c:48  调用 Ue_ResetMap(pucMap, p1)
-    · Ue_ResetMap.R1：末端 [4, 4*div(p1, 32) + 4]，对象 ext(p0) → up → 本函数 R1
+    · Ue_ResetMap.R1：末端 [4, 4*div(p1, 32) + 4]，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Cell_ClearUeMap_OK @ lv2_05_bitmap_cast_words.c:49  调用 Ue_ResetMap_OK(pucMap, p1)
-    · Ue_ResetMap_OK.R1：末端 [4, 4*div(p1 + 31, 32)]，守卫 div(p1 + 31, 32) >= 1，对象 ext(p0) → up → 本函数 R1
+    · Ue_ResetMap_OK.R1：末端 [4, 4*div(p1 + 31, 32)]，守卫 div(p1 + 31, 32) >= 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Cell_ResetUeMap_TN @ lv2_05_bitmap_cast_words.c:60  调用 Cell_ClearUeMap_OK((UINT8 *)aulAlign, 64)
-    · Cell_ClearUeMap_OK.R1：末端 [4, 8]，守卫在此成立，对象 8 → safe（最大末端 8 ≤ 8）
+    · Cell_ClearUeMap_OK.R1：末端 [4, 8]，守卫在此成立，对象 local:aulAlign（8 字节）→ safe（最大末端 8 ≤ 8）
 - Cell_ResetUeMap_TP @ lv2_05_bitmap_cast_words.c:54  调用 Cell_ClearUeMap((UINT8 *)aulAlign, 64)
-    · Cell_ClearUeMap.R1：末端 [4, 12]，对象 8 → L2（最大末端 12 > 8（上界来自 loop），最小末端 4 不越界） → RPT1（depth 3, eff_depth 0，报）
+    · Cell_ClearUeMap.R1：末端 [4, 12]，对象 local:aulAlign（8 字节）→ L2（最大末端 12 > 8（上界来自 loop），最小末端 4 不越界） → RPT1（depth 3, eff_depth 0，报）
 - 期望 TP Cell_ResetUeMap_TP pa=L2 → 回放 L2 ✓
 - 期望 TN Cell_ResetUeMap_TN pa=- → 回放 - ✓
 ```
@@ -1327,18 +1563,18 @@ UINT32 Ue_CheckJitter_TN(void)
 }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV2-09/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV2-09/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Hist_GetPrev` | **R1** R1 @ *pucHist，末端 wrap32(ulPos - 1) + 1；需 wrap32(ulPos - 1) + 1 <= ext(pucHist) | — | — |
-| `Hist_GetPrevSafe` | **R1** ulPos >= 1 ⇒ R1 @ *pucHist，末端 ulPos；需 ulPos <= ext(pucHist) | — | — |
-| `Ue_CalcJitter` | **R1** R1 @ *pucHist，末端 wrap32(ulPos - 1) + 1；需 wrap32(ulPos - 1) + 1 <= ext(pucHist)（depth 1） | — | — |
-| `Ue_CalcJitter_OK` | **R1** ulPos >= 1 ⇒ R1 @ *pucHist，末端 ulPos；需 ulPos <= ext(pucHist)（depth 1） | — | — |
-| `Ue_UpdateJitter` | **R1** R1 @ *pucHist，末端 wrap32(ulPos - 1) + 1；需 wrap32(ulPos - 1) + 1 <= ext(pucHist)（depth 2） | — | — |
-| `Ue_UpdateJitter_OK` | **R1** ulPos >= 1 ⇒ R1 @ *pucHist，末端 ulPos；需 ulPos <= ext(pucHist)（depth 2） | — | — |
+| `Hist_GetPrev` | **R1** `wrap32(p1 - 1) + 1 <= ext(p0)` @ `*p0` · exact | — | — |
+| `Hist_GetPrevSafe` | **R1** `p1 >= 1 ⇒ p1 <= ext(p0)` @ `*p0` · exact | — | — |
+| `Ue_CalcJitter` | **R1** `wrap32(p1 - 1) + 1 <= ext(p0)` @ `*p0` · exact（depth 1） | — | — |
+| `Ue_CalcJitter_OK` | **R1** `p1 >= 1 ⇒ p1 <= ext(p0)` @ `*p0` · exact（depth 1） | — | — |
+| `Ue_UpdateJitter` | **R1** `wrap32(p1 - 1) + 1 <= ext(p0)` @ `*p0` · exact（depth 2） | — | — |
+| `Ue_UpdateJitter_OK` | **R1** `p1 >= 1 ⇒ p1 <= ext(p0)` @ `*p0` · exact（depth 2） | — | — |
 | `Ue_CheckJitter_TN` | — | — | — |
-| `Ue_CheckJitter_TP` | — | — | **RPT1 L1**（depth 3） |
+| `Ue_CheckJitter_TP` | — | — | **RPT1 L1** `local:aucHist` 末端 4294967296 > 16（depth 3） |
 
 <details open><summary><code>Hist_GetPrev.json</code></summary>
 
@@ -1348,25 +1584,34 @@ UINT32 Ue_CheckJitter_TN(void)
   "fn": "Hist_GetPrev",
   "key": "F@lv2_09_unsigned_wrap.c:Hist_GetPrev",
   "loc": "lv2_09_unsigned_wrap.c:27",
-  "params": ["pucHist: UINT8*", "ulPos: UINT32"],
+  "params": [{"name": "pucHist", "type": "UINT8*"}, {"name": "ulPos", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "R",
-      "bytes": "1",
-      "obj": "*pucHist",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["wrap32(p1 - 1) + 1", "wrap32(p1 - 1) + 1"],
       "start": "wrap32(p1 - 1)",
       "bound": "exact",
       "guard": [],
-      "access": {"fn": "Hist_GetPrev", "at": "lv2_09_unsigned_wrap.c:29", "code": "pucHist[ulPos - 1]"},
+      "access": {
+        "fn": "Hist_GetPrev",
+        "key": "F@lv2_09_unsigned_wrap.c:Hist_GetPrev",
+        "at": "lv2_09_unsigned_wrap.c:29",
+        "end": "wrap32(p1 - 1) + 1"
+      },
       "path": ["Hist_GetPrev@lv2_09_unsigned_wrap.c:29"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "text": "R1 @ *pucHist，末端 wrap32(ulPos - 1) + 1；需 wrap32(ulPos - 1) + 1 <= ext(pucHist)"
+      "doc": {
+        "text": "读 1 字节 @ *pucHist，末端 wrap32(ulPos - 1) + 1；需 wrap32(ulPos - 1) + 1 <= ext(pucHist)",
+        "obj": "*pucHist",
+        "bytes": "1",
+        "code": "pucHist[ulPos - 1]"
+      }
     }
   ],
   "effs": [],
@@ -1385,26 +1630,35 @@ UINT32 Ue_CheckJitter_TN(void)
   "fn": "Hist_GetPrevSafe",
   "key": "F@lv2_09_unsigned_wrap.c:Hist_GetPrevSafe",
   "loc": "lv2_09_unsigned_wrap.c:32",
-  "params": ["pucHist: UINT8*", "ulPos: UINT32"],
+  "params": [{"name": "pucHist", "type": "UINT8*"}, {"name": "ulPos", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "R",
-      "bytes": "1",
-      "obj": "*pucHist",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["p1", "p1"],
       "start": "p1 - 1",
       "bound": "exact",
       "guard": ["p1 >= 1"],
-      "access": {"fn": "Hist_GetPrevSafe", "at": "lv2_09_unsigned_wrap.c:37", "code": "pucHist[ulPos - 1]"},
+      "access": {
+        "fn": "Hist_GetPrevSafe",
+        "key": "F@lv2_09_unsigned_wrap.c:Hist_GetPrevSafe",
+        "at": "lv2_09_unsigned_wrap.c:37",
+        "end": "p1"
+      },
       "path": ["Hist_GetPrevSafe@lv2_09_unsigned_wrap.c:37"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "if (ulPos == 0) return → 守卫 ulPos >= 1；守卫下 ulPos − 1 不回绕",
-      "text": "ulPos >= 1 ⇒ R1 @ *pucHist，末端 ulPos；需 ulPos <= ext(pucHist)"
+      "doc": {
+        "text": "ulPos >= 1 ⇒ 读 1 字节 @ *pucHist，末端 ulPos；需 ulPos <= ext(pucHist)",
+        "obj": "*pucHist",
+        "bytes": "1",
+        "code": "pucHist[ulPos - 1]",
+        "note": "if (ulPos == 0) return → 守卫 ulPos >= 1；守卫下 ulPos − 1 不回绕"
+      }
     }
   ],
   "effs": [],
@@ -1431,7 +1685,7 @@ UINT32 Ue_CheckJitter_TN(void)
     {
       "site": "lv2_09_unsigned_wrap.c:54",
       "callee": "Ue_UpdateJitter_OK",
-      "args": [{"ptr": "aucHist", "have": "16"}, "0"],
+      "args": [{"obj": "local:aucHist", "have": "16", "doc": "aucHist"}, "0"],
       "results": [{"req": "R1", "outcome": "safe"}]
     }
   ],
@@ -1457,7 +1711,7 @@ UINT32 Ue_CheckJitter_TN(void)
     {
       "site": "lv2_09_unsigned_wrap.c:48",
       "callee": "Ue_UpdateJitter",
-      "args": [{"ptr": "aucHist", "have": "16"}, "0"],
+      "args": [{"obj": "local:aucHist", "have": "16", "doc": "aucHist"}, "0"],
       "results": [{"req": "R1", "outcome": "L1", "report": "RPT1"}]
     }
   ],
@@ -1467,8 +1721,14 @@ UINT32 Ue_CheckJitter_TN(void)
       "level": "L1",
       "reported": true,
       "site": "lv2_09_unsigned_wrap.c:48",
-      "access": "Hist_GetPrev@lv2_09_unsigned_wrap.c:29",
-      "object": "aucHist",
+      "access": {
+        "fn": "Hist_GetPrev",
+        "key": "F@lv2_09_unsigned_wrap.c:Hist_GetPrev",
+        "at": "lv2_09_unsigned_wrap.c:29",
+        "end": "wrap32(p1 - 1) + 1"
+      },
+      "kind": "R",
+      "obj": "local:aucHist",
       "have": "16",
       "end": ["4294967296", "4294967296"],
       "bound": "exact",
@@ -1480,8 +1740,10 @@ UINT32 Ue_CheckJitter_TN(void)
         "Ue_CalcJitter@lv2_09_unsigned_wrap.c:40",
         "Hist_GetPrev@lv2_09_unsigned_wrap.c:29"
       ],
-      "msg": "Definite out-of-bound read through a 3-level call chain: up to byte 4294967296 of 'aucHist' (16 bytes) is accessed",
-      "fp": "c5fa4651a3eb05ff"
+      "fp": "a9ee5cc44f6115e0",
+      "doc": {
+        "msg": "Definite out-of-bound read through a 3-level call chain: up to byte 4294967296 of 'aucHist' (16 bytes) is accessed"
+      }
     }
   ],
   "opens": []
@@ -1493,17 +1755,17 @@ UINT32 Ue_CheckJitter_TN(void)
 
 ```text
 - Ue_CalcJitter @ lv2_09_unsigned_wrap.c:40  调用 Hist_GetPrev(pucHist, p1)
-    · Hist_GetPrev.R1：末端 wrap32(p1 - 1) + 1，对象 ext(p0) → up → 本函数 R1
+    · Hist_GetPrev.R1：末端 wrap32(p1 - 1) + 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Ue_CalcJitter_OK @ lv2_09_unsigned_wrap.c:41  调用 Hist_GetPrevSafe(pucHist, p1)
-    · Hist_GetPrevSafe.R1：末端 p1，守卫 p1 >= 1，对象 ext(p0) → up → 本函数 R1
+    · Hist_GetPrevSafe.R1：末端 p1，守卫 p1 >= 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Ue_UpdateJitter @ lv2_09_unsigned_wrap.c:42  调用 Ue_CalcJitter(pucHist, p1)
-    · Ue_CalcJitter.R1：末端 wrap32(p1 - 1) + 1，对象 ext(p0) → up → 本函数 R1
+    · Ue_CalcJitter.R1：末端 wrap32(p1 - 1) + 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Ue_UpdateJitter_OK @ lv2_09_unsigned_wrap.c:43  调用 Ue_CalcJitter_OK(pucHist, p1)
-    · Ue_CalcJitter_OK.R1：末端 p1，守卫 p1 >= 1，对象 ext(p0) → up → 本函数 R1
+    · Ue_CalcJitter_OK.R1：末端 p1，守卫 p1 >= 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Ue_CheckJitter_TN @ lv2_09_unsigned_wrap.c:54  调用 Ue_UpdateJitter_OK(aucHist, 0)
-    · Ue_UpdateJitter_OK.R1：末端 0，守卫在此不成立，对象 16 → safe（守卫 0 >= 1 在此为假，访问走不到）
+    · Ue_UpdateJitter_OK.R1：末端 0，守卫在此不成立，对象 local:aucHist（16 字节）→ safe（守卫 0 >= 1 在此为假，访问走不到）
 - Ue_CheckJitter_TP @ lv2_09_unsigned_wrap.c:48  调用 Ue_UpdateJitter(aucHist, 0)
-    · Ue_UpdateJitter.R1：末端 4294967296，对象 16 → L1（最小末端 4294967296 > 16，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
+    · Ue_UpdateJitter.R1：末端 4294967296，对象 local:aucHist（16 字节）→ L1（最小末端 4294967296 > 16，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
 - 期望 TP Ue_CheckJitter_TP pa=L1 → 回放 L1 ✓
 - 期望 TN Ue_CheckJitter_TN pa=- → 回放 - ✓
 ```
@@ -1541,15 +1803,15 @@ void Board_OnCfgMsg_TP(UINT32 ulPortId, UINT32 ulMode) { Board_CfgPort(g_astBoar
 void Board_InitDefault_TN(void)                        { Board_CfgPort(g_astBoardPort, 3, 0); }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV3-03/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV3-03/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Port_SetMode` | **R1** ulPortId <= 31 ⇒ W4 @ *astPort，末端 24*ulPortId + 4；需 24*ulPortId + 4 <= ext(astPort) | — | — |
-| `Port_ApplyCfg` | **R1** ulPortId <= 31 ⇒ W4 @ *astPort，末端 24*ulPortId + 4；需 24*ulPortId + 4 <= ext(astPort)（depth 1） | — | — |
-| `Board_CfgPort` | **R1** ulPortId <= 31 ⇒ W4 @ *astPort，末端 24*ulPortId + 4；需 24*ulPortId + 4 <= ext(astPort)（depth 2） | — | — |
+| `Port_SetMode` | **R1** `p1 <= 31 ⇒ 24*p1 + 4 <= ext(p0)` @ `*p0` · exact | — | — |
+| `Port_ApplyCfg` | **R1** `p1 <= 31 ⇒ 24*p1 + 4 <= ext(p0)` @ `*p0` · exact（depth 1） | — | — |
+| `Board_CfgPort` | **R1** `p1 <= 31 ⇒ 24*p1 + 4 <= ext(p0)` @ `*p0` · exact（depth 2） | — | — |
 | `Board_InitDefault_TN` | — | — | — |
-| `Board_OnCfgMsg_TP` | — | — | **RPT1 L2**（depth 3） |
+| `Board_OnCfgMsg_TP` | — | — | **RPT1 L2** `g:g_astBoardPort` 末端 748 > 384（depth 3） |
 
 <details open><summary><code>Port_SetMode.json</code></summary>
 
@@ -1559,30 +1821,39 @@ void Board_InitDefault_TN(void)                        { Board_CfgPort(g_astBoar
   "fn": "Port_SetMode",
   "key": "F@lv3_03_callee_guard_wrong.c:Port_SetMode",
   "loc": "lv3_03_callee_guard_wrong.c:35",
-  "params": ["astPort: PORT_S*", "ulPortId: UINT32", "ulMode: UINT32"],
+  "params": [
+    {"name": "astPort", "type": "PORT_S*"},
+    {"name": "ulPortId", "type": "UINT32"},
+    {"name": "ulMode", "type": "UINT32"}
+  ],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "4",
-      "obj": "*astPort",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["24*p1 + 4", "24*p1 + 4"],
       "start": "24*p1",
       "bound": "exact",
       "guard": ["p1 <= 31"],
       "access": {
         "fn": "Port_SetMode",
+        "key": "F@lv3_03_callee_guard_wrong.c:Port_SetMode",
         "at": "lv3_03_callee_guard_wrong.c:40",
-        "code": "astPort[ulPortId].ulMode = ulMode"
+        "end": "24*p1 + 4"
       },
       "path": ["Port_SetMode@lv3_03_callee_guard_wrong.c:40"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "if (ulPortId >= 32) return → 守卫；PORT_S 24 字节，ulMode 在偏移 0",
-      "text": "ulPortId <= 31 ⇒ W4 @ *astPort，末端 24*ulPortId + 4；需 24*ulPortId + 4 <= ext(astPort)"
+      "doc": {
+        "text": "ulPortId <= 31 ⇒ 写 4 字节 @ *astPort，末端 24*ulPortId + 4；需 24*ulPortId + 4 <= ext(astPort)",
+        "obj": "*astPort",
+        "bytes": "4",
+        "code": "astPort[ulPortId].ulMode = ulMode",
+        "note": "if (ulPortId >= 32) return → 守卫；PORT_S 24 字节，ulMode 在偏移 0"
+      }
     }
   ],
   "effs": [],
@@ -1609,7 +1880,7 @@ void Board_InitDefault_TN(void)                        { Board_CfgPort(g_astBoar
     {
       "site": "lv3_03_callee_guard_wrong.c:47",
       "callee": "Board_CfgPort",
-      "args": [{"ptr": "g_astBoardPort", "have": "384"}, "3", "0"],
+      "args": [{"obj": "g:g_astBoardPort", "have": "384", "doc": "g_astBoardPort"}, "3", "0"],
       "results": [{"req": "R1", "outcome": "safe"}]
     }
   ],
@@ -1627,7 +1898,7 @@ void Board_InitDefault_TN(void)                        { Board_CfgPort(g_astBoar
   "fn": "Board_OnCfgMsg_TP",
   "key": "F:Board_OnCfgMsg_TP",
   "loc": "lv3_03_callee_guard_wrong.c:46",
-  "params": ["ulPortId: UINT32", "ulMode: UINT32"],
+  "params": [{"name": "ulPortId", "type": "UINT32"}, {"name": "ulMode", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [],
@@ -1635,9 +1906,9 @@ void Board_InitDefault_TN(void)                        { Board_CfgPort(g_astBoar
     {
       "site": "lv3_03_callee_guard_wrong.c:46",
       "callee": "Board_CfgPort",
-      "args": [{"ptr": "g_astBoardPort", "have": "384"}, "p0", "p1"],
+      "args": [{"obj": "g:g_astBoardPort", "have": "384", "doc": "g_astBoardPort"}, "p0", "p1"],
       "results": [{"req": "R1", "outcome": "L2", "report": "RPT1"}],
-      "note": "PORT_S g_astBoardPort[16]，384 字节"
+      "doc": "PORT_S g_astBoardPort[16]，384 字节"
     }
   ],
   "reps": [
@@ -1646,8 +1917,14 @@ void Board_InitDefault_TN(void)                        { Board_CfgPort(g_astBoar
       "level": "L2",
       "reported": true,
       "site": "lv3_03_callee_guard_wrong.c:46",
-      "access": "Port_SetMode@lv3_03_callee_guard_wrong.c:40",
-      "object": "g_astBoardPort",
+      "access": {
+        "fn": "Port_SetMode",
+        "key": "F@lv3_03_callee_guard_wrong.c:Port_SetMode",
+        "at": "lv3_03_callee_guard_wrong.c:40",
+        "end": "24*p1 + 4"
+      },
+      "kind": "W",
+      "obj": "g:g_astBoardPort",
       "have": "384",
       "end": ["4", "748"],
       "bound": "guard",
@@ -1659,8 +1936,10 @@ void Board_InitDefault_TN(void)                        { Board_CfgPort(g_astBoar
         "Port_ApplyCfg@lv3_03_callee_guard_wrong.c:43",
         "Port_SetMode@lv3_03_callee_guard_wrong.c:40"
       ],
-      "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 748 of 'g_astBoardPort' (384 bytes) may be accessed; the bound comes from the check in Port_SetMode",
-      "fp": "4d4e0d10fe4e1698"
+      "fp": "614bd9acdc215cf8",
+      "doc": {
+        "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 748 of 'g_astBoardPort' (384 bytes) may be accessed; the bound comes from a guard condition"
+      }
     }
   ],
   "opens": []
@@ -1672,13 +1951,13 @@ void Board_InitDefault_TN(void)                        { Board_CfgPort(g_astBoar
 
 ```text
 - Port_ApplyCfg @ lv3_03_callee_guard_wrong.c:43  调用 Port_SetMode(astPort, p1, p2)
-    · Port_SetMode.R1：末端 24*p1 + 4，守卫 p1 <= 31，对象 ext(p0) → up → 本函数 R1
+    · Port_SetMode.R1：末端 24*p1 + 4，守卫 p1 <= 31，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Board_CfgPort @ lv3_03_callee_guard_wrong.c:44  调用 Port_ApplyCfg(astPort, p1, p2)
-    · Port_ApplyCfg.R1：末端 24*p1 + 4，守卫 p1 <= 31，对象 ext(p0) → up → 本函数 R1
+    · Port_ApplyCfg.R1：末端 24*p1 + 4，守卫 p1 <= 31，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Board_InitDefault_TN @ lv3_03_callee_guard_wrong.c:47  调用 Board_CfgPort(g_astBoardPort, 3, 0)
-    · Board_CfgPort.R1：末端 76，守卫在此成立，对象 384 → safe（最大末端 76 ≤ 384）
+    · Board_CfgPort.R1：末端 76，守卫在此成立，对象 g:g_astBoardPort（384 字节）→ safe（最大末端 76 ≤ 384）
 - Board_OnCfgMsg_TP @ lv3_03_callee_guard_wrong.c:46  调用 Board_CfgPort(g_astBoardPort, p0, p1)
-    · Board_CfgPort.R1：末端 24*p0 + 4，守卫 p0 <= 31，对象 384 → L2（guard 给出的范围内最大末端 748 > 384，最小末端 4 不越界） → RPT1（depth 3, eff_depth 0，报）
+    · Board_CfgPort.R1：末端 24*p0 + 4，守卫 p0 <= 31，对象 g:g_astBoardPort（384 字节）→ L2（guard 给出的范围内最大末端 748 > 384，最小末端 4 不越界） → RPT1（depth 3, eff_depth 0，报）
 - 期望 TP Board_OnCfgMsg_TP pa=L2 → 回放 L2 ✓
 - 期望 TN Board_InitDefault_TN pa=- → 回放 - ✓
 ```
@@ -1747,18 +2026,18 @@ UINT32 Msg_Encode_TN(const IE_S *astIe, UINT32 ulIeNum)
 }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV3-07/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV3-07/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Pkt_PutIes` | **R1** WulPktLen @ *pucPkt，末端 [ulPktLen, 2*ulPktLen]；需 2*ulPktLen <= ext(pucPkt) | — | 账本 `untracked_pointer` |
-| `Pkt_PutIes_OK` | **R1** WulPktLen - ulOff @ *pucPkt，末端 ulPktLen；需 ulPktLen <= ext(pucPkt) | — | 账本 `untracked_pointer` |
-| `Body_PutIes` | **R1** Wn @ *p，末端 [n, 2*n]；需 2*n <= ext(p)（depth 1） | — | — |
-| `Body_PutIes_OK` | **R1** Wn - ulOff @ *p，末端 n；需 n <= ext(p)（depth 1） | — | — |
-| `Msg_BuildBody` | **R1** Wn @ *p，末端 [n, 2*n]；需 2*n <= ext(p)（depth 2） | — | — |
-| `Msg_BuildBody_OK` | **R1** Wn - ulOff @ *p，末端 n；需 n <= ext(p)（depth 2） | — | — |
+| `Pkt_PutIes` | **R1** `[p1, 2*p1] <= ext(p0)` @ `*p0` · check | — | 账本 `untracked_pointer` |
+| `Pkt_PutIes_OK` | **R1** `p1 <= ext(p0)` @ `*p0` · exact | — | 账本 `untracked_pointer` |
+| `Body_PutIes` | **R1** `[p1, 2*p1] <= ext(p0)` @ `*p0` · check（depth 1） | — | — |
+| `Body_PutIes_OK` | **R1** `p1 <= ext(p0)` @ `*p0` · exact（depth 1） | — | — |
+| `Msg_BuildBody` | **R1** `[p1, 2*p1] <= ext(p0)` @ `*p0` · check（depth 2） | — | — |
+| `Msg_BuildBody_OK` | **R1** `p1 <= ext(p0)` @ `*p0` · exact（depth 2） | — | — |
 | `Msg_Encode_TN` | — | — | — |
-| `Msg_Encode_TP` | — | — | **RPT1 L2**（depth 3） |
+| `Msg_Encode_TP` | — | — | **RPT1 L2** `local:aucPkt` 末端 256 > 128（depth 3） |
 
 <details open><summary><code>Pkt_PutIes.json</code></summary>
 
@@ -1768,30 +2047,40 @@ UINT32 Msg_Encode_TN(const IE_S *astIe, UINT32 ulIeNum)
   "fn": "Pkt_PutIes",
   "key": "F@lv3_07_pkt_loop_destmax.c:Pkt_PutIes",
   "loc": "lv3_07_pkt_loop_destmax.c:50",
-  "params": ["pucPkt: UINT8*", "ulPktLen: UINT32", "astIe: IE_S*", "ulIeNum: UINT32"],
+  "params": [
+    {"name": "pucPkt", "type": "UINT8*"},
+    {"name": "ulPktLen", "type": "UINT32"},
+    {"name": "astIe", "type": "IE_S*"},
+    {"name": "ulIeNum", "type": "UINT32"}
+  ],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "p1",
-      "obj": "*pucPkt",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["p1", "2*p1"],
       "start": "0",
       "bound": "check",
       "guard": [],
       "access": {
         "fn": "Pkt_PutIes",
+        "key": "F@lv3_07_pkt_loop_destmax.c:Pkt_PutIes",
         "at": "lv3_07_pkt_loop_destmax.c:58",
-        "code": "memcpy_s(pucPkt + ulOff, ulPktLen, astIe[i].pucVal, astIe[i].ulLen)"
+        "end": "2*p1"
       },
       "path": ["Pkt_PutIes@lv3_07_pkt_loop_destmax.c:58"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "末端 ulOff + ulPktLen，ulOff ∈ [0, ulPktLen]（循环里的校验 ulOff + len <= ulPktLen）",
-      "text": "WulPktLen @ *pucPkt，末端 [ulPktLen, 2*ulPktLen]；需 2*ulPktLen <= ext(pucPkt)"
+      "doc": {
+        "text": "写 ulPktLen 字节 @ *pucPkt，末端 [ulPktLen, 2*ulPktLen]；需 2*ulPktLen <= ext(pucPkt)",
+        "obj": "*pucPkt",
+        "bytes": "p1",
+        "code": "memcpy_s(pucPkt + ulOff, ulPktLen, astIe[i].pucVal, astIe[i].ulLen)",
+        "note": "末端 ulOff + ulPktLen，ulOff ∈ [0, ulPktLen]（循环里的校验 ulOff + len <= ulPktLen）"
+      }
     }
   ],
   "effs": [],
@@ -1800,9 +2089,10 @@ UINT32 Msg_Encode_TN(const IE_S *astIe, UINT32 ulIeNum)
       "site": "lv3_07_pkt_loop_destmax.c:58",
       "callee": "memcpy_s",
       "model": "access",
-      "args": [{"ptr": "pucPkt + ulOff", "have": "ext(p0) - ulOff"}, "p1", null, null],
+      "args": [{"obj": "*p0", "have": "ext(p0) - ulOff", "doc": "pucPkt + ulOff"}, "p1", null, null],
       "locals": {"ulOff": {"range": ["0", "p1"], "bound": "check"}},
-      "results": [{"note": "访问类模型 memcpy_s → R1；源 astIe[i].pucVal 记账"}]
+      "results": [{"gen": ["R1"]}],
+      "doc": "访问类模型 memcpy_s → R1；源 astIe[i].pucVal 记账"
     }
   ],
   "reps": [],
@@ -1810,7 +2100,7 @@ UINT32 Msg_Encode_TN(const IE_S *astIe, UINT32 ulIeNum)
     {
       "reason": "untracked_pointer",
       "at": "lv3_07_pkt_loop_destmax.c:58",
-      "detail": "源指针 astIe[i].pucVal 来自数组元素的字段，P0 不跟踪它指向多大"
+      "doc": "源指针 astIe[i].pucVal 来自数组元素的字段，P0 不跟踪它指向多大"
     }
   ]
 }
@@ -1825,30 +2115,40 @@ UINT32 Msg_Encode_TN(const IE_S *astIe, UINT32 ulIeNum)
   "fn": "Pkt_PutIes_OK",
   "key": "F@lv3_07_pkt_loop_destmax.c:Pkt_PutIes_OK",
   "loc": "lv3_07_pkt_loop_destmax.c:34",
-  "params": ["pucPkt: UINT8*", "ulPktLen: UINT32", "astIe: IE_S*", "ulIeNum: UINT32"],
+  "params": [
+    {"name": "pucPkt", "type": "UINT8*"},
+    {"name": "ulPktLen", "type": "UINT32"},
+    {"name": "astIe", "type": "IE_S*"},
+    {"name": "ulIeNum", "type": "UINT32"}
+  ],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "p1 - ulOff",
-      "obj": "*pucPkt",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["p1", "p1"],
       "start": "0",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Pkt_PutIes_OK",
+        "key": "F@lv3_07_pkt_loop_destmax.c:Pkt_PutIes_OK",
         "at": "lv3_07_pkt_loop_destmax.c:42",
-        "code": "memcpy_s(pucPkt + ulOff, ulPktLen - ulOff, astIe[i].pucVal, astIe[i].ulLen)"
+        "end": "p1"
       },
       "path": ["Pkt_PutIes_OK@lv3_07_pkt_loop_destmax.c:42"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "末端 ulOff + (ulPktLen − ulOff)：先抵消 ulOff 再代区间；校验 ulOff + len <= ulPktLen 保证减法不回绕",
-      "text": "WulPktLen - ulOff @ *pucPkt，末端 ulPktLen；需 ulPktLen <= ext(pucPkt)"
+      "doc": {
+        "text": "写 ulPktLen - ulOff 字节 @ *pucPkt，末端 ulPktLen；需 ulPktLen <= ext(pucPkt)",
+        "obj": "*pucPkt",
+        "bytes": "p1 - ulOff",
+        "code": "memcpy_s(pucPkt + ulOff, ulPktLen - ulOff, astIe[i].pucVal, astIe[i].ulLen)",
+        "note": "末端 ulOff + (ulPktLen − ulOff)：先抵消 ulOff 再代区间；校验 ulOff + len <= ulPktLen 保证减法不回绕"
+      }
     }
   ],
   "effs": [],
@@ -1857,9 +2157,10 @@ UINT32 Msg_Encode_TN(const IE_S *astIe, UINT32 ulIeNum)
       "site": "lv3_07_pkt_loop_destmax.c:42",
       "callee": "memcpy_s",
       "model": "access",
-      "args": [{"ptr": "pucPkt + ulOff", "have": "ext(p0) - ulOff"}, "p1 - ulOff", null, null],
+      "args": [{"obj": "*p0", "have": "ext(p0) - ulOff", "doc": "pucPkt + ulOff"}, "p1 - ulOff", null, null],
       "locals": {"ulOff": {"range": ["0", "p1"], "bound": "check"}},
-      "results": [{"note": "访问类模型 memcpy_s → R1；源 astIe[i].pucVal 记账"}]
+      "results": [{"gen": ["R1"]}],
+      "doc": "访问类模型 memcpy_s → R1；源 astIe[i].pucVal 记账"
     }
   ],
   "reps": [],
@@ -1867,7 +2168,7 @@ UINT32 Msg_Encode_TN(const IE_S *astIe, UINT32 ulIeNum)
     {
       "reason": "untracked_pointer",
       "at": "lv3_07_pkt_loop_destmax.c:42",
-      "detail": "源指针 astIe[i].pucVal 来自数组元素的字段，P0 不跟踪它指向多大"
+      "doc": "源指针 astIe[i].pucVal 来自数组元素的字段，P0 不跟踪它指向多大"
     }
   ]
 }
@@ -1882,7 +2183,7 @@ UINT32 Msg_Encode_TN(const IE_S *astIe, UINT32 ulIeNum)
   "fn": "Msg_Encode_TP",
   "key": "F:Msg_Encode_TP",
   "loc": "lv3_07_pkt_loop_destmax.c:71",
-  "params": ["astIe: IE_S*", "ulIeNum: UINT32"],
+  "params": [{"name": "astIe", "type": "IE_S*"}, {"name": "ulIeNum", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [],
@@ -1890,9 +2191,14 @@ UINT32 Msg_Encode_TN(const IE_S *astIe, UINT32 ulIeNum)
     {
       "site": "lv3_07_pkt_loop_destmax.c:74",
       "callee": "Msg_BuildBody",
-      "args": [{"ptr": "aucPkt", "have": "128"}, "128", {"ptr": "astIe", "have": "ext(p0)", "alias": "p0"}, "p1"],
+      "args": [
+        {"obj": "local:aucPkt", "have": "128", "doc": "aucPkt"},
+        "128",
+        {"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "astIe"},
+        "p1"
+      ],
       "results": [{"req": "R1", "outcome": "L2", "report": "RPT1"}],
-      "note": "aucPkt 128 字节，ulPktLen = sizeof(aucPkt) = 128"
+      "doc": "aucPkt 128 字节，ulPktLen = sizeof(aucPkt) = 128"
     }
   ],
   "reps": [
@@ -1901,8 +2207,14 @@ UINT32 Msg_Encode_TN(const IE_S *astIe, UINT32 ulIeNum)
       "level": "L2",
       "reported": true,
       "site": "lv3_07_pkt_loop_destmax.c:74",
-      "access": "Pkt_PutIes@lv3_07_pkt_loop_destmax.c:58",
-      "object": "aucPkt",
+      "access": {
+        "fn": "Pkt_PutIes",
+        "key": "F@lv3_07_pkt_loop_destmax.c:Pkt_PutIes",
+        "at": "lv3_07_pkt_loop_destmax.c:58",
+        "end": "2*p1"
+      },
+      "kind": "W",
+      "obj": "local:aucPkt",
       "have": "128",
       "end": ["128", "256"],
       "bound": "check",
@@ -1914,8 +2226,10 @@ UINT32 Msg_Encode_TN(const IE_S *astIe, UINT32 ulIeNum)
         "Body_PutIes@lv3_07_pkt_loop_destmax.c:66",
         "Pkt_PutIes@lv3_07_pkt_loop_destmax.c:58"
       ],
-      "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 256 of 'aucPkt' (128 bytes) may be accessed; the bound comes from a check in Pkt_PutIes",
-      "fp": "9c907dff54fea69f"
+      "fp": "91f5413c08837c9e",
+      "doc": {
+        "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 256 of 'aucPkt' (128 bytes) may be accessed; the bound comes from a check"
+      }
     }
   ],
   "opens": []
@@ -1927,21 +2241,21 @@ UINT32 Msg_Encode_TN(const IE_S *astIe, UINT32 ulIeNum)
 
 ```text
 - Pkt_PutIes @ lv3_07_pkt_loop_destmax.c:58  调用 memcpy_s(pucPkt + ulOff, p1, …, …)
-    · 访问类模型 memcpy_s → R1；源 astIe[i].pucVal 记账
+    · 访问类模型 memcpy_s → 在本函数生成 R1
 - Pkt_PutIes_OK @ lv3_07_pkt_loop_destmax.c:42  调用 memcpy_s(pucPkt + ulOff, p1 - ulOff, …, …)
-    · 访问类模型 memcpy_s → R1；源 astIe[i].pucVal 记账
+    · 访问类模型 memcpy_s → 在本函数生成 R1
 - Body_PutIes @ lv3_07_pkt_loop_destmax.c:66  调用 Pkt_PutIes(p, p1, a, p3)
-    · Pkt_PutIes.R1：末端 [p1, 2*p1]，对象 ext(p0) → up → 本函数 R1
+    · Pkt_PutIes.R1：末端 [p1, 2*p1]，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Body_PutIes_OK @ lv3_07_pkt_loop_destmax.c:67  调用 Pkt_PutIes_OK(p, p1, a, p3)
-    · Pkt_PutIes_OK.R1：末端 p1，对象 ext(p0) → up → 本函数 R1
+    · Pkt_PutIes_OK.R1：末端 p1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Msg_BuildBody @ lv3_07_pkt_loop_destmax.c:68  调用 Body_PutIes(p, p1, a, p3)
-    · Body_PutIes.R1：末端 [p1, 2*p1]，对象 ext(p0) → up → 本函数 R1
+    · Body_PutIes.R1：末端 [p1, 2*p1]，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Msg_BuildBody_OK @ lv3_07_pkt_loop_destmax.c:69  调用 Body_PutIes_OK(p, p1, a, p3)
-    · Body_PutIes_OK.R1：末端 p1，对象 ext(p0) → up → 本函数 R1
+    · Body_PutIes_OK.R1：末端 p1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Msg_Encode_TN @ lv3_07_pkt_loop_destmax.c:80  调用 Msg_BuildBody_OK(aucPkt, 128, astIe, p1)
-    · Msg_BuildBody_OK.R1：末端 128，对象 128 → safe（最大末端 128 ≤ 128）
+    · Msg_BuildBody_OK.R1：末端 128，对象 local:aucPkt（128 字节）→ safe（最大末端 128 ≤ 128）
 - Msg_Encode_TP @ lv3_07_pkt_loop_destmax.c:74  调用 Msg_BuildBody(aucPkt, 128, astIe, p1)
-    · Msg_BuildBody.R1：末端 [128, 256]，对象 128 → L2（最大末端 256 > 128（上界来自 check），最小末端 128 不越界） → RPT1（depth 3, eff_depth 0，报）
+    · Msg_BuildBody.R1：末端 [128, 256]，对象 local:aucPkt（128 字节）→ L2（最大末端 256 > 128（上界来自 check），最小末端 128 不越界） → RPT1（depth 3, eff_depth 0，报）
 - 期望 TP Msg_Encode_TP pa=L2 → 回放 L2 ✓
 - 期望 TN Msg_Encode_TN pa=- → 回放 - ✓
 ```
@@ -2019,19 +2333,19 @@ void Ue_ModuleInit_TN(void)
 }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV4-01/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV4-01/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Pub_MemAlloc` | — | ret = new(ulSize) 或 NULL | — |
-| `Ue_InitOne` | **R1** W4 @ *pstTbl，末端 16*ulIdx + 4；需 16*ulIdx + 4 <= ext(pstTbl) | — | — |
-| `Cell_MemAlloc` | — | ret = new(ulSize) 或 NULL | — |
-| `Ue_InitTbl` | **R1** ulNum >= 1 ⇒ W4 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 <= ext(pstTbl)（depth 1） | — | — |
-| `Ue_AllocTbl` | — | ret = new(512) 或 NULL | — |
-| `Ue_Setup` | **R1** W4 @ *pstTbl，末端 [4, 1012]；需 1012 <= ext(pstTbl)（depth 2） | — | — |
-| `Ue_Setup_OK` | **R1** W4 @ *pstTbl，末端 [4, 500]；需 500 <= ext(pstTbl)（depth 2） | — | — |
+| `Pub_MemAlloc` | — | `ret = new(p0) \| NULL` | — |
+| `Ue_InitOne` | **R1** `16*p1 + 4 <= ext(p0)` @ `*p0` · exact | — | — |
+| `Cell_MemAlloc` | — | `ret = new(p0) \| NULL` | — |
+| `Ue_InitTbl` | **R1** `p1 >= 1 ⇒ [4, 16*p1 - 12] <= ext(p0)` @ `*p0` · loop（depth 1） | — | — |
+| `Ue_AllocTbl` | — | `ret = new(512) \| NULL` | — |
+| `Ue_Setup` | **R1** `[4, 1012] <= ext(p0)` @ `*p0` · loop（depth 2） | — | — |
+| `Ue_Setup_OK` | **R1** `[4, 500] <= ext(p0)` @ `*p0` · loop（depth 2） | — | — |
 | `Ue_ModuleInit_TN` | — | — | — |
-| `Ue_ModuleInit_TP` | — | — | **RPT1 L2**（depth 3, eff_depth 3） |
+| `Ue_ModuleInit_TP` | — | — | **RPT1 L2** `heap@lv4_01_wrapper_alloc_spec.c:68` 末端 1012 > 512（depth 3, eff_depth 3） |
 
 <details open><summary><code>Pub_MemAlloc.json</code></summary>
 
@@ -2041,9 +2355,8 @@ void Ue_ModuleInit_TN(void)
   "fn": "Pub_MemAlloc",
   "key": "F@common.h:Pub_MemAlloc#3fd1a0c2",
   "loc": "common.h:51",
-  "params": ["ulSize: UINT32"],
+  "params": [{"name": "ulSize", "type": "UINT32"}],
   "status": "analyzed",
-  "note": "头文件里的 static inline：每个 TU 一份，FIR 相同的只求解一次（D-08）",
   "reqs": [],
   "effs": [
     {
@@ -2051,8 +2364,7 @@ void Ue_ModuleInit_TN(void)
       "size": "p0",
       "maybe_null": true,
       "eff_depth": 1,
-      "via": "VOS_MemAlloc（模型表 allocators：size = p2）",
-      "text": "ret = new(ulSize) 或 NULL"
+      "doc": {"text": "ret = new(ulSize) 或 NULL", "via": "VOS_MemAlloc（模型表 allocators：size = p2）"}
     }
   ],
   "calls": [
@@ -2061,11 +2373,13 @@ void Ue_ModuleInit_TN(void)
       "callee": "VOS_MemAlloc",
       "model": "alloc",
       "args": ["PID_CELL", "0", "p0"],
-      "results": [{"note": "分配器模型：返回 new(实参 2) 或 NULL → 本函数 ret_new(size = ulSize)"}]
+      "results": [{"gen_eff": [0]}],
+      "doc": "分配器模型：返回 new(实参 2) 或 NULL → 本函数 ret_new(size = ulSize)"
     }
   ],
   "reps": [],
-  "opens": []
+  "opens": [],
+  "doc": "头文件里的 static inline：每个 TU 一份，FIR 相同的只求解一次（D-08）"
 }
 ```
 </details>
@@ -2078,25 +2392,34 @@ void Ue_ModuleInit_TN(void)
   "fn": "Ue_InitTbl",
   "key": "F@lv4_01_wrapper_alloc_spec.c:Ue_InitTbl",
   "loc": "lv4_01_wrapper_alloc_spec.c:55",
-  "params": ["pstTbl: UE_S*", "ulNum: UINT32"],
+  "params": [{"name": "pstTbl", "type": "UE_S*"}, {"name": "ulNum", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "4",
-      "obj": "*pstTbl",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["4", "16*p1 - 12"],
       "start": "0",
       "bound": "loop",
       "guard": ["p1 >= 1"],
-      "access": {"fn": "Ue_InitOne", "at": "lv4_01_wrapper_alloc_spec.c:52", "code": "pstTbl[ulIdx].ulState = 0"},
+      "access": {
+        "fn": "Ue_InitOne",
+        "key": "F@lv4_01_wrapper_alloc_spec.c:Ue_InitOne",
+        "at": "lv4_01_wrapper_alloc_spec.c:52",
+        "end": "16*p1 + 4"
+      },
       "path": ["Ue_InitTbl@lv4_01_wrapper_alloc_spec.c:59", "Ue_InitOne@lv4_01_wrapper_alloc_spec.c:52"],
       "depth": 1,
       "eff_depth": 0,
       "blind": false,
-      "text": "ulNum >= 1 ⇒ W4 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 <= ext(pstTbl)"
+      "doc": {
+        "text": "ulNum >= 1 ⇒ 写 4 字节 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 <= ext(pstTbl)",
+        "obj": "*pstTbl",
+        "bytes": "4",
+        "code": "pstTbl[ulIdx].ulState = 0"
+      }
     }
   ],
   "effs": [],
@@ -2104,7 +2427,7 @@ void Ue_ModuleInit_TN(void)
     {
       "site": "lv4_01_wrapper_alloc_spec.c:59",
       "callee": "Ue_InitOne",
-      "args": [{"ptr": "pstTbl", "have": "ext(p0)", "alias": "p0"}, "i"],
+      "args": [{"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "pstTbl"}, "i"],
       "locals": {"i": {"range": ["0", "p1 - 1"], "bound": "loop"}},
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
     }
@@ -2132,8 +2455,7 @@ void Ue_ModuleInit_TN(void)
       "size": "512",
       "maybe_null": true,
       "eff_depth": 3,
-      "via": "Cell_MemAlloc",
-      "text": "ret = new(512) 或 NULL"
+      "doc": {"text": "ret = new(512) 或 NULL", "via": "Cell_MemAlloc"}
     }
   ],
   "calls": [
@@ -2141,8 +2463,8 @@ void Ue_ModuleInit_TN(void)
       "site": "lv4_01_wrapper_alloc_spec.c:47",
       "callee": "Cell_MemAlloc",
       "args": ["512"],
-      "results": [{"eff": 0, "value": "new(512) | NULL"}],
-      "note": "MAX_UE_NUM * sizeof(UE_S) = 32 * 16"
+      "results": [{"eff": 0, "apply": {"kind": "ret_new", "size": "512", "maybe_null": true}}],
+      "doc": "MAX_UE_NUM * sizeof(UE_S) = 32 * 16"
     }
   ],
   "reps": [],
@@ -2168,13 +2490,13 @@ void Ue_ModuleInit_TN(void)
       "site": "lv4_01_wrapper_alloc_spec.c:68",
       "callee": "Ue_AllocTbl",
       "args": [],
-      "results": [{"eff": 0, "value": "new(512) | NULL"}],
-      "note": "pstTbl := new(512) 或 NULL；随后 if (pstTbl == NULL) return 排除了 NULL"
+      "results": [{"eff": 0, "apply": {"kind": "ret_new", "size": "512", "maybe_null": true}}],
+      "doc": "pstTbl := new(512) 或 NULL；随后 if (pstTbl == NULL) return 排除了 NULL"
     },
     {
       "site": "lv4_01_wrapper_alloc_spec.c:72",
       "callee": "Ue_Setup",
-      "args": [{"ptr": "pstTbl", "have": "512", "eff_depth": 3}],
+      "args": [{"obj": "heap@lv4_01_wrapper_alloc_spec.c:68", "have": "512", "eff_depth": 3, "doc": "pstTbl"}],
       "results": [{"req": "R1", "outcome": "L2", "report": "RPT1"}]
     }
   ],
@@ -2184,8 +2506,14 @@ void Ue_ModuleInit_TN(void)
       "level": "L2",
       "reported": true,
       "site": "lv4_01_wrapper_alloc_spec.c:72",
-      "access": "Ue_InitOne@lv4_01_wrapper_alloc_spec.c:52",
-      "object": "heap object allocated at lv4_01_wrapper_alloc_spec.c:68",
+      "access": {
+        "fn": "Ue_InitOne",
+        "key": "F@lv4_01_wrapper_alloc_spec.c:Ue_InitOne",
+        "at": "lv4_01_wrapper_alloc_spec.c:52",
+        "end": "16*p1 + 4"
+      },
+      "kind": "W",
+      "obj": "heap@lv4_01_wrapper_alloc_spec.c:68",
       "have": "512",
       "end": ["4", "1012"],
       "bound": "loop",
@@ -2197,8 +2525,10 @@ void Ue_ModuleInit_TN(void)
         "Ue_InitTbl@lv4_01_wrapper_alloc_spec.c:59",
         "Ue_InitOne@lv4_01_wrapper_alloc_spec.c:52"
       ],
-      "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 1012 of heap object allocated at lv4_01_wrapper_alloc_spec.c:68 (512 bytes) may be accessed; the bound comes from a loop bound in Ue_InitTbl",
-      "fp": "684eb8aec5c6ebff"
+      "fp": "7aa2a3fdb22f5ade",
+      "doc": {
+        "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 1012 of heap object allocated at lv4_01_wrapper_alloc_spec.c:68 (512 bytes) may be accessed; the bound comes from a loop condition"
+      }
     }
   ],
   "opens": []
@@ -2210,27 +2540,27 @@ void Ue_ModuleInit_TN(void)
 
 ```text
 - Pub_MemAlloc @ common.h:53  调用 VOS_MemAlloc(PID_CELL, 0, p0)
-    · 分配器模型：返回 new(实参 2) 或 NULL → 本函数 ret_new(size = ulSize)
+    · 分配器模型 VOS_MemAlloc → 本函数的效果 effs[0]
 - Cell_MemAlloc @ lv4_01_wrapper_alloc_spec.c:38  调用 Pub_MemAlloc(p0)
-    · 效果 ret_new → new(p0) | NULL 
+    · 效果 ret_new → new(p0) 或 NULL 
 - Cell_MemAlloc @ lv4_01_wrapper_alloc_spec.c:40  调用 LOG_Print(1, …, p0)
-    · LOG_Print 在模型表 pure 里：不失效任何被跟踪的内存，不产生条件
+    · 纯函数模型 LOG_Print：不失效、不产生条件
 - Ue_InitTbl @ lv4_01_wrapper_alloc_spec.c:59  调用 Ue_InitOne(pstTbl, i)
-    · Ue_InitOne.R1：末端 16*i + 4 → 局部换成区间 [4, 16*p1 - 12]，守卫 p1 >= 1，对象 ext(p0) → up → 本函数 R1
+    · Ue_InitOne.R1：末端 16*i + 4 → 局部换成区间 [4, 16*p1 - 12]，守卫 p1 >= 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Ue_AllocTbl @ lv4_01_wrapper_alloc_spec.c:47  调用 Cell_MemAlloc(512)
-    · 效果 ret_new → new(512) | NULL 
+    · 效果 ret_new → new(512) 或 NULL 
 - Ue_Setup @ lv4_01_wrapper_alloc_spec.c:63  调用 Ue_InitTbl(pstTbl, 64)
-    · Ue_InitTbl.R1：末端 [4, 1012]，守卫在此成立，对象 ext(p0) → up → 本函数 R1
+    · Ue_InitTbl.R1：末端 [4, 1012]，守卫在此成立，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Ue_Setup_OK @ lv4_01_wrapper_alloc_spec.c:64  调用 Ue_InitTbl(pstTbl, 32)
-    · Ue_InitTbl.R1：末端 [4, 500]，守卫在此成立，对象 ext(p0) → up → 本函数 R1
+    · Ue_InitTbl.R1：末端 [4, 500]，守卫在此成立，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
 - Ue_ModuleInit_TN @ lv4_01_wrapper_alloc_spec.c:77  调用 Ue_AllocTbl()
-    · 效果 ret_new → new(512) | NULL 
+    · 效果 ret_new → new(512) 或 NULL 
 - Ue_ModuleInit_TN @ lv4_01_wrapper_alloc_spec.c:81  调用 Ue_Setup_OK(pstTbl)
-    · Ue_Setup_OK.R1：末端 [4, 500]，对象 512 → safe（最大末端 500 ≤ 512）
+    · Ue_Setup_OK.R1：末端 [4, 500]，对象 heap@lv4_01_wrapper_alloc_spec.c:77（512 字节）→ safe（最大末端 500 ≤ 512）
 - Ue_ModuleInit_TP @ lv4_01_wrapper_alloc_spec.c:68  调用 Ue_AllocTbl()
-    · 效果 ret_new → new(512) | NULL 
+    · 效果 ret_new → new(512) 或 NULL 
 - Ue_ModuleInit_TP @ lv4_01_wrapper_alloc_spec.c:72  调用 Ue_Setup(pstTbl)
-    · Ue_Setup.R1：末端 [4, 1012]，对象 512 → L2（最大末端 1012 > 512（上界来自 loop），最小末端 4 不越界） → RPT1（depth 3, eff_depth 3，报）
+    · Ue_Setup.R1：末端 [4, 1012]，对象 heap@lv4_01_wrapper_alloc_spec.c:68（512 字节）→ L2（最大末端 1012 > 512（上界来自 loop），最小末端 4 不越界） → RPT1（depth 3, eff_depth 3，报）
 - 期望 TP Ue_ModuleInit_TP pa=L2 → 回放 L2 ✓
 - 期望 TN Ue_ModuleInit_TN pa=- → 回放 - ✓
 ```
@@ -2298,19 +2628,19 @@ UINT32 Cell_OnDelReq_TN(UINT32 ulCellId)
 }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV4-06/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV4-06/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Cell_IsValidId` | — | ret == 1 ⇒ ulCellId <= 16<br>ret == 0 ⇒ ulCellId >= 17<br>ret ∈ [0, 1] | — |
-| `Cell_IsValidId_OK` | — | ret == 1 ⇒ ulCellId <= 15<br>ret == 0 ⇒ ulCellId >= 16<br>ret ∈ [0, 1] | — |
-| `Ctx_Clear` | **R1** W32 @ g_astCellCtx，末端 32*ulCellId + 32；需 32*ulCellId + 32 <= 512 | — | — |
-| `Cell_CheckPara` | — | ret == 0 ⇒ ulCellId <= 16<br>ret == 1 ⇒ ulCellId >= 17<br>ret ∈ [0, 1] | — |
-| `Cell_CheckPara_OK` | — | ret == 0 ⇒ ulCellId <= 15<br>ret == 1 ⇒ ulCellId >= 16<br>ret ∈ [0, 1] | — |
-| `Cell_FreeCtx` | **R1** W32 @ g_astCellCtx，末端 32*ulCellId + 32；需 32*ulCellId + 32 <= 512（depth 1） | — | — |
-| `Cell_Delete` | **R1** W32 @ g_astCellCtx，末端 32*ulCellId + 32；需 32*ulCellId + 32 <= 512（depth 2） | — | — |
-| `Cell_OnDelReq_TN` | — | ret ∈ [0, 1] | — |
-| `Cell_OnDelReq_TP` | — | ret ∈ [0, 1] | **RPT1 L2**（depth 3） |
+| `Cell_IsValidId` | — | `ret == 1 ⇒ p0 <= 16`<br>`ret == 0 ⇒ p0 >= 17`<br>`ret ∈ [0, 1]` | — |
+| `Cell_IsValidId_OK` | — | `ret == 1 ⇒ p0 <= 15`<br>`ret == 0 ⇒ p0 >= 16`<br>`ret ∈ [0, 1]` | — |
+| `Ctx_Clear` | **R1** `32*p0 + 32 <= 512` @ `g:g_astCellCtx` · exact | — | — |
+| `Cell_CheckPara` | — | `ret == 0 ⇒ p0 <= 16`<br>`ret == 1 ⇒ p0 >= 17`<br>`ret ∈ [0, 1]` | — |
+| `Cell_CheckPara_OK` | — | `ret == 0 ⇒ p0 <= 15`<br>`ret == 1 ⇒ p0 >= 16`<br>`ret ∈ [0, 1]` | — |
+| `Cell_FreeCtx` | **R1** `32*p0 + 32 <= 512` @ `g:g_astCellCtx` · exact（depth 1） | — | — |
+| `Cell_Delete` | **R1** `32*p0 + 32 <= 512` @ `g:g_astCellCtx` · exact（depth 2） | — | — |
+| `Cell_OnDelReq_TN` | — | `ret ∈ [0, 1]` | — |
+| `Cell_OnDelReq_TP` | — | `ret ∈ [0, 1]` | **RPT1 L2** `g:g_astCellCtx` 末端 544 > 512（depth 3） |
 
 <details open><summary><code>Cell_IsValidId.json</code></summary>
 
@@ -2320,13 +2650,23 @@ UINT32 Cell_OnDelReq_TN(UINT32 ulCellId)
   "fn": "Cell_IsValidId",
   "key": "F@lv4_06_validator_func.c:Cell_IsValidId",
   "loc": "lv4_06_validator_func.c:33",
-  "params": ["ulCellId: UINT32"],
+  "params": [{"name": "ulCellId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [
-    {"kind": "ret_cond", "when": "ret == 1", "then": ["p0 <= 16"], "text": "ret == 1 ⇒ ulCellId <= 16"},
-    {"kind": "ret_cond", "when": "ret == 0", "then": ["p0 >= 17"], "text": "ret == 0 ⇒ ulCellId >= 17"},
-    {"kind": "ret_int", "range": ["0", "1"], "bound": "const", "text": "ret ∈ [0, 1]"}
+    {
+      "kind": "ret_cond",
+      "when": "ret == 1",
+      "then": ["p0 <= 16"],
+      "doc": {"text": "ret == 1 ⇒ ulCellId <= 16"}
+    },
+    {
+      "kind": "ret_cond",
+      "when": "ret == 0",
+      "then": ["p0 >= 17"],
+      "doc": {"text": "ret == 0 ⇒ ulCellId >= 17"}
+    },
+    {"kind": "ret_int", "range": ["0", "1"], "bound": "const", "doc": {"text": "ret ∈ [0, 1]"}}
   ],
   "calls": [],
   "reps": [],
@@ -2343,30 +2683,35 @@ UINT32 Cell_OnDelReq_TN(UINT32 ulCellId)
   "fn": "Ctx_Clear",
   "key": "F@lv4_06_validator_func.c:Ctx_Clear",
   "loc": "lv4_06_validator_func.c:52",
-  "params": ["ulCellId: UINT32"],
+  "params": [{"name": "ulCellId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "32",
-      "obj": "g_astCellCtx",
       "have": "512",
+      "obj": "g:g_astCellCtx",
       "end": ["32*p0 + 32", "32*p0 + 32"],
       "start": "32*p0",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Ctx_Clear",
+        "key": "F@lv4_06_validator_func.c:Ctx_Clear",
         "at": "lv4_06_validator_func.c:54",
-        "code": "memset_s(&g_astCellCtx[ulCellId], sizeof(CELL_CTX_S), 0, sizeof(CELL_CTX_S))"
+        "end": "32*p0 + 32"
       },
       "path": ["Ctx_Clear@lv4_06_validator_func.c:54"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "CELL_CTX_S 32 字节 × 16 = 512",
-      "text": "W32 @ g_astCellCtx，末端 32*ulCellId + 32；需 32*ulCellId + 32 <= 512"
+      "doc": {
+        "text": "写 32 字节 @ g_astCellCtx，末端 32*ulCellId + 32；需 32*ulCellId + 32 <= 512",
+        "obj": "g_astCellCtx",
+        "bytes": "32",
+        "code": "memset_s(&g_astCellCtx[ulCellId], sizeof(CELL_CTX_S), 0, sizeof(CELL_CTX_S))",
+        "note": "CELL_CTX_S 32 字节 × 16 = 512"
+      }
     }
   ],
   "effs": [],
@@ -2375,8 +2720,9 @@ UINT32 Cell_OnDelReq_TN(UINT32 ulCellId)
       "site": "lv4_06_validator_func.c:54",
       "callee": "memset_s",
       "model": "access",
-      "args": [{"ptr": "&g_astCellCtx[ulCellId]", "have": "512 - 32*p0"}, "32", "0", "32"],
-      "results": [{"note": "访问类模型 memset_s → R1"}]
+      "args": [{"obj": "g:g_astCellCtx", "have": "512 - 32*p0", "doc": "&g_astCellCtx[ulCellId]"}, "32", "0", "32"],
+      "results": [{"gen": ["R1"]}],
+      "doc": "访问类模型 memset_s → R1"
     }
   ],
   "reps": [],
@@ -2393,21 +2739,34 @@ UINT32 Cell_OnDelReq_TN(UINT32 ulCellId)
   "fn": "Cell_CheckPara",
   "key": "F@lv4_06_validator_func.c:Cell_CheckPara",
   "loc": "lv4_06_validator_func.c:36",
-  "params": ["ulCellId: UINT32"],
+  "params": [{"name": "ulCellId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [
-    {"kind": "ret_cond", "when": "ret == 0", "then": ["p0 <= 16"], "text": "ret == 0 ⇒ ulCellId <= 16"},
-    {"kind": "ret_cond", "when": "ret == 1", "then": ["p0 >= 17"], "text": "ret == 1 ⇒ ulCellId >= 17"},
-    {"kind": "ret_int", "range": ["0", "1"], "bound": "const", "text": "ret ∈ [0, 1]"}
+    {
+      "kind": "ret_cond",
+      "when": "ret == 0",
+      "then": ["p0 <= 16"],
+      "doc": {"text": "ret == 0 ⇒ ulCellId <= 16"}
+    },
+    {
+      "kind": "ret_cond",
+      "when": "ret == 1",
+      "then": ["p0 >= 17"],
+      "doc": {"text": "ret == 1 ⇒ ulCellId >= 17"}
+    },
+    {"kind": "ret_int", "range": ["0", "1"], "bound": "const", "doc": {"text": "ret ∈ [0, 1]"}}
   ],
   "calls": [
     {
       "site": "lv4_06_validator_func.c:38",
       "callee": "Cell_IsValidId",
       "args": ["p0"],
-      "results": [{"eff": 0, "value": "ret == 1 ⇒ p0 <= 16"}, {"eff": 1, "value": "ret == 0 ⇒ p0 >= 17"}],
-      "note": "== VOS_FALSE 那一侧 return VOS_ERR(1)，另一侧 return VOS_OK(0) → 本函数的两条 ret_cond"
+      "results": [
+        {"eff": 0, "apply": {"kind": "ret_cond", "when": "ret == 1", "then": ["p0 <= 16"]}},
+        {"eff": 1, "apply": {"kind": "ret_cond", "when": "ret == 0", "then": ["p0 >= 17"]}}
+      ],
+      "doc": "== VOS_FALSE 那一侧 return VOS_ERR(1)，另一侧 return VOS_OK(0) → 本函数的两条 ret_cond"
     }
   ],
   "reps": [],
@@ -2424,23 +2783,26 @@ UINT32 Cell_OnDelReq_TN(UINT32 ulCellId)
   "fn": "Cell_OnDelReq_TP",
   "key": "F:Cell_OnDelReq_TP",
   "loc": "lv4_06_validator_func.c:60",
-  "params": ["ulCellId: UINT32"],
+  "params": [{"name": "ulCellId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
-  "effs": [{"kind": "ret_int", "range": ["0", "1"], "bound": "const", "text": "ret ∈ [0, 1]"}],
+  "effs": [{"kind": "ret_int", "range": ["0", "1"], "bound": "const", "doc": {"text": "ret ∈ [0, 1]"}}],
   "calls": [
     {
       "site": "lv4_06_validator_func.c:62",
       "callee": "Cell_CheckPara",
       "args": ["p0"],
-      "results": [{"eff": 0, "value": "ret == 0 ⇒ p0 <= 16"}, {"eff": 1, "value": "ret == 1 ⇒ p0 >= 17"}],
-      "note": "分支 != VOS_OK 就 return；落到下面的一侧 ret == VOS_OK(0) → 守卫 ulCellId <= 16"
+      "results": [
+        {"eff": 0, "apply": {"kind": "ret_cond", "when": "ret == 0", "then": ["p0 <= 16"]}},
+        {"eff": 1, "apply": {"kind": "ret_cond", "when": "ret == 1", "then": ["p0 >= 17"]}}
+      ],
+      "doc": "分支 != VOS_OK 就 return；落到下面的一侧 ret == VOS_OK(0) → 守卫 ulCellId <= 16"
     },
     {
       "site": "lv4_06_validator_func.c:65",
       "callee": "Cell_Delete",
       "args": ["p0"],
-      "guards": [{"cond": "p0 <= 16", "bound": "check", "from": "Cell_CheckPara 的条件效应 ret == 0 ⇒ ulCellId <= 16"}],
+      "guards": [{"cond": "p0 <= 16", "bound": "check", "doc": "Cell_CheckPara 的条件效应 ret == 0 ⇒ ulCellId <= 16"}],
       "results": [{"req": "R1", "outcome": "L2", "report": "RPT1"}]
     }
   ],
@@ -2450,8 +2812,14 @@ UINT32 Cell_OnDelReq_TN(UINT32 ulCellId)
       "level": "L2",
       "reported": true,
       "site": "lv4_06_validator_func.c:65",
-      "access": "Ctx_Clear@lv4_06_validator_func.c:54",
-      "object": "g_astCellCtx",
+      "access": {
+        "fn": "Ctx_Clear",
+        "key": "F@lv4_06_validator_func.c:Ctx_Clear",
+        "at": "lv4_06_validator_func.c:54",
+        "end": "32*p0 + 32"
+      },
+      "kind": "W",
+      "obj": "g:g_astCellCtx",
       "have": "512",
       "end": ["32", "544"],
       "bound": "check",
@@ -2463,8 +2831,10 @@ UINT32 Cell_OnDelReq_TN(UINT32 ulCellId)
         "Cell_FreeCtx@lv4_06_validator_func.c:57",
         "Ctx_Clear@lv4_06_validator_func.c:54"
       ],
-      "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 544 of 'g_astCellCtx' (512 bytes) may be accessed; the bound comes from the check in Cell_IsValidId",
-      "fp": "3de7d6e6da242026"
+      "fp": "4d216e4ae4174b92",
+      "doc": {
+        "msg": "Possible out-of-bound write through a 3-level call chain: up to byte 544 of 'g_astCellCtx' (512 bytes) may be accessed; the bound comes from a check"
+      }
     }
   ],
   "opens": []
@@ -2476,7 +2846,7 @@ UINT32 Cell_OnDelReq_TN(UINT32 ulCellId)
 
 ```text
 - Ctx_Clear @ lv4_06_validator_func.c:54  调用 memset_s(&g_astCellCtx[ulCellId], 32, 0, 32)
-    · 访问类模型 memset_s → R1
+    · 访问类模型 memset_s → 在本函数生成 R1
 - Cell_CheckPara @ lv4_06_validator_func.c:38  调用 Cell_IsValidId(p0)
     · 效果 ret_cond → ret == 1 ⇒ p0 <= 16 
     · 效果 ret_cond → ret == 0 ⇒ p0 >= 17 
@@ -2484,19 +2854,19 @@ UINT32 Cell_OnDelReq_TN(UINT32 ulCellId)
     · 效果 ret_cond → ret == 1 ⇒ p0 <= 15 
     · 效果 ret_cond → ret == 0 ⇒ p0 >= 16 
 - Cell_FreeCtx @ lv4_06_validator_func.c:57  调用 Ctx_Clear(p0)
-    · Ctx_Clear.R1：末端 32*p0 + 32，对象 512 → up → 本函数 R1
+    · Ctx_Clear.R1：末端 32*p0 + 32，对象 g:g_astCellCtx（512 字节）→ up → 本函数 R1
 - Cell_Delete @ lv4_06_validator_func.c:58  调用 Cell_FreeCtx(p0)
-    · Cell_FreeCtx.R1：末端 32*p0 + 32，对象 512 → up → 本函数 R1
+    · Cell_FreeCtx.R1：末端 32*p0 + 32，对象 g:g_astCellCtx（512 字节）→ up → 本函数 R1
 - Cell_OnDelReq_TN @ lv4_06_validator_func.c:71  调用 Cell_CheckPara_OK(p0)
     · 效果 ret_cond → ret == 0 ⇒ p0 <= 15 
     · 效果 ret_cond → ret == 1 ⇒ p0 >= 16 
 - Cell_OnDelReq_TN @ lv4_06_validator_func.c:74  调用 Cell_Delete(p0)
-    · Cell_Delete.R1：末端 32*p0 + 32，对象 512 → safe（守卫蕴含 32*p0 + 32 ≤ 512）
+    · Cell_Delete.R1：末端 32*p0 + 32，对象 g:g_astCellCtx（512 字节）→ safe（守卫蕴含 32*p0 + 32 ≤ 512）
 - Cell_OnDelReq_TP @ lv4_06_validator_func.c:62  调用 Cell_CheckPara(p0)
     · 效果 ret_cond → ret == 0 ⇒ p0 <= 16 
     · 效果 ret_cond → ret == 1 ⇒ p0 >= 17 
 - Cell_OnDelReq_TP @ lv4_06_validator_func.c:65  调用 Cell_Delete(p0)
-    · Cell_Delete.R1：末端 32*p0 + 32，对象 512 → L2（check 给出的范围内最大末端 544 > 512，最小末端 32 不越界） → RPT1（depth 3, eff_depth 0，报）
+    · Cell_Delete.R1：末端 32*p0 + 32，对象 g:g_astCellCtx（512 字节）→ L2（check 给出的范围内最大末端 544 > 512，最小末端 32 不越界） → RPT1（depth 3, eff_depth 0，报）
 - 期望 TP Cell_OnDelReq_TP pa=L2 → 回放 L2 ✓
 - 期望 TN Cell_OnDelReq_TN pa=- → 回放 - ✓
 ```
@@ -2549,15 +2919,15 @@ void Rrc_EncodeMsg_TN(void)
 }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV5-01/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV5-01/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Enc_PutBytes` | **R1** WpstCtx->ulBufLen @ *pstCtx->pucBuf，末端 pstCtx->ulBufLen；需 pstCtx->ulBufLen <= ext(pstCtx->pucBuf)<br>**R2** ulLen <= pstCtx->ulBufLen ⇒ RulLen @ *pucData，末端 ulLen；需 ulLen <= ext(pucData) | pstCtx->ulUsed := ulLen | — |
-| `Enc_PutIe` | **R1** WpstCtx->ulBufLen @ *pstCtx->pucBuf，末端 pstCtx->ulBufLen；需 pstCtx->ulBufLen <= ext(pstCtx->pucBuf)（depth 1）<br>**R2** ulLen <= pstCtx->ulBufLen ⇒ RulLen @ *pucIe，末端 ulLen；需 ulLen <= ext(pucIe)（depth 1） | pstCtx->ulUsed := ulLen | — |
-| `Enc_Encode` | **R1** WpstCtx->ulBufLen @ *pstCtx->pucBuf，末端 pstCtx->ulBufLen；需 pstCtx->ulBufLen <= ext(pstCtx->pucBuf)（depth 2）<br>**R2** ulLen <= pstCtx->ulBufLen ⇒ RulLen @ *pucIe，末端 ulLen；需 ulLen <= ext(pucIe)（depth 2） | pstCtx->ulUsed := ulLen | — |
+| `Enc_PutBytes` | **R1** `p0->ulBufLen <= ext(p0->pucBuf)` @ `*p0->pucBuf` · exact<br>**R2** `p2 <= p0->ulBufLen ⇒ p2 <= ext(p1)` @ `*p1` · exact | `p0->ulUsed := p2` | — |
+| `Enc_PutIe` | **R1** `p0->ulBufLen <= ext(p0->pucBuf)` @ `*p0->pucBuf` · exact（depth 1）<br>**R2** `p2 <= p0->ulBufLen ⇒ p2 <= ext(p1)` @ `*p1` · exact（depth 1） | `p0->ulUsed := p2` | — |
+| `Enc_Encode` | **R1** `p0->ulBufLen <= ext(p0->pucBuf)` @ `*p0->pucBuf` · exact（depth 2）<br>**R2** `p2 <= p0->ulBufLen ⇒ p2 <= ext(p1)` @ `*p1` · exact（depth 2） | `p0->ulUsed := p2` | — |
 | `Rrc_EncodeMsg_TN` | — | — | — |
-| `Rrc_EncodeMsg_TP` | — | — | **RPT1 L1**（depth 3） |
+| `Rrc_EncodeMsg_TP` | — | — | **RPT1 L1** `local:aucBuf` 末端 256 > 128（depth 3） |
 
 <details open><summary><code>Enc_PutBytes.json</code></summary>
 
@@ -2567,7 +2937,11 @@ void Rrc_EncodeMsg_TN(void)
   "fn": "Enc_PutBytes",
   "key": "F@lv5_01_ctx_filled_at_top.c:Enc_PutBytes",
   "loc": "lv5_01_ctx_filled_at_top.c:34",
-  "params": ["pstCtx: ENC_CTX_S*", "pucData: UINT8*", "ulLen: UINT32"],
+  "params": [
+    {"name": "pstCtx", "type": "ENC_CTX_S*"},
+    {"name": "pucData", "type": "UINT8*"},
+    {"name": "ulLen", "type": "UINT32"}
+  ],
   "fields": {
     "p0->pucBuf": {"off": 0, "size": 4, "type": "UINT8*"},
     "p0->ulBufLen": {"off": 4, "size": 4, "type": "UINT32"},
@@ -2578,60 +2952,71 @@ void Rrc_EncodeMsg_TN(void)
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "p0->ulBufLen",
-      "obj": "*pstCtx->pucBuf",
       "have": "ext(p0->pucBuf)",
+      "obj": "*p0->pucBuf",
       "end": ["p0->ulBufLen", "p0->ulBufLen"],
       "start": "0",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Enc_PutBytes",
+        "key": "F@lv5_01_ctx_filled_at_top.c:Enc_PutBytes",
         "at": "lv5_01_ctx_filled_at_top.c:36",
-        "code": "memcpy_s(pstCtx->pucBuf, pstCtx->ulBufLen, pucData, ulLen)"
+        "end": "p0->ulBufLen"
       },
       "path": ["Enc_PutBytes@lv5_01_ctx_filled_at_top.c:36"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "text": "WpstCtx->ulBufLen @ *pstCtx->pucBuf，末端 pstCtx->ulBufLen；需 pstCtx->ulBufLen <= ext(pstCtx->pucBuf)"
+      "doc": {
+        "text": "写 pstCtx->ulBufLen 字节 @ *pstCtx->pucBuf，末端 pstCtx->ulBufLen；需 pstCtx->ulBufLen <= ext(pstCtx->pucBuf)",
+        "obj": "*pstCtx->pucBuf",
+        "bytes": "p0->ulBufLen",
+        "code": "memcpy_s(pstCtx->pucBuf, pstCtx->ulBufLen, pucData, ulLen)"
+      }
     },
     {
       "id": "R2",
       "kind": "R",
-      "bytes": "p2",
-      "obj": "*pucData",
       "have": "ext(p1)",
+      "obj": "*p1",
       "end": ["p2", "p2"],
       "start": "0",
       "bound": "exact",
       "guard": ["p2 <= p0->ulBufLen"],
       "access": {
         "fn": "Enc_PutBytes",
+        "key": "F@lv5_01_ctx_filled_at_top.c:Enc_PutBytes",
         "at": "lv5_01_ctx_filled_at_top.c:36",
-        "code": "memcpy_s(pstCtx->pucBuf, pstCtx->ulBufLen, pucData, ulLen)"
+        "end": "p2"
       },
       "path": ["Enc_PutBytes@lv5_01_ctx_filled_at_top.c:36"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "count <= destMax 才读",
-      "text": "ulLen <= pstCtx->ulBufLen ⇒ RulLen @ *pucData，末端 ulLen；需 ulLen <= ext(pucData)"
+      "doc": {
+        "text": "ulLen <= pstCtx->ulBufLen ⇒ 读 ulLen 字节 @ *pucData，末端 ulLen；需 ulLen <= ext(pucData)",
+        "obj": "*pucData",
+        "bytes": "p2",
+        "code": "memcpy_s(pstCtx->pucBuf, pstCtx->ulBufLen, pucData, ulLen)",
+        "note": "count <= destMax 才读"
+      }
     }
   ],
-  "effs": [{"kind": "field", "target": "p0->ulUsed", "value": "p2", "text": "pstCtx->ulUsed := ulLen"}],
+  "effs": [{"kind": "field", "target": "p0->ulUsed", "value": "p2", "doc": {"text": "pstCtx->ulUsed := ulLen"}}],
   "calls": [
     {
       "site": "lv5_01_ctx_filled_at_top.c:36",
       "callee": "memcpy_s",
       "model": "access",
       "args": [
-        {"ptr": "pstCtx->pucBuf", "have": "ext(p0->pucBuf)"},
+        {"obj": "*p0->pucBuf", "have": "ext(p0->pucBuf)", "doc": "pstCtx->pucBuf"},
         "p0->ulBufLen",
-        {"ptr": "pucData", "have": "ext(p1)"},
+        {"obj": "*p1", "have": "ext(p1)", "doc": "pucData"},
         "p2"
       ],
-      "results": [{"note": "访问类模型 memcpy_s → R1、R2"}]
+      "results": [{"gen": ["R1", "R2"]}],
+      "doc": "访问类模型 memcpy_s → R1、R2"
     }
   ],
   "reps": [],
@@ -2658,19 +3043,20 @@ void Rrc_EncodeMsg_TN(void)
       "callee": "Enc_Encode",
       "args": [
         {
-          "ptr": "&stCtx",
+          "obj": "local:stCtx",
           "have": "12",
-          "fields": {"pucBuf": {"ptr": "aucBuf", "have": "128"}, "ulBufLen": "256"}
+          "fields": {"pucBuf": {"obj": "local:aucBuf", "have": "128", "doc": "aucBuf"}, "ulBufLen": "256"},
+          "doc": "&stCtx"
         },
-        {"ptr": "aucIe", "have": "16"},
+        {"obj": "local:aucIe", "have": "16", "doc": "aucIe"},
         "16"
       ],
       "results": [
         {"req": "R1", "outcome": "L1", "report": "RPT1"},
         {"req": "R2", "outcome": "safe"},
-        {"eff": 0, "value": "p0->ulUsed := 16"}
+        {"eff": 0, "apply": {"kind": "field", "arg": 0, "field": "ulUsed", "value": "16"}}
       ],
-      "note": "帧内字段：stCtx.pucBuf = aucBuf（128 字节），stCtx.ulBufLen = ENC_BUF_LEN = 256"
+      "doc": "帧内字段：stCtx.pucBuf = aucBuf（128 字节），stCtx.ulBufLen = ENC_BUF_LEN = 256"
     }
   ],
   "reps": [
@@ -2679,8 +3065,15 @@ void Rrc_EncodeMsg_TN(void)
       "level": "L1",
       "reported": true,
       "site": "lv5_01_ctx_filled_at_top.c:51",
-      "access": "Enc_PutBytes@lv5_01_ctx_filled_at_top.c:36",
-      "object": "aucBuf (via stCtx.pucBuf)",
+      "access": {
+        "fn": "Enc_PutBytes",
+        "key": "F@lv5_01_ctx_filled_at_top.c:Enc_PutBytes",
+        "at": "lv5_01_ctx_filled_at_top.c:36",
+        "end": "p0->ulBufLen"
+      },
+      "kind": "W",
+      "obj": "local:aucBuf",
+      "via": "local:stCtx.pucBuf",
       "have": "128",
       "end": ["256", "256"],
       "bound": "exact",
@@ -2692,8 +3085,10 @@ void Rrc_EncodeMsg_TN(void)
         "Enc_PutIe@lv5_01_ctx_filled_at_top.c:40",
         "Enc_PutBytes@lv5_01_ctx_filled_at_top.c:36"
       ],
-      "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 256 of 'aucBuf' (128 bytes) is accessed",
-      "fp": "fa2e9f1df5e880d9"
+      "fp": "dfa3e964ffe3b219",
+      "doc": {
+        "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 256 of 'aucBuf' (128 bytes; via stCtx.pucBuf) is accessed"
+      }
     }
   ],
   "opens": []
@@ -2705,23 +3100,23 @@ void Rrc_EncodeMsg_TN(void)
 
 ```text
 - Enc_PutBytes @ lv5_01_ctx_filled_at_top.c:36  调用 memcpy_s(pstCtx->pucBuf, p0->ulBufLen, pucData, p2)
-    · 访问类模型 memcpy_s → R1、R2
+    · 访问类模型 memcpy_s → 在本函数生成 R1、R2
 - Enc_PutIe @ lv5_01_ctx_filled_at_top.c:40  调用 Enc_PutBytes(pstCtx, pucIe, p2)
-    · Enc_PutBytes.R1：末端 p0->ulBufLen，对象 ext(p0->pucBuf) → up → 本函数 R1
-    · Enc_PutBytes.R2：末端 p2，守卫 p2 <= p0->ulBufLen，对象 ext(p1) → up → 本函数 R2
-    · 效果 field → p0->ulUsed := p2 
+    · Enc_PutBytes.R1：末端 p0->ulBufLen，对象 *p0->pucBuf（ext(p0->pucBuf) 字节）→ up → 本函数 R1
+    · Enc_PutBytes.R2：末端 p2，守卫 p2 <= p0->ulBufLen，对象 *p1（ext(p1) 字节）→ up → 本函数 R2
+    · 效果 field → 实参 0 所指对象的 ulUsed := p2 
 - Enc_Encode @ lv5_01_ctx_filled_at_top.c:41  调用 Enc_PutIe(pstCtx, pucIe, p2)
-    · Enc_PutIe.R1：末端 p0->ulBufLen，对象 ext(p0->pucBuf) → up → 本函数 R1
-    · Enc_PutIe.R2：末端 p2，守卫 p2 <= p0->ulBufLen，对象 ext(p1) → up → 本函数 R2
-    · 效果 field → p0->ulUsed := p2 
+    · Enc_PutIe.R1：末端 p0->ulBufLen，对象 *p0->pucBuf（ext(p0->pucBuf) 字节）→ up → 本函数 R1
+    · Enc_PutIe.R2：末端 p2，守卫 p2 <= p0->ulBufLen，对象 *p1（ext(p1) 字节）→ up → 本函数 R2
+    · 效果 field → 实参 0 所指对象的 ulUsed := p2 
 - Rrc_EncodeMsg_TN @ lv5_01_ctx_filled_at_top.c:62  调用 Enc_Encode(&stCtx, aucIe, 16)
-    · Enc_Encode.R1：末端 128，对象 128 → safe（最大末端 128 ≤ 128）
-    · Enc_Encode.R2：末端 16，守卫在此成立，对象 16 → safe（最大末端 16 ≤ 16）
-    · 效果 field → p0->ulUsed := 16 
+    · Enc_Encode.R1：末端 128，对象 local:aucBuf（128 字节）→ safe（最大末端 128 ≤ 128）
+    · Enc_Encode.R2：末端 16，守卫在此成立，对象 local:aucIe（16 字节）→ safe（最大末端 16 ≤ 16）
+    · 效果 field → 实参 0 所指对象的 ulUsed := 16 
 - Rrc_EncodeMsg_TP @ lv5_01_ctx_filled_at_top.c:51  调用 Enc_Encode(&stCtx, aucIe, 16)
-    · Enc_Encode.R1：末端 256，对象 128 → L1（最小末端 256 > 128，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
-    · Enc_Encode.R2：末端 16，守卫在此成立，对象 16 → safe（最大末端 16 ≤ 16）
-    · 效果 field → p0->ulUsed := 16 
+    · Enc_Encode.R1：末端 256，对象 local:aucBuf（128 字节）→ L1（最小末端 256 > 128，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
+    · Enc_Encode.R2：末端 16，守卫在此成立，对象 local:aucIe（16 字节）→ safe（最大末端 16 ≤ 16）
+    · 效果 field → 实参 0 所指对象的 ulUsed := 16 
 - 期望 TP Rrc_EncodeMsg_TP pa=L1 → 回放 L1 ✓
 - 期望 TN Rrc_EncodeMsg_TN pa=- → 回放 - ✓
 ```
@@ -2751,15 +3146,15 @@ void Port_OnLinkDown_TP(void) { Port_HandleDown(MAX_PORT_NUM); }
 void Port_OnLinkDown_TN(void) { Port_HandleDown(MAX_PORT_NUM - 1); }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV6-01/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV6-01/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Stat_PortInc` | **R1** W4 @ g_aulPortStat，末端 4*ulPort + 4；需 4*ulPort + 4 <= 64 | — | — |
-| `Port_CountDown` | **R1** W4 @ g_aulPortStat，末端 4*ulPort + 4；需 4*ulPort + 4 <= 64（depth 1） | — | — |
-| `Port_HandleDown` | **R1** W4 @ g_aulPortStat，末端 4*ulPort + 4；需 4*ulPort + 4 <= 64（depth 2） | — | — |
+| `Stat_PortInc` | **R1** `4*p0 + 4 <= 64` @ `g:g_aulPortStat` · exact | — | — |
+| `Port_CountDown` | **R1** `4*p0 + 4 <= 64` @ `g:g_aulPortStat` · exact（depth 1） | — | — |
+| `Port_HandleDown` | **R1** `4*p0 + 4 <= 64` @ `g:g_aulPortStat` · exact（depth 2） | — | — |
 | `Port_OnLinkDown_TN` | — | — | — |
-| `Port_OnLinkDown_TP` | — | — | **RPT1 L1**（depth 3） |
+| `Port_OnLinkDown_TP` | — | — | **RPT1 L1** `g:g_aulPortStat` 末端 68 > 64（depth 3） |
 
 <details open><summary><code>Stat_PortInc.json</code></summary>
 
@@ -2770,27 +3165,36 @@ void Port_OnLinkDown_TN(void) { Port_HandleDown(MAX_PORT_NUM - 1); }
   "key": "F@port_stat_use.c:Stat_PortInc",
   "tu": "port_stat_use.c",
   "loc": "port_stat_use.c:26",
-  "params": ["ulPort: UINT32"],
+  "params": [{"name": "ulPort", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "4",
-      "obj": "g_aulPortStat",
       "have": "64",
+      "obj": "g:g_aulPortStat",
       "end": ["4*p0 + 4", "4*p0 + 4"],
       "start": "4*p0",
       "bound": "exact",
       "guard": [],
-      "access": {"fn": "Stat_PortInc", "at": "port_stat_use.c:26", "code": "g_aulPortStat[ulPort]++"},
+      "access": {
+        "fn": "Stat_PortInc",
+        "key": "F@port_stat_use.c:Stat_PortInc",
+        "at": "port_stat_use.c:26",
+        "end": "4*p0 + 4"
+      },
       "path": ["Stat_PortInc@port_stat_use.c:26"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "absorbed": ["R4（同一位置的读）"],
-      "note": "have 来自全局大小表：G:g_aulPortStat 定义在 port_stat_def.c:5，UINT32[16] = 64 字节",
-      "text": "W4 @ g_aulPortStat，末端 4*ulPort + 4；需 4*ulPort + 4 <= 64"
+      "absorbed": [{"kind": "R", "end": ["4*p0 + 4", "4*p0 + 4"], "at": "port_stat_use.c:26"}],
+      "doc": {
+        "text": "写 4 字节 @ g_aulPortStat，末端 4*ulPort + 4；需 4*ulPort + 4 <= 64",
+        "obj": "g_aulPortStat",
+        "bytes": "4",
+        "code": "g_aulPortStat[ulPort]++",
+        "note": "have 来自全局大小表：G:g_aulPortStat 定义在 port_stat_def.c:5，UINT32[16] = 64 字节"
+      }
     }
   ],
   "effs": [],
@@ -2820,7 +3224,7 @@ void Port_OnLinkDown_TN(void) { Port_HandleDown(MAX_PORT_NUM - 1); }
       "callee": "Port_HandleDown",
       "args": ["16"],
       "results": [{"req": "R1", "outcome": "L1", "report": "RPT1"}],
-      "note": "MAX_PORT_NUM = 16"
+      "doc": "MAX_PORT_NUM = 16"
     }
   ],
   "reps": [
@@ -2829,8 +3233,14 @@ void Port_OnLinkDown_TN(void) { Port_HandleDown(MAX_PORT_NUM - 1); }
       "level": "L1",
       "reported": true,
       "site": "port_stat_use.c:30",
-      "access": "Stat_PortInc@port_stat_use.c:26",
-      "object": "g_aulPortStat",
+      "access": {
+        "fn": "Stat_PortInc",
+        "key": "F@port_stat_use.c:Stat_PortInc",
+        "at": "port_stat_use.c:26",
+        "end": "4*p0 + 4"
+      },
+      "kind": "W",
+      "obj": "g:g_aulPortStat",
       "have": "64",
       "end": ["68", "68"],
       "bound": "exact",
@@ -2842,8 +3252,10 @@ void Port_OnLinkDown_TN(void) { Port_HandleDown(MAX_PORT_NUM - 1); }
         "Port_CountDown@port_stat_use.c:27",
         "Stat_PortInc@port_stat_use.c:26"
       ],
-      "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 68 of 'g_aulPortStat' (64 bytes) is accessed",
-      "fp": "e6c2f36be69dcb7c"
+      "fp": "5ff4f8b3fb118c9a",
+      "doc": {
+        "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 68 of 'g_aulPortStat' (64 bytes) is accessed"
+      }
     }
   ],
   "opens": []
@@ -2855,13 +3267,13 @@ void Port_OnLinkDown_TN(void) { Port_HandleDown(MAX_PORT_NUM - 1); }
 
 ```text
 - Port_CountDown @ port_stat_use.c:27  调用 Stat_PortInc(p0)
-    · Stat_PortInc.R1：末端 4*p0 + 4，对象 64 → up → 本函数 R1
+    · Stat_PortInc.R1：末端 4*p0 + 4，对象 g:g_aulPortStat（64 字节）→ up → 本函数 R1
 - Port_HandleDown @ port_stat_use.c:28  调用 Port_CountDown(p0)
-    · Port_CountDown.R1：末端 4*p0 + 4，对象 64 → up → 本函数 R1
+    · Port_CountDown.R1：末端 4*p0 + 4，对象 g:g_aulPortStat（64 字节）→ up → 本函数 R1
 - Port_OnLinkDown_TN @ port_stat_use.c:31  调用 Port_HandleDown(15)
-    · Port_HandleDown.R1：末端 64，对象 64 → safe（最大末端 64 ≤ 64）
+    · Port_HandleDown.R1：末端 64，对象 g:g_aulPortStat（64 字节）→ safe（最大末端 64 ≤ 64）
 - Port_OnLinkDown_TP @ port_stat_use.c:30  调用 Port_HandleDown(16)
-    · Port_HandleDown.R1：末端 68，对象 64 → L1（最小末端 68 > 64，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
+    · Port_HandleDown.R1：末端 68，对象 g:g_aulPortStat（64 字节）→ L1（最小末端 68 > 64，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
 - 期望 TP Port_OnLinkDown_TP pa=L1 → 回放 L1 ✓
 - 期望 TN Port_OnLinkDown_TN pa=- → 回放 - ✓
 ```
@@ -2898,7 +3310,7 @@ void Om_DumpReg_TN(void)
 }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV7-04/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV7-04/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
@@ -2916,7 +3328,11 @@ void Om_DumpReg_TN(void)
   "fn": "Buf_CopyStep",
   "key": "F@lv7_04_pointer_stepping.c:Buf_CopyStep",
   "loc": "lv7_04_pointer_stepping.c:24",
-  "params": ["pucOut: UINT8*", "pucIn: UINT8*", "ulCnt: UINT32"],
+  "params": [
+    {"name": "pucOut", "type": "UINT8*"},
+    {"name": "pucIn", "type": "UINT8*"},
+    {"name": "ulCnt", "type": "UINT32"}
+  ],
   "status": "analyzed",
   "reqs": [],
   "effs": [],
@@ -2926,7 +3342,7 @@ void Om_DumpReg_TN(void)
     {
       "reason": "pointer_stepping",
       "at": "lv7_04_pointer_stepping.c:27",
-      "detail": "pucOut、pucIn 的偏移在循环里 widening 到 [0, +inf)，与 ulCnt 的关系丢失；不算代码给出的界，不生成条件"
+      "doc": "pucOut、pucIn 的偏移在循环里 widening 到 [0, +inf)，与 ulCnt 的关系丢失；不算代码给出的界，不生成条件"
     }
   ]
 }
@@ -2949,8 +3365,13 @@ void Om_DumpReg_TN(void)
     {
       "site": "lv7_04_pointer_stepping.c:38",
       "callee": "Om_CollectReg",
-      "args": [{"ptr": "aucOut", "have": "16"}, {"ptr": "aucIn", "have": "32"}, "32"],
-      "results": [{"note": "被调者没有条件 → 不报；漏报在 Buf_CopyStep 的账本里"}]
+      "args": [
+        {"obj": "local:aucOut", "have": "16", "doc": "aucOut"},
+        {"obj": "local:aucIn", "have": "32", "doc": "aucIn"},
+        "32"
+      ],
+      "results": [],
+      "doc": "被调者没有条件 → 不报；漏报在 Buf_CopyStep 的账本里"
     }
   ],
   "reps": [],
@@ -2963,13 +3384,13 @@ void Om_DumpReg_TN(void)
 
 ```text
 - Reg_Snapshot @ lv7_04_pointer_stepping.c:31  调用 Buf_CopyStep(pucOut, pucIn, p2)
-    · 被调者的摘要里没有条件 → 本函数也没有
+    · 被调者没有 Req、没有要用的 Eff
 - Om_CollectReg @ lv7_04_pointer_stepping.c:32  调用 Reg_Snapshot(pucOut, pucIn, p2)
-    · 被调者的摘要里没有条件 → 本函数也没有
+    · 被调者没有 Req、没有要用的 Eff
 - Om_DumpReg_TN @ lv7_04_pointer_stepping.c:45  调用 Om_CollectReg(aucOut, aucIn, 16)
-    · 被调者没有条件 → 不报；漏报在 Buf_CopyStep 的账本里
+    · 被调者没有 Req、没有要用的 Eff
 - Om_DumpReg_TP @ lv7_04_pointer_stepping.c:38  调用 Om_CollectReg(aucOut, aucIn, 32)
-    · 被调者没有条件 → 不报；漏报在 Buf_CopyStep 的账本里
+    · 被调者没有 Req、没有要用的 Eff
 - 期望 TP Om_DumpReg_TP pa=记账 → 回放 - ✓
 - 期望 TN Om_DumpReg_TN pa=记账 → 回放 - ✓
 ```
@@ -3029,18 +3450,18 @@ void Om_OnCfgMsg_TN(const UINT8 *pucIn)
 }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV8-01/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV8-01/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Tlv_ParseAll` | **R1** ulTotal >= 2 ⇒ RulLen @ *pucBuf，末端 [2, ulTotal + 2]；需 ulTotal + 2 <= ext(pucBuf)<br>**R2** ulTotal >= 2 ⇒ W256 @ *pucOut，末端 256；需 256 <= ext(pucOut) | — | — |
-| `Tlv_ParseAll_OK` | **R1** ulTotal >= 2 ⇒ RulLen @ *pucBuf，末端 [2, ulTotal]；需 ulTotal <= ext(pucBuf)<br>**R2** ulTotal >= 2 ⇒ W256 @ *pucOut，末端 256；需 256 <= ext(pucOut) | — | — |
-| `Msg_ParseBody` | **R1** n >= 2 ⇒ RulLen @ *p，末端 [2, n + 2]；需 n + 2 <= ext(p)（depth 1）<br>**R2** n >= 2 ⇒ W256 @ *o，末端 256；需 256 <= ext(o)（depth 1） | — | — |
-| `Msg_ParseBody_OK` | **R1** n >= 2 ⇒ RulLen @ *p，末端 [2, n]；需 n <= ext(p)（depth 1）<br>**R2** n >= 2 ⇒ W256 @ *o，末端 256；需 256 <= ext(o)（depth 1） | — | — |
-| `Om_HandleCfg` | **R1** n >= 2 ⇒ RulLen @ *p，末端 [2, n + 2]；需 n + 2 <= ext(p)（depth 2）<br>**R2** n >= 2 ⇒ W256 @ *o，末端 256；需 256 <= ext(o)（depth 2） | — | — |
-| `Om_HandleCfg_OK` | **R1** n >= 2 ⇒ RulLen @ *p，末端 [2, n]；需 n <= ext(p)（depth 2）<br>**R2** n >= 2 ⇒ W256 @ *o，末端 256；需 256 <= ext(o)（depth 2） | — | — |
-| `Om_OnCfgMsg_TN` | **R1** R64 @ *pucIn，末端 64；需 64 <= ext(pucIn) | — | 账本 `entry_unproven`（R1） |
-| `Om_OnCfgMsg_TP` | **R1** R64 @ *pucIn，末端 64；需 64 <= ext(pucIn) | — | **RPT1 L2**（depth 3）<br>账本 `entry_unproven`（R1） |
+| `Tlv_ParseAll` | **R1** `p1 >= 2 ⇒ [2, p1 + 2] <= ext(p0)` @ `*p0` · check<br>**R2** `p1 >= 2 ⇒ 256 <= ext(p2)` @ `*p2` · exact | — | — |
+| `Tlv_ParseAll_OK` | **R1** `p1 >= 2 ⇒ [2, p1] <= ext(p0)` @ `*p0` · check<br>**R2** `p1 >= 2 ⇒ 256 <= ext(p2)` @ `*p2` · exact | — | — |
+| `Msg_ParseBody` | **R1** `p1 >= 2 ⇒ [2, p1 + 2] <= ext(p0)` @ `*p0` · check（depth 1）<br>**R2** `p1 >= 2 ⇒ 256 <= ext(p2)` @ `*p2` · exact（depth 1） | — | — |
+| `Msg_ParseBody_OK` | **R1** `p1 >= 2 ⇒ [2, p1] <= ext(p0)` @ `*p0` · check（depth 1）<br>**R2** `p1 >= 2 ⇒ 256 <= ext(p2)` @ `*p2` · exact（depth 1） | — | — |
+| `Om_HandleCfg` | **R1** `p1 >= 2 ⇒ [2, p1 + 2] <= ext(p0)` @ `*p0` · check（depth 2）<br>**R2** `p1 >= 2 ⇒ 256 <= ext(p2)` @ `*p2` · exact（depth 2） | — | — |
+| `Om_HandleCfg_OK` | **R1** `p1 >= 2 ⇒ [2, p1] <= ext(p0)` @ `*p0` · check（depth 2）<br>**R2** `p1 >= 2 ⇒ 256 <= ext(p2)` @ `*p2` · exact（depth 2） | — | — |
+| `Om_OnCfgMsg_TN` | **R1** `64 <= ext(p0)` @ `*p0` · exact | — | 账本 `entry_unproven`（R1） |
+| `Om_OnCfgMsg_TP` | **R1** `64 <= ext(p0)` @ `*p0` · exact | — | **RPT1 L2** `local:aucMsg` 末端 66 > 64（depth 3）<br>账本 `entry_unproven`（R1） |
 
 <details open><summary><code>Tlv_ParseAll.json</code></summary>
 
@@ -3050,53 +3471,67 @@ void Om_OnCfgMsg_TN(const UINT8 *pucIn)
   "fn": "Tlv_ParseAll",
   "key": "F@lv8_01_tlv_relative_check.c:Tlv_ParseAll",
   "loc": "lv8_01_tlv_relative_check.c:26",
-  "params": ["pucBuf: UINT8*", "ulTotal: UINT32", "pucOut: UINT8*"],
+  "params": [
+    {"name": "pucBuf", "type": "UINT8*"},
+    {"name": "ulTotal", "type": "UINT32"},
+    {"name": "pucOut", "type": "UINT8*"}
+  ],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "R",
-      "bytes": "ulLen",
-      "obj": "*pucBuf",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["2", "p1 + 2"],
       "start": "2",
       "bound": "check",
       "guard": ["p1 >= 2"],
       "access": {
         "fn": "Tlv_ParseAll",
+        "key": "F@lv8_01_tlv_relative_check.c:Tlv_ParseAll",
         "at": "lv8_01_tlv_relative_check.c:34",
-        "code": "memcpy_s(pucOut, 256, pucBuf + ulOff + 2, ulLen)"
+        "end": "p1 + 2"
       },
       "path": ["Tlv_ParseAll@lv8_01_tlv_relative_check.c:34"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "absorbed": ["R1 @ pucBuf + ulOff + 1（lv8_01_tlv_relative_check.c:30，末端 <= ulTotal）"],
-      "note": "末端 ulOff + 2 + ulLen；本轮校验给出 ulOff + ulLen <= ulTotal",
-      "text": "ulTotal >= 2 ⇒ RulLen @ *pucBuf，末端 [2, ulTotal + 2]；需 ulTotal + 2 <= ext(pucBuf)"
+      "absorbed": [{"kind": "R", "end": ["2", "p1"], "at": "lv8_01_tlv_relative_check.c:30"}],
+      "doc": {
+        "text": "ulTotal >= 2 ⇒ 读 ulLen 字节 @ *pucBuf，末端 [2, ulTotal + 2]；需 ulTotal + 2 <= ext(pucBuf)",
+        "obj": "*pucBuf",
+        "bytes": "ulLen",
+        "code": "memcpy_s(pucOut, 256, pucBuf + ulOff + 2, ulLen)",
+        "note": "末端 ulOff + 2 + ulLen；本轮校验给出 ulOff + ulLen <= ulTotal"
+      }
     },
     {
       "id": "R2",
       "kind": "W",
-      "bytes": "256",
-      "obj": "*pucOut",
       "have": "ext(p2)",
+      "obj": "*p2",
       "end": ["256", "256"],
       "start": "0",
       "bound": "exact",
       "guard": ["p1 >= 2"],
       "access": {
         "fn": "Tlv_ParseAll",
+        "key": "F@lv8_01_tlv_relative_check.c:Tlv_ParseAll",
         "at": "lv8_01_tlv_relative_check.c:34",
-        "code": "memcpy_s(pucOut, 256, pucBuf + ulOff + 2, ulLen)"
+        "end": "256"
       },
       "path": ["Tlv_ParseAll@lv8_01_tlv_relative_check.c:34"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "memcpy_s 的目的：destMax 256",
-      "text": "ulTotal >= 2 ⇒ W256 @ *pucOut，末端 256；需 256 <= ext(pucOut)"
+      "doc": {
+        "text": "ulTotal >= 2 ⇒ 写 256 字节 @ *pucOut，末端 256；需 256 <= ext(pucOut)",
+        "obj": "*pucOut",
+        "bytes": "256",
+        "code": "memcpy_s(pucOut, 256, pucBuf + ulOff + 2, ulLen)",
+        "note": "memcpy_s 的目的：destMax 256"
+      }
     }
   ],
   "effs": [],
@@ -3106,12 +3541,13 @@ void Om_OnCfgMsg_TN(const UINT8 *pucIn)
       "callee": "memcpy_s",
       "model": "access",
       "args": [
-        {"ptr": "pucOut", "have": "ext(p2)"},
+        {"obj": "*p2", "have": "ext(p2)", "doc": "pucOut"},
         "256",
-        {"ptr": "pucBuf + ulOff + 2", "have": "ext(p0) - ulOff - 2"},
+        {"obj": "*p0", "have": "ext(p0) - ulOff - 2", "doc": "pucBuf + ulOff + 2"},
         "ulLen"
       ],
-      "results": [{"note": "访问类模型 memcpy_s → R1（源）、R2（目的）"}]
+      "results": [{"gen": ["R1", "R2"]}],
+      "doc": "访问类模型 memcpy_s → R1（源）、R2（目的）"
     }
   ],
   "reps": [],
@@ -3128,29 +3564,29 @@ void Om_OnCfgMsg_TN(const UINT8 *pucIn)
   "fn": "Om_OnCfgMsg_TP",
   "key": "F:Om_OnCfgMsg_TP",
   "loc": "lv8_01_tlv_relative_check.c:57",
-  "params": ["pucIn: UINT8*"],
+  "params": [{"name": "pucIn", "type": "UINT8*"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "R",
-      "bytes": "64",
-      "obj": "*pucIn",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["64", "64"],
       "start": "0",
       "bound": "exact",
       "guard": [],
-      "access": {
-        "fn": "Om_OnCfgMsg_TP",
-        "at": "lv8_01_tlv_relative_check.c:61",
-        "code": "memcpy_s(aucMsg, sizeof(aucMsg), pucIn, sizeof(aucMsg))"
-      },
+      "access": {"fn": "Om_OnCfgMsg_TP", "key": "F:Om_OnCfgMsg_TP", "at": "lv8_01_tlv_relative_check.c:61", "end": "64"},
       "path": ["Om_OnCfgMsg_TP@lv8_01_tlv_relative_check.c:61"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "text": "R64 @ *pucIn，末端 64；需 64 <= ext(pucIn)"
+      "doc": {
+        "text": "读 64 字节 @ *pucIn，末端 64；需 64 <= ext(pucIn)",
+        "obj": "*pucIn",
+        "bytes": "64",
+        "code": "memcpy_s(aucMsg, sizeof(aucMsg), pucIn, sizeof(aucMsg))"
+      }
     }
   ],
   "effs": [],
@@ -3159,13 +3595,23 @@ void Om_OnCfgMsg_TN(const UINT8 *pucIn)
       "site": "lv8_01_tlv_relative_check.c:61",
       "callee": "memcpy_s",
       "model": "access",
-      "args": [{"ptr": "aucMsg", "have": "64"}, "64", {"ptr": "pucIn", "have": "ext(p0)"}, "64"],
-      "results": [{"note": "目的 64 <= 64 当场安全；源生成本函数的 R1（64 <= ext(pucIn)）"}]
+      "args": [
+        {"obj": "local:aucMsg", "have": "64", "doc": "aucMsg"},
+        "64",
+        {"obj": "*p0", "have": "ext(p0)", "doc": "pucIn"},
+        "64"
+      ],
+      "results": [{"gen": ["R1"]}],
+      "doc": "目的 64 <= 64 当场安全；源生成本函数的 R1（64 <= ext(pucIn)）"
     },
     {
       "site": "lv8_01_tlv_relative_check.c:62",
       "callee": "Om_HandleCfg",
-      "args": [{"ptr": "aucMsg", "have": "64"}, "64", {"ptr": "aucOut", "have": "256"}],
+      "args": [
+        {"obj": "local:aucMsg", "have": "64", "doc": "aucMsg"},
+        "64",
+        {"obj": "local:aucOut", "have": "256", "doc": "aucOut"}
+      ],
       "results": [{"req": "R1", "outcome": "L2", "report": "RPT1"}, {"req": "R2", "outcome": "safe"}]
     }
   ],
@@ -3175,8 +3621,14 @@ void Om_OnCfgMsg_TN(const UINT8 *pucIn)
       "level": "L2",
       "reported": true,
       "site": "lv8_01_tlv_relative_check.c:62",
-      "access": "Tlv_ParseAll@lv8_01_tlv_relative_check.c:34",
-      "object": "aucMsg",
+      "access": {
+        "fn": "Tlv_ParseAll",
+        "key": "F@lv8_01_tlv_relative_check.c:Tlv_ParseAll",
+        "at": "lv8_01_tlv_relative_check.c:34",
+        "end": "p1 + 2"
+      },
+      "kind": "R",
+      "obj": "local:aucMsg",
       "have": "64",
       "end": ["2", "66"],
       "bound": "check",
@@ -3188,16 +3640,18 @@ void Om_OnCfgMsg_TN(const UINT8 *pucIn)
         "Msg_ParseBody@lv8_01_tlv_relative_check.c:52",
         "Tlv_ParseAll@lv8_01_tlv_relative_check.c:34"
       ],
-      "msg": "Possible out-of-bound read through a 3-level call chain: up to byte 66 of 'aucMsg' (64 bytes) may be accessed; the bound comes from a check in Tlv_ParseAll",
-      "fp": "6e77b710003251cb"
+      "fp": "a4da4c9aad6edb16",
+      "doc": {
+        "msg": "Possible out-of-bound read through a 3-level call chain: up to byte 66 of 'aucMsg' (64 bytes) may be accessed; the bound comes from a check"
+      }
     }
   ],
   "opens": [
     {
       "reason": "entry_unproven",
       "at": "lv8_01_tlv_relative_check.c:61",
-      "detail": "入口形参 pucIn 要求至少 64 字节；没有调用方能证明",
-      "req": "R1"
+      "req": "R1",
+      "doc": "入口形参 pucIn 要求至少 64 字节；没有调用方能证明"
     }
   ]
 }
@@ -3208,32 +3662,32 @@ void Om_OnCfgMsg_TN(const UINT8 *pucIn)
 
 ```text
 - Tlv_ParseAll @ lv8_01_tlv_relative_check.c:34  调用 memcpy_s(pucOut, 256, pucBuf + ulOff + 2, ulLen)
-    · 访问类模型 memcpy_s → R1（源）、R2（目的）
+    · 访问类模型 memcpy_s → 在本函数生成 R1、R2
 - Tlv_ParseAll_OK @ lv8_01_tlv_relative_check.c:47  调用 memcpy_s(pucOut, 256, pucBuf + ulOff + 2, ulLen)
-    · 访问类模型 memcpy_s → R1（源）、R2（目的）
+    · 访问类模型 memcpy_s → 在本函数生成 R1、R2
 - Msg_ParseBody @ lv8_01_tlv_relative_check.c:52  调用 Tlv_ParseAll(p, p1, o)
-    · Tlv_ParseAll.R1：末端 [2, p1 + 2]，守卫 p1 >= 2，对象 ext(p0) → up → 本函数 R1
-    · Tlv_ParseAll.R2：末端 256，守卫 p1 >= 2，对象 ext(p2) → up → 本函数 R2
+    · Tlv_ParseAll.R1：末端 [2, p1 + 2]，守卫 p1 >= 2，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Tlv_ParseAll.R2：末端 256，守卫 p1 >= 2，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
 - Msg_ParseBody_OK @ lv8_01_tlv_relative_check.c:53  调用 Tlv_ParseAll_OK(p, p1, o)
-    · Tlv_ParseAll_OK.R1：末端 [2, p1]，守卫 p1 >= 2，对象 ext(p0) → up → 本函数 R1
-    · Tlv_ParseAll_OK.R2：末端 256，守卫 p1 >= 2，对象 ext(p2) → up → 本函数 R2
+    · Tlv_ParseAll_OK.R1：末端 [2, p1]，守卫 p1 >= 2，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Tlv_ParseAll_OK.R2：末端 256，守卫 p1 >= 2，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
 - Om_HandleCfg @ lv8_01_tlv_relative_check.c:54  调用 Msg_ParseBody(p, p1, o)
-    · Msg_ParseBody.R1：末端 [2, p1 + 2]，守卫 p1 >= 2，对象 ext(p0) → up → 本函数 R1
-    · Msg_ParseBody.R2：末端 256，守卫 p1 >= 2，对象 ext(p2) → up → 本函数 R2
+    · Msg_ParseBody.R1：末端 [2, p1 + 2]，守卫 p1 >= 2，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Msg_ParseBody.R2：末端 256，守卫 p1 >= 2，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
 - Om_HandleCfg_OK @ lv8_01_tlv_relative_check.c:55  调用 Msg_ParseBody_OK(p, p1, o)
-    · Msg_ParseBody_OK.R1：末端 [2, p1]，守卫 p1 >= 2，对象 ext(p0) → up → 本函数 R1
-    · Msg_ParseBody_OK.R2：末端 256，守卫 p1 >= 2，对象 ext(p2) → up → 本函数 R2
+    · Msg_ParseBody_OK.R1：末端 [2, p1]，守卫 p1 >= 2，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Msg_ParseBody_OK.R2：末端 256，守卫 p1 >= 2，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
 - Om_OnCfgMsg_TN @ lv8_01_tlv_relative_check.c:69  调用 memcpy_s(aucMsg, 64, pucIn, 64)
-    · 目的 64 <= 64 当场安全；源生成本函数的 R1（64 <= ext(pucIn)）
+    · 访问类模型 memcpy_s → 在本函数生成 R1
 - Om_OnCfgMsg_TN @ lv8_01_tlv_relative_check.c:70  调用 Om_HandleCfg_OK(aucMsg, 64, aucOut)
-    · Om_HandleCfg_OK.R1：末端 [2, 64]，守卫在此成立，对象 64 → safe（最大末端 64 ≤ 64）
-    · Om_HandleCfg_OK.R2：末端 256，守卫在此成立，对象 256 → safe（最大末端 256 ≤ 256）
+    · Om_HandleCfg_OK.R1：末端 [2, 64]，守卫在此成立，对象 local:aucMsg（64 字节）→ safe（最大末端 64 ≤ 64）
+    · Om_HandleCfg_OK.R2：末端 256，守卫在此成立，对象 local:aucOut（256 字节）→ safe（最大末端 256 ≤ 256）
 - Om_OnCfgMsg_TN 是入口（没有调用方）：R1 到此为止 → 记账 entry_unproven
 - Om_OnCfgMsg_TP @ lv8_01_tlv_relative_check.c:61  调用 memcpy_s(aucMsg, 64, pucIn, 64)
-    · 目的 64 <= 64 当场安全；源生成本函数的 R1（64 <= ext(pucIn)）
+    · 访问类模型 memcpy_s → 在本函数生成 R1
 - Om_OnCfgMsg_TP @ lv8_01_tlv_relative_check.c:62  调用 Om_HandleCfg(aucMsg, 64, aucOut)
-    · Om_HandleCfg.R1：末端 [2, 66]，守卫在此成立，对象 64 → L2（最大末端 66 > 64（上界来自 check），最小末端 2 不越界） → RPT1（depth 3, eff_depth 0，报）
-    · Om_HandleCfg.R2：末端 256，守卫在此成立，对象 256 → safe（最大末端 256 ≤ 256）
+    · Om_HandleCfg.R1：末端 [2, 66]，守卫在此成立，对象 local:aucMsg（64 字节）→ L2（最大末端 66 > 64（上界来自 check），最小末端 2 不越界） → RPT1（depth 3, eff_depth 0，报）
+    · Om_HandleCfg.R2：末端 256，守卫在此成立，对象 local:aucOut（256 字节）→ safe（最大末端 256 ≤ 256）
 - Om_OnCfgMsg_TP 是入口（没有调用方）：R1 到此为止 → 记账 entry_unproven
 - 期望 TP Om_OnCfgMsg_TP pa=L2 → 回放 L2 ✓
 - 期望 TN Om_OnCfgMsg_TN pa=- → 回放 - ✓
@@ -3266,13 +3720,13 @@ UINT32 Om_ReadChip_TN(void)
 }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV9-04/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV9-04/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Chip_ReadStatus` | — | ret ∈ [0, 4294967295] | 账本 `unknown_callee` |
-| `Om_CollectChip` | — | ret ∈ [0, 4294967295] | — |
-| `Om_ReadAll` | — | ret ∈ [0, 4294967295] | — |
+| `Chip_ReadStatus` | — | `ret ∈ [0, 4294967295]` | 账本 `unknown_callee` |
+| `Om_CollectChip` | — | `ret ∈ [0, 4294967295]` | — |
+| `Om_ReadAll` | — | `ret ∈ [0, 4294967295]` | — |
 | `Om_ReadChip_TN` | — | — | — |
 | `Om_ReadChip_TP` | — | — | — |
 
@@ -3284,17 +3738,25 @@ UINT32 Om_ReadChip_TN(void)
   "fn": "Chip_ReadStatus",
   "key": "F@lv9_04_external_driver.c:Chip_ReadStatus",
   "loc": "lv9_04_external_driver.c:25",
-  "params": ["pucBuf: UINT8*", "ulLen: UINT32"],
+  "params": [{"name": "pucBuf", "type": "UINT8*"}, {"name": "ulLen", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
-  "effs": [{"kind": "ret_int", "range": ["0", "4294967295"], "bound": "type", "text": "ret ∈ [0, 4294967295]"}],
+  "effs": [
+    {
+      "kind": "ret_int",
+      "range": ["0", "4294967295"],
+      "bound": "type",
+      "doc": {"text": "ret ∈ [0, 4294967295]"}
+    }
+  ],
   "calls": [
     {
       "site": "lv9_04_external_driver.c:25",
       "callee": "Drv_ReadReg",
       "model": "unknown",
-      "args": ["0x40000000", {"ptr": "pucBuf", "have": "ext(p0)"}, "p1"],
-      "results": [{"note": "无函数体、无模型：返回值未知；经指针实参可达的格失效；记账 unknown_callee"}]
+      "args": ["0x40000000", {"obj": "*p0", "have": "ext(p0)", "doc": "pucBuf"}, "p1"],
+      "results": [{"open": "unknown_callee"}],
+      "doc": "无函数体、无模型：返回值未知；经指针实参可达的格失效；记账 unknown_callee"
     }
   ],
   "reps": [],
@@ -3302,7 +3764,7 @@ UINT32 Om_ReadChip_TN(void)
     {
       "reason": "unknown_callee",
       "at": "lv9_04_external_driver.c:25",
-      "detail": "Drv_ReadReg 只有声明（BSP 二进制库）；pucBuf / ulLen 流进了它。补模型后生成 R1：ulLen <= ext(pucBuf)"
+      "doc": "Drv_ReadReg 只有声明（BSP 二进制库）；pucBuf / ulLen 流进了它。补模型后生成 R1：ulLen <= ext(pucBuf)"
     }
   ]
 }
@@ -3313,15 +3775,15 @@ UINT32 Om_ReadChip_TN(void)
 
 ```text
 - Chip_ReadStatus @ lv9_04_external_driver.c:25  调用 Drv_ReadReg(0x40000000, pucBuf, p1)
-    · 无函数体、无模型：返回值未知；经指针实参可达的格失效；记账 unknown_callee
+    · 未知函数 Drv_ReadReg：记账 unknown_callee
 - Om_CollectChip @ lv9_04_external_driver.c:26  调用 Chip_ReadStatus(pucBuf, p1)
-    · 被调者没有条件
+    · 被调者没有 Req、没有要用的 Eff
 - Om_ReadAll @ lv9_04_external_driver.c:27  调用 Om_CollectChip(pucBuf, p1)
-    · 被调者没有条件
+    · 被调者没有 Req、没有要用的 Eff
 - Om_ReadChip_TN @ lv9_04_external_driver.c:38  调用 Om_ReadAll(aucStatus, 16)
-    · 被调者没有条件 → 不报；漏报在 Chip_ReadStatus 的账本里
+    · 被调者没有 Req、没有要用的 Eff
 - Om_ReadChip_TP @ lv9_04_external_driver.c:32  调用 Om_ReadAll(aucStatus, 32)
-    · 被调者没有条件 → 不报；漏报在 Chip_ReadStatus 的账本里
+    · 被调者没有 Req、没有要用的 Eff
 - 期望 TP Om_ReadChip_TP pa=记账 → 回放 - ✓
 - 期望 TN Om_ReadChip_TN pa=记账 → 回放 - ✓
 ```
@@ -3359,16 +3821,16 @@ void Om_OnSaveCfg_TN(const OM_MSG_S *pstMsg) { Om_SaveCfg(pstMsg->aucBody, pstMs
 void Om_ModInit(void) { OM_RegMsg(0x3001, Om_OnSaveCfg_TN, CFG_LEN); }
 ```
 
-**摘要一览**（自底向上；每行一个函数，完整 JSON 在 `cases/summaries/LV10-04/<函数名>.json`）
+**摘要一览**（自底向上；每行一个函数；表里只列**机器字段**——引擎读的就是这些，说明文字在 JSON 的 `doc` 里；完整 JSON 在 `cases/summaries/LV10-04/<函数名>.json`）
 
 | 函数 | 前置条件 Req | 效果 Eff | 判定 / 账本 |
 |---|---|---|---|
-| `Cfg_Save` | **R1** WulLen @ g_aucCfg，末端 ulLen；需 ulLen <= 256<br>**R2** RulLen @ *pucBody，末端 ulLen；需 ulLen <= ext(pucBody) | — | — |
+| `Cfg_Save` | **R1** `p1 <= 256` @ `g:g_aucCfg` · exact<br>**R2** `p1 <= ext(p0)` @ `*p0` · exact | — | — |
 | `Om_ModInit` | — | — | 账本 `unknown_callee` |
-| `Cfg_Store` | **R1** Wn @ g_aucCfg，末端 n；需 n <= 256（depth 1）<br>**R2** Rn @ *p，末端 n；需 n <= ext(p)（depth 1） | — | — |
-| `Om_SaveCfg` | **R1** Wn @ g_aucCfg，末端 n；需 n <= 256（depth 2）<br>**R2** Rn @ *p，末端 n；需 n <= ext(p)（depth 2） | — | — |
-| `Om_OnSaveCfg_TN` | **R1** WpstMsg->usMsgLen @ g_aucCfg，末端 pstMsg->usMsgLen；需 pstMsg->usMsgLen <= 256（depth 3）<br>**R2** RpstMsg->usMsgLen @ pstMsg->aucBody，末端 pstMsg->usMsgLen；需 pstMsg->usMsgLen <= 1024（depth 3） | — | 账本 `type_range_only`（R1）<br>账本 `type_range_only`（R2） |
-| `Om_OnSaveCfg_TP` | **R1** WpstMsg->usMsgLen @ g_aucCfg，末端 pstMsg->usMsgLen；需 pstMsg->usMsgLen <= 256（depth 3）<br>**R2** RpstMsg->usMsgLen @ pstMsg->aucBody，末端 pstMsg->usMsgLen；需 pstMsg->usMsgLen <= 1024（depth 3） | — | 账本 `type_range_only`（R1）<br>账本 `type_range_only`（R2） |
+| `Cfg_Store` | **R1** `p1 <= 256` @ `g:g_aucCfg` · exact（depth 1）<br>**R2** `p1 <= ext(p0)` @ `*p0` · exact（depth 1） | — | — |
+| `Om_SaveCfg` | **R1** `p1 <= 256` @ `g:g_aucCfg` · exact（depth 2）<br>**R2** `p1 <= ext(p0)` @ `*p0` · exact（depth 2） | — | — |
+| `Om_OnSaveCfg_TN` | **R1** `p0->usMsgLen <= 256` @ `g:g_aucCfg` · exact（depth 3）<br>**R2** `p0->usMsgLen <= 1024` @ `p0->aucBody` · exact（depth 3） | — | 账本 `type_range_only`（R1）<br>账本 `type_range_only`（R2） |
+| `Om_OnSaveCfg_TP` | **R1** `p0->usMsgLen <= 256` @ `g:g_aucCfg` · exact（depth 3）<br>**R2** `p0->usMsgLen <= 1024` @ `p0->aucBody` · exact（depth 3） | — | 账本 `type_range_only`（R1）<br>账本 `type_range_only`（R2） |
 
 <details open><summary><code>Cfg_Save.json</code></summary>
 
@@ -3378,52 +3840,62 @@ void Om_ModInit(void) { OM_RegMsg(0x3001, Om_OnSaveCfg_TN, CFG_LEN); }
   "fn": "Cfg_Save",
   "key": "F@lv10_04_unchecked_ext_len.c:Cfg_Save",
   "loc": "lv10_04_unchecked_ext_len.c:34",
-  "params": ["pucBody: UINT8*", "ulLen: UINT32"],
+  "params": [{"name": "pucBody", "type": "UINT8*"}, {"name": "ulLen", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "p1",
-      "obj": "g_aucCfg",
       "have": "256",
+      "obj": "g:g_aucCfg",
       "end": ["p1", "p1"],
       "start": "0",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Cfg_Save",
+        "key": "F@lv10_04_unchecked_ext_len.c:Cfg_Save",
         "at": "lv10_04_unchecked_ext_len.c:36",
-        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
+        "end": "p1"
       },
       "path": ["Cfg_Save@lv10_04_unchecked_ext_len.c:36"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "目的：destMax = ulLen",
-      "text": "WulLen @ g_aucCfg，末端 ulLen；需 ulLen <= 256"
+      "doc": {
+        "text": "写 ulLen 字节 @ g_aucCfg，末端 ulLen；需 ulLen <= 256",
+        "obj": "g_aucCfg",
+        "bytes": "p1",
+        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)",
+        "note": "目的：destMax = ulLen"
+      }
     },
     {
       "id": "R2",
       "kind": "R",
-      "bytes": "p1",
-      "obj": "*pucBody",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["p1", "p1"],
       "start": "0",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Cfg_Save",
+        "key": "F@lv10_04_unchecked_ext_len.c:Cfg_Save",
         "at": "lv10_04_unchecked_ext_len.c:36",
-        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
+        "end": "p1"
       },
       "path": ["Cfg_Save@lv10_04_unchecked_ext_len.c:36"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "note": "源：count = destMax，守卫 count <= destMax 恒真，已去掉",
-      "text": "RulLen @ *pucBody，末端 ulLen；需 ulLen <= ext(pucBody)"
+      "doc": {
+        "text": "读 ulLen 字节 @ *pucBody，末端 ulLen；需 ulLen <= ext(pucBody)",
+        "obj": "*pucBody",
+        "bytes": "p1",
+        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)",
+        "note": "源：count = destMax，守卫 count <= destMax 恒真，已去掉"
+      }
     }
   ],
   "effs": [],
@@ -3432,8 +3904,14 @@ void Om_ModInit(void) { OM_RegMsg(0x3001, Om_OnSaveCfg_TN, CFG_LEN); }
       "site": "lv10_04_unchecked_ext_len.c:36",
       "callee": "memcpy_s",
       "model": "access",
-      "args": [{"ptr": "g_aucCfg", "have": "256"}, "p1", {"ptr": "pucBody", "have": "ext(p0)"}, "p1"],
-      "results": [{"note": "访问类模型 memcpy_s → R1、R2"}]
+      "args": [
+        {"obj": "g:g_aucCfg", "have": "256", "doc": "g_aucCfg"},
+        "p1",
+        {"obj": "*p0", "have": "ext(p0)", "doc": "pucBody"},
+        "p1"
+      ],
+      "results": [{"gen": ["R1", "R2"]}],
+      "doc": "访问类模型 memcpy_s → R1、R2"
     }
   ],
   "reps": [],
@@ -3450,24 +3928,24 @@ void Om_ModInit(void) { OM_RegMsg(0x3001, Om_OnSaveCfg_TN, CFG_LEN); }
   "fn": "Om_OnSaveCfg_TP",
   "key": "F:Om_OnSaveCfg_TP",
   "loc": "lv10_04_unchecked_ext_len.c:42",
-  "params": ["pstMsg: OM_MSG_S*"],
+  "params": [{"name": "pstMsg", "type": "OM_MSG_S*"}],
   "fields": {"p0->usMsgLen": {"off": 2, "size": 2, "type": "UINT16"}},
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "p0->usMsgLen",
-      "obj": "g_aucCfg",
       "have": "256",
+      "obj": "g:g_aucCfg",
       "end": ["p0->usMsgLen", "p0->usMsgLen"],
       "start": "0",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Cfg_Save",
+        "key": "F@lv10_04_unchecked_ext_len.c:Cfg_Save",
         "at": "lv10_04_unchecked_ext_len.c:36",
-        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
+        "end": "p1"
       },
       "path": [
         "Om_OnSaveCfg_TP@lv10_04_unchecked_ext_len.c:42",
@@ -3478,22 +3956,27 @@ void Om_ModInit(void) { OM_RegMsg(0x3001, Om_OnSaveCfg_TN, CFG_LEN); }
       "depth": 3,
       "eff_depth": 0,
       "blind": false,
-      "text": "WpstMsg->usMsgLen @ g_aucCfg，末端 pstMsg->usMsgLen；需 pstMsg->usMsgLen <= 256"
+      "doc": {
+        "text": "写 pstMsg->usMsgLen 字节 @ g_aucCfg，末端 pstMsg->usMsgLen；需 pstMsg->usMsgLen <= 256",
+        "obj": "g_aucCfg",
+        "bytes": "p0->usMsgLen",
+        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
+      }
     },
     {
       "id": "R2",
       "kind": "R",
-      "bytes": "p0->usMsgLen",
-      "obj": "pstMsg->aucBody",
       "have": "1024",
+      "obj": "p0->aucBody",
       "end": ["p0->usMsgLen", "p0->usMsgLen"],
       "start": "0",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Cfg_Save",
+        "key": "F@lv10_04_unchecked_ext_len.c:Cfg_Save",
         "at": "lv10_04_unchecked_ext_len.c:36",
-        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
+        "end": "p1"
       },
       "path": [
         "Om_OnSaveCfg_TP@lv10_04_unchecked_ext_len.c:42",
@@ -3504,7 +3987,12 @@ void Om_ModInit(void) { OM_RegMsg(0x3001, Om_OnSaveCfg_TN, CFG_LEN); }
       "depth": 3,
       "eff_depth": 0,
       "blind": false,
-      "text": "RpstMsg->usMsgLen @ pstMsg->aucBody，末端 pstMsg->usMsgLen；需 pstMsg->usMsgLen <= 1024"
+      "doc": {
+        "text": "读 pstMsg->usMsgLen 字节 @ pstMsg->aucBody，末端 pstMsg->usMsgLen；需 pstMsg->usMsgLen <= 1024",
+        "obj": "pstMsg->aucBody",
+        "bytes": "p0->usMsgLen",
+        "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
+      }
     }
   ],
   "effs": [],
@@ -3512,9 +4000,9 @@ void Om_ModInit(void) { OM_RegMsg(0x3001, Om_OnSaveCfg_TN, CFG_LEN); }
     {
       "site": "lv10_04_unchecked_ext_len.c:42",
       "callee": "Om_SaveCfg",
-      "args": [{"ptr": "pstMsg->aucBody", "have": "1024"}, "p0->usMsgLen"],
+      "args": [{"obj": "p0->aucBody", "have": "1024", "doc": "pstMsg->aucBody"}, "p0->usMsgLen"],
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}, {"req": "R2", "outcome": "up", "as": "R2"}],
-      "note": "aucBody 是成员数组，子对象 1024 字节；usMsgLen 只有 UINT16 的类型范围"
+      "doc": "aucBody 是成员数组，子对象 1024 字节；usMsgLen 只有 UINT16 的类型范围"
     }
   ],
   "reps": [],
@@ -3522,14 +4010,14 @@ void Om_ModInit(void) { OM_RegMsg(0x3001, Om_OnSaveCfg_TN, CFG_LEN); }
     {
       "reason": "type_range_only",
       "at": "lv10_04_unchecked_ext_len.c:42",
-      "detail": "入口：usMsgLen 只有类型范围 [0, 65535]，最大会写到 65535 > 256；不是代码给出的界，不报 L2，留给 AI 研判",
-      "req": "R1"
+      "req": "R1",
+      "doc": "入口：usMsgLen 只有类型范围 [0, 65535]，最大会写到 65535 > 256；不是代码给出的界，不报 L2，留给 AI 研判"
     },
     {
       "reason": "type_range_only",
       "at": "lv10_04_unchecked_ext_len.c:42",
-      "detail": "同上：最大读到 65535 > 1024",
-      "req": "R2"
+      "req": "R2",
+      "doc": "同上：最大读到 65535 > 1024"
     }
   ]
 }
@@ -3540,23 +4028,23 @@ void Om_ModInit(void) { OM_RegMsg(0x3001, Om_OnSaveCfg_TN, CFG_LEN); }
 
 ```text
 - Cfg_Save @ lv10_04_unchecked_ext_len.c:36  调用 memcpy_s(g_aucCfg, p1, pucBody, p1)
-    · 访问类模型 memcpy_s → R1、R2
+    · 访问类模型 memcpy_s → 在本函数生成 R1、R2
 - Om_ModInit @ lv10_04_unchecked_ext_len.c:45  调用 OM_RegMsg(0x3001, …, 256)
-    · 外部函数、无模型：登记了 Om_OnSaveCfg_TN 与最大长度 256 —— 程序分析不理解，AI 研判时读它
+    · 未知函数 OM_RegMsg：记账 unknown_callee
 - Cfg_Store @ lv10_04_unchecked_ext_len.c:39  调用 Cfg_Save(p, p1)
-    · Cfg_Save.R1：末端 p1，对象 256 → up → 本函数 R1
-    · Cfg_Save.R2：末端 p1，对象 ext(p0) → up → 本函数 R2
+    · Cfg_Save.R1：末端 p1，对象 g:g_aucCfg（256 字节）→ up → 本函数 R1
+    · Cfg_Save.R2：末端 p1，对象 *p0（ext(p0) 字节）→ up → 本函数 R2
 - Om_SaveCfg @ lv10_04_unchecked_ext_len.c:40  调用 Cfg_Store(p, p1)
-    · Cfg_Store.R1：末端 p1，对象 256 → up → 本函数 R1
-    · Cfg_Store.R2：末端 p1，对象 ext(p0) → up → 本函数 R2
+    · Cfg_Store.R1：末端 p1，对象 g:g_aucCfg（256 字节）→ up → 本函数 R1
+    · Cfg_Store.R2：末端 p1，对象 *p0（ext(p0) 字节）→ up → 本函数 R2
 - Om_OnSaveCfg_TN @ lv10_04_unchecked_ext_len.c:43  调用 Om_SaveCfg(pstMsg->aucBody, p0->usMsgLen)
-    · Om_SaveCfg.R1：末端 p0->usMsgLen，对象 256 → up → 本函数 R1
-    · Om_SaveCfg.R2：末端 p0->usMsgLen，对象 1024 → up → 本函数 R2
+    · Om_SaveCfg.R1：末端 p0->usMsgLen，对象 g:g_aucCfg（256 字节）→ up → 本函数 R1
+    · Om_SaveCfg.R2：末端 p0->usMsgLen，对象 p0->aucBody（1024 字节）→ up → 本函数 R2
 - Om_OnSaveCfg_TN 是入口（没有调用方）：R1 到此为止 → 记账 type_range_only
 - Om_OnSaveCfg_TN 是入口（没有调用方）：R2 到此为止 → 记账 type_range_only
 - Om_OnSaveCfg_TP @ lv10_04_unchecked_ext_len.c:42  调用 Om_SaveCfg(pstMsg->aucBody, p0->usMsgLen)
-    · Om_SaveCfg.R1：末端 p0->usMsgLen，对象 256 → up → 本函数 R1
-    · Om_SaveCfg.R2：末端 p0->usMsgLen，对象 1024 → up → 本函数 R2
+    · Om_SaveCfg.R1：末端 p0->usMsgLen，对象 g:g_aucCfg（256 字节）→ up → 本函数 R1
+    · Om_SaveCfg.R2：末端 p0->usMsgLen，对象 p0->aucBody（1024 字节）→ up → 本函数 R2
 - Om_OnSaveCfg_TP 是入口（没有调用方）：R1 到此为止 → 记账 type_range_only
 - Om_OnSaveCfg_TP 是入口（没有调用方）：R2 到此为止 → 记账 type_range_only
 - 期望 TP Om_OnSaveCfg_TP pa=记账 → 回放 - ✓

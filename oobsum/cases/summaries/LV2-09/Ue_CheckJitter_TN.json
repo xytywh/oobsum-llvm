@@ -11,7 +11,7 @@
     {
       "site": "lv2_09_unsigned_wrap.c:54",
       "callee": "Ue_UpdateJitter_OK",
-      "args": [{"ptr": "aucHist", "have": "16"}, "0"],
+      "args": [{"obj": "local:aucHist", "have": "16", "doc": "aucHist"}, "0"],
       "results": [{"req": "R1", "outcome": "safe"}]
     }
   ],

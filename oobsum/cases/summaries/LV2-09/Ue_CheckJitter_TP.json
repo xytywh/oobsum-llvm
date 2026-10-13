@@ -11,7 +11,7 @@
     {
       "site": "lv2_09_unsigned_wrap.c:48",
       "callee": "Ue_UpdateJitter",
-      "args": [{"ptr": "aucHist", "have": "16"}, "0"],
+      "args": [{"obj": "local:aucHist", "have": "16", "doc": "aucHist"}, "0"],
       "results": [{"req": "R1", "outcome": "L1", "report": "RPT1"}]
     }
   ],
@@ -21,8 +21,14 @@
       "level": "L1",
       "reported": true,
       "site": "lv2_09_unsigned_wrap.c:48",
-      "access": "Hist_GetPrev@lv2_09_unsigned_wrap.c:29",
-      "object": "aucHist",
+      "access": {
+        "fn": "Hist_GetPrev",
+        "key": "F@lv2_09_unsigned_wrap.c:Hist_GetPrev",
+        "at": "lv2_09_unsigned_wrap.c:29",
+        "end": "wrap32(p1 - 1) + 1"
+      },
+      "kind": "R",
+      "obj": "local:aucHist",
       "have": "16",
       "end": ["4294967296", "4294967296"],
       "bound": "exact",
@@ -34,8 +40,10 @@
         "Ue_CalcJitter@lv2_09_unsigned_wrap.c:40",
         "Hist_GetPrev@lv2_09_unsigned_wrap.c:29"
       ],
-      "msg": "Definite out-of-bound read through a 3-level call chain: up to byte 4294967296 of 'aucHist' (16 bytes) is accessed",
-      "fp": "c5fa4651a3eb05ff"
+      "fp": "a9ee5cc44f6115e0",
+      "doc": {
+        "msg": "Definite out-of-bound read through a 3-level call chain: up to byte 4294967296 of 'aucHist' (16 bytes) is accessed"
+      }
     }
   ],
   "opens": []

@@ -3,7 +3,11 @@
   "fn": "Enc_Encode",
   "key": "F@lv5_01_ctx_filled_at_top.c:Enc_Encode",
   "loc": "lv5_01_ctx_filled_at_top.c:41",
-  "params": ["pstCtx: ENC_CTX_S*", "pucIe: UINT8*", "ulLen: UINT32"],
+  "params": [
+    {"name": "pstCtx", "type": "ENC_CTX_S*"},
+    {"name": "pucIe", "type": "UINT8*"},
+    {"name": "ulLen", "type": "UINT32"}
+  ],
   "fields": {
     "p0->pucBuf": {"off": 0, "size": 4, "type": "UINT8*"},
     "p0->ulBufLen": {"off": 4, "size": 4, "type": "UINT32"},
@@ -14,17 +18,17 @@
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "p0->ulBufLen",
-      "obj": "*pstCtx->pucBuf",
       "have": "ext(p0->pucBuf)",
+      "obj": "*p0->pucBuf",
       "end": ["p0->ulBufLen", "p0->ulBufLen"],
       "start": "0",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Enc_PutBytes",
+        "key": "F@lv5_01_ctx_filled_at_top.c:Enc_PutBytes",
         "at": "lv5_01_ctx_filled_at_top.c:36",
-        "code": "memcpy_s(pstCtx->pucBuf, pstCtx->ulBufLen, pucData, ulLen)"
+        "end": "p0->ulBufLen"
       },
       "path": [
         "Enc_Encode@lv5_01_ctx_filled_at_top.c:41",
@@ -34,22 +38,27 @@
       "depth": 2,
       "eff_depth": 0,
       "blind": false,
-      "text": "WpstCtx->ulBufLen @ *pstCtx->pucBuf，末端 pstCtx->ulBufLen；需 pstCtx->ulBufLen <= ext(pstCtx->pucBuf)"
+      "doc": {
+        "text": "写 pstCtx->ulBufLen 字节 @ *pstCtx->pucBuf，末端 pstCtx->ulBufLen；需 pstCtx->ulBufLen <= ext(pstCtx->pucBuf)",
+        "obj": "*pstCtx->pucBuf",
+        "bytes": "p0->ulBufLen",
+        "code": "memcpy_s(pstCtx->pucBuf, pstCtx->ulBufLen, pucData, ulLen)"
+      }
     },
     {
       "id": "R2",
       "kind": "R",
-      "bytes": "p2",
-      "obj": "*pucIe",
       "have": "ext(p1)",
+      "obj": "*p1",
       "end": ["p2", "p2"],
       "start": "0",
       "bound": "exact",
       "guard": ["p2 <= p0->ulBufLen"],
       "access": {
         "fn": "Enc_PutBytes",
+        "key": "F@lv5_01_ctx_filled_at_top.c:Enc_PutBytes",
         "at": "lv5_01_ctx_filled_at_top.c:36",
-        "code": "memcpy_s(pstCtx->pucBuf, pstCtx->ulBufLen, pucData, ulLen)"
+        "end": "p2"
       },
       "path": [
         "Enc_Encode@lv5_01_ctx_filled_at_top.c:41",
@@ -59,23 +68,28 @@
       "depth": 2,
       "eff_depth": 0,
       "blind": false,
-      "text": "ulLen <= pstCtx->ulBufLen ⇒ RulLen @ *pucIe，末端 ulLen；需 ulLen <= ext(pucIe)"
+      "doc": {
+        "text": "ulLen <= pstCtx->ulBufLen ⇒ 读 ulLen 字节 @ *pucIe，末端 ulLen；需 ulLen <= ext(pucIe)",
+        "obj": "*pucIe",
+        "bytes": "p2",
+        "code": "memcpy_s(pstCtx->pucBuf, pstCtx->ulBufLen, pucData, ulLen)"
+      }
     }
   ],
-  "effs": [{"kind": "field", "target": "p0->ulUsed", "value": "p2", "text": "pstCtx->ulUsed := ulLen"}],
+  "effs": [{"kind": "field", "target": "p0->ulUsed", "value": "p2", "doc": {"text": "pstCtx->ulUsed := ulLen"}}],
   "calls": [
     {
       "site": "lv5_01_ctx_filled_at_top.c:41",
       "callee": "Enc_PutIe",
       "args": [
-        {"ptr": "pstCtx", "have": "ext(p0)", "alias": "p0"},
-        {"ptr": "pucIe", "have": "ext(p1)", "alias": "p1"},
+        {"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "pstCtx"},
+        {"obj": "*p1", "have": "ext(p1)", "alias": "p1", "doc": "pucIe"},
         "p2"
       ],
       "results": [
         {"req": "R1", "outcome": "up", "as": "R1"},
         {"req": "R2", "outcome": "up", "as": "R2"},
-        {"eff": 0, "value": "p0->ulUsed := p2"}
+        {"eff": 0, "apply": {"kind": "field", "arg": 0, "field": "ulUsed", "value": "p2"}}
       ]
     }
   ],

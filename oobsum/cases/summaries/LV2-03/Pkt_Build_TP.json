@@ -3,23 +3,23 @@
   "fn": "Pkt_Build_TP",
   "key": "F:Pkt_Build_TP",
   "loc": "lv2_03_tlv_destmax_no_off.c:54",
-  "params": ["pucVal: UINT8*"],
+  "params": [{"name": "pucVal", "type": "UINT8*"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "R",
-      "bytes": "8",
-      "obj": "*pucVal",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["8", "8"],
       "start": "0",
       "bound": "exact",
       "guard": [],
       "access": {
         "fn": "Tlv_WriteVal",
+        "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal",
         "at": "lv2_03_tlv_destmax_no_off.c:31",
-        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+        "end": "p3"
       },
       "path": [
         "Pkt_Build_TP@lv2_03_tlv_destmax_no_off.c:57",
@@ -30,7 +30,12 @@
       "depth": 3,
       "eff_depth": 0,
       "blind": false,
-      "text": "R8 @ *pucVal，末端 8；需 8 <= ext(pucVal)"
+      "doc": {
+        "text": "读 8 字节 @ *pucVal，末端 8；需 8 <= ext(pucVal)",
+        "obj": "*pucVal",
+        "bytes": "8",
+        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN, pucVal, ulValLen)"
+      }
     }
   ],
   "effs": [],
@@ -38,9 +43,14 @@
     {
       "site": "lv2_03_tlv_destmax_no_off.c:57",
       "callee": "Pkt_AddIe",
-      "args": [{"ptr": "aucPkt", "have": "128"}, "16", {"ptr": "pucVal", "have": "ext(p0)", "alias": "p0"}, "8"],
+      "args": [
+        {"obj": "local:aucPkt", "have": "128", "doc": "aucPkt"},
+        "16",
+        {"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "pucVal"},
+        "8"
+      ],
       "results": [{"req": "R1", "outcome": "L1", "report": "RPT1"}, {"req": "R2", "outcome": "up", "as": "R1"}],
-      "note": "UINT8 aucPkt[PKT_MAX_LEN]，128 字节"
+      "doc": "UINT8 aucPkt[PKT_MAX_LEN]，128 字节"
     }
   ],
   "reps": [
@@ -49,8 +59,14 @@
       "level": "L1",
       "reported": true,
       "site": "lv2_03_tlv_destmax_no_off.c:57",
-      "access": "Tlv_WriteVal@lv2_03_tlv_destmax_no_off.c:31",
-      "object": "aucPkt",
+      "access": {
+        "fn": "Tlv_WriteVal",
+        "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal",
+        "at": "lv2_03_tlv_destmax_no_off.c:31",
+        "end": "p1 + 128"
+      },
+      "kind": "W",
+      "obj": "local:aucPkt",
       "have": "128",
       "end": ["148", "148"],
       "bound": "exact",
@@ -62,16 +78,18 @@
         "Tlv_Append@lv2_03_tlv_destmax_no_off.c:42",
         "Tlv_WriteVal@lv2_03_tlv_destmax_no_off.c:31"
       ],
-      "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 148 of 'aucPkt' (128 bytes) is accessed",
-      "fp": "dc4edf4e255065c9"
+      "fp": "aed893dfe3df6207",
+      "doc": {
+        "msg": "Definite out-of-bound write through a 3-level call chain: up to byte 148 of 'aucPkt' (128 bytes) is accessed"
+      }
     }
   ],
   "opens": [
     {
       "reason": "entry_unproven",
       "at": "lv2_03_tlv_destmax_no_off.c:54",
-      "detail": "入口形参 pucVal 指向的对象要求至少 8 字节；没有调用方能证明",
-      "req": "R1"
+      "req": "R1",
+      "doc": "入口形参 pucVal 指向的对象要求至少 8 字节；没有调用方能证明"
     }
   ]
 }

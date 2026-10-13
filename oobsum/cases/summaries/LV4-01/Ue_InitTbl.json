@@ -3,25 +3,34 @@
   "fn": "Ue_InitTbl",
   "key": "F@lv4_01_wrapper_alloc_spec.c:Ue_InitTbl",
   "loc": "lv4_01_wrapper_alloc_spec.c:55",
-  "params": ["pstTbl: UE_S*", "ulNum: UINT32"],
+  "params": [{"name": "pstTbl", "type": "UE_S*"}, {"name": "ulNum", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "4",
-      "obj": "*pstTbl",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["4", "16*p1 - 12"],
       "start": "0",
       "bound": "loop",
       "guard": ["p1 >= 1"],
-      "access": {"fn": "Ue_InitOne", "at": "lv4_01_wrapper_alloc_spec.c:52", "code": "pstTbl[ulIdx].ulState = 0"},
+      "access": {
+        "fn": "Ue_InitOne",
+        "key": "F@lv4_01_wrapper_alloc_spec.c:Ue_InitOne",
+        "at": "lv4_01_wrapper_alloc_spec.c:52",
+        "end": "16*p1 + 4"
+      },
       "path": ["Ue_InitTbl@lv4_01_wrapper_alloc_spec.c:59", "Ue_InitOne@lv4_01_wrapper_alloc_spec.c:52"],
       "depth": 1,
       "eff_depth": 0,
       "blind": false,
-      "text": "ulNum >= 1 ⇒ W4 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 <= ext(pstTbl)"
+      "doc": {
+        "text": "ulNum >= 1 ⇒ 写 4 字节 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 <= ext(pstTbl)",
+        "obj": "*pstTbl",
+        "bytes": "4",
+        "code": "pstTbl[ulIdx].ulState = 0"
+      }
     }
   ],
   "effs": [],
@@ -29,7 +38,7 @@
     {
       "site": "lv4_01_wrapper_alloc_spec.c:59",
       "callee": "Ue_InitOne",
-      "args": [{"ptr": "pstTbl", "have": "ext(p0)", "alias": "p0"}, "i"],
+      "args": [{"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "pstTbl"}, "i"],
       "locals": {"i": {"range": ["0", "p1 - 1"], "bound": "loop"}},
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
     }

@@ -4,25 +4,29 @@
   "key": "F:Alm_RaiseOne",
   "tu": "alm_low.c",
   "loc": "alm_low.c:10",
-  "params": ["ulAlmId: UINT32"],
+  "params": [{"name": "ulAlmId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "1",
-      "obj": "g_aucAlmFlag",
       "have": "3",
+      "obj": "g:g_aucAlmFlag",
       "end": ["p0 + 1", "p0 + 1"],
       "start": "p0",
       "bound": "exact",
       "guard": [],
-      "access": {"fn": "Alm_SetFlag", "at": "alm_low.c:7", "code": "g_aucAlmFlag[ulAlmId] = 1"},
+      "access": {"fn": "Alm_SetFlag", "key": "F:Alm_SetFlag", "at": "alm_low.c:7", "end": "p0 + 1"},
       "path": ["Alm_RaiseOne@alm_low.c:12", "Alm_SetFlag@alm_low.c:7"],
       "depth": 1,
       "eff_depth": 0,
       "blind": false,
-      "text": "W1 @ g_aucAlmFlag，末端 ulAlmId + 1；需 ulAlmId + 1 <= 3"
+      "doc": {
+        "text": "写 1 字节 @ g_aucAlmFlag，末端 ulAlmId + 1；需 ulAlmId + 1 <= 3",
+        "obj": "g_aucAlmFlag",
+        "bytes": "1",
+        "code": "g_aucAlmFlag[ulAlmId] = 1"
+      }
     }
   ],
   "effs": [],

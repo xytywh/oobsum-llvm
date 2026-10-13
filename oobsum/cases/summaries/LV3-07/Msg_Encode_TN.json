@@ -3,7 +3,7 @@
   "fn": "Msg_Encode_TN",
   "key": "F:Msg_Encode_TN",
   "loc": "lv3_07_pkt_loop_destmax.c:77",
-  "params": ["astIe: IE_S*", "ulIeNum: UINT32"],
+  "params": [{"name": "astIe", "type": "IE_S*"}, {"name": "ulIeNum", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [],
   "effs": [],
@@ -11,7 +11,12 @@
     {
       "site": "lv3_07_pkt_loop_destmax.c:80",
       "callee": "Msg_BuildBody_OK",
-      "args": [{"ptr": "aucPkt", "have": "128"}, "128", {"ptr": "astIe", "have": "ext(p0)", "alias": "p0"}, "p1"],
+      "args": [
+        {"obj": "local:aucPkt", "have": "128", "doc": "aucPkt"},
+        "128",
+        {"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "astIe"},
+        "p1"
+      ],
       "results": [{"req": "R1", "outcome": "safe"}]
     }
   ],

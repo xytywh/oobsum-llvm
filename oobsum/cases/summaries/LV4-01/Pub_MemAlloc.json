@@ -3,9 +3,8 @@
   "fn": "Pub_MemAlloc",
   "key": "F@common.h:Pub_MemAlloc#3fd1a0c2",
   "loc": "common.h:51",
-  "params": ["ulSize: UINT32"],
+  "params": [{"name": "ulSize", "type": "UINT32"}],
   "status": "analyzed",
-  "note": "头文件里的 static inline：每个 TU 一份，FIR 相同的只求解一次（D-08）",
   "reqs": [],
   "effs": [
     {
@@ -13,8 +12,7 @@
       "size": "p0",
       "maybe_null": true,
       "eff_depth": 1,
-      "via": "VOS_MemAlloc（模型表 allocators：size = p2）",
-      "text": "ret = new(ulSize) 或 NULL"
+      "doc": {"text": "ret = new(ulSize) 或 NULL", "via": "VOS_MemAlloc（模型表 allocators：size = p2）"}
     }
   ],
   "calls": [
@@ -23,9 +21,11 @@
       "callee": "VOS_MemAlloc",
       "model": "alloc",
       "args": ["PID_CELL", "0", "p0"],
-      "results": [{"note": "分配器模型：返回 new(实参 2) 或 NULL → 本函数 ret_new(size = ulSize)"}]
+      "results": [{"gen_eff": [0]}],
+      "doc": "分配器模型：返回 new(实参 2) 或 NULL → 本函数 ret_new(size = ulSize)"
     }
   ],
   "reps": [],
-  "opens": []
+  "opens": [],
+  "doc": "头文件里的 static inline：每个 TU 一份，FIR 相同的只求解一次（D-08）"
 }

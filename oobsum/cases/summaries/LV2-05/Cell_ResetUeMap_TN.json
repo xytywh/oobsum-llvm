@@ -11,7 +11,7 @@
     {
       "site": "lv2_05_bitmap_cast_words.c:60",
       "callee": "Cell_ClearUeMap_OK",
-      "args": [{"ptr": "(UINT8 *)aulAlign", "have": "8"}, "64"],
+      "args": [{"obj": "local:aulAlign", "have": "8", "doc": "(UINT8 *)aulAlign"}, "64"],
       "results": [{"req": "R1", "outcome": "safe"}]
     }
   ],

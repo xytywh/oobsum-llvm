@@ -3,23 +3,28 @@
   "fn": "Msg_BuildBody",
   "key": "F@lv3_07_pkt_loop_destmax.c:Msg_BuildBody",
   "loc": "lv3_07_pkt_loop_destmax.c:68",
-  "params": ["p: UINT8*", "n: UINT32", "a: IE_S*", "k: UINT32"],
+  "params": [
+    {"name": "p", "type": "UINT8*"},
+    {"name": "n", "type": "UINT32"},
+    {"name": "a", "type": "IE_S*"},
+    {"name": "k", "type": "UINT32"}
+  ],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "p1",
-      "obj": "*p",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["p1", "2*p1"],
       "start": "0",
       "bound": "check",
       "guard": [],
       "access": {
         "fn": "Pkt_PutIes",
+        "key": "F@lv3_07_pkt_loop_destmax.c:Pkt_PutIes",
         "at": "lv3_07_pkt_loop_destmax.c:58",
-        "code": "memcpy_s(pucPkt + ulOff, ulPktLen, astIe[i].pucVal, astIe[i].ulLen)"
+        "end": "2*p1"
       },
       "path": [
         "Msg_BuildBody@lv3_07_pkt_loop_destmax.c:68",
@@ -29,7 +34,12 @@
       "depth": 2,
       "eff_depth": 0,
       "blind": false,
-      "text": "Wn @ *p，末端 [n, 2*n]；需 2*n <= ext(p)"
+      "doc": {
+        "text": "写 n 字节 @ *p，末端 [n, 2*n]；需 2*n <= ext(p)",
+        "obj": "*p",
+        "bytes": "p1",
+        "code": "memcpy_s(pucPkt + ulOff, ulPktLen, astIe[i].pucVal, astIe[i].ulLen)"
+      }
     }
   ],
   "effs": [],
@@ -38,9 +48,9 @@
       "site": "lv3_07_pkt_loop_destmax.c:68",
       "callee": "Body_PutIes",
       "args": [
-        {"ptr": "p", "have": "ext(p0)", "alias": "p0"},
+        {"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "p"},
         "p1",
-        {"ptr": "a", "have": "ext(p2)", "alias": "p2"},
+        {"obj": "*p2", "have": "ext(p2)", "alias": "p2", "doc": "a"},
         "p3"
       ],
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}]

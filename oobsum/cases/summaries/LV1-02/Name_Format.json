@@ -3,29 +3,38 @@
   "fn": "Name_Format",
   "key": "F@lv1_02_name_terminator.c:Name_Format",
   "loc": "lv1_02_name_terminator.c:32",
-  "params": ["pszName: CHAR*", "ulUeId: UINT32"],
+  "params": [{"name": "pszName", "type": "CHAR*"}, {"name": "ulUeId", "type": "UINT32"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "1",
-      "obj": "*pszName",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["17", "17"],
       "start": "16",
       "bound": "exact",
       "guard": [],
-      "access": {"fn": "Name_Terminate", "at": "lv1_02_name_terminator.c:29", "code": "pszName[UE_NAME_LEN] = '\\0'"},
+      "access": {
+        "fn": "Name_Terminate",
+        "key": "F@lv1_02_name_terminator.c:Name_Terminate",
+        "at": "lv1_02_name_terminator.c:29",
+        "end": "17"
+      },
       "path": ["Name_Format@lv1_02_name_terminator.c:36", "Name_Terminate@lv1_02_name_terminator.c:29"],
       "depth": 1,
       "eff_depth": 0,
       "blind": false,
       "absorbed": [
-        "W1 @ pszName + 0（lv1_02_name_terminator.c:34，末端 1）",
-        "W1 @ pszName + 1（lv1_02_name_terminator.c:35，末端 2）"
+        {"kind": "W", "end": ["1", "1"], "at": "lv1_02_name_terminator.c:34"},
+        {"kind": "W", "end": ["2", "2"], "at": "lv1_02_name_terminator.c:35"}
       ],
-      "text": "W1 @ *pszName，末端 17；需 17 <= ext(pszName)"
+      "doc": {
+        "text": "写 1 字节 @ *pszName，末端 17；需 17 <= ext(pszName)",
+        "obj": "*pszName",
+        "bytes": "1",
+        "code": "pszName[UE_NAME_LEN] = '\\0'"
+      }
     }
   ],
   "effs": [],
@@ -33,7 +42,7 @@
     {
       "site": "lv1_02_name_terminator.c:36",
       "callee": "Name_Terminate",
-      "args": [{"ptr": "pszName", "have": "ext(p0)", "alias": "p0"}],
+      "args": [{"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "pszName"}],
       "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
     }
   ],

@@ -11,8 +11,9 @@
     {
       "site": "lv9_04_external_driver.c:32",
       "callee": "Om_ReadAll",
-      "args": [{"ptr": "aucStatus", "have": "16"}, "32"],
-      "results": [{"note": "被调者没有条件 → 不报；漏报在 Chip_ReadStatus 的账本里"}]
+      "args": [{"obj": "local:aucStatus", "have": "16", "doc": "aucStatus"}, "32"],
+      "results": [],
+      "doc": "被调者没有条件 → 不报；漏报在 Chip_ReadStatus 的账本里"
     }
   ],
   "reps": [],

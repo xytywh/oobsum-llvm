@@ -3,25 +3,34 @@
   "fn": "Name_Terminate",
   "key": "F@lv1_02_name_terminator.c:Name_Terminate",
   "loc": "lv1_02_name_terminator.c:27",
-  "params": ["pszName: CHAR*"],
+  "params": [{"name": "pszName", "type": "CHAR*"}],
   "status": "analyzed",
   "reqs": [
     {
       "id": "R1",
       "kind": "W",
-      "bytes": "1",
-      "obj": "*pszName",
       "have": "ext(p0)",
+      "obj": "*p0",
       "end": ["17", "17"],
       "start": "16",
       "bound": "exact",
       "guard": [],
-      "access": {"fn": "Name_Terminate", "at": "lv1_02_name_terminator.c:29", "code": "pszName[UE_NAME_LEN] = '\\0'"},
+      "access": {
+        "fn": "Name_Terminate",
+        "key": "F@lv1_02_name_terminator.c:Name_Terminate",
+        "at": "lv1_02_name_terminator.c:29",
+        "end": "17"
+      },
       "path": ["Name_Terminate@lv1_02_name_terminator.c:29"],
       "depth": 0,
       "eff_depth": 0,
       "blind": false,
-      "text": "W1 @ *pszName，末端 17；需 17 <= ext(pszName)"
+      "doc": {
+        "text": "写 1 字节 @ *pszName，末端 17；需 17 <= ext(pszName)",
+        "obj": "*pszName",
+        "bytes": "1",
+        "code": "pszName[UE_NAME_LEN] = '\\0'"
+      }
     }
   ],
   "effs": [],

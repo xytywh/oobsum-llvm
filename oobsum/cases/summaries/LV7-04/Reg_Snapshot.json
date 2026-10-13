@@ -3,7 +3,11 @@
   "fn": "Reg_Snapshot",
   "key": "F@lv7_04_pointer_stepping.c:Reg_Snapshot",
   "loc": "lv7_04_pointer_stepping.c:31",
-  "params": ["pucOut: UINT8*", "pucIn: UINT8*", "ulCnt: UINT32"],
+  "params": [
+    {"name": "pucOut", "type": "UINT8*"},
+    {"name": "pucIn", "type": "UINT8*"},
+    {"name": "ulCnt", "type": "UINT32"}
+  ],
   "status": "analyzed",
   "reqs": [],
   "effs": [],
@@ -12,11 +16,12 @@
       "site": "lv7_04_pointer_stepping.c:31",
       "callee": "Buf_CopyStep",
       "args": [
-        {"ptr": "pucOut", "have": "ext(p0)", "alias": "p0"},
-        {"ptr": "pucIn", "have": "ext(p1)", "alias": "p1"},
+        {"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "pucOut"},
+        {"obj": "*p1", "have": "ext(p1)", "alias": "p1", "doc": "pucIn"},
         "p2"
       ],
-      "results": [{"note": "被调者的摘要里没有条件 → 本函数也没有"}]
+      "results": [],
+      "doc": "被调者的摘要里没有条件 → 本函数也没有"
     }
   ],
   "reps": [],
