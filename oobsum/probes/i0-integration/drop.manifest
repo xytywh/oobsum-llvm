@@ -1,0 +1,8 @@
+# devenv/land.py 的落地清单：探针按 csa-checker-dev 的五处落点进 BXPlugin（或本地 llvm-project 预演）
+name=OobSummaryProbeChecker
+package=core
+td=checkers_td_snippet.td
+src=OobSummaryProbeChecker.cpp
+src=OobSummary/ProbeSubdirUnit.cpp
+hdr=OobSummary/ProbeSubdirUnit.h
+testcase=TestCase/OobSummaryProbeChecker

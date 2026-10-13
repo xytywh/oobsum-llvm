@@ -1,6 +1,8 @@
 # CSA Summary 2.0 编码实施计划（2026-10-14 → 2026-12-15）
 
 > 调研包 v3.12 · 2026-10-13 · 状态：**评审稿**（与 `06-spec.md` 一起定稿）
+> **v3.15**：公司电脑不能做开发——开发改在你自己的 Windows 电脑（WSL2 + 上游 llvm-project 14.0.0）上做，再带去公司编进 BXPlugin 验证。
+> 环境搭建与往返流程见 `09-local-dev-wsl.md`；本文件 §2（新增 I0′、I1′）、§3（三个环境）、§9（代码包带 `drop.manifest` + `land.py`）随之调整。
 >
 > 这份文件回答"代码按什么顺序写、每一步交什么、你那边要做什么、什么时候验收"。"写成什么样"在 `06-spec.md`；
 > 原计划 `00-implementation-plan.md` 的范围、P0 条目、检查点和验收标准不变，**它的 §5 周计划由本文件 §5 取代**（原计划 W01–W03 的集成工作没有做，见 §1）。
@@ -13,6 +15,7 @@
   T0-1 / T0-1b 已实测 fork 与上游在相关行为上逐行一致，所以绝大部分调试在我这边做完再交给你。
 * **本周（到 10-16）需要你三件事**：① 点头 `06-` §12 的 10 个决策（或改；v3.14 新增 D14 / D15）；② 在 fork 里跑一次 I0 探针（`probes/i0-integration/`，R1、R2 半小时，R3 挂机）把输出发我；
   ③ 确认代码怎么交付（§9，默认：独立代码包，目录镜像 BXPlugin）。**其余输入都有默认值，按 §2 的时间点给即可。**
+  另外（v3.15）：把自己电脑上的 WSL 开发环境搭起来（`09-local-dev-wsl.md` §0，第一天 apt 版冒烟通过就能用），去公司跑探针时顺手跑 `fork-facts.sh`。
 * **日历**：剩 **45 个工作日**（10-14 至 12-15，期间无法定假日）。检查点 **G1 10-30（沙箱）/ 11-03（fork 确认）**、**G2 11-20**、**G3 12-04**、**G4 12-15**，
   除 G1 多了一个 fork 确认日外与原计划相同。
 * **代价**：原计划 W01–W03 的"空 checker 在 fork 跑通、全量空跑耗时"没做，压进本周的探针；W05–W06 的缓冲从约 3 天降到约 1 天。
@@ -38,7 +41,9 @@
 
 | # | 输入 | 用在哪 | 什么时候要 | 没有时的默认 |
 |---|---|---|---|---|
+| **I0′** | 本地开发环境就绪：WSL2 + Ubuntu 22.04，`40-smoke.sh` 六项 PASS（`09-` §0 第 1–5 步） | 你在本地编、测我交付的代码包 | **10-16**（apt 版冒烟即可；源码构建可挂机并行） | 先按原方式直接带去公司验证，往返多一些 |
 | **I1** | 点头 `06-` §12 的 10 个决策（D5′、D7、D9–D15、X-04） | 定稿；第一次 fork 集成 | **10-16** | 按推荐写 |
+| **I1′** | 公司机器上 `devenv/fork-facts.sh` 的输出（`09-` §7） | 本地构建参数对齐；判断 xir 内嵌 CSA 与上游差多少（决定本地结果可信到什么程度） | **10-16**（与 I2 同一趟） | 按上游 14.0.0 + Release 对齐 |
 | **I2** | 探针 R1、R2 的输出（`probes/i0-integration/README.md` §3） | 宿主能力确认（回调、选项透传、子目录编译、目标 ABI、告警呈现） | **10-16** | 按沙箱结果写；fork 不一致时 v0.1 集成会暴露 |
 | **I2′** | 探针 R3：全量 `time` 与 `probe-full.md` | solve 的内存 / 分批（X-07）、`MaxBlocks`、性能目标（N-02、N-03）、重名外部函数比例（D-07） | **10-21** | `MaxBlocks=5000`、单进程全量加载 |
 | **I3** | 代码交付形态（§9） | 每次交付 | **10-16** | 独立代码包 `oob-summary-vX.Y.tar.gz` + 提交信息 |
@@ -56,19 +61,21 @@
 
 ---
 
-## 3. 开发方式：两个环境的闭环
+## 3. 开发方式：三个环境的闭环（v3.15）
 
 ```
- 我（沙箱：上游 LLVM 14.0.6 / clang-14）                         你（fork：/usr1/BXPlugin）
- ─────────────────────────────────────                         ─────────────────────────
- 写代码 → 插件构建 → T-01 单测 → cases 全量 T-03                      解包覆盖 → make -j16
-       → T-06 摘要快照 → T-07 健壮性 → 规范检查        ──交付──▶    → 驱动跑 TestCase（T-05）
-       → 交付：代码包 + 提交信息 + "这次验什么" + 沙箱结果表           → （W07 起）真实子集跑一遍
-                         ◀── 编译报错 / 输出 / 与沙箱不一致的地方 ──    → 把输出贴回来
+ 我（沙箱：上游 14.0.0 源码构建 + 14.0.6 apt）   你的电脑（WSL2：上游 14.0.0）          公司（/usr1/BXPlugin，不能做开发）
+ ─────────────────────────────────────────   ───────────────────────────────        ─────────────────────────────
+ 写代码 → 插件构建 → T-01 单测 → cases T-03      解包进 ~/oob-summary（git 提交）         sha256 核对 → land.py 演示 / --apply
+   → T-06 摘要快照 → T-07 健壮性 → 规范检查       → plugin-build.sh → cc1-run.sh 跑用例     → make -j16 → bxen 跑 TestCase（T-05）
+   → devenv/ 的本地预演（编进 clang 本体）  ─交付─▶ → 改、调试（gdb、断言）     ─带去─▶   → （W07 起）真实子集跑一遍
+                     ◀──────── 问题、补丁、你的修改 ────────   ◀── 不敏感的结论：告警数、耗时、编译报错 ──
 ```
 
+* **你的电脑与我的沙箱用同一套 `devenv/` 脚本**：我交付前跑过的命令，你在本地原样能跑；你本地复现的问题，我在沙箱里也能复现。
+* **公司那一趟只做本地做不了的事**：xir 内嵌 CSA 的差异、bxen 的参数与配置、ILP32 布局、业务代码与性能（`09-` §1 的表）。
 * **节奏**：每周两次交付（周二、周五），每次一个完整代码包（`oob-summary-v0.N`）+ 中文提交信息（`csa-checker-dev` 格式，scope `rb.enhance.ipa.OobSummary`）+ 验证命令 + 沙箱结果表。
-* **你那边的回路目标**：收到后 1 个工作日内把 fork 的编译 / 运行结果发回；不一致优先修，当天出补丁版。
+* **你那边的回路目标**：收到后先在本地过一遍（插件模式 + 用例，十几分钟），再带去公司；1 个工作日内把公司的编译 / 运行结果发回；不一致优先修，当天出补丁版。
 * **沙箱结果与 fork 不一致时**：以 fork 为准，我在沙箱里补一个复现用例，进 T-03 / T-07。
 * **每次交付前我必须跑完**：插件构建无告警、T-01 全过、T-03 不回退（已通过的入口不得变成失败）、T-07 无崩溃、规范检查无 FAIL。
 
@@ -155,18 +162,20 @@
 
 ## 9. 交付物与约定
 
-**代码包**（默认，I3 可改）：
+**代码包**（默认，I3 可改；v3.15 起按 `devenv/land.py` 的清单落地）：
 
 ```
 oob-summary-v0.N/
-  BXPlugin/xir/llvm_ast/StaticAnalyzer/Checkers/OobSummaryChecker.cpp
-  BXPlugin/xir/llvm_ast/StaticAnalyzer/Checkers/OobSummary/{lower,core,config,tools}/…
-  BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/{CMakeLists.txt,src/,include/,EXPECTED.md}
-  patches/   Checkers.td 条目、两处 CMakeLists 追加行（apply.sh 幂等追加，也可手工）
-  sandbox/   插件构建脚本、core 单测
-  docs/      规则 README（csa-checker-dev 合并版模板）、CHANGELOG.md、本次沙箱结果
-  apply.sh   把 BXPlugin/ 下的文件覆盖到你的仓库根，并检查三处登记
+  OobSummaryChecker.cpp                     入口（落到 xir/llvm_ast/StaticAnalyzer/Checkers/）
+  OobSummary/{lower,core,config,tools}/…    引擎（落到 Checkers/OobSummary/）
+  checkers_td_snippet.td                    Checkers.td 条目（落到 RosaRBEnhanceIpa 块的最后）
+  TestCase/OobSummaryChecker/               用例（落到 xir/llvm_ast/TestCase/，并登记 add_subdirectory）
+  drop.manifest  land.py                    五处落点的清单与落地脚本（演示 / --apply / --remove，幂等）
+  sandbox/                                  core 单测
+  docs/                                     规则 README（csa-checker-dev 合并版模板）、CHANGELOG.md、本次沙箱结果
 ```
+
+本地：`plugin-build.sh` 编插件、`cc1-run.sh` 跑；需要时 `50-intree-rehearsal.sh <包目录>` 预演注册。公司：`land.py --into bxplugin --apply` 后 `make -j16`（`09-` §6）。
 
 * 每个包都是**完整的**（不是增量补丁），解压覆盖后 `git status` 就是这次的改动；配一份中文提交信息（`feat(rb.enhance.ipa.OobSummary): …`，`csa-checker-dev` 模板）。
 * 调研包（本包）继续单独维护：规格 / 计划的修订在这里，版本号沿 v3.x。

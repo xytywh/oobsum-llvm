@@ -1,0 +1,13 @@
+# 复制到 Windows 的 %UserProfile%\.wslconfig（例如 C:\Users\<你>\.wslconfig），然后在 PowerShell 里 wsl --shutdown 让它生效。
+# 数值按你的电脑改：编 LLVM 时每个编译进程约 1–1.5 GB，链接 clang（lld）约 2–3 GB。
+[wsl2]
+# 给 WSL 的内存上限（默认是物理内存的一半）。32 GB 的机器建议 20–24GB；16 GB 的机器给 12GB，并把 JOBS 降到 6 左右
+memory=20GB
+# 给 WSL 的逻辑核数（默认全部）。想编译时 Windows 还流畅，留 2 个核
+processors=12
+# 交换文件：内存紧时防止编译被 OOM 杀掉
+swap=16GB
+
+# 可选（较新的 WSL 才有）：编完把内存慢慢还给 Windows
+# [experimental]
+# autoMemoryReclaim=gradual

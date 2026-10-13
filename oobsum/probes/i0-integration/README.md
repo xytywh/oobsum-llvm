@@ -29,6 +29,14 @@
 | `TestCase/OobSummaryProbeChecker/`（整个目录） | `BXPlugin/xir/llvm_ast/TestCase/OobSummaryProbeChecker/` |
 | （一行） | `BXPlugin/xir/llvm_ast/TestCase/CMakeLists.txt` 最后追加 `add_subdirectory(OobSummaryProbeChecker)` |
 
+**v3.15 起可以一条命令落地 / 撤掉**（`devenv/land.py` 读本目录的 `drop.manifest`，做的就是上表五处；先不加 `--apply` 看一遍 diff）：
+
+```bash
+python3 ../../devenv/land.py --drop . --into bxplugin --root /usr1/BXPlugin            # 演示
+python3 ../../devenv/land.py --drop . --into bxplugin --root /usr1/BXPlugin --apply    # 落地
+python3 ../../devenv/land.py --drop . --into bxplugin --root /usr1/BXPlugin --remove --apply   # 用完撤掉
+```
+
 编译照常：
 
 ```bash

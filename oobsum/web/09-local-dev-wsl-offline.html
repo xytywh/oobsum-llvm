@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body>
+<title>Summary 2.0 本地开发环境</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap">
+<style>
+:root{
+  --bg:#F3F5F8; --surface:#FFFFFF; --surface-2:#E9EDF3; --ink:#17202B; --ink-2:#465164; --muted:#6A7585;
+  --line:#D4DBE5; --line-2:#E4E9F0;
+  --accent:#1C5DAE; --accent-soft:#E2ECF9; --on-accent:#FFFFFF;
+  --gate:#9C5B07; --gate-soft:#FAEFDC;
+  --pa27:#4E6278; --on-pa27:#FFFFFF;
+  --ai:#6A4FB0; --ai-soft:#EEE9F8; --on-ai:#FFFFFF;
+  --code-bg:#EEF1F6;
+  --serif:"Noto Serif SC","Songti SC","SimSun",serif;
+  --sans:"Noto Sans SC","PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,sans-serif;
+  --mono:"IBM Plex Mono","SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0F131A; --surface:#161B24; --surface-2:#1E2530; --ink:#E2E7EE; --ink-2:#B2BBC8; --muted:#8A94A3;
+    --line:#2B3441; --line-2:#222A35;
+    --accent:#6FA8EC; --accent-soft:#1A2A3F; --on-accent:#0F131A;
+    --gate:#E2A94E; --gate-soft:#30261A;
+    --pa27:#8FA3BA; --on-pa27:#0F131A;
+    --ai:#A992E8; --ai-soft:#271F3A; --on-ai:#0F131A;
+    --code-bg:#1B212B;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0F131A; --surface:#161B24; --surface-2:#1E2530; --ink:#E2E7EE; --ink-2:#B2BBC8; --muted:#8A94A3;
+  --line:#2B3441; --line-2:#222A35;
+  --accent:#6FA8EC; --accent-soft:#1A2A3F; --on-accent:#0F131A;
+  --gate:#E2A94E; --gate-soft:#30261A;
+  --pa27:#8FA3BA; --on-pa27:#0F131A;
+  --ai:#A992E8; --ai-soft:#271F3A; --on-ai:#0F131A;
+  --code-bg:#1B212B;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+body{background:var(--bg); color:var(--ink); font:15px/1.75 var(--sans); padding-inline:18px; padding-block:0 64px}
+.wrap{max-width:1040px; margin:0 auto}
+a{color:var(--accent)}
+code{font-family:var(--mono); font-size:.86em; background:var(--surface-2); padding:1px 5px; border-radius:3px; overflow-wrap:anywhere}
+pre{background:var(--code-bg); border:1px solid var(--line); padding:12px 14px; overflow-x:auto; margin:10px 0 14px; border-radius:3px}
+pre code{background:none; padding:0; font-size:12.5px; line-height:1.65; overflow-wrap:normal; white-space:pre}
+h1,h2{font-family:var(--serif); text-wrap:balance; letter-spacing:.01em}
+h2{font-size:22px; line-height:1.35; margin:0}
+h3{font-size:17px; margin:30px 0 8px; font-weight:700; text-wrap:balance}
+h4{font-size:15px; margin:20px 0 6px}
+p,li{max-width:74ch}
+p{margin:0 0 12px}
+ul,ol{padding-left:1.3em; margin:0 0 12px}
+li{margin:3px 0}
+blockquote{margin:12px 0; padding:10px 14px; border-left:3px solid var(--line); background:var(--surface); color:var(--ink-2)}
+blockquote p:last-child{margin-bottom:0}
+hr{border:0; border-top:1px solid var(--line); margin:22px 0}
+.lede{color:var(--ink-2)}
+.ev{font:500 10.5px/1 var(--mono); color:var(--muted); border:1px solid var(--line); padding:2px 5px; border-radius:3px; white-space:nowrap; vertical-align:1px}
+
+.mast{padding-block:40px 28px; border-bottom:1px solid var(--line)}
+.eyebrow{font:500 11.5px/1.4 var(--mono); letter-spacing:.06em; color:var(--muted); margin-bottom:14px}
+.mast h1{font-size:clamp(24px,4vw,34px); line-height:1.3; margin:0 0 16px}
+.thesis{font-size:16px; line-height:1.8; max-width:66ch; margin-bottom:22px}
+.facts{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); border:1px solid var(--line); background:var(--surface); margin:0}
+.facts div{padding:12px 14px; border-right:1px solid var(--line-2)}
+.facts div:last-child{border-right:0}
+.facts dt{font:500 10.5px/1.3 var(--mono); letter-spacing:.08em; color:var(--muted); margin-bottom:4px}
+.facts dd{margin:0; font:600 20px/1.3 var(--mono); font-variant-numeric:tabular-nums}
+.facts dd small{display:block; font:400 12px/1.5 var(--sans); color:var(--ink-2); margin-top:2px}
+@media (max-width:640px){ .facts div{border-right:0; border-bottom:1px solid var(--line-2)} }
+
+section{padding-block:38px 4px}
+.sec-hd{display:flex; align-items:baseline; gap:12px; margin-bottom:10px; flex-wrap:wrap}
+.secno{font:600 12px/1 var(--mono); color:var(--muted)}
+
+.tw{overflow-x:auto; border:1px solid var(--line); background:var(--surface); margin:12px 0 14px}
+table{border-collapse:collapse; width:100%; font-size:13.5px; line-height:1.6}
+th,td{padding:8px 11px; text-align:left; vertical-align:top; border-bottom:1px solid var(--line-2)}
+thead th{font:500 11px/1.4 var(--mono); letter-spacing:.06em; color:var(--muted); background:var(--surface-2); border-bottom:1px solid var(--line); white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+td.id{font:600 12.5px/1.6 var(--mono); white-space:nowrap}
+td.num{font-family:var(--mono); text-align:right; font-variant-numeric:tabular-nums; color:var(--muted)}
+td.sig{font:12px/1.6 var(--mono); color:var(--ink-2); white-space:nowrap}
+td.own{color:var(--ink-2)}
+
+/* categories */
+.c-commit{background:var(--accent); color:var(--on-accent); border:1px solid var(--accent)}
+.c-best{background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent)}
+.c-rule{background:var(--surface-2); color:var(--ink-2); border:1px dashed var(--muted)}
+.c-pa27{background:var(--pa27); color:var(--on-pa27); border:1px solid var(--pa27)}
+.c-ai{background:var(--ai); color:var(--on-ai); border:1px solid var(--ai)}
+.c-no{background:transparent; color:var(--muted); border:1px dashed var(--muted); text-decoration:line-through}
+.pill{display:inline-block; font:600 11px/1 var(--mono); padding:4px 7px; border-radius:3px; white-space:nowrap; vertical-align:1px}
+.sw{display:inline-block; width:12px; height:12px; border-radius:2px; text-decoration:none}
+
+.legend{display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12.5px; color:var(--ink-2); margin:4px 0 12px}
+.legend span{display:inline-flex; align-items:center; gap:6px}
+
+/* ladder */
+.ladder{border:1px solid var(--line); background:var(--surface)}
+.rung{display:grid; grid-template-columns:58px minmax(0,1.25fr) minmax(0,1.5fr) 150px; gap:14px; padding:12px 14px; border-bottom:1px solid var(--line-2); align-items:start}
+.rung:last-child{border-bottom:0}
+.rung-id{font:600 15px/1.4 var(--mono); color:var(--accent)}
+.rung-one{font-weight:500; line-height:1.55}
+.rung-cap{font-size:12.5px; color:var(--muted); line-height:1.55; margin-top:3px}
+.rung-chips{display:flex; flex-wrap:wrap; gap:5px}
+.chip{font:600 11px/1 var(--mono); padding:5px 6px; border-radius:3px; text-decoration:none; font-variant-numeric:tabular-nums}
+.chip:hover{filter:brightness(1.08)}
+.chip.c-no:hover{filter:none; color:var(--ink)}
+.rung-year{font-size:12.5px; line-height:1.55; color:var(--ink-2)}
+.divider{padding:6px 14px; font:600 11.5px/1.5 var(--mono); letter-spacing:.02em; border-bottom:1px solid var(--line-2)}
+.divider.year{background:var(--gate-soft); color:var(--gate)}
+.divider.ceiling{background:var(--surface-2); color:var(--ink-2)}
+@media (max-width:760px){
+  .rung{grid-template-columns:48px minmax(0,1fr)}
+  .rung-chips,.rung-year{grid-column:2}
+}
+.answers{margin-top:22px}
+.answers ol li{margin:8px 0}
+
+/* scenario paragraphs */
+p.scn{margin:22px 0 6px; padding:8px 12px; background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--accent); font-size:14px}
+p.scn .pill{margin-left:6px}
+p.scn:target{outline:2px solid var(--gate); outline-offset:2px}
+tr:target td{background:var(--gate-soft)}
+.lvtag{display:inline-block; font:600 12px/1 var(--mono); background:var(--accent); color:var(--on-accent); padding:5px 7px; border-radius:3px; margin-right:10px; vertical-align:2px}
+
+/* master table */
+.filters{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0 4px}
+.fbtn{font:500 12.5px/1 var(--sans); color:var(--ink); background:var(--surface); border:1px solid var(--line); padding:7px 10px; border-radius:3px; cursor:pointer; display:inline-flex; align-items:center; gap:6px}
+.fbtn b{font:600 11.5px/1 var(--mono); color:var(--muted)}
+.fbtn[aria-pressed="true"]{border-color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink)}
+.fbtn.reset{color:var(--muted)}
+.lvsel{font-size:12.5px; color:var(--ink-2); display:inline-flex; align-items:center; gap:6px}
+.lvsel select{font:12.5px var(--mono); background:var(--surface); color:var(--ink); border:1px solid var(--line); padding:5px 6px; border-radius:3px}
+.count{font:12px var(--mono); color:var(--muted)}
+.master tr[hidden]{display:none}
+
+footer{margin-top:44px; padding-top:16px; border-top:1px solid var(--line); font-size:12.5px; color:var(--muted)}
+footer p{max-width:none}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+/* devenv page: 七步清单（顺序就是要做的顺序，所以编号） */
+.steps{list-style:none; padding:0; margin:14px 0 0; display:grid; grid-template-columns:minmax(0,1fr); gap:10px}
+.step{border:1px solid var(--line); background:var(--surface); max-width:none; margin:0; min-width:0}
+.st-head{display:grid; grid-template-columns:auto minmax(0,1fr); gap:12px; padding:12px 14px 8px}
+.st-check{display:flex; align-items:center; gap:8px; cursor:pointer}
+.st-check input{width:18px; height:18px; accent-color:var(--accent); margin:0}
+.st-no{font:600 20px/1 var(--mono); color:var(--muted); min-width:1.2em; text-align:center}
+.st-main{min-width:0}
+.st-meta{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:2px}
+.where{font:600 11px/1 var(--mono); padding:4px 7px; border-radius:3px; letter-spacing:.04em}
+.where.win{background:var(--accent-soft); color:var(--accent)}
+.where.wsl{background:var(--surface-2); color:var(--ink)}
+.where.corp{background:var(--gate-soft); color:var(--gate)}
+.where.both{background:var(--ai-soft); color:var(--ai)}
+.time{font-size:12.5px; color:var(--muted)}
+.st-what{margin:2px 0 2px; font-weight:500}
+.st-done{margin:0; font-size:13px; color:var(--ink-2)}
+.cmd{border-top:1px solid var(--line-2); margin:0}
+.cmd-bar{display:flex; justify-content:space-between; align-items:center; padding:6px 14px; font:500 11px/1.4 var(--mono); color:var(--muted); background:var(--surface-2)}
+.cmd pre{margin:0; border:0; border-radius:0}
+.copy{font:500 11.5px/1 var(--sans); color:var(--accent); background:var(--surface); border:1px solid var(--line); padding:5px 9px; border-radius:3px; cursor:pointer}
+.copy:focus-visible,.st-check input:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.step.done .st-what,.step.done .st-done{color:var(--muted)}
+.step.done .st-no{color:var(--accent)}
+.progress{font:500 12.5px/1.4 var(--mono); color:var(--muted); margin-top:8px}
+.note{font-size:13.5px; color:var(--ink-2); margin-top:12px}
+section pre{position:relative}
+
+</style>
+<div class="wrap">
+<header class="mast">
+  <div class="eyebrow">CSA Summary 2.0 · 调研包 v3.15 · 2026-10-13 · 开发环境</div>
+  <h1>在自己的 Windows 电脑上开发：WSL2 + 上游 llvm-project 14.0.0</h1>
+  <p class="thesis">公司电脑不能做开发，所以代码在自己的电脑上写、编、测，再带去公司编进 BXPlugin、用 bxen 跑业务代码。
+    第一天装好 Ubuntu 22.04 自带的 clang 14 就能开工；从 GitHub 源码编一份带断言的 clang 可以挂机并行。本地和公司用的是同一份 checker 源码：
+    本地编成插件，公司走 <code>Checkers.td</code> 注册。每一步脚本都在沙箱里实际跑过。</p>
+  <dl class="facts">
+    <div><dt>第一天能开工</dt><dd>6 / 6<small>Ubuntu 自带 clang 14 冒烟全过，插件模式即可写 checker <span class="ev">实测数据</span></small></dd></div>
+    <div><dt>源码构建</dt><dd>90 分钟<small>沙箱 2 核 7 GB 全量；8 核约 半小时 <span class="ev">推断</span></small></dd></div>
+    <div><dt>构建目录</dt><dd>1.0 GB<small>另有 ccache 0.14 GB；整套建议留 40 GB</small></dd></div>
+    <div><dt>带去公司</dt><dd>1 条命令<small><code>land.py</code> 做完五处落点，可演示、可撤掉</small></dd></div>
+  </dl>
+</header>
+
+<section id="steps">
+  <div class="sec-hd"><span class="secno">§0</span><h2>接下来按这个顺序做</h2></div>
+  <p class="lede">勾选只记在你自己的浏览器里，方便回来接着做。</p>
+  <ol class="steps"><li class="step" data-step="1">
+  <div class="st-head">
+    <label class="st-check"><input type="checkbox" id="step-1"><span class="st-no">1</span></label>
+    <div class="st-main"><div class="st-meta"><span class="where win">Windows</span><span class="time">30 分钟（含重启）</span></div>
+      <p class="st-what">装 WSL2 + <strong>Ubuntu 22.04</strong>，配 <code>.wslconfig</code>（§2）</p><p class="st-done">做完的标志：<code>wsl -l -v</code> 显示 <code>Ubuntu-22.04  VERSION 2</code></p></div>
+  </div>
+  <div class="cmd"><div class="cmd-bar"><span>PowerShell（管理员）</span><button type="button" class="copy">复制</button></div><pre><code>wsl --install -d Ubuntu-22.04
+wsl -l -v
+wsl --update
+# 把 devenv/wslconfig.example 复制成 C:\Users\&lt;你&gt;\.wslconfig，改数值后：
+wsl --shutdown</code></pre></div>
+</li>
+<li class="step" data-step="2">
+  <div class="st-head">
+    <label class="st-check"><input type="checkbox" id="step-2"><span class="st-no">2</span></label>
+    <div class="st-main"><div class="st-meta"><span class="where wsl">WSL</span><span class="time">15 分钟</span></div>
+      <p class="st-what">把调研包放到 <code>~/</code> 下，跑 <code>00-check-host.sh</code>、<code>10-install-deps.sh</code>（§3）</p><p class="st-done">做完的标志：没有&quot;注意&quot;或都看懂了</p></div>
+  </div>
+  <div class="cmd"><div class="cmd-bar"><span>Ubuntu</span><button type="button" class="copy">复制</button></div><pre><code>cd ~ &amp;&amp; tar xzf /mnt/c/Users/&lt;你&gt;/Downloads/infer-research-kit-v3.15.tar.gz
+cd ~/infer-research-kit/08-summary2-design/devenv
+./00-check-host.sh
+./10-install-deps.sh</code></pre></div>
+</li>
+<li class="step" data-step="3">
+  <div class="st-head">
+    <label class="st-check"><input type="checkbox" id="step-3"><span class="st-no">3</span></label>
+    <div class="st-main"><div class="st-meta"><span class="where wsl">WSL</span><span class="time">2 分钟</span></div>
+      <p class="st-what"><strong><code>LLVM_KIND=apt ./40-smoke.sh</code></strong>（§3）</p><p class="st-done">做完的标志：<code>PASS 6 / FAIL 0</code>——<strong>这时就能开始写 checker 了</strong>（插件模式，用 Ubuntu 自带的 clang 14.0.0）</p></div>
+  </div>
+  <div class="cmd"><div class="cmd-bar"><span>Ubuntu</span><button type="button" class="copy">复制</button></div><pre><code>LLVM_KIND=apt ./40-smoke.sh</code></pre></div>
+</li>
+<li class="step" data-step="4">
+  <div class="st-head">
+    <label class="st-check"><input type="checkbox" id="step-4"><span class="st-no">4</span></label>
+    <div class="st-main"><div class="st-meta"><span class="where wsl">WSL</span><span class="time">下载约 1 分钟；编译挂机：2 核实测约 90 分钟，8 核约半小时</span></div>
+      <p class="st-what"><code>20-fetch-llvm.sh</code> + <code>30-build-llvm.sh</code>：从 GitHub 源码编 llvm-project 14.0.0（§4）</p><p class="st-done">做完的标志：<code>clang version 14.0.0</code></p></div>
+  </div>
+  <div class="cmd"><div class="cmd-bar"><span>Ubuntu</span><button type="button" class="copy">复制</button></div><pre><code>./20-fetch-llvm.sh
+./30-build-llvm.sh
+# GitHub 不通：浏览器下载 llvm-project-14.0.0.src.tar.xz 后
+# LLVM_TARBALL=/mnt/c/Users/&lt;你&gt;/Downloads/llvm-project-14.0.0.src.tar.xz ./20-fetch-llvm.sh</code></pre></div>
+</li>
+<li class="step" data-step="5">
+  <div class="st-head">
+    <label class="st-check"><input type="checkbox" id="step-5"><span class="st-no">5</span></label>
+    <div class="st-main"><div class="st-meta"><span class="where wsl">WSL</span><span class="time">5 分钟；预演 2 核实测 13 分钟（8 核约 4 分钟）</span></div>
+      <p class="st-what"><code>LLVM_KIND=src ./40-smoke.sh</code>；可选 <code>50-intree-rehearsal.sh</code>（§4.4）</p><p class="st-done">做完的标志：都是 PASS</p></div>
+  </div>
+  <div class="cmd"><div class="cmd-bar"><span>Ubuntu</span><button type="button" class="copy">复制</button></div><pre><code>LLVM_KIND=src ./40-smoke.sh
+./50-intree-rehearsal.sh        # 可选；撤销：./50-intree-rehearsal.sh --undo</code></pre></div>
+</li>
+<li class="step" data-step="6">
+  <div class="st-head">
+    <label class="st-check"><input type="checkbox" id="step-6"><span class="st-no">6</span></label>
+    <div class="st-main"><div class="st-meta"><span class="where corp">公司</span><span class="time">1 小时（R3 挂机）</span></div>
+      <p class="st-what"><code>fork-facts.sh</code> 收集公司环境的版本与构建开关；用 <code>land.py</code> 一条命令把 I0 探针落进 BXPlugin，按探针 README 跑 R1–R3（§7）</p><p class="st-done">做完的标志：输出贴回给我</p></div>
+  </div>
+  <div class="cmd"><div class="cmd-bar"><span>公司机器</span><button type="button" class="copy">复制</button></div><pre><code>bash fork-facts.sh &gt; fork-facts.txt
+cd infer-research-kit/08-summary2-design
+python3 devenv/land.py --drop probes/i0-integration --into bxplugin --root /usr1/BXPlugin
+python3 devenv/land.py --drop probes/i0-integration --into bxplugin --root /usr1/BXPlugin --apply
+cd /usr1/BXPlugin/cmake-build-release-release &amp;&amp; make -j16
+# 按 probes/i0-integration/README.md 跑 R1–R3；用完加 --remove --apply 撤掉</code></pre></div>
+</li>
+<li class="step" data-step="7">
+  <div class="st-head">
+    <label class="st-check"><input type="checkbox" id="step-7"><span class="st-no">7</span></label>
+    <div class="st-main"><div class="st-meta"><span class="where both">两边</span><span class="time">每轮几分钟 + 一次往返</span></div>
+      <p class="st-what">日常循环：我交付的代码包 → 本地编插件、跑用例 → 带去公司 <code>land.py</code> 落地、<code>make -j16</code>、bxen（§5、§6）</p><p class="st-done">做完的标志：本地用例过了再带去；公司 <code>make -j16</code> 通过、bxen 结果贴回</p></div>
+  </div>
+  <div class="cmd"><div class="cmd-bar"><span>两边</span><button type="button" class="copy">复制</button></div><pre><code># 本地
+$D/plugin-build.sh build/OobSummary.so &lt;源文件…&gt; -I .
+$D/cc1-run.sh -load build/OobSummary.so -checker=rb.enhance.ipa.OobSummary &lt;用例.c&gt;
+# 公司
+python3 land.py --drop . --into bxplugin --root /usr1/BXPlugin --apply &amp;&amp; make -j16</code></pre></div>
+</li></ol>
+  <p class="progress" id="progress" aria-live="polite"></p>
+  <p>第 3 步之后就不必等任何东西：插件模式下，checker 源码改完几秒就能重新加载运行，完全不用重编 clang。
+第 4 步可以挂着，和第 3 步之后的开发并行。</p>
+</section>
+<section id="env"><div class="sec-hd"><span class="secno">§1</span><h2>本地环境与公司环境是什么关系</h2></div><div class="tw"><table>
+<thead>
+<tr>
+<th></th>
+<th>公司</th>
+<th>本地（WSL）</th>
+<th>一致吗</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LLVM/Clang</td>
+<td><code>/usr1/llvm-project-14/cmake-build-release</code>，clang 14.0.0</td>
+<td><code>~/llvm-project-14/cmake-build-release</code>，GitHub <code>llvmorg-14.0.0</code>（提交 <code>329fda39</code>）；或 Ubuntu 22.04 的 <code>clang-14</code>（同为 14.0.0<span class="ev">文档</span>）</td>
+<td>版本一致；公司那份是否改过，看 <code>fork-facts.sh</code> 第 3 节</td>
+</tr>
+<tr>
+<td>CSA 宿主</td>
+<td>xir 内嵌 / 搬移的 CSA（<code>xir/llvm_ast/StaticAnalyzer</code>），可能有定制</td>
+<td>上游 clang 14.0.0 的 CSA</td>
+<td><strong>未知</strong>——<code>fork-facts.sh</code> 第 6 节给出差异计数</td>
+</tr>
+<tr>
+<td>checker 注册</td>
+<td><code>Checkers.td</code> 包块 + 源码 <code>CMakeLists.txt</code>，<code>make -j16</code></td>
+<td>日常：<strong>插件</strong>（<code>-DOOBSUM_PLUGIN_BUILD</code>，<code>clang -cc1 -load</code>）；带去之前：<strong>本地预演</strong> <code>Checkers.td</code> 注册（§4.4）</td>
+<td>同一份源码两种注册方式，探针已验证</td>
+</tr>
+<tr>
+<td>运行</td>
+<td><code>bxen -exec_mode=onlySa … -checker=rb.enhance.… "-extra_args=…"</code></td>
+<td><code>cc1-run.sh -checker=rb.enhance.… 文件.c</code>（<code>clang -cc1 -analyze</code>，同样带 <code>-analyzer-max-loop 3</code>）</td>
+<td>checker 名、<code>-analyzer-config</code> 写法一致；bxen 另外加载的 <code>config.ini</code> / 函数指针配置本地没有</td>
+</tr>
+<tr>
+<td>目标 ABI</td>
+<td>业务代码是 aarch64_be + ILP32（4 字节指针、大端）</td>
+<td>上游 clang 14 <strong>不支持 aarch64 ILP32</strong>：<code>aarch64_be-linux-gnu_ilp32</code> 仍按 8 字节指针算，<code>-mabi=ilp32</code> 报 <code>unknown target ABI</code><span class="ev">实测数据</span>；本地近似用 <code>TRIPLE=armebv7-linux-gnueabi</code>（4 字节指针 + 大端）</td>
+<td>结构体偏移只能在公司确认（探针 R2）</td>
+</tr>
+<tr>
+<td>代码与数据</td>
+<td>业务代码、全量 <code>compile_commands.json</code></td>
+<td><strong>只有我们自己的代码和 67 个用例</strong>；业务代码不出公司</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p>本地测得到的：checker 逻辑、FIR / 摘要 / 判定、67 个用例与 104 份摘要的对照、注册方式。
+只有公司测得到的：xir 的 CSA 定制带来的差异、bxen 的参数与配置、ILP32 布局、业务代码上的告警与性能。</p></section>
+<section id="windows"><div class="sec-hd"><span class="secno">§2</span><h2>Windows 这边（一次性）</h2></div><h3>2.1 装 WSL2 与 Ubuntu 22.04</h3>
+<p>管理员身份打开 PowerShell：</p>
+<pre><code class="language-powershell">wsl --install -d Ubuntu-22.04      # 第一次装 WSL 会要求重启；重启后自动打开 Ubuntu，设用户名和密码
+wsl -l -v                          # 应显示 Ubuntu-22.04 ... VERSION 2
+wsl --update                       # 升到最新的 WSL
+</code></pre>
+<p><strong>为什么是 22.04 而不是默认的 24.04</strong>：22.04 的 gcc 11 直接编 LLVM 14；Ubuntu 22.04 的 <code>clang-14</code> 包正好是 <strong>14.0.0</strong>（<code>1:14.0.0-1ubuntu1.1</code><span class="ev">文档</span>），
+与公司一致。24.04 也能用：gcc 13 编 LLVM 14 有两个头文件少 <code>#include &lt;cstdint&gt;</code>，<code>30-build-llvm.sh</code> 会自动打补丁<span class="ev">实测数据</span>；
+它的 <code>clang-14</code> 包是 14.0.6（同一大版本，API 相同）。</p>
+<h3>2.2 给 WSL 分配资源</h3>
+<p>把 <code>devenv/wslconfig.example</code> 复制成 <code>C:\Users\&lt;你&gt;\.wslconfig</code>，按电脑改 <code>memory</code>、<code>processors</code>、<code>swap</code>，然后 <code>wsl --shutdown</code> 再打开 Ubuntu。
+WSL2 默认只用物理内存的一半；编 LLVM 每个编译进程约 1–1.5 GB，链接 clang（lld）约 2–3 GB。</p>
+<h3>2.3 磁盘</h3>
+<p>WSL 的系统盘是一个 VHDX 文件，默认在 C 盘。整套实测只占约 <strong>3 GB</strong>（源码含 <code>.git</code> 1.6 GB + 构建目录 1.0 GB + ccache 0.14 GB）<span class="ev">实测数据</span>；
+算上 apt 包、以后可能再建一个不开断言的构建目录、日常文件，<strong>留 15 GB 以上</strong>就够。
+（这是 Release 构建；带调试信息的 Debug 构建要大一个数量级，这里不推荐。）C 盘紧张就挪到别的盘<span class="ev">文档</span>：</p>
+<pre><code class="language-powershell">wsl --shutdown
+wsl --manage Ubuntu-22.04 --move D:\WSL\Ubuntu-22.04     # 较新的 WSL 才有；没有就用下面三行
+# wsl --export Ubuntu-22.04 D:\ubuntu.tar ; wsl --unregister Ubuntu-22.04 ; wsl --import Ubuntu-22.04 D:\WSL\Ubuntu-22.04 D:\ubuntu.tar
+</code></pre>
+<h3>2.4 代码放在哪、用什么编辑</h3>
+<ul>
+<li><strong>源码和构建目录一律放在 WSL 的家目录（<code>~/</code>）里</strong>，不要放 <code>/mnt/c</code>、<code>/mnt/d</code>——那是跨系统的文件共享，编译会慢一个数量级。
+  Windows 资源管理器里输入 <code>\\wsl$\Ubuntu-22.04\home\&lt;你&gt;</code> 能直接看到这些文件。</li>
+<li>编辑器：<strong>VS Code + WSL 扩展</strong>（在 Ubuntu 里 <code>code .</code>），装 clangd 扩展。<code>plugin-build.sh</code> 每次会在 <code>.so</code> 旁边写一份 <code>compile_commands.json</code>，
+  clangd 用它做跳转和补全；LLVM 自己的 <code>cmake-build-release/compile_commands.json</code> 也在。习惯 CLion 的话，CLion 支持 WSL 工具链。</li>
+<li><strong>换行符</strong>：<code>git config --global core.autocrlf input</code>。脚本要原样带去公司的 Linux，CRLF 会让 bash 报 <code>$'\r': command not found</code>。</li>
+</ul></section>
+<section id="day1"><div class="sec-hd"><span class="secno">§3</span><h2>WSL 里：装依赖、冒烟（第一天就能开工）</h2></div><pre><code class="language-bash"># 把调研包放到家目录（从 Windows 的下载目录解压过来）
+cd ~ &amp;&amp; tar xzf /mnt/c/Users/&lt;你&gt;/Downloads/infer-research-kit-v3.15.tar.gz
+cd ~/infer-research-kit/08-summary2-design/devenv
+
+./00-check-host.sh          # 只读：WSL2？22.04？内存、磁盘、家目录是不是 ext4、git 换行设置、能不能访问 GitHub
+./10-install-deps.sh        # sudo apt：gcc、cmake、ninja、lld、ccache、python3-jsonschema，以及 clang-14 / libclang-14-dev / llvm-14-dev
+LLVM_KIND=apt ./40-smoke.sh # 用 Ubuntu 自带的 clang 14 做冒烟
+</code></pre>
+<p><code>40-smoke.sh</code> 的六项（沙箱里 apt 版 14.0.6 实跑：<strong>PASS 6 / FAIL 0</strong><span class="ev">实测数据</span>）：</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>检查</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>clang 大版本是 14</td>
+<td></td>
+</tr>
+<tr>
+<td>2</td>
+<td>上游的 <code>alpha.security.ArrayBoundV2</code> 在 <code>int a[4]; a[4] = 1;</code> 上报越界</td>
+<td><code>clang -cc1 -analyze</code> 这条路通</td>
+</tr>
+<tr>
+<td>3</td>
+<td>I0 探针编成插件</td>
+<td>与公司 xir 里<strong>同一份源码</strong>，靠 <code>-DOOBSUM_PLUGIN_BUILD</code> 切成插件入口</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>clang -cc1 -load</code> 加载插件跑探针用例，输出与 <code>expected-upstream14.txt</code> 一致</td>
+<td>20 行 <code>[OSP]</code>、2 条探针告警；调用图顺序、递归识别、note 都对</td>
+</tr>
+<tr>
+<td>5</td>
+<td>目标 ABI</td>
+<td>默认 x86_64（8 字节指针）；<code>aarch64_be-linux-gnu_ilp32</code> 在上游 14 上<strong>仍是 8 字节指针</strong>；<code>armebv7-linux-gnueabi</code> 给出 4 字节指针 + 大端，作本地近似</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>cases/summaries/replay.py</code></td>
+<td>104 份摘要回放 0 处不一致（只要 Python 3）</td>
+</tr>
+</tbody>
+</table></div></section>
+<section id="build"><div class="sec-hd"><span class="secno">§4</span><h2>从 GitHub 源码编 llvm-project 14.0.0</h2></div><h3>4.1 为什么还要自己编（apt 版已经能用）</h3>
+<ul>
+<li><strong>断言打开</strong>：<code>cast&lt;&gt;</code>、<code>getAs&lt;&gt;</code> 用错、迭代器失效，在本地当场断言并给出调用栈，而不是到公司的业务代码上才莫名崩溃。公司那份大概率不开断言。</li>
+<li>是你要的"基于 GitHub 的 llvm-project"：源码就在手边，CSA 内部（<code>ExprEngine</code>、<code>CallGraph</code>、<code>CFG</code>）可以直接读、加打印、用 gdb 跟。</li>
+<li>能<strong>预演公司的注册方式</strong>（§4.4）：把 checker 编进 clang 本体，验证 <code>Checkers.td</code> 条目、注册函数名、子目录源文件。</li>
+</ul>
+<h3>4.2 命令</h3>
+<pre><code class="language-bash">./20-fetch-llvm.sh     # git clone --depth 1 --branch llvmorg-14.0.0 → ~/llvm-project-14，切到本地分支 rb-local，核对 tag 提交 329fda39
+./30-build-llvm.sh     # cmake + ninja，产物 ~/llvm-project-14/cmake-build-release（与公司的目录名一致）
+LLVM_KIND=src ./40-smoke.sh
+</code></pre>
+<p>GitHub 慢或不通：在浏览器里从 GitHub Releases 下载 <code>llvm-project-14.0.0.src.tar.xz</code>（约 101 MB），然后</p>
+<pre><code class="language-bash">LLVM_TARBALL=/mnt/c/Users/&lt;你&gt;/Downloads/llvm-project-14.0.0.src.tar.xz ./20-fetch-llvm.sh
+</code></pre>
+<p>脚本先核对 sha256（<code>35ce9edb…e07e23</code>，沙箱实际下载核对<span class="ev">实测数据</span>），再解压成一个 git 仓库并打上 <code>llvmorg-14.0.0</code> 标签，后面的步骤完全一样。</p>
+<h3>4.3 构建配置（<code>30-build-llvm.sh</code>）</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>选项</th>
+<th>值</th>
+<th>为什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CMAKE_BUILD_TYPE</code></td>
+<td><code>Release</code></td>
+<td>与公司的 <code>cmake-build-release</code> 一致；Debug 版构建目录要大几倍</td>
+</tr>
+<tr>
+<td><code>LLVM_ENABLE_ASSERTIONS</code></td>
+<td><code>ON</code>（<code>ASSERTIONS=OFF</code> 可关）</td>
+<td>见 §4.1；要与公司完全一致时关掉，另用一个 <code>LLVM_BUILD</code> 目录</td>
+</tr>
+<tr>
+<td><code>LLVM_ENABLE_PROJECTS</code></td>
+<td><code>clang</code></td>
+<td>只要 clang（含 CSA）</td>
+</tr>
+<tr>
+<td><code>LLVM_TARGETS_TO_BUILD</code></td>
+<td><code>X86</code></td>
+<td>分析只用前端；aarch64 的 TargetInfo 在 clang 前端里，不需要 AArch64 后端</td>
+</tr>
+<tr>
+<td><code>LLVM_USE_LINKER</code></td>
+<td><code>lld</code></td>
+<td>链接 clang 快、省内存</td>
+</tr>
+<tr>
+<td><code>LLVM_CCACHE_BUILD</code></td>
+<td><code>ON</code></td>
+<td>切分支、重配置后少编很多</td>
+</tr>
+<tr>
+<td><code>LLVM_PARALLEL_COMPILE_JOBS</code> / <code>LINK_JOBS</code></td>
+<td>按内存自动算（内存 GB/2、内存 GB/6）</td>
+<td>WSL 里最常见的失败是编译被 OOM 杀掉</td>
+</tr>
+<tr>
+<td><code>LLVM_ENABLE_PLUGINS</code></td>
+<td><code>ON</code></td>
+<td><code>-load</code> 插件要靠它</td>
+</tr>
+<tr>
+<td>编译目标</td>
+<td><code>clang llvm-config FileCheck count not</code></td>
+<td><code>llvm-config</code> 给插件取编译参数；后三个是将来跑 lit 测试用的</td>
+</tr>
+</tbody>
+</table></div>
+<p>实测<span class="ev">实测数据</span>：全量约 <strong>90 分钟</strong>（2 361 个编译步骤），编译时抽查内存占用约 2.5 GB；构建目录 <strong>1.0 GB</strong>（<code>clang-14</code> 本体 134 MB），ccache 0.14 GB；
+产物 <code>clang version 14.0.0 (https://github.com/llvm/llvm-project.git &lt;提交号&gt;)</code>。gcc 13 需要的补丁只有两行（<code>llvm/include/llvm/Support/Signals.h</code>、<code>Base64.h</code> 各加 <code>#include &lt;cstdint&gt;</code>），
+脚本把它作为 <code>rb-local</code> 上的一个单独提交；gcc 13 还会打出几百条 <code>-Wmissing-template-keyword</code> 之类的警告，不影响结果。
+8 核按编译并发线性外推约半小时<span class="ev">推断</span>。</p>
+<h3>4.4 可选：在本地预演公司的注册方式</h3>
+<pre><code class="language-bash">./50-intree-rehearsal.sh          # 默认拿 I0 探针做
+./50-intree-rehearsal.sh --undo   # 撤销
+</code></pre>
+<p>它在单独的分支 <code>rb-rehearsal</code> 上用 <code>land.py --into llvm</code> 做三件事：给上游 <code>Checkers.td</code> 补上 <code>rb.enhance.core</code> / <code>rb.enhance.ipa</code> 两个包块并把条目追加进去、
+把源文件追加到 <code>clang/lib/StaticAnalyzer/Checkers/CMakeLists.txt</code>、拷贝源码（入口平铺，引擎在 <code>OobSummary/</code> 子目录）；然后增量编译 clang，
+<strong>不 <code>-load</code></strong> 直接跑同样的用例，与插件模式和基线比对。沙箱实测<span class="ev">实测数据</span>：增量编译 801 秒（2 核；改 <code>Checkers.td</code> 会让全部 checker 重编，共 201 步），<code>-analyzer-checker-help</code> 里出现 <code>rb.enhance.core.OobSummaryProbe</code>，
+不 <code>-load</code> 的输出与插件模式、与基线一致；<code>--undo</code> 后重编只用了 43 秒（ccache 命中）。</p>
+<p>插件模式验证"代码对不对"，这一步验证"注册对不对"——带去公司之前做一次，往返就少一次。</p></section>
+<section id="loop"><div class="sec-hd"><span class="secno">§5</span><h2>日常开发循环</h2></div><p><strong>代码从哪来</strong>：我交付的代码包 <code>oob-summary-v0.N.tar.gz</code>（07- 的 WP0、WP1 起），目录布局镜像 BXPlugin，带 <code>drop.manifest</code> 和 <code>land.py</code>；或者你自己写。
+建议在本地建一个 git 仓库 <code>~/oob-summary</code>：每个版本解压覆盖后提交，你自己的修改也提交在这里——<strong>带去公司的就是这个仓库的某个提交</strong>，两边对得上。</p>
+<pre><code class="language-bash">cd ~/oob-summary
+D=~/infer-research-kit/08-summary2-design/devenv
+# 编插件（几秒）：入口 + 子目录里的引擎源码
+$D/plugin-build.sh build/OobSummary.so OobSummaryChecker.cpp OobSummary/*/*.cpp -I .
+# 跑一个用例：checker 名与公司完全一致
+$D/cc1-run.sh -load build/OobSummary.so -checker=rb.enhance.ipa.OobSummary \
+    ~/infer-research-kit/08-summary2-design/cases/lv1/lv1_01_stat_enum_butt.c
+# 近似公司的 4 字节指针 + 大端
+TRIPLE=armebv7-linux-gnueabi $D/cc1-run.sh -load build/OobSummary.so -checker=rb.enhance.ipa.OobSummary &lt;文件.c&gt;
+</code></pre>
+<p>（上面的文件名是 WP 代码到了以后的样子；现在可以拿探针把同样的命令走一遍，见 <code>40-smoke.sh</code> 第 3、4 步。）</p>
+<p>调试：<code>gdb --args ~/llvm-project-14/cmake-build-release/bin/clang -cc1 -analyze -load build/OobSummary.so …</code>；
+有用的开关：<code>-analyzer-checker-help</code>、<code>-analyzer-config-help</code>、<code>-analyzer-display-progress</code>、<code>-analyzer-stats</code>。
+插件报 <code>undefined symbol</code>：插件和 clang 不是同一套 LLVM（<code>LLVM_KIND=apt</code> 编的插件只能给 apt 的 clang 用，<code>src</code> 同理），用同一个 <code>LLVM_KIND</code> 重编。</p></section>
+<section id="carry"><div class="sec-hd"><span class="secno">§6</span><h2>带去公司（每一轮）</h2></div><ol>
+<li><strong>本地打包</strong>：只打我们自己的代码，LF 换行，附 sha256。
+   <code>bash
+   cd ~/oob-summary &amp;&amp; git archive --format=tar.gz -o ~/oob-summary-v0.N.tar.gz HEAD &amp;&amp; sha256sum ~/oob-summary-v0.N.tar.gz</code></li>
+<li><strong>按公司的安全规定</strong>把这个包传到公司电脑。</li>
+<li><strong>公司电脑上</strong>：
+   <code>bash
+   sha256sum oob-summary-v0.N.tar.gz                       # 与本地的对一下
+   mkdir -p ~/oob-summary-v0.N &amp;&amp; tar xzf oob-summary-v0.N.tar.gz -C ~/oob-summary-v0.N
+   cd ~/oob-summary-v0.N
+   python3 land.py --drop . --into bxplugin --root /usr1/BXPlugin            # 先演示：列出要拷的文件和三处登记的 diff
+   python3 land.py --drop . --into bxplugin --root /usr1/BXPlugin --apply    # 再落地（重复执行安全，落过的跳过）
+   cd /usr1/BXPlugin/cmake-build-release-release &amp;&amp; make -j16
+   # 然后按代码包 README 里的 bxen 命令跑 TestCase 与业务代码</code>
+   <code>land.py</code> 做的就是 <code>csa-checker-dev</code> 的五处落点：源码进 <code>xir/llvm_ast/StaticAnalyzer/Checkers/</code>、<code>CMakeLists.txt</code> 的 <code>add_library()</code> 末尾追加、
+   <code>Checkers.td</code> 对应包块的最后追加、用例目录进 <code>xir/llvm_ast/TestCase/</code>、<code>TestCase/CMakeLists.txt</code> 最后追加 <code>add_subdirectory</code>。
+   找不到预期结构（比如包块结尾 <code>} // end "rb.enhance.ipa"</code>）就停下来，不猜。撤掉：同样的命令加 <code>--remove --apply</code>。</li>
+<li><strong>带回来</strong>：只带不敏感的结论——告警条数、耗时、我们自己用例上的输出、<code>fork-facts.sh</code> 的输出。业务代码与业务告警原文按公司规定处理。</li>
+</ol>
+<p>沙箱里在模拟的 BXPlugin 目录上验证过：落地 → 再执行一次（全部跳过）→ 撤掉，<code>git status</code> 回到干净<span class="ev">实测数据</span>。</p></section>
+<section id="first"><div class="sec-hd"><span class="secno">§7</span><h2>第一次去公司：两件事</h2></div><p><strong>① <code>fork-facts.sh</code></strong>（只读，约 1 分钟）：</p>
+<pre><code class="language-bash">bash fork-facts.sh &gt; fork-facts.txt      # 路径不同：LLVM14=… BXP=… bash fork-facts.sh
+</code></pre>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>节</th>
+<th>回答什么</th>
+<th>影响本地的什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>系统、gcc、cmake</td>
+<td>本地选 22.04 还是要对齐别的版本</td>
+</tr>
+<tr>
+<td>2–3</td>
+<td>clang 版本串；llvm-project-14 是不是正好上游 14.0.0（提交 <code>329fda39</code>）、之后有没有改动、StaticAnalyzer 改了几个文件</td>
+<td>本地源码要不要补公司的改动</td>
+</tr>
+<tr>
+<td>4</td>
+<td>LLVM 的构建开关（断言、RTTI、目标、编译器、标准）</td>
+<td><code>30-build-llvm.sh</code> 的参数</td>
+</tr>
+<tr>
+<td>5</td>
+<td>BXPlugin 的构建开关</td>
+<td>插件的编译参数</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>xir 内嵌 CSA 与 llvm-project-14 同名目录的差异计数</strong>（Core / Frontend / Checkers / include）</td>
+<td>本地测试结果在公司能不能复现：改得少，本地就可信</td>
+</tr>
+<tr>
+<td>7</td>
+<td>bxen 链接了哪些 LLVM 库</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p>它不输出任何业务源码；上游 LLVM 的文件名是公开的，xir 自有的文件只给个数。贴回之前请自己过一眼。</p>
+<p><strong>② I0 探针</strong>（原计划不变，落地改用 <code>land.py</code>）：</p>
+<pre><code class="language-bash">cd infer-research-kit/08-summary2-design
+python3 devenv/land.py --drop probes/i0-integration --into bxplugin --root /usr1/BXPlugin --apply
+cd /usr1/BXPlugin/cmake-build-release-release &amp;&amp; make -j16
+# 按 probes/i0-integration/README.md 跑 R1、R2、R3；用完撤掉：
+python3 devenv/land.py --drop probes/i0-integration --into bxplugin --root /usr1/BXPlugin --remove --apply
+</code></pre>
+<p>R2 那一行 <code>[OSP] tu … ptr= long= endian=</code> 尤其要看：上游 clang 14 不支持 aarch64 ILP32，公司的 bxen 是怎么按 4 字节指针分析业务代码的（或者其实没有），
+决定了摘要里的字节布局能不能信。</p></section>
+<section id="faq"><div class="sec-hd"><span class="secno">§8</span><h2>常见问题</h2></div><div class="tw"><table>
+<thead>
+<tr>
+<th>现象</th>
+<th>原因与处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>编译中途 <code>Killed</code> / <code>c++: fatal error: Killed signal</code></td>
+<td>内存不够被 OOM 杀了：<code>JOBS=4 ./30-build-llvm.sh</code> 续编（ninja 只补没编完的）；或在 <code>.wslconfig</code> 里加内存、加 swap</td>
+</tr>
+<tr>
+<td><code>$'\r': command not found</code></td>
+<td>脚本被转成了 CRLF：<code>sed -i 's/\r$//' *.sh</code>，并设 <code>core.autocrlf input</code></td>
+</tr>
+<tr>
+<td><code>'uintptr_t' was not declared</code>（<code>Signals.h</code>）</td>
+<td>gcc 13 + LLVM 14；<code>30-build-llvm.sh</code> 会自动打补丁——是不是手动跑的 cmake/ninja？</td>
+</tr>
+<tr>
+<td><code>CMake Error: Unable to find the program ccache</code></td>
+<td>没装 ccache：<code>10-install-deps.sh</code> 会装；或 <code>-DLLVM_CCACHE_BUILD=OFF</code></td>
+</tr>
+<tr>
+<td>插件 <code>-load</code> 时 <code>undefined symbol</code></td>
+<td>插件与 clang 不是同一套 LLVM：用同一个 <code>LLVM_KIND</code> 重编插件</td>
+</tr>
+<tr>
+<td><code>error: unknown target ABI 'ilp32'</code></td>
+<td>上游 clang 14 不支持 aarch64 <code>-mabi=ilp32</code>；本地用 <code>TRIPLE=armebv7-linux-gnueabi</code> 近似</td>
+</tr>
+<tr>
+<td>WSL 编译很慢</td>
+<td>源码或构建目录在 <code>/mnt/c</code> 下：挪到 <code>~/</code></td>
+</tr>
+<tr>
+<td><code>land.py</code> 说找到 0 处 <code>} // end "rb.enhance.ipa"</code></td>
+<td>公司 <code>Checkers.td</code> 的包块结尾注释写法不同：手工把片段追加到 <code>RosaRBEnhanceIpa</code> 块最后，或把实际写法告诉我改脚本</td>
+</tr>
+</tbody>
+</table></div></section>
+<section id="plan"><div class="sec-hd"><span class="secno">§9</span><h2>对计划的影响</h2></div><ul>
+<li>新增输入 <strong>I0′ 本地环境就绪</strong>（第 1–5 步，你自己的时间，不阻塞我写代码）；<strong>I1′ <code>fork-facts.sh</code> 的输出</strong>，与 I1（点头决策）同时给。</li>
+<li>交付形态（I3）细化：代码包除源码与用例外，带 <code>drop.manifest</code> 与 <code>land.py</code>；<strong>本地先过插件模式与本地预演，再带去公司</strong>。我这边每个代码包交付前，
+  在沙箱里用同样的 <code>devenv/</code> 脚本跑过插件模式与本地预演（上游 14.0.0 源码构建）。</li>
+<li>验收不变：G1…G4 仍以公司 fork 上 bxen 的结果为准；本地结果只用来缩短往返。</li>
+</ul></section>
+<footer>
+  <p class="note">文本版：调研包 <code>08-summary2-design/09-local-dev-wsl.md</code>；脚本在 <code>08-summary2-design/devenv/</code>（<code>README.md</code> 有清单）。</p>
+</footer>
+</div>
+<script>
+(function(){
+  var KEY = 'oobsum-devenv-steps';
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { saved = {}; }
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.step input[type=checkbox]'));
+  var prog = document.getElementById('progress');
+  function refresh(){
+    var n = 0;
+    boxes.forEach(function(b){ var li = b.closest('.step'); li.classList.toggle('done', b.checked); if (b.checked) n++; });
+    prog.textContent = '已完成 ' + n + ' / ' + boxes.length + ' 步';
+  }
+  boxes.forEach(function(b){
+    b.checked = !!saved[b.id];
+    b.addEventListener('change', function(){
+      saved[b.id] = b.checked;
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+      refresh();
+    });
+  });
+  refresh();
+  // 每个代码块加"复制"按钮（步骤里的已经有）
+  Array.prototype.forEach.call(document.querySelectorAll('section:not(#steps) pre'), function(pre){
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'copy'; b.textContent = '复制';
+    b.style.position = 'absolute'; b.style.top = '6px'; b.style.right = '6px';
+    pre.appendChild(b);
+  });
+  document.addEventListener('click', function(ev){
+    var b = ev.target.closest('.copy'); if (!b) return;
+    var pre = b.closest('.cmd') ? b.closest('.cmd').querySelector('pre') : b.closest('pre');
+    var code = pre.querySelector('code') || pre;
+    var text = code.innerText;
+    function done(msg){ var t = b.textContent; b.textContent = msg; setTimeout(function(){ b.textContent = t; }, 1400); }
+    function fallback(){
+      var r = document.createRange(); r.selectNodeContents(code);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); done('已选中，按 Ctrl+C');
+    }
+    try { navigator.clipboard.writeText(text).then(function(){ done('已复制'); }, fallback); } catch (e) { fallback(); }
+  });
+})();
+</script>
+
+</body>
+</html>

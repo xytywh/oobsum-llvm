@@ -1,0 +1,24 @@
+diff --git a/llvm/include/llvm/Support/Base64.h b/llvm/include/llvm/Support/Base64.h
+index 62064a35a..d0eabea6d 100644
+--- a/llvm/include/llvm/Support/Base64.h
++++ b/llvm/include/llvm/Support/Base64.h
+@@ -14,6 +14,7 @@
+ #define LLVM_SUPPORT_BASE64_H
+ 
+ #include <string>
++#include <cstdint>
+ 
+ namespace llvm {
+ 
+diff --git a/llvm/include/llvm/Support/Signals.h b/llvm/include/llvm/Support/Signals.h
+index 44f5a750f..ccb429bdd 100644
+--- a/llvm/include/llvm/Support/Signals.h
++++ b/llvm/include/llvm/Support/Signals.h
+@@ -15,6 +15,7 @@
+ #define LLVM_SUPPORT_SIGNALS_H
+ 
+ #include <string>
++#include <cstdint>
+ 
+ namespace llvm {
+ class StringRef;

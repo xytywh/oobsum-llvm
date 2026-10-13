@@ -1,5 +1,43 @@
 # CHANGELOG
 
+## v3.15 — 2026-10-13
+
+**开发环境：公司电脑不能做开发，改在自己的 Windows 电脑上用 WSL2 + 上游 llvm-project 14.0.0 开发，再带去公司验证；给出一套在沙箱里实跑过的脚本。**
+
+使用方输入【立项输入】：公司电脑有安全要求无法开发；公司编 bxen 用的是 llvm-project-14（clang 14.0.0）；
+想在本地 Windows 装 WSL，基于 GitHub 的 llvm-project 做开发与本地验证，再拿到公司电脑上跑业务代码。
+
+### 新增 `08-summary2-design/09-local-dev-wsl.md`（及网页版）
+
+* 七步清单（Windows 装 WSL2 + Ubuntu 22.04 → 装依赖 → apt 版冒烟即可开工 → 源码编 14.0.0 → 源码版冒烟与本地预演 → 公司跑 `fork-facts.sh` 与 I0 探针 → 日常往返）。
+* 本地与公司逐项对照：什么本地测得到、什么只有公司测得到；Windows 侧（`.wslconfig`、磁盘与迁移、代码放 `~/`、换行符、编辑器）；
+  构建配置逐项理由；日常循环（插件模式）；带去公司的打包、校验、落地、撤掉；常见问题。
+
+### 新增 `08-summary2-design/devenv/`（全部在沙箱实跑：Ubuntu 24.04、gcc 13.3、2 核 7 GB）
+
+* `00-check-host.sh`、`10-install-deps.sh`、`20-fetch-llvm.sh`（git 浅克隆或 GitHub Releases 源码包 + sha256 核对，tag 提交 `329fda39`）、
+  `30-build-llvm.sh`（Release + 断言、只要 X86 后端、lld、ccache、按内存定并发、gcc 13 自动打两行 `<cstdint>` 补丁 `patches/llvm14-gcc13-cstdint.patch`）。
+* `40-smoke.sh` 六项冒烟：apt 版（14.0.6）与源码版（14.0.0 + 断言）均 **PASS 6/6**【实测数据】。
+* `plugin-build.sh`（插件构建，顺带写 `compile_commands.json`）、`cc1-run.sh`（本地代替 bxen 的 `clang -cc1 -analyze` 运行器）、`llvm-select.sh`、`env.sh`。
+* `land.py`：按 `drop.manifest` 做 `csa-checker-dev` 的五处落点（BXPlugin），或把同样的注册落进本地 llvm-project；默认演示，`--apply` / `--remove`，幂等。
+  在模拟 BXPlugin 上验证：落地 → 再跑全部跳过 → 撤掉后 `git status` 干净【实测数据】。
+* `50-intree-rehearsal.sh`：本地按公司的注册方式把 checker 编进 clang 本体；探针输出与插件模式、基线一致；增量 801 秒、撤销 43 秒（2 核）【实测数据】。
+* `fork-facts.sh`（公司侧，只读）：clang 版本、llvm-project-14 是否上游 14.0.0 与改动计数、LLVM / BXPlugin 构建开关、xir 内嵌 CSA 与上游同名目录的差异计数。
+* `wslconfig.example`、`README.md`。
+
+### 实测结论
+
+* 源码构建（2 核 `-j2`）约 90 分钟，构建目录 1.0 GB，ccache 0.14 GB，源码含 `.git` 1.6 GB；gcc 13 只需 `Signals.h`、`Base64.h` 两处补丁。
+* **上游 clang 14 不支持 aarch64 ILP32**：`aarch64_be-linux-gnu_ilp32` 仍是 8 字节指针，`-mabi=ilp32` 报 unknown target ABI；
+  本地用 `armebv7-linux-gnueabi`（4 字节指针 + 大端）近似，ILP32 布局只能在公司由探针 R2 确认。
+* Ubuntu 22.04 的 `clang-14` 包正好是 14.0.0（`1:14.0.0-1ubuntu1.1`）【文档】。
+
+### 同步
+
+* `07-dev-plan.md`：开发方式改为三个环境（我的沙箱 / 你的 WSL / 公司）；输入新增 I0′（本地环境就绪）、I1′（`fork-facts.sh` 输出）；
+  代码包改为带 `drop.manifest` + `land.py`。`probes/i0-integration/`：加 `drop.manifest`，README 加一条命令落地 / 撤掉。
+* README、CHANGELOG；规格与计划网页同步。
+
 ## v3.14 — 2026-10-13
 
 **摘要分清"机器字段"与"给人看的说明"：自然语言一律收进键名为 `doc` 的字段，引擎不读；去掉 `doc` 就是完整摘要，只读机器字段就能推到最终告警。**
