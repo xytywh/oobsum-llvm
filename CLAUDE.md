@@ -38,6 +38,8 @@
 | `oobsum/probes/` | 公司侧集成探针（I0） |
 | `oobsum/research/` | 前期 Infer 调研（背景，只读） |
 | `.claude/skills/csa-checker-dev/` | 用户的 CSA checker 开发规范（项目技能）。注意它写的是公司路径，见 §6 的对应关系 |
+| `.claude/settings.json` | 构建、测试、提交、推送到 `oobsum/dev` 免确认；禁止强推与 `reset --hard`（用户可自行改） |
+| `oobsum/PROMPTS.md` | 给 Claude Code 的提示词：首次启动、每次新窗口、带回公司结果、版本节点 |
 
 ## 4. 构建与测试（WSL / Ubuntu 22.04）
 

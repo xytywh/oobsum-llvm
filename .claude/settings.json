@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ninja -C cmake-build-release:*)",
+      "Bash(cmake-build-release/bin/llvm-lit:*)",
+      "Bash(cmake-build-release/bin/clang:*)",
+      "Bash(oobsum/devenv/40-smoke.sh:*)",
+      "Bash(oobsum/devenv/cc1-run.sh:*)",
+      "Bash(python3 oobsum/:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push origin oobsum/dev:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)"
+    ]
+  }
+}

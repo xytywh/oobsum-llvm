@@ -10,6 +10,7 @@
 | 第一次接手（人或 Claude Code） | `../CLAUDE.md`（常驻规则）→ `HANDOFF.md`（背景、决策、现状）→ `STATUS.md`（下一步） |
 | 要看"为什么这样设计" | `06-spec.md`（主规格）、`specs/`（增量规格）、`history/README.md`（历次对话的问与答）、`git log -- oobsum/` |
 | 要在公司验证 | `COMPANY.md` |
+| 要启动 / 续上 Claude Code | `PROMPTS.md` |
 | 要搭本地环境 | `09-local-dev-wsl.md`、`devenv/README.md` |
 
 ## 目录
