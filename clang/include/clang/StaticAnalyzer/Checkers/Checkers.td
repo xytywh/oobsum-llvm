@@ -1696,3 +1696,53 @@ def UncountedLocalVarsChecker : Checker<"UncountedLocalVarsChecker">,
   Documentation<HasDocumentation>;
 
 } // end alpha.webkit
+
+//===----------------------------------------------------------------------===//
+// rb.enhance.* packages: local mirror of BXPlugin/xir (not upstream).
+// Checkers below are copied into xir's Checkers.td by oobsum/devenv/land.py.
+//===----------------------------------------------------------------------===//
+
+def RosaRB : Package<"rb">;
+def RosaRBEnhance : Package<"enhance">, ParentPackage<RosaRB>;
+def RosaRBEnhanceCore : Package<"core">, ParentPackage<RosaRBEnhance>;
+def RosaRBEnhanceIpa : Package<"ipa">, ParentPackage<RosaRBEnhance>;
+
+let ParentPackage = RosaRBEnhanceCore in {
+
+} // end "rb.enhance.core"
+
+let ParentPackage = RosaRBEnhanceIpa in {
+
+def OobSummaryChecker : Checker<"OobSummary">,
+  HelpText<"Detect out-of-bound memory accesses across multi-level call chains using function summaries">,
+  CheckerOptions<[
+    CmdLineOption<String, "Phase",
+                  "Run mode: inline (summaries computed within one TU), export, solve or report (cross-TU)",
+                  "inline", Released>,
+    CmdLineOption<String, "WorkDir",
+                  "Working directory for summaries, decision logs and dumps (empty: write nothing)",
+                  "", Released>,
+    CmdLineOption<String, "Policy",
+                  "recall: report definite, possible and suspect decisions; balanced: definite and possible only",
+                  "recall", Released>,
+    CmdLineOption<Integer, "InlineDepth",
+                  "Definite/possible decisions with max(depth, effDepth) <= InlineDepth are left to existing "
+                  "rules (0: report all); suspect decisions are never filtered by depth",
+                  "2", Released>,
+    CmdLineOption<Boolean, "ReportSafe",
+                  "Also report proven-safe decisions, tagged [OOB-SAFE] (for tests and audits)",
+                  "false", Released>,
+    CmdLineOption<String, "SuspectReasons",
+                  "Reasons that produce suspect reports, separated by '+' (empty: all reasons)",
+                  "", Released>,
+    CmdLineOption<String, "Dump",
+                  "Debug output to stderr and WorkDir/dump, kinds separated by '+': options, callgraph, fir, "
+                  "state, summary, apply, decisions, stats, or all",
+                  "", Released>,
+    CmdLineOption<String, "DumpFilter",
+                  "Only dump functions whose name matches this regex",
+                  "", Released>
+  ]>,
+  Documentation<NotDocumented>;
+
+} // end "rb.enhance.ipa"

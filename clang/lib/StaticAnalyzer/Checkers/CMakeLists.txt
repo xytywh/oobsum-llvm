@@ -131,6 +131,13 @@ add_clang_library(clangStaticAnalyzerCheckers
   WebKit/UncountedCallArgsChecker.cpp
   WebKit/UncountedLambdaCapturesChecker.cpp
   WebKit/UncountedLocalVarsChecker.cpp
+  OobSummaryChecker.cpp
+  OobSummary/core/DecisionLog.cpp
+  OobSummary/core/Fingerprint.cpp
+  OobSummary/core/Label.cpp
+  OobSummary/core/Policy.cpp
+  OobSummary/debug/DumpSink.cpp
+  OobSummary/report/Reporter.cpp
 
   LINK_LIBS
   clangAST

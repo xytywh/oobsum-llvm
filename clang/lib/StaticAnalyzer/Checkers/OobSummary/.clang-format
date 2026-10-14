@@ -1,0 +1,21 @@
+# OobSummary 的代码风格（csa-checker-dev 约定）。只管这个目录；入口 OobSummaryChecker.cpp 在上一级（那里是 LLVM 的风格），
+# 格式化它时显式指定本文件：clang-format -i --style=file:clang/lib/StaticAnalyzer/Checkers/OobSummary/.clang-format <文件>
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 120
+PointerAlignment: Right
+DerivePointerAlignment: false
+SortIncludes: false
+UseTab: Never
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+AllowShortFunctionsOnASingleLine: None
+AllowShortBlocksOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AccessModifierOffset: -4
+NamespaceIndentation: None
+Standard: Cpp11
+ContinuationIndentWidth: 4
+MaxEmptyLinesToKeep: 1
