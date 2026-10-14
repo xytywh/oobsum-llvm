@@ -5,6 +5,12 @@ export LLVM_TAG=${LLVM_TAG:-llvmorg-14.0.0}
 export LLVM_TAG_COMMIT=329fda39c507e8740978d10458451dcdb21563be
 # GitHub Releases 上的源码包 llvm-project-14.0.0.src.tar.xz（约 101 MB）的 sha256（沙箱里实际下载核对过）
 export LLVM_TARBALL_SHA256=35ce9edbc8f774fe07c8f4acdf89ec8ac695c8016c165dd86b8d10e7cba07e23
+# v4.0 起本目录在 llvm-project 分支里（<仓库根>/oobsum/devenv）：默认就用这个仓库当源码树；
+# 单独使用调研包时（目录外面不是 llvm-project）才退回 ~/llvm-project-14
+_ENV_HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+if [ -z "${LLVM_SRC:-}" ] && [ -f "$_ENV_HERE/../../llvm/CMakeLists.txt" ] && [ -d "$_ENV_HERE/../../clang" ]; then
+  LLVM_SRC=$(cd "$_ENV_HERE/../.." && pwd)
+fi
 export LLVM_SRC=${LLVM_SRC:-$HOME/llvm-project-14}
 export LLVM_BUILD=${LLVM_BUILD:-$LLVM_SRC/cmake-build-release}
 export LLVM_GIT=${LLVM_GIT:-https://github.com/llvm/llvm-project.git}

@@ -4,6 +4,9 @@
 > 再带到公司电脑上编进 BXPlugin、用 bxen 跑业务代码。脚本都在 `devenv/`，**每一步都在沙箱里实际跑过**（Ubuntu 24.04、2 核 7 GB）。
 >
 > 证据标签：【实测数据】沙箱实跑；【文档】官方页面；【推断】按实测外推。
+>
+> **v4.0 起**：这些脚本随项目搬进了 llvm-project 分支（`oobsum/devenv/`），默认就在那个仓库里构建（`<仓库根>/cmake-build-release/`），
+> 第 4 步的 `20-fetch-llvm.sh` 不再需要（仓库本身就是 14.0.0 源码）。怎么建仓库、怎么让 Claude Code 接手，见交接包的 README 与 `oobsum/HANDOFF.md`。
 
 ---
 

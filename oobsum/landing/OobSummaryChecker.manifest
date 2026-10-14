@@ -1,0 +1,15 @@
+# 从本仓库（llvm-project 的 oobsum/dev 分支）同步到公司 BXPlugin 的清单。路径相对仓库根。
+#   python3 oobsum/devenv/land.py --drop oobsum/landing/OobSummaryChecker.manifest --into bxplugin --root /usr1/BXPlugin [--apply]
+#   python3 oobsum/devenv/land.py --drop oobsum/landing/OobSummaryChecker.manifest --check-tree     # 提交前检查登记是否一致
+# 新增源文件不用改这里（通配符），但要追加进 clang/lib/StaticAnalyzer/Checkers/CMakeLists.txt。
+name=OobSummaryChecker
+package=ipa
+td_from=clang/include/clang/StaticAnalyzer/Checkers/Checkers.td
+td_def=OobSummaryChecker
+src_root=clang/lib/StaticAnalyzer/Checkers
+src=OobSummaryChecker.cpp
+src=OobSummary/**/*.cpp
+hdr=OobSummary/**/*.h
+hdr=OobSummary/**/*.def
+hdr=OobSummary/**/*.inc
+testcase=oobsum/testcase/OobSummaryChecker

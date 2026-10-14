@@ -1,0 +1,4 @@
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+add_library(OobSummaryChecker
+        TC_OobSummaryChecker.c)

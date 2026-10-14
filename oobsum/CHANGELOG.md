@@ -1,5 +1,35 @@
 # CHANGELOG
 
+## v4.0 — 2026-10-14
+
+**搬进仓库：项目从"对话 + 调研包"改为 llvm-project 的 `oobsum/dev` 分支，由 Claude Code 在 WSL 里小步开发；附 checker 骨架。**
+
+使用方输入【立项输入】：聊天方式效率低；本地 WSL + Ubuntu 22.04 已搭好，要用 Claude Code 开发；把所有必要信息（含讨论与提交说明）
+打成完整的包；在 GitHub 上基于 llvm-project 建分支持续开发，提交记录可追溯，每次开新窗口都能接着干；公司从 GitHub 看记录并验证。
+另有四点要求：① 小步快跑，每个小改动提交并推送；② 告警对"明确有问题"与"明确无问题"都要有标签；③ 尽量不漏报，误报交给大模型复核；
+④ 每次设计 / 修改写 spec，并有把摘要与中间数据落盘的调试代码。
+
+### 仓库化
+
+* 调研包 v3.0–v3.15 逐版导入为提交（`08-summary2-design/` → `oobsum/`，其余 → `oobsum/research/`，离线网页 → `oobsum/web/`）。
+* 新增 `CLAUDE.md`（仓库根，Claude Code 常驻规则）、`oobsum/README.md`、`HANDOFF.md`（背景、决策 D5′…D19、现状、下一步、待输入）、
+  `STATUS.md`（每次会话更新）、`COMPANY.md`（公司侧拉取、同步、编译、bxen 验证）、`history/README.md`（历次问答纪要）、
+  `specs/`（增量规格流程与模板）、`.claude/skills/csa-checker-dev/`（用户的 checker 开发规范，作项目技能）。
+* `devenv/`：默认在本仓库里构建（`cmake-build-release/`，已加入 `.gitignore`）；`40-smoke.sh` 加第 7 项（OobSummary 的 lit 用例）；
+  `land.py` 支持仓库内清单（`landing/OobSummaryChecker.manifest`，通配符、同步语义、`--check-tree`），稀疏检出也能用。
+* `build:` gcc 13 缺 `<cstdint>` 的两处 include 作为分支上的一个提交（不改逻辑；gcc 11 也无影响）。
+
+### checker 骨架（SPEC-0001）
+
+* `rb.enhance.ipa.OobSummary` 注册（本地镜像公司的 `rb.enhance.*` 包结构），8 个选项。
+* 四个标签 DEFINITE / POSSIBLE / SUSPECT / SAFE；召回优先策略（拿不准报 SUSPECT，只有证明安全才不报）；每标签一个 BugType，
+  消息带 `[OOB-<标签>[:<原因>]]` 前缀。
+* 判定日志 `WorkDir/decisions/<tu-id>.jsonl`（所有判定，含不报的及其原因）；`tools/decisions.py` 汇总 / 导出给大模型复核。
+* 调试输出 `Dump=options+callgraph+decisions+stats`、`DumpFilter`；`fir`、`state`、`summary`、`apply` 预留给引擎。
+  实测：`-analyzer-config` 的列表值必须用 `+` 连接（逗号会被当成键值对分隔符）。
+* 调试内建函数 `oobsum_debug_emit()` 驱动用例；6 个 lit 用例全过；公司 TestCase `testcase/OobSummaryChecker/`（预期 3 条告警）。
+* 对 06-spec 的修订：F-15、F-16、F-20、F-22、F-31、F-32、F-34、D-26、I-12…I-14、I-21、I-22（SPEC-0001 §9）。
+
 ## v3.15 — 2026-10-13
 
 **开发环境：公司电脑不能做开发，改在自己的 Windows 电脑上用 WSL2 + 上游 llvm-project 14.0.0 开发，再带去公司验证；给出一套在沙箱里实跑过的脚本。**
