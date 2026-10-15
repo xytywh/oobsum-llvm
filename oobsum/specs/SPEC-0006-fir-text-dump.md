@@ -1,6 +1,6 @@
 # SPEC-0006 FIR 的文本记法与 `Dump=fir`
 
-状态：§2（文本记法，`core/FirText`）已实现（S4a）；§3（`Dump=fir` 接线）随 S4b 实现
+状态：已实现（§2 文本记法 S4a；§3 `Dump=fir` 接线 S4b，见 SPEC-0007）
 来源：SPEC-0001 §6.1（`fir`：每个函数的 FIR，文本记法 + 文件）、CLAUDE.md §5.5（每个引擎环节配 Dump 种类）、06- T-02（降级快照用例
 用 `Dump=fir` 的文本）。
 

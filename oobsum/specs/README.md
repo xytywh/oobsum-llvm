@@ -38,4 +38,5 @@
 | [SPEC-0003](SPEC-0003-keys.md) | 函数 / 全局的键（D-01…D-05、D-08）与 `Dump=keys`；判定的 `fn` 改为函数键 | 已实现（S2） |
 | [SPEC-0004](SPEC-0004-core-unittests.md) | `core/` 单元测试 `oobsum-core-tests`（不依赖 gtest，`oobsum/unittests/`，进 lit） | 已实现（S3a） |
 | [SPEC-0005](SPEC-0005-fir-json.md) | FIR 的 C++ 结构与 JSON 读写（`oobsum-fir/1`，D-10…D-14；§5.2 未写死处的约定） | 已实现（S3b） |
-| [SPEC-0006](SPEC-0006-fir-text-dump.md) | FIR 的文本记法（`core/FirText`）与 `Dump=fir` | 文本记法已实现（S4a）；`Dump=fir` 随 S4b |
+| [SPEC-0006](SPEC-0006-fir-text-dump.md) | FIR 的文本记法（`core/FirText`）与 `Dump=fir` | 已实现（S4a、S4b） |
+| [SPEC-0007](SPEC-0007-lower-skeleton.md) | 降级第一步：类型布局与模块骨架（`lower/TypeLayout`、`lower/Lowering`），接上 `Dump=fir` | 已实现（S4b） |

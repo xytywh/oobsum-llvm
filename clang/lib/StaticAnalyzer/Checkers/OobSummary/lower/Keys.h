@@ -57,6 +57,10 @@ private:
     llvm::DenseMap<clang::FileID, std::pair<std::string, std::string>> files;
 };
 
+// 变量的定义：真正的定义；没有就取源码里最早的暂定定义（C 的 int a[10]; 在文件作用域是暂定定义）；都没有为 null。
+// 注意 VarDecl::getActingDefinition() 只在"这一条本身是暂定定义"时非空，在 extern 那条上调用拿不到（实测）。
+const clang::VarDecl *VarDefinition(const clang::VarDecl *vd);
+
 // 一个 TU 里有键的实体，按 AST 遍历顺序：有函数体的函数、全局（文件作用域与块作用域 extern）、函数内 static。
 // 同一实体的多次声明只出一条。
 std::vector<KeyInfo> CollectKeys(const clang::TranslationUnitDecl *tu, KeyMaker &keys);

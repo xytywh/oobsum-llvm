@@ -25,15 +25,24 @@ static const FunctionDecl *HomeOf(const FunctionDecl *fd)
     return def != nullptr ? def : fd->getFirstDecl();
 }
 
-static const VarDecl *DefinitionOf(const VarDecl *vd)
+const VarDecl *VarDefinition(const VarDecl *vd)
 {
-    const VarDecl *def = vd->getDefinition();
-    return def != nullptr ? def : vd->getActingDefinition();
+    if (const VarDecl *def = vd->getDefinition()) {
+        return def;
+    }
+    // 声明链从最新往前走，最后碰到的暂定定义就是源码里最早的那个
+    const VarDecl *earliest = nullptr;
+    for (const VarDecl *r = vd->getMostRecentDecl(); r != nullptr; r = r->getPreviousDecl()) {
+        if (r->isThisDeclarationADefinition() == VarDecl::TentativeDefinition) {
+            earliest = r;
+        }
+    }
+    return earliest;
 }
 
 static const VarDecl *HomeOf(const VarDecl *vd)
 {
-    const VarDecl *def = DefinitionOf(vd);
+    const VarDecl *def = VarDefinition(vd);
     return def != nullptr ? def : vd->getFirstDecl();
 }
 
@@ -99,7 +108,7 @@ bool KeyMaker::Describe(const Decl *d, KeyInfo &info)
         }
         home = HomeOf(vd);
         info.kind = vd->isStaticLocal() ? "static" : "global";
-        info.def = DefinitionOf(vd) != nullptr;
+        info.def = VarDefinition(vd) != nullptr;
         const auto *owner = dyn_cast_or_null<FunctionDecl>(vd->getParentFunctionOrMethod());
         info.scopeName = (vd->isStaticLocal() && owner != nullptr ? owner->getName() : vd->getName()).str();
     } else {

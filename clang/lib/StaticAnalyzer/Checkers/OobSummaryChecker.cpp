@@ -32,15 +32,19 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
 
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "OobSummary/core/Decision.h"
 #include "OobSummary/core/DecisionLog.h"
 #include "OobSummary/core/Fingerprint.h"
+#include "OobSummary/core/FirJson.h"
+#include "OobSummary/core/FirText.h"
 #include "OobSummary/core/Policy.h"
 #include "OobSummary/debug/DumpSink.h"
 #include "OobSummary/lower/Keys.h"
+#include "OobSummary/lower/Lowering.h"
 #include "OobSummary/report/Reporter.h"
 
 #include <set>
@@ -133,6 +137,8 @@ private:
 
     void dumpCallGraph(const TranslationUnitDecl *tu, oobsum::KeyMaker &keys) const;
     void dumpKeys(const TranslationUnitDecl *tu, const std::string &tuId, oobsum::KeyMaker &keys) const;
+    void dumpFir(const TranslationUnitDecl *tu, AnalysisManager &mgr, const std::string &mainFile,
+                 const std::string &tuId, oobsum::KeyMaker &keys) const;
 };
 
 void OobSummaryChecker::dumpCallGraph(const TranslationUnitDecl *tu, oobsum::KeyMaker &keys) const
@@ -178,6 +184,49 @@ void OobSummaryChecker::dumpKeys(const TranslationUnitDecl *tu, const std::strin
     dump.File(tuId + "/keys/keys.txt", content);
 }
 
+void OobSummaryChecker::dumpFir(const TranslationUnitDecl *tu, AnalysisManager &mgr, const std::string &mainFile,
+                                const std::string &tuId, oobsum::KeyMaker &keys) const
+{
+    // SPEC-0006 §3、SPEC-0007 §2.5：只有 Dump=fir 时才降级；模块头总打，函数按 DumpFilter
+    oobsum::fir::Module module = oobsum::LowerTranslationUnit(tu, mgr, keys, mainFile);
+    std::vector<std::string> lines = oobsum::fir::ModuleHeaderText(module);
+    for (const oobsum::fir::Function &f : module.funcs) {
+        if (dump.Wants("fir", f.name)) {
+            std::vector<std::string> body = oobsum::fir::FunctionText(module, f);
+            lines.insert(lines.end(), body.begin(), body.end());
+        }
+    }
+    std::string text;
+    for (const std::string &line : lines) {
+        dump.Line("fir", line);
+        text += line + "\n";
+    }
+    dump.File(tuId + "/fir/" + tuId + ".txt", text);
+
+    // 自检：读回来、再写出逐字相同；否则是降级产出了不合法的 FIR（只打印，不影响判定）
+    llvm::json::Value json = oobsum::fir::ModuleToJson(module);
+    std::string compact;
+    llvm::raw_string_ostream compactOs(compact);
+    compactOs << json;
+    compactOs.flush();
+    oobsum::fir::Module back;
+    std::string error;
+    if (!oobsum::fir::ModuleFromJson(json, back, error)) {
+        dump.Line("fir", "error: " + error);
+    } else {
+        std::string again;
+        llvm::raw_string_ostream againOs(again);
+        againOs << oobsum::fir::ModuleToJson(back);
+        if (againOs.str() != compact) {
+            dump.Line("fir", "error: FIR does not round-trip through JSON");
+        }
+    }
+    std::string pretty;
+    llvm::raw_string_ostream prettyOs(pretty);
+    prettyOs << llvm::formatv("{0:1}", json) << "\n";
+    dump.File(tuId + "/fir/" + tuId + ".json", prettyOs.str());
+}
+
 void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisManager &mgr, BugReporter &br) const
 {
     const SourceManager &sm = mgr.getSourceManager();
@@ -194,6 +243,9 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
     }
     if (dump.On("callgraph")) {
         dumpCallGraph(tu, keys);
+    }
+    if (dump.On("fir")) {
+        dumpFir(tu, mgr, mainFile, tuId, keys);
     }
 
     // 判定来源：目前只有调试内建函数；引擎接入后在这里加上 lower → solve → apply 产出的判定

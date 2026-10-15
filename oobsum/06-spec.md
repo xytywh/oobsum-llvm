@@ -363,7 +363,7 @@ FIR 是"能决定越界的最少信息"：类型只留大小与字段布局，�
                  { "id": 0, "insts": [], "succ": [] } ] } ] }
 ```
 
-**D-10 类型** `t`：`{k:int,w,s}`、`{k:ptr,to}`、`{k:arr,n|null,elem}`（`n` 为 null 即柔性 / 不完整）、`{k:rec,id}`、`{k:void}`、`{k:other,size}`。
+**D-10 类型** `t`：〔Clang 类型的映射见 SPEC-0007 §2.1–§2.2：函数类型 / 不完整类型 → `{other, size: 0}`，`char` 的符号取编译选项，位域的 `w` 是位宽〕`{k:int,w,s}`、`{k:ptr,to}`、`{k:arr,n|null,elem}`（`n` 为 null 即柔性 / 不完整）、`{k:rec,id}`、`{k:void}`、`{k:other,size}`。
 记录类型放模块级 `records` 表，字段带字节偏移（**按被分析 TU 自己的目标 ABI 算**，即 ILP32 与否以 cdb / fork 为准，§5.4）。
 
 **D-11 局部**：形参也是局部（带 `param` 下标），入口处的值是接口符号；`obj: true` 表示是内存对象（数组、结构体、取过地址的标量），
@@ -395,7 +395,7 @@ FIR 是"能决定越界的最少信息"：类型只留大小与字段布局，�
 | `["psub", P1, P2, elem]` | 指针相减（元素数） |
 | `["unk", why]` | 未知值 |
 
-**D-14 边**：`succ: [{to, assume?}]`。`if` / 循环条件降成两条边上的 `assume E` / `assume ["lnot", E]`；`switch` 降成每个 `case` 一条
+**D-14 边**：〔SPEC-0007：S4b 先导出不带 `assume` 的边（过近似），S5 加条件〕`succ: [{to, assume?}]`。`if` / 循环条件降成两条边上的 `assume E` / `assume ["lnot", E]`；`switch` 降成每个 `case` 一条
 `assume x == c` 与 `default` 一条（`case` 超过 16 个时 `default` 不带 assume）。`&&`、`||`、`?:` 由 Clang CFG 拆好，
 `?:` 的结果在两个前驱块末尾各补一条 `set tmp`（**A-04**）。
 

@@ -344,6 +344,8 @@ def cmd_csa(a):
                 args = [clang, '-cc1', '-triple', a.triple, '-analyze', '-resource-dir', res,
                         '-internal-isystem', os.path.join(res, 'include'), '-analyzer-checker=' + CHECKER,
                         '-analyzer-config', '%s:WorkDir=%s' % (CHECKER, wd)]
+                if a.triple.startswith(('arm', 'thumb', 'aarch64')):
+                    args.append('-fno-signed-char')  # driver 对 ARM / AArch64 会加；直接跑 cc1 要自己加（SPEC-0007 §2.1）
                 for kv in a.config:
                     args += ['-analyzer-config', '%s:%s' % (CHECKER, kv)]
                 args += a.cc1_arg + [s]

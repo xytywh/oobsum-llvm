@@ -20,5 +20,7 @@ done
 [ -n "$checker" ] || { echo "缺 -checker=<名字>"; exit 1; }
 sysinc=()
 [ "$TRIPLE" = "x86_64-pc-linux-gnu" ] && sysinc=(-internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /usr/include)
+# ARM / AArch64 的 char 默认无符号：driver 会给 cc1 传 -fno-signed-char，直接跑 cc1 要自己加（SPEC-0007 §2.1，实测）
+case "$TRIPLE" in arm*|thumb*|aarch64*) sysinc+=(-fno-signed-char) ;; esac
 exec "$CLANG" -cc1 -triple "$TRIPLE" -analyze -resource-dir "$RES" -internal-isystem "$RES/include" "${sysinc[@]}" \
   -analyzer-checker="$checker" -analyzer-max-loop 3 -analyzer-output=text "${args[@]}"

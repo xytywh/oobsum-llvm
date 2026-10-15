@@ -33,6 +33,12 @@
   16 种表达式 / 6 种指令 / 6 种类型往返、18 种坏输入逐条带位置报错、嵌套过深、文件往返）。
 * S4a FIR 文本记法（SPEC-0006 §2）：`core/FirText`（模块头、函数、类型、表达式、指令；`bin` / `cmp` 作操作数一律加括号）；
   单测 30 个（新增 4 个：§2.1 例子逐行、全覆盖模块逐行、括号规则、单块函数）；测试夹具抽到 `unittests/core/FirExamples.h`。
+* S4b 类型布局与模块骨架（SPEC-0007）：`lower/TypeLayout`（规范类型 → FIR、记录按目标 ABI 布局、typedef 反查记录名、位域）、
+  `lower/Lowering`（目标、文件表、全局、有函数体的函数、局部与 `obj`、CFG 块与边——与 `debug.DumpCFG` 一致，先不带条件；`body_pending`）；
+  `Dump=fir` 接上（stderr + `WorkDir/dump/<tu>/fir/<tu>.{txt,json}`，读回自检）。lit 11 个全过（新增 `fir-layout.c`、`fir-module.c`）。
+  67 个用例 / 70 个 TU / 502 个函数降级无崩溃、自检无错误。顺带修了两处：`extern int a[];` 后的暂定定义 `int a[10];` 被当成声明
+  （`getActingDefinition()` 在 extern 那条上取不到，`lower/Keys` 与降级共用新的 `VarDefinition`）；`cc1-run.sh`、`run.py csa`
+  对 ARM / AArch64 自动加 `-fno-signed-char`（直接跑 cc1 时 `char` 默认有符号，与公司 aarch64_be 不一致）。
 
 ## 下一步（小步，每步一个提交；做完一步勾掉一步）
 
@@ -43,7 +49,7 @@
 - [x] **S3a `core/` 单元测试框架**（06- §9.3）：`oobsum-core-tests`；补上 S2 的 `core/Key` 单元测试。
 - [x] **S3b FIR 结构与 JSON**（D-10…D-14）：`core/Fir`、`core/FirJson`（读写往返、坏输入报错不崩，A-96）；`FirTest`、`FirJsonTest`。
 - [x] **S4a FIR 文本记法**（SPEC-0006 §2）：给 `Dump=fir` 与 T-02 快照用。
-- [ ] **S4b 类型布局与模块骨架**（`lower/TypeLayout`、`lower/Lowering`）：类型 / 记录布局（ILP32 vs LP64）、全局、函数签名与局部（`obj`）、
+- [x] **S4b 类型布局与模块骨架**（`lower/TypeLayout`、`lower/Lowering`）：类型 / 记录布局（ILP32 vs LP64）、全局、函数签名与局部（`obj`）、
       CFG 块与边（先不带 assume——无条件边是安全的过近似）；接上 `Dump=fir`（stderr + `WorkDir/dump/<tu>/fir/<tu>.{txt,json}`，读回自检）。
 - [ ] **S4c 降级第一刀**（A-01…A-09 的直线代码子集）：赋值、数组下标、成员、指针算术、调用、返回；`Dump=fir` 快照用例。
 - [ ] **S5 降级补全**：分支 / 循环（assume 边）、`?:`、`&&`/`||`、`switch`；`unsupported` 计入判定日志（SUSPECT:unsupported_construct）。
@@ -57,6 +63,8 @@
 
 * **点头**：SPEC-0002 §7 提议把 07- / 06- T-09 的 G2"期望为 `-` / `记账` 的入口零告警"改成"零 DEFINITE / POSSIBLE 告警，SUSPECT 条数单列"
   （D16 召回优先的直接推论；不点头的话，G2 时 TN 上的 SUSPECT 都算不通过）。
+* 公司（可选，很快）：bxen 命令加 `-analyzer-config rb.enhance.ipa.OobSummary:Dump=fir` 跑 TestCase，看 `module` 行是否 `ptr=4 long=4 big-endian`
+  （fork 是否按 ILP32 分析，对应探针 R2），以及 `char` 字段是否 `u8`。只带回"是/否"。
 * 公司：`oobsum/devenv/fork-facts.sh` 的输出；I0 探针 R1–R3；本骨架在 bxen 下的 TestCase 结果（预期 3 条告警 + 判定日志 5 条）。
 * 其余输入见 `HANDOFF.md` §6。
 
@@ -68,6 +76,8 @@
 * `summary.schema.json` 的 `$id` 是相对的（`oobsum-summary/1`）：别的脚本要用 jsonschema 校验摘要，也要先去掉 `$id`（jsonschema 3.x 会解析失败，见 `replay.py`）。
 * `run.py csa` 的基线只在有意改变时 `--save`（不能与 `--only` 同用），提交信息里写清楚哪些入口的实际变了；`csa-result.json` 在
   `cmake-build-release/oobsum-csa/`。`alerts.json` / `replay.py` 仍把 `记账` 当成不报，补不补 SUSPECT 条目留到 S8 另写 SPEC。
+* 直接跑 cc1 时 ARM / AArch64 的 `char` 默认**有符号**（driver 才会加 `-fno-signed-char`）：本地脚本已处理；手写 cc1 命令时记得加。
+* 降级的函数目前带 `body_pending`（没有指令，S4c 补）；引擎接上前必须去掉。
 * **LLVM 14.0.0 的 `json::parse` 把超出 int64 的整数悄悄饱和成 INT64_MAX / INT64_MIN**（实测，不报错）。FIR 读入因此把这两个值本身也拒绝，
   降级遇到这么大的常量要写 `["unk", "const_overflow"]`（SPEC-0005 §2.3 #5）；S8 的 C++ 摘要读入同样要守这条。
 * 头文件里的 `static inline` 目前同名同键（SPEC-0003 §2.1）：S4 加 `#<FIR 哈希前 8 位>` 之前，同一头文件里因宏展开不同而函数体不同的版本

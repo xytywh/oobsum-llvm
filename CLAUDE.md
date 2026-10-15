@@ -59,6 +59,7 @@ oobsum/devenv/cc1-run.sh -checker=rb.enhance.ipa.OobSummary <文件.c> [-analyze
 * 构建超过几分钟时放后台跑并轮询，不要让一个命令卡到超时。
 * `-analyzer-config` 里的列表值用 **`+`** 连接（`Dump=callgraph+decisions`）：逗号会被当成键值对分隔符（实测）。
 * 上游 clang 14 不支持 aarch64 ILP32；本地要"4 字节指针 + 大端"时用 `TRIPLE=armebv7-linux-gnueabi oobsum/devenv/cc1-run.sh …`。
+  直接跑 cc1 时 ARM / AArch64 的 `char` 要自己加 `-fno-signed-char`（driver 会加，cc1 不会；`cc1-run.sh`、`run.py csa` 已自动加，SPEC-0007）。
 
 ## 5. 工作方式（用户的硬性要求）
 
