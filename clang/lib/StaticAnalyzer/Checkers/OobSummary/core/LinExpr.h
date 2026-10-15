@@ -29,10 +29,10 @@ struct Atom {
     enum class Kind : uint8_t { Sym, Ext, Div, Mod, Wrap, Mul };
 
     Kind kind = Kind::Sym;
-    std::string name;                    // Sym / Ext
-    int64_t n = 0;                       // Div / Mod：除数；Wrap：位数
-    std::shared_ptr<const LinExpr> a;    // Div / Mod / Wrap / Mul
-    std::shared_ptr<const LinExpr> b;    // Mul
+    std::string name;                  // Sym / Ext
+    int64_t n = 0;                     // Div / Mod：除数；Wrap：位数
+    std::shared_ptr<const LinExpr> a;  // Div / Mod / Wrap / Mul
+    std::shared_ptr<const LinExpr> b;  // Mul
 
     // 规范排序键（D-21）：组、形参下标、文本
     int group = 0;

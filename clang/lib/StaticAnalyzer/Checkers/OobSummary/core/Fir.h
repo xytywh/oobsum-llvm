@@ -35,12 +35,12 @@ enum class TypeKind : uint8_t { Int, Ptr, Arr, Rec, Void, Other };
 
 struct Type {
     TypeKind kind = TypeKind::Void;
-    unsigned width = 0;        // Int：位宽
-    bool isSigned = false;     // Int
-    TypeId to = kNone;         // Ptr：所指类型；Arr：元素类型
-    int64_t count = -1;        // Arr：元素个数；-1 = 柔性 / 不完整（JSON 的 null）
-    uint32_t record = kNone;   // Rec：记录号
-    int64_t size = 0;          // Other：字节数
+    unsigned width = 0;       // Int：位宽
+    bool isSigned = false;    // Int
+    TypeId to = kNone;        // Ptr：所指类型；Arr：元素类型
+    int64_t count = -1;       // Arr：元素个数；-1 = 柔性 / 不完整（JSON 的 null）
+    uint32_t record = kNone;  // Rec：记录号
+    int64_t size = 0;         // Other：字节数
 
     static Type Int(unsigned width, bool isSigned);
     static Type Ptr(TypeId to);
@@ -87,7 +87,7 @@ struct Global {
 struct Local {
     uint32_t id = 0;
     std::string name;
-    int param = -1;    // 形参下标；-1 = 不是形参
+    int param = -1;  // 形参下标；-1 = 不是形参
     TypeId type = kNone;
     bool obj = false;  // 内存对象（数组、结构体、取过地址的标量）：读写走 load / store
     bool tmp = false;  // 降级产生的临时值，永远不进摘要
@@ -121,11 +121,11 @@ struct Expr {
     uint8_t sub = 0;        // Bin：BinOp；Cmp：CmpOp
     unsigned width = 0;     // Bin：0 = 数学整数、不回绕（SPEC-0005 §2.3 #1）；Cast：目标位宽
     bool isSigned = false;  // Bin（width > 0 时）/ Cmp / Cast
-    int64_t value = 0;      // Const：值；Local / LAddr：局部号；Str：字符串长度；Fld：成员偏移；PSub：元素大小
-    int64_t size = 0;       // Fld：成员大小
-    ExprId a = kNone;       // Bin / Cmp / LNot / Neg / BNot / Cast / PAdd / Fld / PSub 的第一个操作数
-    ExprId b = kNone;       // Bin / Cmp / PAdd / PSub 的第二个操作数
-    std::string text;       // GAddr / FAddr：键；Fld：成员名；Unk：原因
+    int64_t value = 0;  // Const：值；Local / LAddr：局部号；Str：字符串长度；Fld：成员偏移；PSub：元素大小
+    int64_t size = 0;  // Fld：成员大小
+    ExprId a = kNone;  // Bin / Cmp / LNot / Neg / BNot / Cast / PAdd / Fld / PSub 的第一个操作数
+    ExprId b = kNone;  // Bin / Cmp / PAdd / PSub 的第二个操作数
+    std::string text;  // GAddr / FAddr：键；Fld：成员名；Unk：原因
 
     static Expr Const(int64_t value);
     static Expr LocalValue(uint32_t local);

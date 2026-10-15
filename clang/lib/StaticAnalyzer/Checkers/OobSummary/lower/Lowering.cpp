@@ -118,9 +118,9 @@ struct Val {
 };
 
 // 常见 libc 函数：__builtin_<名字> 映射成 F:<名字>（A-05）
-const char *const kBuiltinLibc[] = {"memcpy", "memmove", "memset", "memcmp", "memchr",  "strcpy",  "strncpy",
-                                    "strcat", "strncat", "strlen", "strcmp", "strncmp", "strchr",  "strrchr",
-                                    "strstr", "sprintf", "snprintf", "malloc", "calloc", "realloc", "free"};
+const char *const kBuiltinLibc[] = {"memcpy", "memmove", "memset",   "memcmp", "memchr",  "strcpy",  "strncpy",
+                                    "strcat", "strncat", "strlen",   "strcmp", "strncmp", "strchr",  "strrchr",
+                                    "strstr", "sprintf", "snprintf", "malloc", "calloc",  "realloc", "free"};
 
 class FunctionLowerer {
 public:
@@ -802,8 +802,7 @@ private:
                     return R(Unknown("float"));
                 }
                 return R(Add(fir::Expr::Bin(fir::BinOp::Sub, Const(0), RValueOf(op), Width(t), Signed(t))));
-            case UO_Not:
-            {
+            case UO_Not: {
                 fir::ExprId inverted = Add(fir::Expr::Unary(fir::ExprOp::BNot, RValueOf(op)));
                 return R(Add(fir::Expr::Cast(Width(t), Signed(t), inverted)));
             }
@@ -1170,8 +1169,7 @@ private:
     // 隐式补零、字符串初始化、位域不降——值未知，对召回是安全的）
     static constexpr unsigned kMaxInitStores = 64;
 
-    void InitAggregate(fir::ExprId base, QualType type, const Expr *init, int64_t off, unsigned &budget,
-                       const Stmt *at)
+    void InitAggregate(fir::ExprId base, QualType type, const Expr *init, int64_t off, unsigned &budget, const Stmt *at)
     {
         QualType t = type.getCanonicalType();
         const Expr *e = init->IgnoreParens();

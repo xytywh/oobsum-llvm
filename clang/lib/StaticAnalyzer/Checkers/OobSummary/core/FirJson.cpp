@@ -28,7 +28,7 @@ namespace {
 
 const char *const kTypeKinds[] = {"int", "ptr", "arr", "rec", "void", "other"};
 const char *const kInstOps[] = {"set", "load", "store", "call", "havoc", "ret"};
-const char *const kExprOps[] = {"c",     "l",     "bin", "cmp", "lnot", "neg",  "bnot", "cast",
+const char *const kExprOps[] = {"c",     "l",     "bin", "cmp",   "lnot", "neg", "bnot", "cast",
                                 "laddr", "gaddr", "str", "faddr", "padd", "fld", "psub", "unk"};
 constexpr unsigned kMaxExprDepth = 256;  // FIR 的表达式很浅（D-13）；防异常输入把栈打穿（A-96）
 
@@ -557,8 +557,8 @@ bool Reader::ReadExpr(const Value &v, Function &f, ExprId &out, unsigned depth)
             ok = text(1, op) && At(1, [&] {
                      unsigned n = e.op == ExprOp::Bin ? 10 : 6;
                      for (unsigned i = 0; i < n; ++i) {
-                         llvm::StringRef candidate = e.op == ExprOp::Bin ? BinOpName(static_cast<BinOp>(i))
-                                                                         : CmpOpName(static_cast<CmpOp>(i));
+                         llvm::StringRef candidate =
+                             e.op == ExprOp::Bin ? BinOpName(static_cast<BinOp>(i)) : CmpOpName(static_cast<CmpOp>(i));
                          if (candidate == op) {
                              e.sub = static_cast<uint8_t>(i);
                              return true;
@@ -648,9 +648,7 @@ bool Reader::ReadInst(const Value &v, Function &f, Inst &out)
         return false;
     }
     // set 的 val 必有；store / ret 的 val 可为 null（SPEC-0005 §2.3 #7）
-    if (val && !In("val", [&] {
-            return (out.op != InstOp::Set && val->getAsNull()) || ReadExpr(*val, f, out.val);
-        })) {
+    if (val && !In("val", [&] { return (out.op != InstOp::Set && val->getAsNull()) || ReadExpr(*val, f, out.val); })) {
         return false;
     }
     if (out.op == InstOp::Havoc && !In("why", [&] { return ReadString(*o->get("why"), out.why); })) {
@@ -732,10 +730,12 @@ bool Reader::ReadLocals(const Value &v, Function &out)
             return In("id", [&] { return ReadU32(*o->get("id"), local.id); }) &&
                    In("name", [&] { return ReadString(*o->get("name"), local.name); }) &&
                    In("t", [&] { return ReadType(*o->get("t"), local.type); }) &&
-                   (!param || In("param", [&] {
-                        return ReadInt(*param, p, 0, 1 << 16) &&
-                               (params.insert(p).second || Fail("duplicate param index " + llvm::Twine(p)));
-                    })) &&
+                   (!param || In("param",
+                                 [&] {
+                                     return ReadInt(*param, p, 0, 1 << 16) &&
+                                            (params.insert(p).second ||
+                                             Fail("duplicate param index " + llvm::Twine(p)));
+                                 })) &&
                    (!obj || In("obj", [&] { return ReadBool(*obj, local.obj); })) &&
                    (!tmp || In("tmp", [&] { return ReadBool(*tmp, local.tmp); }));
         });

@@ -95,9 +95,9 @@ bool TypeRangeOf(llvm::StringRef typeName, int64_t &lo, int64_t &hi)
         int64_t lo;
         int64_t hi;
     };
-    static const Entry table[] = {{"UINT8", 0, 0xFF},          {"UINT16", 0, 0xFFFF},
-                                  {"UINT32", 0, 0xFFFFFFFF},    {"size_t", 0, 0xFFFFFFFF},
-                                  {"CHAR", -0x80, 0x7F},        {"INT32", -0x80000000LL, 0x7FFFFFFF}};
+    static const Entry table[] = {{"UINT8", 0, 0xFF},        {"UINT16", 0, 0xFFFF},
+                                  {"UINT32", 0, 0xFFFFFFFF}, {"size_t", 0, 0xFFFFFFFF},
+                                  {"CHAR", -0x80, 0x7F},     {"INT32", -0x80000000LL, 0x7FFFFFFF}};
     for (const Entry &e : table) {
         if (typeName == e.name) {
             lo = e.lo;

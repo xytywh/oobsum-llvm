@@ -19,3 +19,5 @@ NamespaceIndentation: None
 Standard: Cpp11
 ContinuationIndentWidth: 4
 MaxEmptyLinesToKeep: 1
+# 不重排注释：中文按显示宽度（一字两列）计，重排会把注释拆坏
+ReflowComments: false

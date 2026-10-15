@@ -67,8 +67,8 @@ uint32_t TypeLayout::RecordId(const RecordDecl *definition)
         if (field->isBitField()) {
             // SPEC-0007 §2.2：位域的类型是位宽
             QualType ft = field->getType().getCanonicalType();
-            out.type = module.Intern(fir::Type::Int(field->getBitWidthValue(ctx),
-                                                    ft->isSignedIntegerOrEnumerationType()));
+            out.type =
+                module.Intern(fir::Type::Int(field->getBitWidthValue(ctx), ft->isSignedIntegerOrEnumerationType()));
         } else {
             out.type = Map(field->getType());
         }
@@ -95,8 +95,8 @@ fir::TypeId TypeLayout::Map(QualType type)
         return Map(underlying);
     }
     if (t->isIntegerType()) {
-        return module.Intern(fir::Type::Int(static_cast<unsigned>(ctx.getTypeSize(t)),
-                                            t->isSignedIntegerOrEnumerationType()));
+        return module.Intern(
+            fir::Type::Int(static_cast<unsigned>(ctx.getTypeSize(t)), t->isSignedIntegerOrEnumerationType()));
     }
     if (const auto *pt = t->getAs<PointerType>()) {
         return module.Intern(fir::Type::Ptr(Map(pt->getPointeeType())));

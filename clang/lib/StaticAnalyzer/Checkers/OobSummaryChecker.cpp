@@ -317,7 +317,8 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
         mgr.reportInvalidCheckerOptionValue(chk, "Dump",
                                             "kinds separated by '+' from options, callgraph, keys, fir, state, "
                                             "summary, apply, decisions, stats, all (and a valid DumpFilter regex); "
-                                            "got '" + unknownKind + "'");
+                                            "got '" +
+                                                unknownKind + "'");
     }
     chk->optionsText = "Phase=" + chk->phase + " WorkDir=\"" + chk->workDir + "\" Policy=" + policyName +
                        " InlineDepth=" + std::to_string(chk->policy.inlineDepth) +

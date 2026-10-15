@@ -26,11 +26,11 @@ namespace oobsum {
 // Dump=keys 的一行（SPEC-0003 §2.3）
 struct KeyInfo {
     std::string key;
-    std::string kind;       // func / global / static
-    bool def = false;       // 本 TU 里有定义（含暂定定义）
-    bool header = false;    // 内部链接函数且定义不在主文件
-    std::string fileId;     // 位置所在文件的 id
-    std::string file;       // 规范化路径
+    std::string kind;     // func / global / static
+    bool def = false;     // 本 TU 里有定义（含暂定定义）
+    bool header = false;  // 内部链接函数且定义不在主文件
+    std::string fileId;   // 位置所在文件的 id
+    std::string file;     // 规范化路径
     unsigned line = 0;
     unsigned col = 0;
     std::string scopeName;  // DumpFilter 用：函数名 / 所在函数名 / 全局名

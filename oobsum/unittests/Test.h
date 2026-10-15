@@ -39,33 +39,33 @@ void CheckEq(const A &left, const B &right, const char *leftText, const char *ri
 }  // namespace test
 }  // namespace oobsum
 
-#define TEST(suite, name)                                                                  \
-    static void suite##_##name();                                                          \
+#define TEST(suite, name)                                                                       \
+    static void suite##_##name();                                                               \
     static ::oobsum::test::Registrar suite##_##name##_registrar(#suite, #name, suite##_##name); \
     static void suite##_##name()
 
 #define EXPECT_EQ(a, b) ::oobsum::test::CheckEq((a), (b), #a, #b, __FILE__, __LINE__)
 
-#define EXPECT_TRUE(c)                                                     \
-    do {                                                                   \
-        if (!(c)) {                                                        \
-            ::oobsum::test::Fail(__FILE__, __LINE__, "expected true: " #c); \
-        }                                                                  \
-    } while (0)
-
-#define EXPECT_FALSE(c)                                                     \
+#define EXPECT_TRUE(c)                                                      \
     do {                                                                    \
-        if (c) {                                                            \
-            ::oobsum::test::Fail(__FILE__, __LINE__, "expected false: " #c); \
+        if (!(c)) {                                                         \
+            ::oobsum::test::Fail(__FILE__, __LINE__, "expected true: " #c); \
         }                                                                   \
     } while (0)
 
-#define ASSERT_TRUE(c)                                                     \
-    do {                                                                   \
-        if (!(c)) {                                                        \
+#define EXPECT_FALSE(c)                                                      \
+    do {                                                                     \
+        if (c) {                                                             \
+            ::oobsum::test::Fail(__FILE__, __LINE__, "expected false: " #c); \
+        }                                                                    \
+    } while (0)
+
+#define ASSERT_TRUE(c)                                                      \
+    do {                                                                    \
+        if (!(c)) {                                                         \
             ::oobsum::test::Fail(__FILE__, __LINE__, "expected true: " #c); \
-            return;                                                        \
-        }                                                                  \
+            return;                                                         \
+        }                                                                   \
     } while (0)
 
 #endif

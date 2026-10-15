@@ -80,7 +80,7 @@ TEST(FirJson, EverythingRoundTrips)
     ASSERT_TRUE(ErrorOf(first, &back) == "<ok>");
     EXPECT_EQ(Print(ModuleToJson(back)), first);
     // §2.3 的写法
-    EXPECT_TRUE(llvm::StringRef(first).contains(R"(["bin","mul",["l",9],["c",16]])"));          // 数学整数：4 个元素
+    EXPECT_TRUE(llvm::StringRef(first).contains(R"(["bin","mul",["l",9],["c",16]])"));  // 数学整数：4 个元素
     EXPECT_TRUE(llvm::StringRef(first).contains(R"(["bin","sub",["l",9],["c",-5],32,false])"));  // 回绕：6 个元素
     EXPECT_TRUE(llvm::StringRef(first).contains(R"(["cmp","lt",["l",9],["c",16],false])"));
     EXPECT_TRUE(llvm::StringRef(first).contains(R"("n":null)"));
