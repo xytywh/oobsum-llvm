@@ -12,6 +12,7 @@
 
 #include "llvm/Support/raw_ostream.h"
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -320,7 +321,7 @@ TEST(Interp, UnknownBaseAndLoops)
     uint32_t t = b.LocalVar("t0", b.u32);
     b.Straight({b.Load(t, b.f.Add(Expr::Unknown("float")), 4, 5)});
     EXPECT_EQ(Reqs(b.Run()), "open untracked_pointer at=t.c:5");
-    // 有回边：本步不分析（S7c）
+    // 有回边：S7c 起照常分析（SPEC-0017；这里没有访问）
     Builder c;
     Block head;
     head.id = 2;
@@ -334,7 +335,7 @@ TEST(Interp, UnknownBaseAndLoops)
     c.f.entry = 2;
     c.f.exit = 0;
     interp::FunctionFacts facts = c.Run();
-    EXPECT_EQ(facts.status, "partial:loop_pending");
+    EXPECT_EQ(facts.status, "analyzed");
     EXPECT_TRUE(facts.reqs.empty());
 }
 
@@ -580,4 +581,173 @@ TEST(Interp, NarrowRangeLocal)
     EXPECT_EQ(Reqs(b.Run()),
               "W have=ext(p0) obj=*p0 end=[1, 16] bound=check at=t.c:5 | "
               "W have=ext(p1) obj=*p1 end=[24, 24] bound=exact at=t.c:6 | open untracked_pointer at=t.c:3");
+}
+
+// ---- 循环（SPEC-0017）----
+
+// 入口 5（初始化）→ 头 4（条件）→ 体 3 → 步进 2 → 头；头的假边 → 出口 0
+struct Loop {
+    Block entry, head, body, latch, exit;
+    Loop()
+    {
+        entry.id = 5;
+        head.id = 4;
+        body.id = 3;
+        latch.id = 2;
+        exit.id = 0;
+        entry.succ = {{4, kNone}};
+        body.succ = {{2, kNone}};
+        latch.succ = {{4, kNone}};
+    }
+    void Install(Builder &b, ExprId cond, ExprId negated)
+    {
+        head.succ = {{3, cond}, {0, negated}};
+        b.f.blocks = {entry, head, body, latch, exit};
+        b.f.entry = 5;
+        b.f.exit = 0;
+    }
+};
+
+// for (i = 0; i < bound; i++) p[i] = 0;（u8，第 7 行）
+std::string ForLoop(CmpOp op, std::function<ExprId(Builder &, uint32_t)> bound,
+                    std::vector<std::string> *trace = nullptr)
+{
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("n", b.u32);
+    uint32_t i = b.LocalVar("i", b.u32);
+    Loop l;
+    l.entry.insts = {b.Set(i, b.C(0))};
+    l.body.insts = {b.Store(b.PAdd(b.L(p), b.L(i)), 1, b.C(0), 7)};
+    l.latch.insts = {b.Set(i, b.Wrap(BinOp::Add, b.L(i), b.C(1)))};
+    static const CmpOp negate[] = {CmpOp::Ne, CmpOp::Eq, CmpOp::Ge, CmpOp::Gt, CmpOp::Le, CmpOp::Lt};
+    ExprId x = bound(b, n);
+    l.Install(b, b.f.Add(Expr::Cmp(op, b.L(i), x, false)),
+              b.f.Add(Expr::Cmp(negate[static_cast<int>(op)], b.L(i), x, false)));
+    return Reqs(interp::AnalyzeFunction(b.m, b.f, trace));
+}
+
+TEST(Interp, LoopIndexBound)
+{
+    // i < n → i ∈ [0, p1 − 1]（loop），末端 [1, p1]；循环体执行过 → 守卫 p1 >= 1
+    std::vector<std::string> trace;
+    EXPECT_EQ(ForLoop(
+                  CmpOp::Lt, [](Builder &b, uint32_t n) { return b.L(n); }, &trace),
+              "W have=ext(p0) obj=*p0 end=[1, p1] bound=loop at=t.c:7 guard=p1 >= 1");
+    bool head = false;
+    for (const std::string &line : trace) {
+        if (line.rfind("b4:", 0) == 0) {
+            head = true;
+            EXPECT_EQ(line, "b4: p=*p0+0 n=p1 i=[0, +inf]:loop (head)");
+        }
+        if (line.rfind("b3:", 0) == 0) {
+            EXPECT_EQ(line, "b3: p=*p0+0 n=p1 i=[0, p1 - 1]:loop guards: p1 >= 1");
+        }
+    }
+    EXPECT_TRUE(head);
+    // i <= n / 32（LV2-05 Map_ClearWords）：除以常数保留；div(p1, 32) >= 0 本来就成立，不加守卫
+    EXPECT_EQ(ForLoop(CmpOp::Le, [](Builder &b, uint32_t n) { return b.Wrap(BinOp::Div, b.L(n), b.C(32)); }),
+              "W have=ext(p0) obj=*p0 end=[1, div(p1, 32) + 1] bound=loop at=t.c:7");
+    // i < (n + 31) / 32（Map_ClearWords_OK）：n + 31 可能回绕，但它是"大的一边"、回绕只会变小 → 可用（SPEC-0017 §2.4）
+    EXPECT_EQ(
+        ForLoop(CmpOp::Lt, [](Builder &b,
+                              uint32_t n) { return b.Wrap(BinOp::Div, b.Wrap(BinOp::Add, b.L(n), b.C(31)), b.C(32)); }),
+        "W have=ext(p0) obj=*p0 end=[1, div(p1 + 31, 32)] bound=loop at=t.c:7 guard=div(p1 + 31, 32) >= 1");
+    // i < n - 1：n − 1 可能回绕成很大（无符号减法），是 wrap32(p1 − 1)：忠实（wrap 按定义取模）
+    EXPECT_EQ(ForLoop(CmpOp::Lt, [](Builder &b, uint32_t n) { return b.Wrap(BinOp::Sub, b.L(n), b.C(1)); }),
+              "W have=ext(p0) obj=*p0 end=[1, wrap32(p1 - 1)] bound=loop at=t.c:7 guard=wrap32(p1 - 1) >= 1");
+}
+
+TEST(Interp, LoopSmallSideMayWrap)
+{
+    // i + 8 <= n：小的一边 i + 8 可能回绕（i 的区间加 8 超过类型最大值）→ 不收窄，访问没有上界 → 账本
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("n", b.u32);
+    uint32_t i = b.LocalVar("i", b.u32);
+    Loop l;
+    l.entry.insts = {b.Set(i, b.C(0))};
+    l.body.insts = {b.Store(b.PAdd(b.L(p), b.L(i)), 1, b.C(0), 7)};
+    l.latch.insts = {b.Set(i, b.Wrap(BinOp::Add, b.L(i), b.C(1)))};
+    ExprId sum = b.Wrap(BinOp::Add, b.L(i), b.C(8));
+    l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Le, sum, b.L(n), false)), b.f.Add(Expr::Cmp(CmpOp::Gt, sum, b.L(n), false)));
+    EXPECT_EQ(Reqs(b.Run()), "open type_range_only at=t.c:7");
+}
+
+TEST(Interp, LoopConstantBoundIsSafe)
+{
+    // for (i = 0; i < 4; i++) a[i] = 0，a 是 4 字节的局部数组：下降后 i ∈ [0, 3]，末端 4 ≤ 4 → 当场证明安全
+    Builder b;
+    uint32_t a = b.LocalVar("aucBuf", b.m.Intern(Type::Arr(b.u8, 4)), true);
+    uint32_t i = b.LocalVar("i", b.u32);
+    Loop l;
+    l.entry.insts = {b.Set(i, b.C(0))};
+    l.body.insts = {b.Store(b.PAdd(b.f.Add(Expr::LAddr(a)), b.L(i)), 1, b.C(0), 7)};
+    l.latch.insts = {b.Set(i, b.Wrap(BinOp::Add, b.L(i), b.C(1)))};
+    l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(i), b.C(4), false)),
+              b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(i), b.C(4), false)));
+    interp::FunctionFacts facts = b.Run();
+    EXPECT_EQ(Reqs(facts), "");
+    ASSERT_TRUE(facts.safe.size() == 1);
+    EXPECT_EQ(Print(facts.safe[0]), "W have=4 obj=local:aucBuf end=[1, 4] bound=loop at=t.c:7");
+    // i <= 4：末端 5 > 4，照常生成 Req（常数越界由求解判，SPEC-0016 §2.2）
+    Builder c;
+    uint32_t a2 = c.LocalVar("aucBuf", c.m.Intern(Type::Arr(c.u8, 4)), true);
+    uint32_t i2 = c.LocalVar("i", c.u32);
+    Loop l2;
+    l2.entry.insts = {c.Set(i2, c.C(0))};
+    l2.body.insts = {c.Store(c.PAdd(c.f.Add(Expr::LAddr(a2)), c.L(i2)), 1, c.C(0), 7)};
+    l2.latch.insts = {c.Set(i2, c.Wrap(BinOp::Add, c.L(i2), c.C(1)))};
+    l2.Install(c, c.f.Add(Expr::Cmp(CmpOp::Le, c.L(i2), c.C(4), false)),
+               c.f.Add(Expr::Cmp(CmpOp::Gt, c.L(i2), c.C(4), false)));
+    EXPECT_EQ(Reqs(c.Run()), "W have=4 obj=local:aucBuf end=[1, 5] bound=loop at=t.c:7");
+}
+
+TEST(Interp, LoopPointerStepping)
+{
+    // while (n-- > 0) *p++ = *q++;（LV7-04 Buf_CopyStep）：偏移 widening 到 [0, +inf) → pointer_stepping，同一行读写只记一条
+    Builder b;
+    uint32_t p = b.Param("pucOut", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t q = b.Param("pucIn", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("ulCnt", b.u32);
+    uint32_t t = b.LocalVar("t0", b.u32);
+    uint32_t x = b.LocalVar("t1", b.u8);
+    Loop l;
+    l.entry.insts = {};
+    l.head.insts = {b.Set(t, b.L(n)), b.Set(n, b.Wrap(BinOp::Sub, b.L(n), b.C(1)))};
+    l.body.insts = {b.Load(x, b.L(q), 1, 27), b.Store(b.L(p), 1, b.L(x), 27), b.Set(p, b.PAdd(b.L(p), b.C(1))),
+                    b.Set(q, b.PAdd(b.L(q), b.C(1)))};
+    l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Gt, b.L(t), b.C(0), false)),
+              b.f.Add(Expr::Cmp(CmpOp::Le, b.L(t), b.C(0), false)));
+    EXPECT_EQ(Reqs(b.Run()), "open pointer_stepping at=t.c:27");
+}
+
+TEST(Interp, LoopCallArgument)
+{
+    // for (i = 0; i < n; i++) Ue_InitOne(p, i)（LV4-01 Ue_InitTbl）：实参 i 的区间进 locals（loop），调用点带守卫 p1 >= 1
+    Builder b;
+    uint32_t p = b.Param("pstTbl", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("ulNum", b.u32);
+    uint32_t i = b.LocalVar("i", b.u32);
+    Loop l;
+    Inst call;
+    call.op = InstOp::Call;
+    call.callee = "F@abc:Ue_InitOne";
+    call.args = {b.L(p), b.L(i)};
+    call.loc = {0, 59, 9};
+    l.entry.insts = {b.Set(i, b.C(0))};
+    l.body.insts = {call};
+    l.latch.insts = {b.Set(i, b.Wrap(BinOp::Add, b.L(i), b.C(1)))};
+    l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(i), b.L(n), false)),
+              b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(i), b.L(n), false)));
+    interp::FunctionFacts facts = b.Run();
+    ASSERT_TRUE(facts.calls.size() == 1);
+    const summary::Call &c = facts.calls[0];
+    EXPECT_EQ(c.args[1].expr, "i");
+    ASSERT_TRUE(c.locals.hasValue());
+    EXPECT_EQ(c.locals->at("i").lo, "0");
+    EXPECT_EQ(c.locals->at("i").hi, "p1 - 1");
+    EXPECT_EQ(c.locals->at("i").bound, "loop");
+    ASSERT_TRUE(c.guards.hasValue());
+    EXPECT_EQ((*c.guards)[0].cond, "p1 >= 1");
 }
