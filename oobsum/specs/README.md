@@ -40,3 +40,4 @@
 | [SPEC-0005](SPEC-0005-fir-json.md) | FIR 的 C++ 结构与 JSON 读写（`oobsum-fir/1`，D-10…D-14；§5.2 未写死处的约定） | 已实现（S3b） |
 | [SPEC-0006](SPEC-0006-fir-text-dump.md) | FIR 的文本记法（`core/FirText`）与 `Dump=fir` | 已实现（S4a、S4b） |
 | [SPEC-0007](SPEC-0007-lower-skeleton.md) | 降级第一步：类型布局与模块骨架（`lower/TypeLayout`、`lower/Lowering`），接上 `Dump=fir` | 已实现（S4b） |
+| [SPEC-0008](SPEC-0008-lower-straight-line.md) | 降级：直线代码的指令（A-01…A-03、A-05…A-08） | S4c-1 已实现；S4c-2（自增自减、复合赋值、结构体拷贝、初始化列表）待做 |

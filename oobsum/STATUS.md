@@ -51,7 +51,11 @@
 - [x] **S4a FIR 文本记法**（SPEC-0006 §2）：给 `Dump=fir` 与 T-02 快照用。
 - [x] **S4b 类型布局与模块骨架**（`lower/TypeLayout`、`lower/Lowering`）：类型 / 记录布局（ILP32 vs LP64）、全局、函数签名与局部（`obj`）、
       CFG 块与边（先不带 assume——无条件边是安全的过近似）；接上 `Dump=fir`（stderr + `WorkDir/dump/<tu>/fir/<tu>.{txt,json}`，读回自检）。
-- [ ] **S4c 降级第一刀**（A-01…A-09 的直线代码子集）：赋值、数组下标、成员、指针算术、调用、返回；`Dump=fir` 快照用例。
+- [x] **S4c-1 直线代码指令**（SPEC-0008 §2.1–§2.7）：常量折叠、转换、算术（回绕形）、比较、指针算术、下标（`sub`）、成员（`fld` / 柔性不收窄 / 位域字节数）、
+      `*p` / `&x`、赋值、标量初始化、`return`、调用（直接 / 间接 / builtin / `__builtin_expect`）、结构体按值读的 `load`、内联汇编。lit 13 个全过；
+      67 个用例 502 个函数降级无错误，`unk` 只剩 `pending:*`（S4c-2）与 `cond_value`（S5）。06- §5.2 的例子逐字复现。
+- [ ] **S4c-2**（SPEC-0008 §2.8）：`++` / `--`（先 load 再 store）、复合赋值、结构体拷贝 `__oobsum_copy`、初始化列表逐元素；去掉 `body_pending`。
+      目前这些先降成"写入未知值"（`havoc` / `store … = ?`，安全的过近似）。
 - [ ] **S5 降级补全**：分支 / 循环（assume 边）、`?:`、`&&`/`||`、`switch`；`unsupported` 计入判定日志（SUSPECT:unsupported_construct）。
 - [ ] **S6 表达式代数**（WP2，A-10…A-17）：`core/LinExpr`、`core/Bound`；与 `replay.py` 的 `Lin`/`Env` 同语义；约 120 条单元测试。
 - [ ] **S7 函数内解释**（WP3）：状态、WTO、不动点、转移、访问检查与 Req 生成；`Dump=state`；depth 0 的判定接进标签与日志。

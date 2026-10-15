@@ -56,7 +56,7 @@ static void Mod_Nop(void) {}
 // CHECK-NEXT: [oobsum:fir] fn F@{{[0-9a-f]+}}:hdr_min -> i32 @keys.h:1:19 [body_pending]
 // CHECK-NEXT: [oobsum:fir]   local l0 a param0: i32
 // CHECK-NEXT: [oobsum:fir]   local l1 b param1: i32
-// CHECK-NEXT: [oobsum:fir]   b5 entry:
+// CHECK: [oobsum:fir]   b5 entry:
 // 局部：先形参再函数体里的变量；数组、结构体、取过地址的标量是 obj；同名嵌套变量各有各的号；函数内 static / 块作用域 extern 不是局部
 // CHECK: [oobsum:fir] fn F:Mod_Sum ext -> i32 @fir-module.c:23:5 [body_pending]
 // CHECK-NEXT: [oobsum:fir]   local l0 piBuf param0: i32*
@@ -68,11 +68,12 @@ static void Mod_Nop(void) {}
 // CHECK-NEXT: [oobsum:fir]   local l6 p: i32*
 // CHECK-NEXT: [oobsum:fir]   local l7 i: u32
 // CHECK-NEXT: [oobsum:fir]   local l8 x: i32
-// 块与边与 debug.DumpCFG 一致（B9 的两个后继来自函数内 static 的初始化分支；while 的回边 B4 -> B6）；边不带条件
-// CHECK-NEXT: [oobsum:fir]   b10 entry:
-// CHECK-NEXT: [oobsum:fir]     -> b9
+// 块与边与 debug.DumpCFG 一致（B9 的两个后继来自函数内 static 的初始化分支；while 的回边 B4 -> B6）；边不带条件。
+// 指令在 fir-straight.c 里测，这里只看骨架：每个块的边紧接在下一个块头之前
+// CHECK: [oobsum:fir]   b10 entry:
+// CHECK: [oobsum:fir]     -> b9
 // CHECK-NEXT: [oobsum:fir]   b9:
-// CHECK-NEXT: [oobsum:fir]     -> b7
+// CHECK: [oobsum:fir]     -> b7
 // CHECK-NEXT: [oobsum:fir]     -> b8
 // CHECK-NEXT: [oobsum:fir]   b8:
 // CHECK-NEXT: [oobsum:fir]     -> b7
@@ -82,16 +83,16 @@ static void Mod_Nop(void) {}
 // CHECK-NEXT: [oobsum:fir]     -> b5
 // CHECK-NEXT: [oobsum:fir]     -> b3
 // CHECK-NEXT: [oobsum:fir]   b5:
-// CHECK-NEXT: [oobsum:fir]     -> b4
+// CHECK: [oobsum:fir]     -> b4
 // CHECK-NEXT: [oobsum:fir]   b4:
 // CHECK-NEXT: [oobsum:fir]     -> b6
 // CHECK-NEXT: [oobsum:fir]   b3:
 // CHECK-NEXT: [oobsum:fir]     -> b2
 // CHECK-NEXT: [oobsum:fir]     -> b1
 // CHECK-NEXT: [oobsum:fir]   b2:
-// CHECK-NEXT: [oobsum:fir]     -> b1
+// CHECK: [oobsum:fir]     -> b1
 // CHECK-NEXT: [oobsum:fir]   b1:
-// CHECK-NEXT: [oobsum:fir]     -> b0
+// CHECK: [oobsum:fir]     -> b0
 // CHECK-NEXT: [oobsum:fir]   b0 exit:
 // CHECK-NEXT: [oobsum:fir] fn F@[[TU]]:Mod_Nop -> void @fir-module.c:44:13 [body_pending]
 // CHECK-NEXT: [oobsum:fir]   b1 entry:
