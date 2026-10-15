@@ -1,0 +1,7 @@
+# core/ 的单元测试 oobsum-core-tests（oobsum/specs/SPEC-0004；06- §9.3、T-01）：让"lit 全过"包含单元测试。
+# 首次运行会配置 + 编译 oobsum/unittests（ccache 命中时约 3 秒），之后增量。
+#
+# RUN: %S/../../../../oobsum/devenv/core-tests.sh | FileCheck %s
+
+CHECK-NOT: FAIL
+CHECK: [oobsum:unittests] {{[1-9][0-9]*}} tests, 0 failed

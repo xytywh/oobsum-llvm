@@ -36,3 +36,4 @@
 | [SPEC-0001](SPEC-0001-labels-recall-debug.md) | 判定标签、召回优先的报告策略、判定日志、调试输出（checker 骨架） | 已实现（v4.0） |
 | [SPEC-0002](SPEC-0002-cases-csa-yardstick.md) | 用例回归尺子 `cases/run.py csa`：`@expect` ↔ 标签的对照口径（修订 T-03）、召回不回退检查 | 已实现（S1） |
 | [SPEC-0003](SPEC-0003-keys.md) | 函数 / 全局的键（D-01…D-05、D-08）与 `Dump=keys`；判定的 `fn` 改为函数键 | 已实现（S2） |
+| [SPEC-0004](SPEC-0004-core-unittests.md) | `core/` 单元测试 `oobsum-core-tests`（不依赖 gtest，`oobsum/unittests/`，进 lit） | 已实现（S3a） |

@@ -26,6 +26,8 @@
 * S2 函数键（SPEC-0003）：`core/Key`（`FileId` 按 D-05 含 `make_absolute`，`TuId` 改用它）、`lower/Keys`（`KeyMaker`、`CollectKeys`）；
   `Dump=keys`（stderr + `WorkDir/dump/<tu>/keys/keys.txt`）；调用图输出与调试判定的 `fn` / 指纹入口都用函数键。头文件内部链接函数标 `header`，
   `#<FIR 哈希>` 留到 S4。文件 id 与 `replay.py` 的 Python xxh64 交叉核对一致。lit 8 个全过（新增 `keys.c`）。
+* S3a `core/` 单元测试（SPEC-0004）：`oobsum/unittests/`（框架 `Test.h`，独立 CMake 工程链接 `LLVMSupport`）+ `oobsum/devenv/core-tests.sh`；
+  17 个用例：键、指纹（与 `replay.py` 的 `fingerprint()` 同值）、报告策略全部分支、标签。lit `core-unittests.test` 驱动，lit 9 个全过。
 
 ## 下一步（小步，每步一个提交；做完一步勾掉一步）
 
@@ -33,8 +35,8 @@
       `WorkDir` 收判定日志，按用例头 `@expect`（TP/TN + pa=L1/L2/记账）对照，输出通过表。引擎没接上时全部"未判"——这正是基线。
       SPEC-0002 写清 `@expect` 与标签的对应（L1→DEFINITE、L2→POSSIBLE、记账→SUSPECT 或日志、TN→不报或 SAFE）。
 - [x] **S2 函数键**（06- D-01…D-08）：`lower/Keys`；`Dump=keys` 或并入 `Dump=fir`；lit 覆盖 static / extern / 头文件 static inline。
-- [ ] **S3 FIR 结构与 JSON**（D-10…D-14）：`core/Fir`、`core/FirJson`（读写往返）；`core/` 单元测试的最小框架（不依赖 gtest，06- §9.3）。
-      顺带补上 S2 欠的 `core/Key` 单元测试（`NormalizePath`、`KeyName`、各种键的写法）。
+- [x] **S3a `core/` 单元测试框架**（06- §9.3）：`oobsum-core-tests`；补上 S2 的 `core/Key` 单元测试。
+- [ ] **S3b FIR 结构与 JSON**（D-10…D-14）：`core/Fir`、`core/FirJson`（读写往返、坏输入报错不崩，A-96）；`FirTest`、`FirJsonTest`。
 - [ ] **S4 降级第一刀**（A-01…A-09 的直线代码子集）：赋值、数组下标、成员、指针算术、调用、返回；`Dump=fir` 快照用例。
 - [ ] **S5 降级补全**：分支 / 循环（assume 边）、`?:`、`&&`/`||`、`switch`；`unsupported` 计入判定日志（SUSPECT:unsupported_construct）。
 - [ ] **S6 表达式代数**（WP2，A-10…A-17）：`core/LinExpr`、`core/Bound`；与 `replay.py` 的 `Lin`/`Env` 同语义；约 120 条单元测试。

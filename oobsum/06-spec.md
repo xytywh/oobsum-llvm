@@ -731,7 +731,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 ### 9.3 在沙箱里（我这边每次交付前跑完）
 
 * 插件：`clang++-14 -std=c++14 -fno-rtti -shared -fPIC -DOOBSUM_PLUGIN_BUILD …`，与探针的 `sandbox_build.sh` 同法。
-* `core/` 单测：独立可执行 `oobsum-core-tests`（自带最小测试框架，不依赖 gtest）。
+* `core/` 单测：独立可执行 `oobsum-core-tests`（自带最小测试框架，不依赖 gtest）。〔SPEC-0004：源码在 `oobsum/unittests/`，独立 CMake 工程链接本仓库构建的 `LLVMSupport`，由 lit 的 `core-unittests.test` 驱动〕
 * 语料：`cases/run.py csa`（驱动沙箱里的 `clang -cc1 -load` 走完 export → solve → report，对照 `@expect`）。〔由 SPEC-0002 修订：目前用本仓库构建的 clang 跑 `Phase=inline`，三阶段接上后加 `--phase`〕
 * 规范检查：`check_checker_conventions.py` 跑在一个模拟的 BXPlugin 目录上（与探针同法，无 FAIL）。
 
