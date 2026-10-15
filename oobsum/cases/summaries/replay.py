@@ -1142,6 +1142,10 @@ def main():
     try:
         import jsonschema
         schema = json.load(open(os.path.join(HERE, 'summary.schema.json'), encoding='utf-8'))
+        # 校验前去掉根上的相对 $id（"oobsum-summary/1"）：schema 里的 $ref 全是 "#/definitions/…"，不依赖基址，去掉不改变校验结果。
+        # jsonschema 3.x（Ubuntu 22.04 的 python3-jsonschema，cloud-init 带进来）会把相对 $id 与基址再拼一次，
+        # 得到 oobsum-summary/oobsum-summary/1，本地查不到就当远程地址去取，抛 RefResolutionError。
+        schema.pop('$id', None)
         bad = []
         for cid in ids:
             for f in sorted(os.listdir(os.path.join(SUMS, cid))):
@@ -1158,6 +1162,9 @@ def main():
             sys.exit(1)
     except ImportError:
         print('结构检查：没装 jsonschema，只做内置检查（字段齐全、表达式可解析、账本原因在枚举里）；doc 之外的自然语言 %d 处' % len(nl_hits))
+    except Exception as e:  # 校验器自身出错（版本不兼容等）：不挡回放，但把异常写清楚
+        print('结构检查：⚠ jsonschema %s 校验器出错（%s: %s），只做内置检查（字段齐全、表达式可解析、账本原因在枚举里）；doc 之外的自然语言 %d 处' % (
+            getattr(sys.modules.get('jsonschema'), '__version__', '?'), type(e).__name__, e, len(nl_hits)))
     for cid in ids:
         lines, errors, verdicts, meta, fns, order = replay(cid, a.verbose)
         total_err.extend(errors)
