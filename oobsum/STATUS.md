@@ -59,7 +59,10 @@
 - [x] **S5 控制流**（SPEC-0009）：条件边 `assume`（后继 0 为真，与 `debug.DumpCFG` 逐个对照）、`switch`（`case` / `default` / 区间）、`?:` / `&&` / `||`
       当值用（汇合块前驱补 `set`）。lit 15 个；67 个用例 1451 条边里 260 条带条件，`unk` / `havoc` 一处都不剩。
 - [ ] **S5b**：`MaxBlocks`（A-09，要改 Checkers.td）；不支持的构造（`unk(<类名>)`）计入判定日志（SUSPECT:unsupported_construct）——引擎接上时一起做。
-- [ ] **S6 表达式代数**（WP2，A-10…A-17）：`core/LinExpr`、`core/Bound`；与 `replay.py` 的 `Lin`/`Env` 同语义；约 120 条单元测试。
+- [x] **S6a 线性式**（SPEC-0010）：`core/LinExpr`（规范形式、D-21 解析与打印、不透明项的常数求值、溢出 → 未知、`ParseCond` / `ShowLe0`、`Substitute`）；
+      单测 39 个，含金标准 `unittests/core/data/lin-golden.txt`（`gen_lin_golden.py` 用 `replay.py` 从 104 份摘要抽出的 101 条表达式 / 条件，逐字一致）。
+- [ ] **S6b 界与区间**（A-10、A-15…A-17）：`core/Bound`（`[lo, hi]`，界 = 线性式 / `min(c, LE)` / `max(c, LE)` / ±∞，来源标签，合并、widening 阈值、化简）；
+      与 `replay.py` 的 `Env.range_of` 同语义的取值范围；单元测试。
 - [ ] **S7 函数内解释**（WP3）：状态、WTO、不动点、转移、访问检查与 Req 生成；`Dump=state`；depth 0 的判定接进标签与日志。
 - [ ] **S8 摘要与代换**（WP4）：`core/Summary*`、`core/Apply`、`core/Solver`；`Dump=summary`、`Dump=apply`；Lv1 + Lv2 用例出告警；
       与 `cases/summaries/`（去掉 doc）和 `alerts.json` 对照（T-06）。

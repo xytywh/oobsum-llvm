@@ -145,6 +145,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   OobSummary/core/FirText.cpp
   OobSummary/lower/TypeLayout.cpp
   OobSummary/lower/Lowering.cpp
+  OobSummary/core/LinExpr.cpp
 
   LINK_LIBS
   clangAST

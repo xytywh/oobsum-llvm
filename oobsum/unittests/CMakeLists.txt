@@ -32,3 +32,5 @@ add_executable(oobsum-core-tests Test.cpp ${OOBSUM_TEST_SRCS} ${OOBSUM_CORE_SRCS
 target_include_directories(oobsum-core-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${OOBSUM_CHECKERS_DIR}
                            ${LLVM_INCLUDE_DIRS})
 target_link_libraries(oobsum-core-tests PRIVATE LLVMSupport)
+# 金标准等测试数据（如 core/data/lin-golden.txt，SPEC-0010）
+target_compile_definitions(oobsum-core-tests PRIVATE OOBSUM_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/core/data")

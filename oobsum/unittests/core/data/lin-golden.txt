@@ -1,0 +1,102 @@
+# 由 gen_lin_golden.py 从 cases/summaries 生成（replay.py 的规范打印），不要手改
+C	div(p1 + 31, 32) >= 1	div(p1 + 31, 32) >= 1
+C	p0 <= 15	p0 <= 15
+C	p0 <= 16	p0 <= 16
+C	p0 >= 16	p0 >= 16
+C	p0 >= 17	p0 >= 17
+C	p1 + p3 <= 124	p1 + p3 <= 124
+C	p1 + p3 <= 128	p1 + p3 <= 128
+C	p1 <= 124	p1 <= 124
+C	p1 <= 128	p1 <= 128
+C	p1 <= 31	p1 <= 31
+C	p1 >= 1	p1 >= 1
+C	p1 >= 2	p1 >= 2
+C	p2 <= p0->ulBufLen	p2 <= p0->ulBufLen
+C	p3 <= 128	p3 <= 128
+C	ret == 0	ret <= 0 ; ret >= 0
+C	ret == 1	ret <= 1 ; ret >= 1
+E	0	0
+E	0x3001	12289
+E	0x40000000	1073741824
+E	1	1
+E	1012	1012
+E	1024	1024
+E	12	12
+E	128	128
+E	128 - ulOff	-ulOff + 128
+E	148	148
+E	15	15
+E	16	16
+E	16*p1	16*p1
+E	16*p1 + 4	16*p1 + 4
+E	16*p1 - 12	16*p1 - 12
+E	17	17
+E	2	2
+E	2*p1	2*p1
+E	20	20
+E	24*p1	24*p1
+E	24*p1 + 4	24*p1 + 4
+E	256	256
+E	3	3
+E	32	32
+E	32*p0	32*p0
+E	32*p0 + 32	32*p0 + 32
+E	384	384
+E	4	4
+E	4*div(p1 + 31, 32)	4*div(p1 + 31, 32)
+E	4*div(p1, 32) + 4	4*div(p1, 32) + 4
+E	4*p0	4*p0
+E	4*p0 + 4	4*p0 + 4
+E	4*p1	4*p1
+E	4*p1 + 4	4*p1 + 4
+E	4294967295	4294967295
+E	4294967296	4294967296
+E	500	500
+E	512	512
+E	512 - 32*p0	-32*p0 + 512
+E	544	544
+E	64	64
+E	66	66
+E	68	68
+E	748	748
+E	8	8
+E	L1	L1
+E	L2	L2
+E	R1	R1
+E	R2	R2
+E	R3	R3
+E	RPT1	RPT1
+E	UINT16	UINT16
+E	UINT32	UINT32
+E	a4da4c9aad6edb16	a4da4c9aad6edb16
+E	a9ee5cc44f6115e0	a9ee5cc44f6115e0
+E	aed893dfe3df6207	aed893dfe3df6207
+E	b65f334b52a45ae7	b65f334b52a45ae7
+E	cd166ab96605bd8e	cd166ab96605bd8e
+E	dc29cb0defb73e92	dc29cb0defb73e92
+E	dfa3e964ffe3b219	dfa3e964ffe3b219
+E	ext(p0)	ext(p0)
+E	ext(p0) - p1	-p1 + ext(p0)
+E	ext(p0) - ulOff	ext(p0) - ulOff
+E	ext(p0) - ulOff - 2	ext(p0) - ulOff - 2
+E	ext(p0->pucBuf)	ext(p0->pucBuf)
+E	ext(p1)	ext(p1)
+E	ext(p2)	ext(p2)
+E	p0	p0
+E	p0 + 1	p0 + 1
+E	p0->aucBody	p0->aucBody
+E	p0->ulBufLen	p0->ulBufLen
+E	p0->ulUsed	p0->ulUsed
+E	p0->usMsgLen	p0->usMsgLen
+E	p1	p1
+E	p1 + 1	p1 + 1
+E	p1 + 128	p1 + 128
+E	p1 + 132	p1 + 132
+E	p1 + 2	p1 + 2
+E	p1 + 4	p1 + 4
+E	p1 - 1	p1 - 1
+E	p1 - ulOff	p1 - ulOff
+E	p2	p2
+E	p3	p3
+E	wrap32(p1 - 1)	wrap32(p1 - 1)
+E	wrap32(p1 - 1) + 1	wrap32(p1 - 1) + 1
