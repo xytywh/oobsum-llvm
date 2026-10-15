@@ -64,7 +64,9 @@
 - [x] **S6b 取值范围与蕴含**（SPEC-0011）：`core/Range`（来源标签与优先级、类型表、`SymEnv` 的单符号守卫收窄、六种原子的界、`RangeOf`、`EntailsLe0`）；
       单测 44 个，含金标准 `range-golden.txt`（`gen_range_golden.py` 用 `replay.py` 的 `Env` / `entails_le0` 算出的 54 条查询，逐条一致）。
       **顺序调整**（SPEC-0011 §1）：带 `min` / `max` 的符号界、合并、widening（A-10、A-15…A-17）移到 S7；先做 S8a。
-- [ ] **S8a 摘要读入与调用点判定**：`core/Summary`（读 `oobsum-summary/1`，去掉 `doc`）+ `core/Apply`（`replay.py` 的 `build_map` / `subst_obj` /
+- [x] **S8a-1 摘要读写**（SPEC-0012 §2.1）：`core/Summary`（schema 的全部机器字段；读入忽略 `doc`、其余严格校验带位置；写出）；
+      104 份金标准摘要读入再写出与去掉 `doc` 的原文完全相同；单测 48 个。
+- [ ] **S8a-2 调用点判定**：`core/Summary`（读 `oobsum-summary/1`，去掉 `doc`）+ `core/Apply`（`replay.py` 的 `build_map` / `subst_obj` /
       `eliminate_locals` / `classify`，A-60…A-62）；`Dump=apply`；在 104 份金标准摘要上逐调用点与 `replay.py` 的"① 逐调用点核对"一致（T-06 的前一半）。
 - [ ] **S7 函数内解释**（WP3）：状态、WTO、不动点、转移、访问检查与 Req 生成；`Dump=state`；depth 0 的判定接进标签与日志。
 - [ ] **S8 摘要与代换**（WP4）：`core/Summary*`、`core/Apply`、`core/Solver`；`Dump=summary`、`Dump=apply`；Lv1 + Lv2 用例出告警；
