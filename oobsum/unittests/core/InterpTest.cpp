@@ -751,3 +751,82 @@ TEST(Interp, LoopCallArgument)
     ASSERT_TRUE(c.guards.hasValue());
     EXPECT_EQ((*c.guards)[0].cond, "p1 >= 1");
 }
+
+// ---- 模型表（SPEC-0018）----
+
+Inst CallOf(const std::string &callee, std::vector<ExprId> args, unsigned line, uint32_t dst = kNone)
+{
+    Inst i;
+    i.op = InstOp::Call;
+    i.callee = callee;
+    i.args = std::move(args);
+    i.dst = dst;
+    i.loc = {0, line, 5};
+    return i;
+}
+
+TEST(Interp, MemcpySecurec)
+{
+    // LV2-03 Tlv_WriteVal：memcpy_s(pucPkt + ulOff, 128, pucVal, ulValLen) → 目的写 128 字节；源 ulValLen <= 128 时读
+    Builder b;
+    uint32_t p = b.Param("pucPkt", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t off = b.Param("ulOff", b.u32);
+    uint32_t v = b.Param("pucVal", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("ulValLen", b.u32);
+    b.Straight({CallOf("F:memcpy_s", {b.PAdd(b.L(p), b.L(off)), b.C(128), b.L(v), b.L(n)}, 31)});
+    interp::FunctionFacts facts = b.Run();
+    EXPECT_EQ(Reqs(facts),
+              "W have=ext(p0) obj=*p0 end=[p1 + 128, p1 + 128] bound=exact at=t.c:31 | "
+              "R have=ext(p2) obj=*p2 end=[p3, p3] bound=exact at=t.c:31 guard=p3 <= 128");
+    ASSERT_TRUE(facts.calls.size() == 1);
+    EXPECT_EQ(facts.calls[0].model.getValueOr("-"), "access");
+    // Tlv_WriteVal_OK：destMax = 128 − ulOff 可能回绕 → 守卫 p1 <= 128，目的末端 p1 + (128 − p1) = 128；源 p1 + p3 <= 128
+    Builder c;
+    uint32_t p2 = c.Param("pucPkt", c.m.Intern(Type::Ptr(c.u8)));
+    uint32_t off2 = c.Param("ulOff", c.u32);
+    uint32_t v2 = c.Param("pucVal", c.m.Intern(Type::Ptr(c.u8)));
+    uint32_t n2 = c.Param("ulValLen", c.u32);
+    c.Straight({CallOf("F:memcpy_s",
+                       {c.PAdd(c.L(p2), c.L(off2)), c.Wrap(BinOp::Sub, c.C(128), c.L(off2)), c.L(v2), c.L(n2)}, 36)});
+    EXPECT_EQ(Reqs(c.Run()),
+              "W have=ext(p0) obj=*p0 end=[128, 128] bound=exact at=t.c:36 guard=p1 <= 128 | "
+              "R have=ext(p2) obj=*p2 end=[p3, p3] bound=exact at=t.c:36 guard=p1 + p3 <= 128");
+}
+
+TEST(Interp, SecurecNoAccess)
+{
+    // destMax 为 0 或大于 0x7fffffff：securec 直接返回；count > destMax（常数）：只清零目的、不读源；memset_s 只有目的
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t q = b.Param("q", b.m.Intern(Type::Ptr(b.u8)));
+    b.Straight({CallOf("F:memcpy_s", {b.L(p), b.C(0), b.L(q), b.C(4)}, 3),
+                CallOf("F:memcpy_s", {b.L(p), b.C(0x80000000LL), b.L(q), b.C(4)}, 4),
+                CallOf("F:memcpy_s", {b.L(p), b.C(8), b.L(q), b.C(16)}, 5),
+                CallOf("F:memset_s", {b.L(q), b.C(32), b.C(0), b.C(32)}, 6)});
+    EXPECT_EQ(Reqs(b.Run()),
+              "W have=ext(p0) obj=*p0 end=[8, 8] bound=exact at=t.c:5 | "
+              "W have=ext(p1) obj=*p1 end=[32, 32] bound=exact at=t.c:6");
+}
+
+TEST(Interp, LibcAndAlloc)
+{
+    // memcpy(p, q, n)：两边各 n 字节（F-05）；VOS_MemAlloc(.., .., 64) 的返回值是 64 字节的堆对象；函数指针实参写 null
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t q = b.Param("q", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("n", b.u32);
+    uint32_t h = b.LocalVar("pucHeap", b.m.Intern(Type::Ptr(b.u8)));
+    b.Straight({CallOf("F:memcpy", {b.L(p), b.L(q), b.L(n)}, 3),
+                CallOf("F:VOS_MemAlloc", {b.C(1), b.C(0), b.C(64)}, 4, h),
+                b.Store(b.PAdd(b.L(h), b.C(70)), 1, b.C(0), 5),
+                CallOf("F:OM_RegMsg", {b.C(1), b.f.Add(Expr::FAddr("F:Cb"))}, 6)});
+    interp::FunctionFacts facts = b.Run();
+    EXPECT_EQ(Reqs(facts),
+              "W have=ext(p0) obj=*p0 end=[p2, p2] bound=exact at=t.c:3 | "
+              "R have=ext(p1) obj=*p1 end=[p2, p2] bound=exact at=t.c:3 | "
+              "W have=64 obj=heap@t.c:4 end=[71, 71] bound=exact at=t.c:5");
+    ASSERT_TRUE(facts.calls.size() == 3);
+    EXPECT_EQ(facts.calls[1].model.getValueOr("-"), "alloc");
+    EXPECT_FALSE(facts.calls[2].model.hasValue());  // 未知被调者在链接时判（S8c）
+    EXPECT_TRUE(facts.calls[2].args[1].kind == summary::ArgValue::Kind::Null);
+}

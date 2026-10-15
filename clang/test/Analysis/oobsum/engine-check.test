@@ -2,10 +2,10 @@
 # 交给 replay.py 推到底，最终告警与 cases/summaries/alerts.json 逐条相同（消息、调用链 note、指纹），@expect 全对；
 # 推出的上传 / 判定 / 入口账本条数、每个函数的本地账本原因与金标准相同，没有没分析完的函数。
 # LV1-07 是三个 TU 的跨文件用例；LV2-09、LV3-03 要用到守卫（SPEC-0016）；LV2-05、LV7-04 要用到循环（SPEC-0017）。
-# 其余用例随 S7d（效果与模型）逐步加入。
+# LV2-03 要用到 memcpy_s 的模型与 destMax 的回绕守卫（SPEC-0018）。其余用例随 S7d（效果与模型）逐步加入。
 #
 # RUN: %python %S/../../../../oobsum/tools/engine_check.py --clang %clang LV1-01 LV1-02 LV1-07 LV2-09 LV3-03 \
-# RUN:   LV2-05 LV7-04 | FileCheck %s
+# RUN:   LV2-05 LV7-04 LV2-03 | FileCheck %s
 
 CHECK: LV1-01 一致
 CHECK: 期望 TP Cell_OnSetupTimeout_TP pa=L1 → L1 ✓
@@ -25,4 +25,7 @@ CHECK: 期望 TP Cell_ResetUeMap_TP pa=L2 → L2 ✓
 CHECK: 期望 TN Cell_ResetUeMap_TN pa=- → - ✓
 CHECK: LV7-04 一致
 CHECK: 期望 TP Om_DumpReg_TP pa=记账 → - ✓
-CHECK: 合计 7 个用例，一致 7 个
+CHECK: LV2-03 一致
+CHECK: 期望 TP Pkt_Build_TP pa=L1 → L1 ✓
+CHECK: 期望 TN Pkt_Build_TN pa=- → - ✓
+CHECK: 合计 8 个用例，一致 8 个

@@ -12,6 +12,7 @@
 
 #include "OobSummary/core/Fir.h"
 #include "OobSummary/core/LinExpr.h"
+#include "OobSummary/core/Models.h"
 #include "OobSummary/core/Range.h"
 #include "OobSummary/core/Summary.h"
 
@@ -54,7 +55,7 @@ struct IntVal {
 };
 
 // 指针的基址（A-11 的子集）
-enum class BaseKind : uint8_t { Unknown, Param, ParamField, ParamPtr, Global, Local, Str, Func };
+enum class BaseKind : uint8_t { Unknown, Param, ParamField, ParamPtr, Global, Local, Str, Func, Heap };
 
 struct PtrVal {
     BaseKind kind = BaseKind::Unknown;
@@ -89,13 +90,12 @@ struct FunctionFacts {
     std::vector<summary::Open> opens;
 };
 
-// stateTrace 非空时，每个块入口的状态各一行（Dump=state）
+// stateTrace 非空时，每个块入口的状态各一行（Dump=state）；models：库函数的模型表（SPEC-0018）
 FunctionFacts AnalyzeFunction(const fir::Module &m, const fir::Function &f,
-                              std::vector<std::string> *stateTrace = nullptr);
+                              std::vector<std::string> *stateTrace = nullptr,
+                              const models::ModelTable &models = models::ModelTable::Default());
 // 局部事实 → 摘要（只有局部事实；上传的 Req、判定、账本由求解补上）
 summary::Summary BuildSummary(const fir::Module &m, const fir::Function &f, const FunctionFacts &facts);
-// 纯函数模型（日志等；WP5 的模型表之前的最小清单，SPEC-0015 §2.1）
-bool IsPureModel(llvm::StringRef name);
 
 // FIR 类型的字节数；未知（不完整、void、函数）返回 false
 bool TypeSize(const fir::Module &m, fir::TypeId type, int64_t &out);

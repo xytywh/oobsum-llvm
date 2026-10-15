@@ -553,6 +553,39 @@ bool InnerFaithful(const LinExpr &e, int64_t tmin, int64_t tmax, const SymEnv &e
     return true;
 }
 
+bool FaithfulAs(const IntVal &v, const IntType &type, const SymEnv &env);
+
+// 实参名 p<k> → k；不是返回 −1
+int ParamIndexOf(const std::string &name)
+{
+    if (name.size() < 2 || name[0] != 'p') {
+        return -1;
+    }
+    int k = 0;
+    for (size_t i = 1; i < name.size(); ++i) {
+        if (name[i] < '0' || name[i] > '9') {
+            return -1;
+        }
+        k = k * 10 + (name[i] - '0');
+    }
+    return k;
+}
+
+// 值就是一个回绕形 wrapW(E)（无符号减法可能为负时的写法，SPEC-0014 §2.2）
+bool SingleWrap(const LinExpr &v, LinExpr &inner, unsigned &bits)
+{
+    if (v.IsUnknown() || v.Constant() != 0 || v.Terms().size() != 1) {
+        return false;
+    }
+    const auto &term = *v.Terms().begin();
+    if (term.second != 1 || term.first.kind != Atom::Kind::Wrap || !term.first.a) {
+        return false;
+    }
+    inner = *term.first.a;
+    bits = static_cast<unsigned>(term.first.n);
+    return true;
+}
+
 // 线性式里出现的符号名（不透明项看里面；ext(x) 记成 ext:x），用来挑与 Req 相关的守卫（A-44，SPEC-0016 §2.2）
 void CollectSyms(const LinExpr &e, std::set<std::string> &out)
 {
@@ -605,7 +638,8 @@ struct RawAccess {
 
 class Analyzer {
 public:
-    Analyzer(const fir::Module &m, const fir::Function &f) : m(m), f(f)
+    Analyzer(const fir::Module &m, const fir::Function &f, const models::ModelTable &models)
+        : m(m), f(f), models(models)
     {
     }
 
@@ -671,8 +705,11 @@ private:
     // ---- 指令 ----
     void Step(const fir::Inst &inst, State &s);
     Value LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const State &s) const;
-    void Access(const char *kind, const PtrVal &addr, ExprId addrExpr, int64_t size, const fir::Loc &loc,
+    void Access(const char *kind, const PtrVal &addr, ExprId addrExpr, const IntVal &bytes, const fir::Loc &loc,
                 const State &s);
+    // ---- 模型（SPEC-0018）----
+    void ApplyAccessModel(const fir::Inst &inst, const models::AccessModel &model, const State &s);
+    Value AllocResult(const fir::Inst &inst, const models::AllocModel &model, const State &s);
     std::vector<State> FlowOut(size_t block, State s);
 
     // ---- 条件边与守卫（SPEC-0016）----
@@ -711,6 +748,7 @@ public:
 private:
     const fir::Module &m;
     const fir::Function &f;
+    const models::ModelTable &models;
     std::vector<RawAccess> accesses;
     std::vector<RawAccess> safe;
     std::vector<summary::Open> opens;
@@ -1020,7 +1058,7 @@ Value Analyzer::LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const 
     return v;
 }
 
-void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, int64_t size, const fir::Loc &loc,
+void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, const IntVal &bytes, const fir::Loc &loc,
                       const State &s)
 {
     if (!recording) {
@@ -1036,6 +1074,9 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, int
             opens.push_back(o);
         }
     };
+    if (bytes.IsConst() && bytes.value.Constant() == 0) {
+        return;  // 0 字节：不访问
+    }
     if (addr.kind == BaseKind::Unknown || addr.kind == BaseKind::Func) {
         open("untracked_pointer");
         return;
@@ -1052,24 +1093,36 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, int
         open(stepping ? "pointer_stepping" : "type_range_only");
         return;
     }
+    // 字节数（模型给出的可以是区间或符号，SPEC-0018 §2.2）：没有上界 → 账本；没有下界按 0
+    llvm::Optional<LinExpr> bytesHi = bytes.Upper();
+    if (!bytesHi) {
+        open("type_range_only");
+        return;
+    }
+    llvm::Optional<LinExpr> bytesLo = bytes.Lower();
     llvm::Optional<LinExpr> lo = addr.off.Lower();
     RawAccess a;
     a.kind = kind;
     a.have = addr.size;
     a.obj = addr.obj;
-    a.hi = *hi + LinExpr::Const(size);
-    a.lo = (lo ? *lo : LinExpr::Const(0)) + LinExpr::Const(size);
+    a.hi = *hi + *bytesHi;
+    a.lo = (lo ? *lo : LinExpr::Const(0)) + (bytesLo ? *bytesLo : LinExpr::Const(0));
     a.start = lo;
-    a.tag = addr.off.kind == IntVal::Kind::Exact ? Tag::Exact : addr.off.tag;
+    Tag offTag = addr.off.kind == IntVal::Kind::Exact ? Tag::Exact : addr.off.tag;
+    Tag bytesTag = bytes.kind == IntVal::Kind::Exact ? Tag::Exact : bytes.tag;
+    a.tag = WorseTag(offTag, bytesTag);
     a.at = at;
     if (a.hi.IsUnknown() || a.lo.IsUnknown()) {
         open("type_range_only");
         return;
     }
-    std::set<std::string> syms;
+    std::set<std::string> syms;  // 与 have / end / start 有公共符号的守卫（SPEC-0016 §2.2、SPEC-0018 §2.2）
     CollectSyms(a.have, syms);
     CollectSyms(a.lo, syms);
     CollectSyms(a.hi, syms);
+    if (a.start) {
+        CollectSyms(*a.start, syms);
+    }
     for (const LinExpr &g : s.guards) {
         std::set<std::string> gs;
         CollectSyms(g, gs);
@@ -1097,13 +1150,13 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             return;
         case fir::InstOp::Load: {
             PtrVal addr = EvalPtr(inst.addr, s);
-            Access("R", addr, inst.addr, inst.size, inst.loc, s);
+            Access("R", addr, inst.addr, IntVal::Exact(LinExpr::Const(inst.size)), inst.loc, s);
             SetLocal(s, inst.dst, LoadValue(addr, inst.size, inst.dst, s));
             return;
         }
         case fir::InstOp::Store: {
             PtrVal addr = EvalPtr(inst.addr, s);
-            Access("W", addr, inst.addr, inst.size, inst.loc, s);
+            Access("W", addr, inst.addr, IntVal::Exact(LinExpr::Const(inst.size)), inst.loc, s);
             if (addr.kind == BaseKind::Unknown) {
                 s.cells.clear();  // A-12：经未知基址的写
                 return;
@@ -1117,17 +1170,28 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             }
             return;
         }
-        case fir::InstOp::Call:
+        case fir::InstOp::Call: {
             RecordCall(inst, s);
-            s.cells.clear();  // 被调者可能经指针 / 全局写内存（效果在 S7d）
+            llvm::StringRef name = KeyName(inst.callee);
+            models::Kind kind = inst.calleeExpr == fir::kNone ? models.KindOf(name) : models::Kind::None;
+            if (kind == models::Kind::Access) {
+                ApplyAccessModel(inst, *models.Access(name), s);
+            }
+            Value result;
+            result.isPtr = inst.dst != fir::kNone && IsPtrLocal(inst.dst);
+            result.p = UnknownPtr("call");
+            result.i = IntVal::Top("call");
+            if (kind == models::Kind::Alloc) {
+                result = AllocResult(inst, *models.Alloc(name), s);
+            }
+            if (kind != models::Kind::Pure && kind != models::Kind::Free) {
+                s.cells.clear();  // 被调者可能经指针 / 全局写内存（效果在 S7d-3）；纯函数、释放函数不改被跟踪的内存
+            }
             if (inst.dst != fir::kNone) {
-                Value v;
-                v.isPtr = IsPtrLocal(inst.dst);
-                v.p = UnknownPtr("call");
-                v.i = IntVal::Top("call");
-                s.locals[inst.dst] = v;
+                SetLocal(s, inst.dst, result);
             }
             return;
+        }
         case fir::InstOp::Havoc: {
             Value v;
             v.isPtr = IsPtrLocal(inst.dst);
@@ -1411,18 +1475,19 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s)
     summary::Call call;
     call.site = SiteOf(m, inst.loc);
     call.callee = KeyName(inst.callee).str();
-    bool defined = llvm::any_of(m.funcs, [&](const fir::Function &g) { return g.key == inst.callee; });
-    bool pure = !defined && IsPureModel(call.callee);
-    if (pure) {
-        call.model = std::string("pure");
+    // 模型表优先（I-44，SPEC-0018 §2.1）
+    models::Kind kind = models.KindOf(call.callee);
+    bool pure = kind == models::Kind::Pure;
+    if (kind != models::Kind::None) {
+        call.model = models::KindName(kind).str();
     }
     for (size_t k = 0; k < inst.args.size(); ++k) {
         Value v = Eval(inst.args[k], s);
         summary::ArgValue arg;
         std::string unknown = "_unknown" + std::to_string(k);
         if (v.isPtr) {
-            if (pure) {
-                arg.kind = summary::ArgValue::Kind::Null;
+            if (pure || v.p.kind == BaseKind::Func) {
+                arg.kind = summary::ArgValue::Kind::Null;  // 纯函数模型的指针、函数指针（SPEC-0018 §2.4）
             } else {
                 arg.kind = summary::ArgValue::Kind::Ptr;
                 arg.ptr = std::make_shared<summary::PtrArg>();
@@ -1510,8 +1575,14 @@ bool Analyzer::Faithful(ExprId e, const IntVal &v, const SymEnv &env) const
         return true;
     }
     llvm::Optional<IntType> t = IntTypeOf(e);
-    if (!t) {
-        return false;
+    return t && FaithfulAs(v, *t, env);
+}
+
+bool FaithfulAs(const IntVal &v, const IntType &type, const SymEnv &env)
+{
+    const IntType *t = &type;
+    if (v.IsConst()) {
+        return true;
     }
     if (t->width >= 63) {
         return true;  // 64 位：线性式在 int64 里溢出时已成为未知
@@ -1815,6 +1886,145 @@ bool Analyzer::Narrow(ExprId e, fir::CmpOp op, const LinExpr &c, State &s)
     return true;
 }
 
+// ---- 模型（SPEC-0018）----
+
+const int64_t kSecurecMemMax = 0x7fffffff;  // SECUREC_MEM_MAX_LEN 的默认值（F-03）
+
+// 模型的式子（实参 p0、p1… 的线性式或乘积，I-41）代入实参的值
+IntVal EvalModelExpr(const LinExpr &e, const std::vector<IntVal> &args)
+{
+    if (e.IsUnknown()) {
+        return IntVal::Top("model_expr");
+    }
+    auto arg = [&](const Atom &atom, IntVal &out) {
+        int k = atom.kind == Atom::Kind::Sym ? ParamIndexOf(atom.name) : -1;
+        if (k < 0 || static_cast<size_t>(k) >= args.size()) {
+            return false;
+        }
+        out = args[k];
+        return true;
+    };
+    auto single = [&](const std::shared_ptr<const LinExpr> &x, IntVal &out) {
+        return x && x->Constant() == 0 && x->Terms().size() == 1 && x->Terms().begin()->second == 1 &&
+               arg(x->Terms().begin()->first, out);
+    };
+    IntVal acc = IntVal::Exact(LinExpr::Const(e.Constant()));
+    for (const auto &term : e.Terms()) {
+        IntVal v;
+        IntVal a;
+        IntVal b;
+        if (arg(term.first, v)) {
+        } else if (term.first.kind == Atom::Kind::Mul && single(term.first.a, a) && single(term.first.b, b)) {
+            v = MulVals(a, b);
+        } else {
+            return IntVal::Top("model_expr");
+        }
+        acc = AddVals(acc, ScaleVal(v, term.second));
+    }
+    return acc;
+}
+
+// 访问类函数在调用点（SPEC-0018 §2.2）：securec 的 destMax 规则 → 各条件照常做访问检查（when 变成这条访问的守卫）
+void Analyzer::ApplyAccessModel(const fir::Inst &inst, const models::AccessModel &model, const State &s)
+{
+    if (!recording) {
+        return;
+    }
+    SymEnv env = Env(s);
+    std::vector<Value> values;
+    std::vector<IntVal> ints;
+    std::vector<bool> faithful;
+    for (ExprId arg : inst.args) {
+        Value v = Eval(arg, s);
+        values.push_back(v);
+        ints.push_back(v.isPtr ? IntVal::Top("ptr_as_int") : v.i);
+        faithful.push_back(!v.isPtr && Faithful(arg, v.i, env));
+    }
+    State t = s;
+    if (model.destMax >= 0 && static_cast<size_t>(model.destMax) < ints.size()) {
+        IntVal &dm = ints[model.destMax];
+        if (dm.IsConst() && (dm.value.Constant() == 0 || dm.value.Constant() > kSecurecMemMax)) {
+            return;  // securec 直接返回：不写、不读
+        }
+        // destMax 是可能回绕的无符号减法 wrapW(E)：回绕后大于上限、不写 → 守卫 E >= 0，destMax 取 E（F-03，LV2-03 TN）
+        LinExpr inner;
+        unsigned bits = 0;
+        if (dm.kind == IntVal::Kind::Exact && SingleWrap(dm.value, inner, bits)) {
+            LinExpr atom = inner.Scale(-1);
+            if (atom.IsConst()) {
+                if (atom.Constant() > 0) {
+                    return;
+                }
+            } else if (!EntailsLe0(atom, t.guards, env)) {
+                AddGuard(t, atom);
+            }
+            dm = IntVal::Exact(inner);
+            faithful[model.destMax] = FaithfulAs(dm, IntType{bits, false}, Env(t));
+        }
+    }
+    SymEnv envT = Env(t);
+    for (const models::AccessCond &cond : model.conds) {
+        if (cond.base < 0 || static_cast<size_t>(cond.base) >= values.size()) {
+            continue;
+        }
+        LinExpr bytesExpr;
+        std::string error;
+        if (!ParseLin(cond.bytes, bytesExpr, error)) {
+            continue;
+        }
+        const Value &base = values[cond.base];
+        PtrVal addr = base.isPtr ? base.p : UnknownPtr("int_as_ptr");
+        IntVal bytes = EvalModelExpr(bytesExpr, ints);
+        State u = t;
+        std::vector<LinExpr> when;
+        if (!cond.when.empty() && ParseCond(cond.when, when, error)) {
+            bool never = false;
+            for (const LinExpr &g : when) {
+                // 用到的实参都忠实时才变成守卫；否则照常访问（多报不少报）
+                std::set<std::string> syms;
+                CollectSyms(g, syms);
+                bool ok = llvm::all_of(syms, [&](const std::string &x) {
+                    int k = ParamIndexOf(x);
+                    return k >= 0 && static_cast<size_t>(k) < faithful.size() && faithful[k];
+                });
+                IntVal v = EvalModelExpr(g, ints);
+                if (!ok || v.kind != IntVal::Kind::Exact) {
+                    continue;
+                }
+                if (v.value.IsConst()) {
+                    never = never || v.value.Constant() > 0;
+                    continue;
+                }
+                if (!EntailsLe0(v.value, u.guards, envT)) {
+                    AddGuard(u, v.value);
+                }
+            }
+            if (never) {
+                continue;  // count > destMax：securec 不读源
+            }
+        }
+        Access(cond.kind == "W" ? "W" : "R", addr, fir::kNone, bytes, inst.loc, u);
+    }
+}
+
+// 分配器的返回值（SPEC-0018 §2.3）：新的堆对象 heap@<调用点>，大小取 size 代入实参的下界
+Value Analyzer::AllocResult(const fir::Inst &inst, const models::AllocModel &model, const State &s)
+{
+    std::vector<IntVal> ints;
+    for (ExprId arg : inst.args) {
+        ints.push_back(EvalInt(arg, s));
+    }
+    LinExpr sizeExpr;
+    std::string error;
+    IntVal size = ParseLin(model.size, sizeExpr, error) ? EvalModelExpr(sizeExpr, ints) : IntVal::Top("model_expr");
+    llvm::Optional<LinExpr> lo = size.Lower();
+    std::string site = SiteOf(m, inst.loc);
+    Value v;
+    v.isPtr = true;
+    v.p = Base(BaseKind::Heap, "H" + site, "heap@" + site, lo && !lo->IsUnknown() ? lo : llvm::Optional<LinExpr>());
+    return v;
+}
+
 std::string Analyzer::ShowState(const fir::Block &b, const State &s) const
 {
     std::string out = "b" + std::to_string(b.id) + ":";
@@ -1845,16 +2055,10 @@ std::string Analyzer::ShowState(const fir::Block &b, const State &s) const
 
 }  // namespace
 
-bool IsPureModel(llvm::StringRef name)
+FunctionFacts AnalyzeFunction(const fir::Module &m, const fir::Function &f, std::vector<std::string> *stateTrace,
+                              const models::ModelTable &models)
 {
-    // 日志不接收任何会流进内存访问的东西（cases/common.h）；WP5 的模型表接上后由 config 提供（I8 / I9）
-    static const char *const pure[] = {"LOG_Print"};
-    return llvm::is_contained(pure, name);
-}
-
-FunctionFacts AnalyzeFunction(const fir::Module &m, const fir::Function &f, std::vector<std::string> *stateTrace)
-{
-    Analyzer a(m, f);
+    Analyzer a(m, f, models);
     a.trace = stateTrace;
     return a.Run();
 }
