@@ -49,6 +49,7 @@
 ninja -C cmake-build-release clang                       # 增量：改 .cpp 约 1 分钟；改 Checkers.td 会重编全部 checker（几分钟）
 cmake-build-release/bin/llvm-lit -sv cmake-build-release/tools/clang/test/Analysis/oobsum   # lit 用例
 python3 oobsum/cases/summaries/replay.py                 # 摘要金标准回放（只要 Python 3）
+python3 oobsum/cases/run.py csa                          # 67 个用例按 @expect 对照 + 与 csa-baseline.json 比召回不回退（SPEC-0002）
 python3 oobsum/devenv/land.py --drop oobsum/landing/OobSummaryChecker.manifest --check-tree   # 新文件是否都登记了
 oobsum/devenv/40-smoke.sh                                # 整体冒烟（7 项）
 oobsum/devenv/cc1-run.sh -checker=rb.enhance.ipa.OobSummary <文件.c> [-analyzer-config rb.enhance.ipa.OobSummary:Dump=stats]
@@ -60,7 +61,7 @@ oobsum/devenv/cc1-run.sh -checker=rb.enhance.ipa.OobSummary <文件.c> [-analyze
 
 ## 5. 工作方式（用户的硬性要求）
 
-1. **小步快跑**：一个小能力 / 一处修改 = 一个提交。每个提交都要：能编译、lit 全过、`replay.py` 不回退、`--check-tree` 一致；然后
+1. **小步快跑**：一个小能力 / 一处修改 = 一个提交。每个提交都要：能编译、lit 全过、`replay.py` 不回退、`run.py csa` 无回退、`--check-tree` 一致；然后
    **`git push`**。不要攒一大堆改动一次提交，也不要提交编不过的半成品。
 2. **先写 spec 再写代码**：每次设计或行为修改，在 `oobsum/specs/` 新增 `SPEC-NNNN-<slug>.md`（模板见 `specs/README.md`），写清来源、
    改了哪些规格条目、实现位置、怎么测、怎么调试。改到 `06-spec.md` 已有条目时，在原条目处注明"由 SPEC-NNNN 修订"。

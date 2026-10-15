@@ -10,6 +10,9 @@
   python3 run.py check  --cc gcc|clang         # 语法检查（正常 + -DCASE_SHIM 两遍）
   python3 run.py infer  --infer <infer 可执行文件> [--only lv1,lv2] [--out DIR]
                                                # Infer 当标尺（自动加 -DCASE_SHIM），与 @expect 的 pa= 对照
+  python3 run.py csa    [--only lv1,LV2-03] [--config k=v] [--save]
+                                               # 本仓库的 clang 跑 rb.enhance.ipa.OobSummary，按判定日志与 @expect 对照，
+                                               # 并与基线 csa-baseline.json 比，原来报出的消失了（且没证明安全）就失败（SPEC-0002）
 
 @expect 的写法：  @expect  TP|TN  <入口函数>  pa=<L1|L2|-|记账>  [later=<…>]  [ai+pa=<…>]
   pa       12-15 交付（P0）的程序分析期望。"-" = 不报；"记账" = 不报，但留一条"未证明 / 断链"记录
@@ -24,11 +27,11 @@ LEVELS = ['lv%d' % i for i in range(1, 11)]
 TAG = re.compile(r'^\s*\*\s*@(\w+)\s+(.*?)\s*$')
 
 
-def units():
+def units(root=HERE):
     """每个用例单元：(级别, 名字, [源文件], 头部标记文件)"""
     out = []
     for lv in LEVELS:
-        d = os.path.join(HERE, lv)
+        d = os.path.join(root, lv)
         if not os.path.isdir(d):
             continue
         for name in sorted(os.listdir(d)):
@@ -189,7 +192,7 @@ def cmd_check(a):
 
 def cmd_infer(a):
     only = set(a.only.split(',')) if a.only else None
-    out = os.path.abspath(a.out)
+    out = os.path.abspath(a.out or os.path.join(os.getcwd(), 'infer-out-cases'))
     os.makedirs(out, exist_ok=True)
     rows = []
     for lv, name, srcs, head in units():
@@ -230,13 +233,216 @@ def cmd_infer(a):
     json.dump(rows, open(os.path.join(out, 'yardstick.json'), 'w'), ensure_ascii=False, indent=1)
 
 
+# ---- csa：本仓库的 clang 跑 rb.enhance.ipa.OobSummary，按判定日志与 @expect 对照（SPEC-0002） ----
+
+REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
+CHECKER = 'rb.enhance.ipa.OobSummary'
+STRENGTH = {'definite': 3, 'possible': 2, 'suspect': 1, 'safe': 0}
+PA_LABEL = {'L1': 'definite', 'L2': 'possible', '记账': 'suspect'}
+VERDICTS = ['通过', '通过+S', '级别不同', '漏报', '误报', '超出预期', '需跨TU']
+
+
+def _fn_name(fn):
+    """判定的 fn 以后是函数键（F:名字、F@<文件 id>:名字#哈希），取函数名（SPEC-0002 §2.2）"""
+    return fn.rsplit(':', 1)[-1].split('#', 1)[0]
+
+
+def _tag(d):
+    return d['label'].upper() + (':' + d['reason'] if d.get('reason') else '')
+
+
+def _pad(s, w):
+    """按终端显示宽度补空格（中文占两格）"""
+    import unicodedata
+    return s + ' ' * max(0, w - sum(2 if unicodedata.east_asian_width(ch) in 'WF' else 1 for ch in s))
+
+
+def _entry_actual(ds):
+    """入口的实际（SPEC-0002 §2.2）：(显示文本, 报出的最强标签——不含 safe，没有为 None)"""
+    em = [d for d in ds if d.get('emitted')]
+    pool = em or ds
+    if not pool:
+        return '未判', None
+    best = max(pool, key=lambda d: STRENGTH.get(d['label'], -1))
+    if not em:
+        return '%s(未报出:%s)' % (_tag(best), best.get('not_emitted_because', '?')), None
+    text = _tag(best) + ('×%d' % len(em) if len(em) > 1 else '')
+    return text, (best['label'] if best['label'] != 'safe' else None)
+
+
+def _verdict(kind, pa, rep, cross_tu):
+    """对照口径（SPEC-0002 §2.3，修订 06- T-03）；rep 是报出的最强标签（不含 safe）"""
+    strong = rep in ('definite', 'possible')
+    if pa in ('L1', 'L2'):
+        if rep == PA_LABEL[pa]:
+            return '通过'
+        if rep:
+            return '级别不同'
+        return '需跨TU' if cross_tu else '漏报'
+    if pa in ('记账', '-'):
+        tp_ledger = pa == '记账' and kind == 'TP'
+        if strong:
+            return '误报' if kind == 'TN' else '超出预期'
+        if rep == 'suspect':
+            return '通过' if tp_ledger else '通过+S'
+        if tp_ledger:
+            return '需跨TU' if cross_tu else '漏报'
+        return '通过'
+    return '?'
+
+
+def _show(p):
+    r = os.path.relpath(p)
+    return p if r.startswith('..') else r
+
+
+def _read_logs(wd, srcs, root):
+    """读一个用例单元的判定日志；返回 (判定列表, 缺日志的源文件)"""
+    decs, seen = [], set()
+    ddir = os.path.join(wd, 'decisions')
+    for f in sorted(os.listdir(ddir)) if os.path.isdir(ddir) else []:
+        lines = [json.loads(ln) for ln in open(os.path.join(ddir, f), encoding='utf-8') if ln.strip()]
+        if not lines or lines[0].get('schema') != 'oobsum-decisions/1':
+            continue
+        seen.add(os.path.normpath(lines[0]['file']))
+        for d in lines[1:]:
+            path, line, col = d['site'].rsplit(':', 2)
+            if os.path.isabs(path):
+                path = os.path.relpath(path, root)
+            d['site'] = '%s:%s:%s' % (path, line, col)
+            decs.append(d)
+    return decs, [s for s in srcs if os.path.normpath(s) not in seen]
+
+
+def cmd_csa(a):
+    root = os.path.abspath(a.cases or HERE)
+    clang = a.clang or os.path.join(REPO, 'cmake-build-release', 'bin', 'clang')
+    out = os.path.abspath(a.out or os.path.join(REPO, 'cmake-build-release', 'oobsum-csa'))
+    baseline = a.baseline or os.path.join(root, 'csa-baseline.json')
+    if a.save and a.only:
+        sys.exit('--save 不能与 --only 同用（基线必须覆盖全部用例）')
+    if not os.access(clang, os.X_OK):
+        sys.exit('找不到 clang：%s（先 ninja -C cmake-build-release clang，或用 --clang）' % clang)
+    res = subprocess.run([clang, '-print-resource-dir'], capture_output=True, text=True).stdout.strip()
+    only = set(a.only.split(',')) if a.only else None
+
+    entries, emitted, others, errors = [], [], [], []
+    safe_sites, ran, ntu = set(), set(), 0
+    for lv, name, srcs, head in units(root):
+        m = parse(head)
+        cid = m.get('id', name)
+        if only and lv not in only and cid not in only:
+            continue
+        ran.add(cid)
+        wd = os.path.join(out, cid)
+        if os.path.isdir(wd):
+            shutil.rmtree(wd)
+        os.makedirs(wd)
+        with open(os.path.join(wd, 'stderr.txt'), 'w', encoding='utf-8') as err:
+            for s in srcs:
+                ntu += 1
+                args = [clang, '-cc1', '-triple', a.triple, '-analyze', '-resource-dir', res,
+                        '-internal-isystem', os.path.join(res, 'include'), '-analyzer-checker=' + CHECKER,
+                        '-analyzer-config', '%s:WorkDir=%s' % (CHECKER, wd)]
+                for kv in a.config:
+                    args += ['-analyzer-config', '%s:%s' % (CHECKER, kv)]
+                args += a.cc1_arg + [s]
+                r = subprocess.run(args, capture_output=True, text=True)
+                err.write('== %s\n%s%s' % (' '.join(args), r.stdout, r.stderr))
+                if r.returncode != 0:
+                    errors.append('%s：cc1 退出码 %d（见 %s）' % (os.path.relpath(s, root), r.returncode,
+                                                               os.path.join(wd, 'stderr.txt')))
+        decs, missing = _read_logs(wd, srcs, root)
+        for s in missing:
+            errors.append('%s：没有写出判定日志（checker 没跑？）' % os.path.relpath(s, root))
+
+        names = {e['entry'] for e in m['expect']}
+        for e in m['expect']:
+            actual, rep = _entry_actual([d for d in decs if _fn_name(d['fn']) == e['entry']])
+            pa = e.get('pa', '?')
+            entries.append({'case': cid, 'kind': e['kind'], 'entry': e['entry'], 'pa': pa, 'actual': actual,
+                            'verdict': _verdict(e['kind'], pa, rep, len(srcs) > 1)})
+        for d in decs:
+            key = (cid, d['site'], d['kind'])
+            if d['label'] == 'safe':
+                safe_sites.add(key)
+            if d.get('emitted'):
+                rec = {'case': cid, 'site': d['site'], 'kind': d['kind'], 'fn': d['fn'], 'label': d['label'],
+                       'reason': d.get('reason', '')}
+                emitted.append(rec)
+                if _fn_name(d['fn']) not in names:
+                    others.append(rec)
+    emitted.sort(key=lambda r: (r['case'], r['site'], r['kind'], r['label'], r['reason']))
+    result = {'schema': 'oobsum-csa-result/1',
+              'options': {'triple': a.triple, 'config': a.config, 'cc1': a.cc1_arg},
+              'entries': entries, 'emitted': emitted}
+
+    print('== clang=%s  triple=%s  用例 %d 个、TU %d 个、入口 %d 个' % (clang, a.triple, len(ran), ntu, len(entries)))
+    w = max([len(e['entry']) for e in entries] + [4])
+    for row in [('用例', '', '入口', 'pa', '实际', '对照')] + [
+            (e['case'], e['kind'], e['entry'], e['pa'], e['actual'], e['verdict']) for e in entries]:
+        print(' '.join(_pad(x, n) for x, n in zip(row, (8, 3, w, 5, 34))) + ' ' + row[5])
+    for r in others:
+        print('其它报出：%s %s %s %s fn=%s' % (r['case'], r['site'], r['kind'], _tag(r), r['fn']))
+    from collections import Counter
+    c = Counter(e['verdict'] for e in entries)
+    print('合计 %d 个入口：%s；其它报出 %d 条' % (len(entries), '，'.join('%s %d' % (v, c[v]) for v in VERDICTS + ['?'] if c[v]),
+                                          len(others)))
+    for msg in errors:
+        print('✗ 运行错误：' + msg)
+
+    # 召回不回退（SPEC-0002 §2.4）：基线里报出的，这次同一处要么仍报出，要么有 SAFE
+    regress = []
+    if os.path.exists(baseline):
+        base = json.load(open(baseline, encoding='utf-8'))
+        if base.get('options') != result['options']:
+            print('注意：选项与基线不同（基线 %s）' % json.dumps(base.get('options'), ensure_ascii=False))
+        have = {(r['case'], r['site'], r['kind']) for r in emitted}
+        for r in base.get('emitted', []):
+            k = (r['case'], r['site'], r['kind'])
+            if r['case'] in ran and k not in have and k not in safe_sites:
+                regress.append(r)
+        old = {(e['case'], e['kind'], e['entry']): e for e in base.get('entries', [])}
+        for e in entries:
+            o = old.get((e['case'], e['kind'], e['entry']))
+            if o and (o['actual'], o['verdict']) != (e['actual'], e['verdict']):
+                print('变化：%s %s %s  %s/%s → %s/%s' % (e['case'], e['kind'], e['entry'], o['actual'], o['verdict'],
+                                                     e['actual'], e['verdict']))
+        for r in regress:
+            print('✗ 回退：%s %s %s %s fn=%s 不再报出，同一处也没有 SAFE' % (r['case'], r['site'], r['kind'], _tag(r), r['fn']))
+        print('基线 %s：回退 %d 条' % (_show(baseline), len(regress)))
+    else:
+        print('基线 %s 不存在，不比（用 --save 生成）' % _show(baseline))
+
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, 'csa-result.json'), 'w', encoding='utf-8') as f:
+        json.dump(result, f, ensure_ascii=False, indent=1)
+        f.write('\n')
+    if a.save:
+        if errors:
+            sys.exit('有运行错误，不写基线')
+        with open(baseline, 'w', encoding='utf-8') as f:
+            json.dump(result, f, ensure_ascii=False, indent=1)
+            f.write('\n')
+        print('已写基线 %s' % _show(baseline))
+        return 0
+    return 1 if errors or regress else 0
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('mode', choices=['index', 'check', 'infer', 'doc'])
+    ap.add_argument('mode', choices=['index', 'check', 'infer', 'doc', 'csa'])
     ap.add_argument('--cc', default='clang')
     ap.add_argument('--infer')
     ap.add_argument('--only')
-    ap.add_argument('--out', default=os.path.join(os.getcwd(), 'infer-out-cases'))
+    ap.add_argument('--out', help='infer：默认 ./infer-out-cases；csa：默认 <仓库>/cmake-build-release/oobsum-csa')
+    ap.add_argument('--clang', help='csa：默认 <仓库>/cmake-build-release/bin/clang')
+    ap.add_argument('--triple', default='armebv7-linux-gnueabi', help='csa：公司 ILP32 + 大端的本地近似')
+    ap.add_argument('--cases', help='csa：用例根目录（默认本目录）')
+    ap.add_argument('--baseline', help='csa：默认 <用例根目录>/csa-baseline.json')
+    ap.add_argument('--save', action='store_true', help='csa：把这次结果写成新基线（有意改变时）')
+    ap.add_argument('--config', action='append', default=[], metavar='K=V', help='csa：追加 checker 选项')
+    ap.add_argument('--cc1-arg', action='append', default=[], metavar='ARG', help='csa：追加 cc1 参数（写成 --cc1-arg=-DX）')
     a = ap.parse_args()
     if a.mode == 'index':
         cmd_index(a)
@@ -244,6 +450,8 @@ def main():
         cmd_doc(a)
     elif a.mode == 'check':
         sys.exit(cmd_check(a))
+    elif a.mode == 'csa':
+        sys.exit(cmd_csa(a))
     else:
         if not a.infer:
             sys.exit('infer 模式需要 --infer')

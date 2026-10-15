@@ -34,3 +34,4 @@
 | 编号 | 标题 | 状态 |
 |---|---|---|
 | [SPEC-0001](SPEC-0001-labels-recall-debug.md) | 判定标签、召回优先的报告策略、判定日志、调试输出（checker 骨架） | 已实现（v4.0） |
+| [SPEC-0002](SPEC-0002-cases-csa-yardstick.md) | 用例回归尺子 `cases/run.py csa`：`@expect` ↔ 标签的对照口径（修订 T-03）、召回不回退检查 | 已实现（S1） |

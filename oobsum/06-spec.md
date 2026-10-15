@@ -732,7 +732,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 
 * 插件：`clang++-14 -std=c++14 -fno-rtti -shared -fPIC -DOOBSUM_PLUGIN_BUILD …`，与探针的 `sandbox_build.sh` 同法。
 * `core/` 单测：独立可执行 `oobsum-core-tests`（自带最小测试框架，不依赖 gtest）。
-* 语料：`cases/run.py csa`（驱动沙箱里的 `clang -cc1 -load` 走完 export → solve → report，对照 `@expect`）。
+* 语料：`cases/run.py csa`（驱动沙箱里的 `clang -cc1 -load` 走完 export → solve → report，对照 `@expect`）。〔由 SPEC-0002 修订：目前用本仓库构建的 clang 跑 `Phase=inline`，三阶段接上后加 `--phase`〕
 * 规范检查：`check_checker_conventions.py` 跑在一个模拟的 BXPlugin 目录上（与探针同法，无 FAIL）。
 
 ---
@@ -750,7 +750,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | **T-07** | 健壮性 | 本包 `05-experiments/`、`07-capability-boundary/corpus/`、`cases/` 全部跑 export + solve 不崩溃、全函数性成立 | 沙箱 | 每次交付 |
 | **T-08** | 真实代码 | 子集（几个顶层目录）→ 全量：告警按级别 / 层数、账本按原因、耗时 / 内存；抽样 50 条 L1 由你研判精确率 | fork | W10 起 |
 
-**T-03 的对照口径**（`oobsum.py check` 与 `run.py csa` 共用同一实现）：
+**T-03 的对照口径**（`oobsum.py check` 与 `run.py csa` 共用同一实现）：〔由 SPEC-0002 §2.3 修订：D16 后 SUSPECT 计为召回，`记账` 的 TP 要报出 SUSPECT，`-` / `记账` 的入口只禁止 DEFINITE / POSSIBLE；下表是原写法〕
 
 | `@expect` 的 `pa` | 判为通过的条件 |
 |---|---|
@@ -763,7 +763,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | 检查点 | 必须全部通过 |
 |---|---|
 | **G1** | Lv1 + Lv2 的 17 个用例（34 个入口，含跨 TU 的 LV1-07）；T-04 的模板 1、2、4 在 N = 3…20 全报、N = 2 不报 |
-| **G2** | 32 个承诺用例的 TP 级别正确；**全部 134 个入口里期望为 `-` / `记账` 的零告警**；尽力项 9 个给出报出率；T-04 全部模板 |
+| **G2** | 32 个承诺用例的 TP 级别正确；**全部 134 个入口里期望为 `-` / `记账` 的零告警**〔SPEC-0002 §7 提议改为"零 DEFINITE / POSSIBLE，SUSPECT 单列"，待用户确认〕；尽力项 9 个给出报出率；T-04 全部模板 |
 | **G3** | 全量 cdb 跑通（N-05）；N-02、N-03 达标或有降级方案；T-08 的指标达到你定的数值 |
 
 ---

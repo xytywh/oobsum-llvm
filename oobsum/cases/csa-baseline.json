@@ -1,0 +1,1083 @@
+{
+ "schema": "oobsum-csa-result/1",
+ "options": {
+  "triple": "armebv7-linux-gnueabi",
+  "config": [],
+  "cc1": []
+ },
+ "entries": [
+  {
+   "case": "LV1-01",
+   "kind": "TP",
+   "entry": "Cell_OnSetupTimeout_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV1-01",
+   "kind": "TN",
+   "entry": "Cell_OnSetupTimeout_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV1-02",
+   "kind": "TP",
+   "entry": "Ue_ShowInfo_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV1-02",
+   "kind": "TN",
+   "entry": "Ue_ShowInfo_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV1-03",
+   "kind": "TP",
+   "entry": "Msg_Build_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV1-03",
+   "kind": "TN",
+   "entry": "Msg_Build_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV1-04",
+   "kind": "TP",
+   "entry": "Cell_Setup_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV1-04",
+   "kind": "TN",
+   "entry": "Cell_Setup_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV1-05",
+   "kind": "TP",
+   "entry": "Ue_OnDetach_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV1-05",
+   "kind": "TN",
+   "entry": "Ue_OnDetach_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV1-06",
+   "kind": "TP",
+   "entry": "Sched_InitDefault_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV1-06",
+   "kind": "TN",
+   "entry": "Sched_InitDefault_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV1-07",
+   "kind": "TP",
+   "entry": "Alm_ReportAll_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "需跨TU"
+  },
+  {
+   "case": "LV1-07",
+   "kind": "TN",
+   "entry": "Alm_ReportAll_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV1-08",
+   "kind": "TP",
+   "entry": "Cfg_InitDefault_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV1-08",
+   "kind": "TN",
+   "entry": "Cfg_InitDefault_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV2-01",
+   "kind": "TP",
+   "entry": "Erab_OnSetupReq_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV2-01",
+   "kind": "TN",
+   "entry": "Erab_OnSetupReq_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV2-02",
+   "kind": "TP",
+   "entry": "Msg_Entry_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV2-02",
+   "kind": "TN",
+   "entry": "Msg_Entry_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV2-03",
+   "kind": "TP",
+   "entry": "Pkt_Build_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV2-03",
+   "kind": "TN",
+   "entry": "Pkt_Build_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV2-04",
+   "kind": "TP",
+   "entry": "List_Create_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV2-04",
+   "kind": "TN",
+   "entry": "List_Create_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV2-05",
+   "kind": "TP",
+   "entry": "Cell_ResetUeMap_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV2-05",
+   "kind": "TN",
+   "entry": "Cell_ResetUeMap_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV2-06",
+   "kind": "TP",
+   "entry": "Cell_RefreshActive_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV2-06",
+   "kind": "TN",
+   "entry": "Cell_RefreshActive_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV2-07",
+   "kind": "TP",
+   "entry": "Tbl_OnAddReq_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV2-07",
+   "kind": "TN",
+   "entry": "Tbl_OnAddReq_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV2-08",
+   "kind": "TP",
+   "entry": "Frame_Build_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV2-08",
+   "kind": "TN",
+   "entry": "Frame_Build_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV2-09",
+   "kind": "TP",
+   "entry": "Ue_CheckJitter_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV2-09",
+   "kind": "TN",
+   "entry": "Ue_CheckJitter_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV3-01",
+   "kind": "TP",
+   "entry": "Cell_OnSetupReq_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV3-01",
+   "kind": "TN",
+   "entry": "Cell_OnSetupReq_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV3-02",
+   "kind": "TP",
+   "entry": "Ue_OnAttach_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV3-02",
+   "kind": "TN",
+   "entry": "Ue_OnAttach_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV3-03",
+   "kind": "TP",
+   "entry": "Board_OnCfgMsg_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV3-03",
+   "kind": "TN",
+   "entry": "Board_InitDefault_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV3-04",
+   "kind": "TP",
+   "entry": "Cell_OnNbrUpdate_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV3-04",
+   "kind": "TN",
+   "entry": "Cell_OnNbrUpdate_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV3-05",
+   "kind": "TP",
+   "entry": "Cell_SetDefaultName_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV3-05",
+   "kind": "TN",
+   "entry": "Cell_SetDefaultName_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV3-06",
+   "kind": "TP",
+   "entry": "Ue_OnCapInfo_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV3-06",
+   "kind": "TN",
+   "entry": "Ue_OnCapInfo_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV3-07",
+   "kind": "TP",
+   "entry": "Msg_Encode_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV3-07",
+   "kind": "TN",
+   "entry": "Msg_Encode_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV3-08",
+   "kind": "TP",
+   "entry": "Cell_ResetAll_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV3-08",
+   "kind": "TN",
+   "entry": "Cell_ResetAll_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV3-09",
+   "kind": "TP",
+   "entry": "Sched_InitGrid_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV3-09",
+   "kind": "TN",
+   "entry": "Sched_InitGrid_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV3-10",
+   "kind": "TP",
+   "entry": "Ue_OnHoPrepare_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV3-10",
+   "kind": "TN",
+   "entry": "Ue_OnHoPrepare_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV4-01",
+   "kind": "TP",
+   "entry": "Ue_ModuleInit_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV4-01",
+   "kind": "TN",
+   "entry": "Ue_ModuleInit_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV4-02",
+   "kind": "TP",
+   "entry": "Ue_CreateSec_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV4-02",
+   "kind": "TN",
+   "entry": "Ue_CreateSec_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV4-03",
+   "kind": "TP",
+   "entry": "Msg_MakeText_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV4-03",
+   "kind": "TN",
+   "entry": "Msg_MakeText_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV4-04",
+   "kind": "TP",
+   "entry": "Rpt_Send_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV4-04",
+   "kind": "TN",
+   "entry": "Rpt_Send_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV4-05",
+   "kind": "TP",
+   "entry": "Ue_OnReconfig_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV4-05",
+   "kind": "TN",
+   "entry": "Ue_OnReconfig_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV4-06",
+   "kind": "TP",
+   "entry": "Cell_OnDelReq_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV4-06",
+   "kind": "TN",
+   "entry": "Cell_OnDelReq_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV4-07",
+   "kind": "TP",
+   "entry": "Pool_UseBlock_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV4-07",
+   "kind": "TN",
+   "entry": "Pool_UseBlock_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV5-01",
+   "kind": "TP",
+   "entry": "Rrc_EncodeMsg_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV5-01",
+   "kind": "TN",
+   "entry": "Rrc_EncodeMsg_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV5-02",
+   "kind": "TP",
+   "entry": "Rrc_EncodeSib_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV5-02",
+   "kind": "TN",
+   "entry": "Rrc_EncodeSib_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV5-03",
+   "kind": "TP",
+   "entry": "Ue_OnIeInd_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV5-03",
+   "kind": "TN",
+   "entry": "Ue_OnIeInd_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV5-04",
+   "kind": "TP",
+   "entry": "Rrc_EncodeExt_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV5-04",
+   "kind": "TN",
+   "entry": "Rrc_EncodeExt_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV5-05",
+   "kind": "TP",
+   "entry": "Ue_OnSetup_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV5-05",
+   "kind": "TN",
+   "entry": "Ue_OnSetup_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV5-06",
+   "kind": "TP",
+   "entry": "Rpt_Flush_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV5-06",
+   "kind": "TN",
+   "entry": "Rpt_Flush_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV6-01",
+   "kind": "TP",
+   "entry": "Port_OnLinkDown_TP",
+   "pa": "L1",
+   "actual": "未判",
+   "verdict": "需跨TU"
+  },
+  {
+   "case": "LV6-01",
+   "kind": "TN",
+   "entry": "Port_OnLinkDown_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV6-02",
+   "kind": "TP",
+   "entry": "Cell_ResetUe_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV6-02",
+   "kind": "TN",
+   "entry": "Cell_ResetUe_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV6-03",
+   "kind": "TP",
+   "entry": "Svc_OnSetReq_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV6-03",
+   "kind": "TN",
+   "entry": "Svc_OnSetReq_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV6-04",
+   "kind": "TP",
+   "entry": "Board_InitPorts_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV6-04",
+   "kind": "TN",
+   "entry": "Board_InitPorts_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV6-05",
+   "kind": "TP",
+   "entry": "Om_SaveTrace_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV6-05",
+   "kind": "TN",
+   "entry": "Om_SaveTrace_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV7-01",
+   "kind": "TP",
+   "entry": "List_Build_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV7-01",
+   "kind": "TN",
+   "entry": "List_Build_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV7-02",
+   "kind": "TP",
+   "entry": "Sched_OnSlot_TP",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV7-02",
+   "kind": "TN",
+   "entry": "Sched_OnSlot_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV7-03",
+   "kind": "TP",
+   "entry": "Om_OnShortMsg_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV7-03",
+   "kind": "TN",
+   "entry": "Om_OnShortMsg_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV7-04",
+   "kind": "TP",
+   "entry": "Om_DumpReg_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV7-04",
+   "kind": "TN",
+   "entry": "Om_DumpReg_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV7-05",
+   "kind": "TP",
+   "entry": "Cell_Rename_TP",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV7-05",
+   "kind": "TN",
+   "entry": "Cell_Rename_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV7-06",
+   "kind": "TP",
+   "entry": "Cell_BuildMap_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV7-06",
+   "kind": "TN",
+   "entry": "Cell_BuildMap_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV8-01",
+   "kind": "TP",
+   "entry": "Om_OnCfgMsg_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV8-01",
+   "kind": "TN",
+   "entry": "Om_OnCfgMsg_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV8-02",
+   "kind": "TP",
+   "entry": "Om_OnBatchMsg_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV8-02",
+   "kind": "TN",
+   "entry": "Om_OnBatchMsg_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV8-03",
+   "kind": "TP",
+   "entry": "Cell_SetDefault_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV8-03",
+   "kind": "TN",
+   "entry": "Cell_SetDefault_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV8-04",
+   "kind": "TP",
+   "entry": "Phy_BuildGrid_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV8-04",
+   "kind": "TN",
+   "entry": "Phy_BuildGrid_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV8-05",
+   "kind": "TP",
+   "entry": "Om_Trace_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV8-05",
+   "kind": "TN",
+   "entry": "Om_Trace_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV9-01",
+   "kind": "TP",
+   "entry": "Ue_OnCap_TP",
+   "pa": "L2",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV9-01",
+   "kind": "TN",
+   "entry": "Ue_OnCap_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV9-02",
+   "kind": "TP",
+   "entry": "Msg_OnRecv_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV9-02",
+   "kind": "TN",
+   "entry": "Msg_OnRecv_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV9-03",
+   "kind": "TP",
+   "entry": "Evt_FireCellUp_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV9-03",
+   "kind": "TN",
+   "entry": "Evt_FireCellUp_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV9-04",
+   "kind": "TP",
+   "entry": "Om_ReadChip_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV9-04",
+   "kind": "TN",
+   "entry": "Om_ReadChip_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV9-05",
+   "kind": "TP",
+   "entry": "Cfg_DumpTree_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV9-05",
+   "kind": "TN",
+   "entry": "Cfg_DumpTree_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV9-06",
+   "kind": "TP",
+   "entry": "Om_OnPortCfg_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV9-06",
+   "kind": "TN",
+   "entry": "Om_OnPortCfg_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV10-01",
+   "kind": "TP",
+   "entry": "Drv_OnRxPkt_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV10-01",
+   "kind": "TN",
+   "entry": "Drv_OnRxPkt_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV10-02",
+   "kind": "TP",
+   "entry": "Om_QueryDev_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV10-02",
+   "kind": "TN",
+   "entry": "Om_QueryDev_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV10-03",
+   "kind": "TP",
+   "entry": "Port_SetSpeed_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV10-03",
+   "kind": "TN",
+   "entry": "Port_SetSpeed_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV10-04",
+   "kind": "TP",
+   "entry": "Om_OnSaveCfg_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV10-04",
+   "kind": "TN",
+   "entry": "Om_OnSaveCfg_TN",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "通过"
+  },
+  {
+   "case": "LV10-05",
+   "kind": "TP",
+   "entry": "Cell_OnNbrMsg_TP",
+   "pa": "记账",
+   "actual": "未判",
+   "verdict": "漏报"
+  },
+  {
+   "case": "LV10-05",
+   "kind": "TN",
+   "entry": "Cell_OnNbrMsg_TN",
+   "pa": "-",
+   "actual": "未判",
+   "verdict": "通过"
+  }
+ ],
+ "emitted": []
+}
