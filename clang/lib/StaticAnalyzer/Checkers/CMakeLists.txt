@@ -142,6 +142,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   OobSummary/lower/Keys.cpp
   OobSummary/core/Fir.cpp
   OobSummary/core/FirJson.cpp
+  OobSummary/core/FirText.cpp
 
   LINK_LIBS
   clangAST
