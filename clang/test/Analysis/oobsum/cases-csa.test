@@ -26,7 +26,7 @@ FIRST-NEXT: MINI-04 TP D_Minus_Bonus - DEFINITE 超出预期
 FIRST-NEXT: MINI-04 TN D_TN_Ledger 记账 未判 通过
 FIRST-NEXT: MINI-05 TP E_Xtu_TP L1 未判 需跨TU
 FIRST-NEXT: MINI-05 TN E_Xtu_TN - 未判 通过
-FIRST-NEXT: 其它报出：MINI-04 lv2/mini_04.c:13:23 W SUSPECT:unknown_callee fn=D_Helper
+FIRST-NEXT: 其它报出：MINI-04 lv2/mini_04.c:13:23 W SUSPECT:unknown_callee fn=F:D_Helper
 FIRST-NEXT: 合计 11 个入口：通过 5，通过+S 1，级别不同 1，漏报 1，误报 1，超出预期 1，需跨TU 1；其它报出 1 条
 FIRST-NEXT: 基线 {{.*}}base.json 不存在，不比（用 --save 生成）
 FIRST-NEXT: 已写基线 {{.*}}base.json
@@ -36,7 +36,7 @@ BASE: "emitted": [
 BASE: "site": "lv1/mini_01.c:12:5"
 BASE: "site": "lv1/mini_01.c:13:5"
 BASE-NEXT: "kind": "W"
-BASE-NEXT: "fn": "A_L1_Pass"
+BASE-NEXT: "fn": "F:A_L1_Pass"
 BASE-NEXT: "label": "suspect"
 BASE-NOT: "lv2/mini_03.c:17:
 BASE: "site": "lv2/mini_03.c:18:27"
@@ -47,8 +47,8 @@ PROVEN: 基线 {{.*}}base.json：回退 0 条
 
 BALANCED: 注意：选项与基线不同
 BALANCED: 变化：MINI-04 TP D_Ledger_Pass SUSPECT:fptr/通过 → SUSPECT:fptr(未报出:policy_balanced)/漏报
-BALANCED: ✗ 回退：MINI-01 lv1/mini_01.c:13:5 W SUSPECT:type_range_only fn=A_L1_Pass 不再报出，同一处也没有 SAFE
-BALANCED-NEXT: ✗ 回退：MINI-03 lv2/mini_03.c:18:27 W SUSPECT:entry_unproven fn=C_TN_Suspect 不再报出，同一处也没有 SAFE
-BALANCED-NEXT: ✗ 回退：MINI-04 lv2/mini_04.c:10:28 W SUSPECT:fptr fn=D_Ledger_Pass 不再报出，同一处也没有 SAFE
-BALANCED-NEXT: ✗ 回退：MINI-04 lv2/mini_04.c:13:23 W SUSPECT:unknown_callee fn=D_Helper 不再报出，同一处也没有 SAFE
+BALANCED: ✗ 回退：MINI-01 lv1/mini_01.c:13:5 W SUSPECT:type_range_only fn=F:A_L1_Pass 不再报出，同一处也没有 SAFE
+BALANCED-NEXT: ✗ 回退：MINI-03 lv2/mini_03.c:18:27 W SUSPECT:entry_unproven fn=F:C_TN_Suspect 不再报出，同一处也没有 SAFE
+BALANCED-NEXT: ✗ 回退：MINI-04 lv2/mini_04.c:10:28 W SUSPECT:fptr fn=F:D_Ledger_Pass 不再报出，同一处也没有 SAFE
+BALANCED-NEXT: ✗ 回退：MINI-04 lv2/mini_04.c:13:23 W SUSPECT:unknown_callee fn=F:D_Helper 不再报出，同一处也没有 SAFE
 BALANCED-NEXT: 基线 {{.*}}base.json：回退 4 条

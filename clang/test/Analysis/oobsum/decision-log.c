@@ -17,5 +17,6 @@ void f(void)
 
 // CHECK: "count":2
 // CHECK-SAME: "schema":"oobsum-decisions/1"
-// CHECK: "emitted":true,{{.*}}"label":"definite",{{.*}}"origin":"debug-intrinsic"
+// 判定的 fn 是所在函数的键（SPEC-0003 §2.2）
+// CHECK: "emitted":true,{{.*}}"fn":"F:f",{{.*}}"label":"definite",{{.*}}"origin":"debug-intrinsic"
 // CHECK: "emitted":false,{{.*}}"label":"safe",{{.*}}"not_emitted_because":"safe",{{.*}}"reason":"guard_false"

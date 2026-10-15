@@ -7,7 +7,7 @@
 // 分层（06- §9.1，SPEC-0001 §7）：
 //   本文件            入口：选项、TU 回调、调试内建函数、把判定交给 Reporter
 //   OobSummary/core   不依赖 Clang：标签、判定、策略、指纹、判定日志（以后的 FIR、抽象域、摘要、求解都在这里）
-//   OobSummary/lower  Clang AST/CFG → FIR（WP1 起）
+//   OobSummary/lower  Clang AST/CFG → FIR（WP1 起）；函数 / 全局的键（SPEC-0003）
 //   OobSummary/report 判定 → CSA 告警
 //   OobSummary/debug  调试输出（Dump=…）
 //
@@ -40,8 +40,10 @@
 #include "OobSummary/core/Fingerprint.h"
 #include "OobSummary/core/Policy.h"
 #include "OobSummary/debug/DumpSink.h"
+#include "OobSummary/lower/Keys.h"
 #include "OobSummary/report/Reporter.h"
 
+#include <set>
 #include <string>
 #include <vector>
 
@@ -56,7 +58,8 @@ namespace {
 // 降成调试指令（STATUS 待办），这里的 AST 扫描届时删除。
 class DebugIntrinsicVisitor : public RecursiveASTVisitor<DebugIntrinsicVisitor> {
 public:
-    DebugIntrinsicVisitor(const SourceManager &sm, std::vector<oobsum::Decision> &out) : sm(sm), out(out)
+    DebugIntrinsicVisitor(const SourceManager &sm, oobsum::KeyMaker &keys, std::vector<oobsum::Decision> &out)
+        : sm(sm), keys(keys), out(out)
     {
     }
 
@@ -94,7 +97,8 @@ public:
 
     bool TraverseFunctionDecl(FunctionDecl *fd)
     {
-        currentFunction = fd->getNameAsString();
+        // 判定的 fn 与指纹的入口都用函数键（SPEC-0003 §2.2）
+        currentFunction = keys.ForFunction(fd);
         return RecursiveASTVisitor::TraverseFunctionDecl(fd);
     }
 
@@ -102,6 +106,7 @@ public:
 
 private:
     const SourceManager &sm;
+    oobsum::KeyMaker &keys;
     std::vector<oobsum::Decision> &out;
     std::string currentFunction;
 };
@@ -126,10 +131,11 @@ private:
     BugType suspectType{this, "Out-of-bound access via call chain (suspect)", "Memory error"};
     BugType safeType{this, "Out-of-bound access via call chain (proven safe)", "Memory error"};
 
-    void dumpCallGraph(const TranslationUnitDecl *tu, const std::string &tuId) const;
+    void dumpCallGraph(const TranslationUnitDecl *tu, oobsum::KeyMaker &keys) const;
+    void dumpKeys(const TranslationUnitDecl *tu, const std::string &tuId, oobsum::KeyMaker &keys) const;
 };
 
-void OobSummaryChecker::dumpCallGraph(const TranslationUnitDecl *tu, const std::string &tuId) const
+void OobSummaryChecker::dumpCallGraph(const TranslationUnitDecl *tu, oobsum::KeyMaker &keys) const
 {
     // 06- A-80：被调者先（scc_iterator 的后序）；递归成环的标 cycle
     CallGraph cg;
@@ -142,13 +148,34 @@ void OobSummaryChecker::dumpCallGraph(const TranslationUnitDecl *tu, const std::
             if (fd == nullptr || !fd->hasBody() || !dump.Wants("callgraph", fd->getName())) {
                 continue;
             }
-            line += (line.empty() ? "" : " ") + std::string(fd->isExternallyVisible() ? "F:" : "F@" + tuId + ":") +
-                    fd->getNameAsString();
+            line += (line.empty() ? "" : " ") + keys.ForFunction(fd);
         }
         if (!line.empty()) {
             dump.Line("callgraph", "scc #" + std::to_string(index++) + (it.hasCycle() ? " cycle " : " ") + line);
         }
     }
+}
+
+void OobSummaryChecker::dumpKeys(const TranslationUnitDecl *tu, const std::string &tuId, oobsum::KeyMaker &keys) const
+{
+    // SPEC-0003 §2.3：键表；某个文件第一次被引用时先打一行 file，把 id 对回路径
+    std::string content;
+    std::set<std::string> shownFiles;
+    for (const oobsum::KeyInfo &info : oobsum::CollectKeys(tu, keys)) {
+        if (!dump.Wants("keys", info.scopeName)) {
+            continue;
+        }
+        if (shownFiles.insert(info.fileId).second) {
+            std::string fileLine = "file " + info.fileId + " " + info.file;
+            dump.Line("keys", fileLine);
+            content += fileLine + "\n";
+        }
+        std::string line = info.key + " " + info.kind + (info.def ? " def" : " decl") + (info.header ? " header" : "") +
+                           " " + info.file + ":" + std::to_string(info.line) + ":" + std::to_string(info.col);
+        dump.Line("keys", line);
+        content += line + "\n";
+    }
+    dump.File(tuId + "/keys/keys.txt", content);
 }
 
 void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisManager &mgr, BugReporter &br) const
@@ -157,17 +184,21 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
     const FileEntry *mainEntry = sm.getFileEntryForID(sm.getMainFileID());
     std::string mainFile = mainEntry != nullptr ? mainEntry->getName().str() : "<unknown>";
     std::string tuId = oobsum::TuId(mainFile);
+    oobsum::KeyMaker keys(sm);
 
     if (dump.On("options")) {
         dump.Line("options", optionsText);
     }
+    if (dump.On("keys")) {
+        dumpKeys(tu, tuId, keys);
+    }
     if (dump.On("callgraph")) {
-        dumpCallGraph(tu, tuId);
+        dumpCallGraph(tu, keys);
     }
 
     // 判定来源：目前只有调试内建函数；引擎接入后在这里加上 lower → solve → apply 产出的判定
     std::vector<oobsum::Decision> decisions;
-    DebugIntrinsicVisitor visitor(sm, decisions);
+    DebugIntrinsicVisitor visitor(sm, keys, decisions);
     visitor.astContext = &mgr.getASTContext();
     visitor.TraverseDecl(const_cast<TranslationUnitDecl *>(tu));
 
@@ -232,9 +263,9 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
     std::string unknownKind;
     if (!chk->dump.Configure(chk->dumpKinds, chk->dumpFilter, chk->workDir, unknownKind)) {
         mgr.reportInvalidCheckerOptionValue(chk, "Dump",
-                                            "kinds separated by '+' from options, callgraph, fir, state, summary, "
-                                            "apply, decisions, stats, all (and a valid DumpFilter regex); got '" +
-                                                unknownKind + "'");
+                                            "kinds separated by '+' from options, callgraph, keys, fir, state, "
+                                            "summary, apply, decisions, stats, all (and a valid DumpFilter regex); "
+                                            "got '" + unknownKind + "'");
     }
     chk->optionsText = "Phase=" + chk->phase + " WorkDir=\"" + chk->workDir + "\" Policy=" + policyName +
                        " InlineDepth=" + std::to_string(chk->policy.inlineDepth) +

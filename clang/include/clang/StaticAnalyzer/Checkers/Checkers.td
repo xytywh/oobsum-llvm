@@ -1736,7 +1736,7 @@ def OobSummaryChecker : Checker<"OobSummary">,
                   "Reasons that produce suspect reports, separated by '+' (empty: all reasons)",
                   "", Released>,
     CmdLineOption<String, "Dump",
-                  "Debug output to stderr and WorkDir/dump, kinds separated by '+': options, callgraph, fir, "
+                  "Debug output to stderr and WorkDir/dump, kinds separated by '+': options, callgraph, keys, fir, "
                   "state, summary, apply, decisions, stats, or all",
                   "", Released>,
     CmdLineOption<String, "DumpFilter",

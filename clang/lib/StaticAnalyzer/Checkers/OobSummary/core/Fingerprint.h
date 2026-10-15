@@ -16,7 +16,8 @@ namespace oobsum {
 
 // 16 位十六进制
 std::string HashHex(llvm::StringRef text);
-// 规范化路径（去掉 ./、合并 ..、统一分隔符）后的哈希：TU 的 id（驱动脚本按同一规则从 compile_commands.json 算）
+// 规范化路径（make_absolute、去掉 ./、合并 ..、统一分隔符）后的哈希：TU 的 id（驱动脚本按同一规则从 compile_commands.json 算）；
+// 与文件 id 同一规则（SPEC-0003 §2.1，见 Key.h 的 FileId）
 std::string TuId(llvm::StringRef mainFilePath);
 // F-34
 std::string DecisionFingerprint(llvm::StringRef label, llvm::StringRef entryKey, llvm::StringRef accessKey,

@@ -138,6 +138,8 @@ add_clang_library(clangStaticAnalyzerCheckers
   OobSummary/core/Policy.cpp
   OobSummary/debug/DumpSink.cpp
   OobSummary/report/Reporter.cpp
+  OobSummary/core/Key.cpp
+  OobSummary/lower/Keys.cpp
 
   LINK_LIBS
   clangAST
