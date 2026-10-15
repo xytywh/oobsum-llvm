@@ -21,7 +21,7 @@ void Ue_InitOne(UE_TBL_S *pstTbl, UINT32 ulIdx)
 
 // CHECK: [oobsum:fir] record #0 UE_TBL_S size=16 { ulId@0: u32; aucData@4: u8[12] }
 // CHECK-NEXT: [oobsum:fir] global G:g_ulUeNum: u32 def @fir-spec-example.c:15:8
-// CHECK-NEXT: [oobsum:fir] fn F:Ue_InitOne ext -> void @fir-spec-example.c:17:6 [body_pending]
+// CHECK-NEXT: [oobsum:fir] fn F:Ue_InitOne ext -> void @fir-spec-example.c:17:6
 // CHECK-NEXT: [oobsum:fir]   local l0 pstTbl param0: rec#0*
 // CHECK-NEXT: [oobsum:fir]   local l1 ulIdx param1: u32
 // CHECK-NEXT: [oobsum:fir]   b2 entry:

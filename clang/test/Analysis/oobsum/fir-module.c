@@ -1,5 +1,5 @@
 // 模块骨架（oobsum/specs/SPEC-0007 §2.3、§2.4；SPEC-0006 §3 的 Dump=fir）：全局、函数签名、局部（param / obj）、CFG 块与边。
-// 块号与 debug.DumpCFG 的 [B<n>] 一致；本步的边都不带条件，函数带 body_pending（S4c 去掉）。
+// 块号与 debug.DumpCFG 的 [B<n>] 一致；本步的边都不带条件（S5 加 assume）。
 // RUN: rm -rf %t && mkdir -p %t
 // RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -I %S/Inputs \
 // RUN:   -analyzer-checker=rb.enhance.ipa.OobSummary -analyzer-config rb.enhance.ipa.OobSummary:Dump=fir \
@@ -53,12 +53,12 @@ static void Mod_Nop(void) {}
 // CHECK-NEXT: [oobsum:fir] global S@F:Mod_Sum:s_calls: i32 def @fir-module.c:31:16
 // CHECK-NEXT: [oobsum:fir] global G:g_ext2: i32 decl @fir-module.c:32:16
 // 头文件 static inline 也导出（X-01）
-// CHECK-NEXT: [oobsum:fir] fn F@{{[0-9a-f]+}}:hdr_min -> i32 @keys.h:1:19 [body_pending]
+// CHECK-NEXT: [oobsum:fir] fn F@{{[0-9a-f]+}}:hdr_min -> i32 @keys.h:1:19
 // CHECK-NEXT: [oobsum:fir]   local l0 a param0: i32
 // CHECK-NEXT: [oobsum:fir]   local l1 b param1: i32
 // CHECK: [oobsum:fir]   b5 entry:
 // 局部：先形参再函数体里的变量；数组、结构体、取过地址的标量是 obj；同名嵌套变量各有各的号；函数内 static / 块作用域 extern 不是局部
-// CHECK: [oobsum:fir] fn F:Mod_Sum ext -> i32 @fir-module.c:23:5 [body_pending]
+// CHECK: [oobsum:fir] fn F:Mod_Sum ext -> i32 @fir-module.c:23:5
 // CHECK-NEXT: [oobsum:fir]   local l0 piBuf param0: i32*
 // CHECK-NEXT: [oobsum:fir]   local l1 n param1: u32
 // CHECK-NEXT: [oobsum:fir]   local l2 sum: i32
@@ -94,7 +94,7 @@ static void Mod_Nop(void) {}
 // CHECK-NEXT: [oobsum:fir]   b1:
 // CHECK: [oobsum:fir]     -> b0
 // CHECK-NEXT: [oobsum:fir]   b0 exit:
-// CHECK-NEXT: [oobsum:fir] fn F@[[TU]]:Mod_Nop -> void @fir-module.c:44:13 [body_pending]
+// CHECK-NEXT: [oobsum:fir] fn F@[[TU]]:Mod_Nop -> void @fir-module.c:44:13
 // CHECK-NEXT: [oobsum:fir]   b1 entry:
 // CHECK-NEXT: [oobsum:fir]     -> b0
 // CHECK-NEXT: [oobsum:fir]   b0 exit:
@@ -102,7 +102,7 @@ static void Mod_Nop(void) {}
 // CHECK-NOT: error
 
 // TXT: module tu={{[0-9a-f]+}} file={{.*}}/fir-module.c
-// TXT: fn F:Mod_Sum ext -> i32 @fir-module.c:23:5 [body_pending]
+// TXT: fn F:Mod_Sum ext -> i32 @fir-module.c:23:5
 // TXT:   local l5 x obj: i32
 
 // 对象键按字母排序：funcs 在 schema 前面

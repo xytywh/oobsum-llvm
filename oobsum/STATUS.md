@@ -54,8 +54,8 @@
 - [x] **S4c-1 直线代码指令**（SPEC-0008 §2.1–§2.7）：常量折叠、转换、算术（回绕形）、比较、指针算术、下标（`sub`）、成员（`fld` / 柔性不收窄 / 位域字节数）、
       `*p` / `&x`、赋值、标量初始化、`return`、调用（直接 / 间接 / builtin / `__builtin_expect`）、结构体按值读的 `load`、内联汇编。lit 13 个全过；
       67 个用例 502 个函数降级无错误，`unk` 只剩 `pending:*`（S4c-2）与 `cond_value`（S5）。06- §5.2 的例子逐字复现。
-- [ ] **S4c-2**（SPEC-0008 §2.8）：`++` / `--`（先 load 再 store）、复合赋值、结构体拷贝 `__oobsum_copy`、初始化列表逐元素；去掉 `body_pending`。
-      目前这些先降成"写入未知值"（`havoc` / `store … = ?`，安全的过近似）。
+- [x] **S4c-2**（SPEC-0008 §2.8）：`++` / `--`（内存先 load 再 store）、复合赋值（按计算类型）、结构体拷贝 `__oobsum_copy`、初始化列表逐元素；
+      去掉 `body_pending`；修正 S4c-1 的赋值表达式取值（`y = (x = x + 1)`）。lit 14 个；67 个用例只剩 `unk(cond_value)`（S5）。
 - [ ] **S5 降级补全**：分支 / 循环（assume 边）、`?:`、`&&`/`||`、`switch`；`unsupported` 计入判定日志（SUSPECT:unsupported_construct）。
 - [ ] **S6 表达式代数**（WP2，A-10…A-17）：`core/LinExpr`、`core/Bound`；与 `replay.py` 的 `Lin`/`Env` 同语义；约 120 条单元测试。
 - [ ] **S7 函数内解释**（WP3）：状态、WTO、不动点、转移、访问检查与 Req 生成；`Dump=state`；depth 0 的判定接进标签与日志。
@@ -81,7 +81,6 @@
 * `run.py csa` 的基线只在有意改变时 `--save`（不能与 `--only` 同用），提交信息里写清楚哪些入口的实际变了；`csa-result.json` 在
   `cmake-build-release/oobsum-csa/`。`alerts.json` / `replay.py` 仍把 `记账` 当成不报，补不补 SUSPECT 条目留到 S8 另写 SPEC。
 * 直接跑 cc1 时 ARM / AArch64 的 `char` 默认**有符号**（driver 才会加 `-fno-signed-char`）：本地脚本已处理；手写 cc1 命令时记得加。
-* 降级的函数目前带 `body_pending`（没有指令，S4c 补）；引擎接上前必须去掉。
 * **LLVM 14.0.0 的 `json::parse` 把超出 int64 的整数悄悄饱和成 INT64_MAX / INT64_MIN**（实测，不报错）。FIR 读入因此把这两个值本身也拒绝，
   降级遇到这么大的常量要写 `["unk", "const_overflow"]`（SPEC-0005 §2.3 #5）；S8 的 C++ 摘要读入同样要守这条。
 * 头文件里的 `static inline` 目前同名同键（SPEC-0003 §2.1）：S4 加 `#<FIR 哈希前 8 位>` 之前，同一头文件里因宏展开不同而函数体不同的版本

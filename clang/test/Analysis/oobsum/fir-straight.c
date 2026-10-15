@@ -184,7 +184,7 @@ void Asm(UINT32 *p)
 // CHECK-NEXT: l4 = l5  @106:16
 // CHECK-NEXT: l6 = call F:Callee(1, padd(l0, l1)) #1  @107:5
 // CHECK-NEXT: l7 = call *(l2)(l1, l0) #2  @108:10
-// CHECK-NEXT: l4 = havoc(pending:compound_assign)  @108:5
+// CHECK-NEXT: l4 = (l4 + l7):u32  @108:5
 // CHECK-NEXT: l8 = call F:memcpy(l0, l3, l1) #3  @109:5
 // CHECK-NOT: __builtin_expect
 // CHECK:      l9 = load28 [l3]  @113:10

@@ -1,6 +1,6 @@
 //===-- Lowering.cpp - Clang AST/CFG to FIR ---------------------*- C++ -*-===//
 //
-// 见 Lowering.h。本步（SPEC-0007）只有骨架：函数带 flags: ["body_pending"]（临时，S4c 去掉）。
+// 见 Lowering.h。骨架见 SPEC-0007，指令见 SPEC-0008。
 //
 //===----------------------------------------------------------------------===//
 
@@ -212,7 +212,6 @@ private:
             f.exit = 0;
             return;
         }
-        f.flags.push_back("body_pending");  // SPEC-0008：S4c-2 做完副作用构造后去掉
         std::vector<const CFGBlock *> blocks(cfg->begin(), cfg->end());
         std::sort(blocks.begin(), blocks.end(),
                   [](const CFGBlock *a, const CFGBlock *b) { return a->getBlockID() > b->getBlockID(); });
@@ -619,13 +618,153 @@ private:
             case UO_PreDec:
             case UO_PostInc:
             case UO_PostDec:
-                // S4c-2 细化；先写成"写入未知值"（安全的过近似）
-                WriteUnknown(ValueOf(op), uo, "pending:inc_dec");
-                return R(Unknown("pending:inc_dec"));
+                return IncDec(uo);
             default:
                 break;
         }
         return R(Unknown(std::string("unary:") + UnaryOperator::getOpcodeStr(uo->getOpcode()).str()));
+    }
+
+    // 读左值的旧值：标量局部是 l<id>（引用"当前值"），内存左值生成 load（一次 R 访问）
+    fir::ExprId ReadOld(const Val &target, QualType type, const Stmt *at)
+    {
+        if (target.kind == Val::LocalLV) {
+            return Local(target.local);
+        }
+        if (target.kind != Val::MemLV) {
+            return target.expr;
+        }
+        fir::Inst load;
+        load.op = fir::InstOp::Load;
+        load.dst = NewTemp(type);
+        load.addr = target.expr;
+        load.size = target.size < 0 ? 0 : target.size;
+        load.sub = target.sub;
+        uint32_t dst = load.dst;
+        Emit(std::move(load), at);
+        return Local(dst);
+    }
+
+    // 赋值类表达式的值：标量局部取赋值之后的 l<id>（右边那棵树可能引用了被改写的局部，不能再用），内存左值取写进去的值
+    Val AssignedValue(const Val &target, fir::ExprId stored) const
+    {
+        Val v;
+        if (target.kind == Val::LocalLV) {
+            v.kind = Val::LocalLV;
+            v.local = target.local;
+            return v;
+        }
+        return R(stored);
+    }
+
+    // 整数转换（宽度或符号变了才 cast）
+    fir::ExprId Convert(fir::ExprId v, QualType from, QualType to)
+    {
+        if (!from->isIntegerType() || !to->isIntegerType()) {
+            return v;
+        }
+        if (Width(from) == Width(to) && Signed(from) == Signed(to)) {
+            return v;
+        }
+        return Add(fir::Expr::Cast(Width(to), Signed(to), v));
+    }
+
+    // p ± n（n 是元素个数）
+    fir::ExprId PointerStep(fir::ExprId p, QualType pointerType, fir::ExprId n, bool minus)
+    {
+        int64_t elem = SizeOf(pointerType->getPointeeType());
+        if (elem <= 0) {
+            return Add(fir::Expr::PAdd(p, Unknown("pointee_size")));
+        }
+        fir::ExprId off = Scaled(n, minus ? -elem : elem);
+        if (elem == 1 && minus && fn->exprs[n].op != fir::ExprOp::Const) {
+            off = Add(fir::Expr::Unary(fir::ExprOp::Neg, n));
+        }
+        return PAdd(p, off);
+    }
+
+    // SPEC-0008 §2.8：++x / x++ / --x / x--；后缀形的值是旧值
+    Val IncDec(const UnaryOperator *uo)
+    {
+        const Expr *op = uo->getSubExpr();
+        QualType t = op->getType();
+        Val target = ValueOf(op);
+        bool inc = uo->isIncrementOp();
+        if (!t->isIntegerType() && !t->isPointerType()) {
+            WriteUnknown(target, uo, "float");
+            return R(Unknown("float"));
+        }
+        fir::ExprId old = ReadOld(target, t, uo);
+        if (uo->isPostfix() && target.kind == Val::LocalLV) {
+            // l<id> 引用的是当前值，写回之前先把旧值存进临时局部
+            fir::Inst save;
+            save.op = fir::InstOp::Set;
+            save.dst = NewTemp(t);
+            save.val = old;
+            uint32_t saved = save.dst;
+            Emit(std::move(save), uo);
+            old = Local(saved);
+        }
+        fir::ExprId next;
+        if (t->isPointerType()) {
+            next = PointerStep(old, t, Const(1), !inc);
+        } else if (t->isBooleanType()) {
+            next = inc ? Const(1) : Add(fir::Expr::Unary(fir::ExprOp::LNot, old));
+        } else {
+            next = Add(fir::Expr::Bin(inc ? fir::BinOp::Add : fir::BinOp::Sub, old, Const(1), Width(t), Signed(t)));
+        }
+        Store(target, next, uo);
+        return uo->isPostfix() ? R(old) : AssignedValue(target, next);
+    }
+
+    // SPEC-0008 §2.8：x op= e——读旧值，按计算类型算新值，转回左边的类型写回
+    Val CompoundAssign(const CompoundAssignOperator *ca)
+    {
+        const Expr *lhs = ca->getLHS();
+        QualType lt = lhs->getType();
+        Val target = ValueOf(lhs);
+        if (!lt->isIntegerType() && !lt->isPointerType()) {
+            WriteUnknown(target, ca, "float");
+            return R(Unknown("float"));
+        }
+        fir::ExprId old = ReadOld(target, lt, ca);
+        fir::ExprId rhs = RValueOf(ca->getRHS());
+        fir::ExprId next;
+        BinaryOperatorKind opc = BinaryOperator::getOpForCompoundAssignment(ca->getOpcode());
+        if (lt->isPointerType() && (opc == BO_Add || opc == BO_Sub)) {
+            next = PointerStep(old, lt, rhs, opc == BO_Sub);
+        } else {
+            static const std::map<BinaryOperatorKind, fir::BinOp> arith = {
+                {BO_Add, fir::BinOp::Add}, {BO_Sub, fir::BinOp::Sub}, {BO_Mul, fir::BinOp::Mul},
+                {BO_Div, fir::BinOp::Div}, {BO_Rem, fir::BinOp::Rem}, {BO_Shl, fir::BinOp::Shl},
+                {BO_Shr, fir::BinOp::Shr}, {BO_And, fir::BinOp::And}, {BO_Or, fir::BinOp::Or},
+                {BO_Xor, fir::BinOp::Xor}};
+            auto it = arith.find(opc);
+            QualType computeLhs = ca->getComputationLHSType();
+            QualType computeResult = ca->getComputationResultType();
+            if (it == arith.end() || !computeResult->isIntegerType()) {
+                next = Unknown("compound_assign");
+            } else {
+                fir::ExprId value = Add(fir::Expr::Bin(it->second, Convert(old, lt, computeLhs), rhs,
+                                                       Width(computeResult), Signed(computeResult)));
+                next = Convert(value, computeResult, lt);
+            }
+        }
+        Store(target, next, ca);
+        return AssignedValue(target, next);
+    }
+
+    // A-06：结构体整体赋值 / 用结构体初始化 → call __oobsum_copy(&dst, &src, sizeof)
+    void StructCopy(fir::ExprId dst, const Expr *source, int64_t size, const Stmt *at)
+    {
+        const Expr *src = source->IgnoreParenImpCasts();
+        Val from = ValueOf(src);
+        fir::Inst call;
+        call.op = fir::InstOp::Call;
+        call.callee = "F:__oobsum_copy";
+        call.args = {dst, from.kind == Val::MemLV ? from.expr : Unknown("struct_rvalue"), Const(size)};
+        call.ord = callOrd++;
+        Emit(std::move(call), at);
     }
 
     Val Binary(const BinaryOperator *bo)
@@ -636,9 +775,8 @@ private:
         if (opc == BO_Assign) {
             return Assign(bo);
         }
-        if (bo->isCompoundAssignmentOp()) {
-            WriteUnknown(ValueOf(lhs), bo, "pending:compound_assign");  // S4c-2
-            return R(Unknown("pending:compound_assign"));
+        if (const auto *ca = dyn_cast<CompoundAssignOperator>(bo)) {
+            return CompoundAssign(ca);
         }
         if (opc == BO_Comma) {
             ValueOf(lhs);
@@ -700,12 +838,12 @@ private:
     {
         Val target = ValueOf(bo->getLHS());
         if (bo->getType()->isRecordType()) {
-            WriteUnknown(target, bo, "pending:struct_copy");  // S4c-2：__oobsum_copy
+            StructCopy(AddrOf(target, bo->getLHS()), bo->getRHS(), SizeOf(bo->getType()), bo);
             return R(Unknown("struct_by_value"));
         }
         fir::ExprId value = RValueOf(bo->getRHS());
         Store(target, value, bo);
-        return R(value);
+        return AssignedValue(target, value);
     }
 
     void Store(const Val &target, fir::ExprId value, const Stmt *at)
@@ -820,10 +958,77 @@ private:
         }
         QualType t = vd->getType().getCanonicalType();
         if (t->isArrayType() || t->isRecordType()) {
-            WriteUnknown(target, vd->getInit(), "pending:aggregate_init");  // S4c-2：初始化列表逐元素
+            const Expr *bare = init->IgnoreParenImpCasts();
+            if (t->isRecordType() && !isa<InitListExpr>(bare)) {
+                StructCopy(target.expr, init, SizeOf(t), init);  // CTX_S st = *p;
+                return;
+            }
+            unsigned budget = kMaxInitStores;
+            InitAggregate(target.expr, t, init, 0, budget, init);
             return;
         }
         Store(target, RValueOf(init), init);
+    }
+
+    // SPEC-0008 §2.8：初始化列表逐个标量元素按偏移 store（每个对象至多 kMaxInitStores 个；
+    // 隐式补零、字符串初始化、位域不降——值未知，对召回是安全的）
+    static constexpr unsigned kMaxInitStores = 64;
+
+    void InitAggregate(fir::ExprId base, QualType type, const Expr *init, int64_t off, unsigned &budget,
+                       const Stmt *at)
+    {
+        QualType t = type.getCanonicalType();
+        const Expr *e = init->IgnoreParens();
+        if (budget == 0 || isa<ImplicitValueInitExpr>(e) || isa<StringLiteral>(e)) {
+            return;
+        }
+        if (const auto *list = dyn_cast<InitListExpr>(e)) {
+            if (const auto *array = dyn_cast<ConstantArrayType>(t.getTypePtr())) {
+                int64_t elem = SizeOf(array->getElementType());
+                for (unsigned i = 0; i < list->getNumInits() && elem > 0; ++i) {
+                    InitAggregate(base, array->getElementType(), list->getInit(i), off + i * elem, budget, at);
+                }
+                return;
+            }
+            if (const auto *rt = t->getAs<RecordType>()) {
+                const RecordDecl *rd = rt->getDecl()->getDefinition();
+                if (rd == nullptr) {
+                    return;
+                }
+                const ASTRecordLayout &rl = ctx.getASTRecordLayout(rd);
+                if (rd->isUnion()) {
+                    const FieldDecl *field = list->getInitializedFieldInUnion();
+                    if (field != nullptr && list->getNumInits() == 1 && !field->isBitField()) {
+                        InitAggregate(base, field->getType(), list->getInit(0), off, budget, at);
+                    }
+                    return;
+                }
+                unsigned i = 0;
+                for (const FieldDecl *field : rd->fields()) {
+                    if (field->isUnnamedBitfield()) {
+                        continue;
+                    }
+                    if (i >= list->getNumInits()) {
+                        break;
+                    }
+                    const Expr *fieldInit = list->getInit(i++);
+                    if (!field->isBitField()) {
+                        int64_t fieldOff = static_cast<int64_t>(rl.getFieldOffset(field->getFieldIndex()) / 8);
+                        InitAggregate(base, field->getType(), fieldInit, off + fieldOff, budget, at);
+                    }
+                }
+                return;
+            }
+            if (list->getNumInits() == 1) {
+                InitAggregate(base, t, list->getInit(0), off, budget, at);  // int x = {5};
+            }
+            return;
+        }
+        if (!t->isScalarType()) {
+            return;  // 嵌套的结构体整体初始化等：值未知
+        }
+        --budget;
+        Store(Mem(Offset(base, off), SizeOf(t)), RValueOf(e), at);
     }
 
     void LowerReturn(const ReturnStmt *rs)
