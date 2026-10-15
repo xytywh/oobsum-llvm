@@ -395,7 +395,7 @@ FIR 是"能决定越界的最少信息"：类型只留大小与字段布局，�
 | `["psub", P1, P2, elem]` | 指针相减（元素数） |
 | `["unk", why]` | 未知值 |
 
-**D-14 边**：〔SPEC-0007：S4b 先导出不带 `assume` 的边（过近似），S5 加条件〕`succ: [{to, assume?}]`。`if` / 循环条件降成两条边上的 `assume E` / `assume ["lnot", E]`；`switch` 降成每个 `case` 一条
+**D-14 边**：〔SPEC-0009 实现：后继 0 为真、`&&` / `||` 第二块测最后一个元素、常数条件与 GNU 区间不带条件、`default` 为各 `!=` 的按位与；A-04 推广到汇合块的所有前驱〕`succ: [{to, assume?}]`。`if` / 循环条件降成两条边上的 `assume E` / `assume ["lnot", E]`；`switch` 降成每个 `case` 一条
 `assume x == c` 与 `default` 一条（`case` 超过 16 个时 `default` 不带 assume）。`&&`、`||`、`?:` 由 Clang CFG 拆好，
 `?:` 的结果在两个前驱块末尾各补一条 `set tmp`（**A-04**）。
 

@@ -41,3 +41,4 @@
 | [SPEC-0006](SPEC-0006-fir-text-dump.md) | FIR 的文本记法（`core/FirText`）与 `Dump=fir` | 已实现（S4a、S4b） |
 | [SPEC-0007](SPEC-0007-lower-skeleton.md) | 降级第一步：类型布局与模块骨架（`lower/TypeLayout`、`lower/Lowering`），接上 `Dump=fir` | 已实现（S4b） |
 | [SPEC-0008](SPEC-0008-lower-straight-line.md) | 降级：直线代码的指令（A-01…A-03、A-05…A-08） | 已实现（S4c-1、S4c-2） |
+| [SPEC-0009](SPEC-0009-lower-control-flow.md) | 降级：条件边（`assume`）、`switch`、`?:` / `&&` / `\|\|` 当值用（D-14、A-04） | 已实现（S5） |

@@ -175,9 +175,11 @@ void Asm(UINT32 *p)
 // CHECK-NEXT: l6 = load1 [padd(str3, l0)] sub  @92:12
 // CHECK-NEXT: l7 = load4 [&l2]  @92:23
 // CHECK-NEXT: ret ((u32)l6 + l7):u32  @92:5
-// ?: 当值用：S5 之前是 unk(cond_value)
+// ?: 当值用：两支各自 set 临时局部，汇合块引用它（SPEC-0009 §2.3；细节在 fir-branches.c）
 // CHECK: [oobsum:fir] fn F:Cond
-// CHECK:      l2 = unk(cond_value)  @97:16
+// CHECK:      l3 = l1  @97:16
+// CHECK:      l3 = l0  @97:16
+// CHECK:      l2 = l3  @97:16
 // 调用：直接 / 间接；__builtin_memcpy → F:memcpy；__builtin_expect 不生成调用；结构体按值：读整个结构体（load28），实参 unk；ord 递增
 // CHECK: [oobsum:fir] fn F:Calls
 // CHECK:      l5 = call F:Callee(l1, l0) #0  @106:16

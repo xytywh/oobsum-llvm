@@ -199,7 +199,7 @@ private:
 
     // ---- 块 ----
 
-    // A-01：与 CSA 同一份 CFG；块按号从大到小（入口在前、出口 b0 在后）；边先不带 assume（SPEC-0007 §2.4）
+    // A-01：与 CSA 同一份 CFG；块按号从大到小（入口在前、出口 b0 在后）
     void LowerBody(const FunctionDecl *fd, fir::Function &f)
     {
         const CFG *cfg = mgr.getCFG(fd);
@@ -215,8 +215,25 @@ private:
         std::vector<const CFGBlock *> blocks(cfg->begin(), cfg->end());
         std::sort(blocks.begin(), blocks.end(),
                   [](const CFGBlock *a, const CFGBlock *b) { return a->getBlockID() > b->getBlockID(); });
+
+        // SPEC-0009 §2.3：当值用的 ?: / && / ||（是语句元素）各分一个临时局部，汇合块是它所在的块
+        std::vector<std::pair<const CFGBlock *, const Expr *>> merges;
+        mergeTmps.clear();
+        for (const CFGBlock *block : blocks) {
+            for (const CFGElement &element : *block) {
+                llvm::Optional<CFGStmt> stmt = element.getAs<CFGStmt>();
+                const auto *e = stmt ? dyn_cast<Expr>(stmt->getStmt()) : nullptr;
+                if (e != nullptr && IsValueBranch(e) && mergeTmps.count(e) == 0) {
+                    mergeTmps[e] = NewTemp(e->getType());
+                    merges.emplace_back(block, e);
+                }
+            }
+        }
+
+        llvm::DenseMap<unsigned, size_t> index;  // CFG 块号 → f.blocks 下标
         f.blocks.reserve(blocks.size());
         for (const CFGBlock *block : blocks) {
+            index[block->getBlockID()] = f.blocks.size();
             f.blocks.emplace_back();
             cur = &f.blocks.back();
             cur->id = block->getBlockID();
@@ -225,16 +242,193 @@ private:
                     LowerElement(stmt->getStmt());
                 }
             }
+        }
+
+        // A-04：在汇合块的每个前驱块末尾补 set tmp
+        for (const auto &merge : merges) {
+            const CFGBlock *join = merge.first;
+            const Expr *e = merge.second;
+            bool logical = isa<BinaryOperator>(e);
+            for (const CFGBlock::AdjacentBlock &pred : join->preds()) {
+                const CFGBlock *p = pred.getReachableBlock();
+                if (p == nullptr || index.count(p->getBlockID()) == 0) {
+                    continue;
+                }
+                cur = &f.blocks[index[p->getBlockID()]];
+                fir::ExprId value = fir::kNone;
+                const auto *term = dyn_cast_or_null<BinaryOperator>(p->getTerminatorStmt());
+                if (logical && term != nullptr && term->isLogicalOp()) {
+                    // 短路的那一跳：走后继 0 时被测值为真
+                    unsigned i = 0;
+                    for (const CFGBlock::AdjacentBlock &succ : p->succs()) {
+                        if (succ.getReachableBlock() == join) {
+                            break;
+                        }
+                        ++i;
+                    }
+                    value = Const(i == 0 ? 1 : 0);
+                } else if (const Expr *last = LastExpr(p)) {
+                    value = logical ? AsCondition(RValueOf(last)) : RValueOf(last);
+                } else {
+                    value = Unknown("cond_value");
+                }
+                fir::Inst set;
+                set.op = fir::InstOp::Set;
+                set.dst = mergeTmps[e];
+                set.val = value;
+                Emit(std::move(set), e);
+            }
+        }
+
+        for (const CFGBlock *block : blocks) {
+            cur = &f.blocks[index[block->getBlockID()]];
+            std::vector<fir::ExprId> assumes(block->succ_size(), fir::kNone);
+            if (!SwitchEdges(block, assumes)) {
+                BranchEdges(block, assumes);
+            }
+            unsigned i = 0;
             for (const CFGBlock::AdjacentBlock &succ : block->succs()) {
+                // 不可达的后继不导出，但按原下标对应真假（SPEC-0009 §2.1）
                 if (const CFGBlock *reachable = succ.getReachableBlock()) {
                     fir::Edge edge;
                     edge.to = reachable->getBlockID();
+                    edge.assume = assumes[i];
                     cur->succ.push_back(edge);
                 }
+                ++i;
             }
         }
         f.entry = cfg->getEntry().getBlockID();
         f.exit = cfg->getExit().getBlockID();
+    }
+
+    static bool IsValueBranch(const Expr *e)
+    {
+        const auto *bo = dyn_cast<BinaryOperator>(e);
+        return isa<ConditionalOperator>(e) || (bo != nullptr && bo->isLogicalOp());
+    }
+
+    // 块里最后一个语句元素（表达式）
+    static const Expr *LastExpr(const CFGBlock *block)
+    {
+        for (auto it = block->rbegin(); it != block->rend(); ++it) {
+            if (llvm::Optional<CFGStmt> stmt = it->getAs<CFGStmt>()) {
+                const auto *e = dyn_cast<Expr>(stmt->getStmt());
+                return e != nullptr ? e->IgnoreParens() : nullptr;
+            }
+        }
+        return nullptr;
+    }
+
+    // 被测值 → 条件：比较与 !x 本身就是 0 / 1，其余写成 v != 0
+    fir::ExprId AsCondition(fir::ExprId v)
+    {
+        fir::ExprOp op = fn->exprs[v].op;
+        if (op == fir::ExprOp::Cmp || op == fir::ExprOp::LNot) {
+            return v;
+        }
+        return Add(fir::Expr::Cmp(fir::CmpOp::Ne, v, Const(0), false));
+    }
+
+    // 条件取反：比较翻转运算符（有无符号不变），!x 的反是 x != 0，其余 !C
+    fir::ExprId Negate(fir::ExprId c)
+    {
+        const fir::Expr e = fn->exprs[c];
+        if (e.op == fir::ExprOp::Cmp) {
+            static const fir::CmpOp flipped[] = {fir::CmpOp::Ne, fir::CmpOp::Eq, fir::CmpOp::Ge,
+                                                 fir::CmpOp::Gt, fir::CmpOp::Le, fir::CmpOp::Lt};
+            return Add(fir::Expr::Cmp(flipped[e.sub], e.a, e.b, e.isSigned));
+        }
+        if (e.op == fir::ExprOp::LNot) {
+            return AsCondition(e.a);
+        }
+        return Add(fir::Expr::Unary(fir::ExprOp::LNot, c));
+    }
+
+    // SPEC-0009 §2.1：if / while / do / for / ?: / && / || —— 后继 0 是条件为真、后继 1 是条件为假
+    void BranchEdges(const CFGBlock *block, std::vector<fir::ExprId> &assumes)
+    {
+        const Stmt *term = block->getTerminatorStmt();
+        if (term == nullptr || block->succ_size() != 2) {
+            return;
+        }
+        const auto *logical = dyn_cast<BinaryOperator>(term);
+        bool branch = isa<IfStmt>(term) || isa<WhileStmt>(term) || isa<DoStmt>(term) || isa<ForStmt>(term) ||
+                      isa<ConditionalOperator>(term) || (logical != nullptr && logical->isLogicalOp());
+        if (!branch) {
+            return;
+        }
+        const auto *cond = dyn_cast_or_null<Expr>(block->getTerminatorCondition(true));
+        if (cond == nullptr) {
+            return;  // for (;;)
+        }
+        // 条件本身是 && / || 时，这个块被测的是它最后一个语句元素（同 ExprEngine 的 ResolveCondition）
+        const auto *bo = dyn_cast<BinaryOperator>(cond);
+        if (bo != nullptr && bo->isLogicalOp()) {
+            cond = LastExpr(block);
+            if (cond == nullptr) {
+                return;
+            }
+        }
+        fir::ExprId value = RValueOf(cond);
+        if (fn->exprs[value].op == fir::ExprOp::Const) {
+            return;  // while (1)：恒真 / 恒假，Clang 已把不可走的后继标成不可达
+        }
+        fir::ExprId c = AsCondition(value);
+        assumes[0] = c;
+        assumes[1] = Negate(c);
+    }
+
+    // SPEC-0009 §2.2：case c → v == c；GNU 区间不带条件；default（或 switch 之后）→ 各 != 的按位与（≤ 16 个 case、没有区间时）
+    bool SwitchEdges(const CFGBlock *block, std::vector<fir::ExprId> &assumes)
+    {
+        const auto *ss = dyn_cast_or_null<SwitchStmt>(block->getTerminatorStmt());
+        if (ss == nullptr) {
+            return false;
+        }
+        const Expr *cond = ss->getCond();
+        bool isSigned = cond->getType()->isIntegerType() && Signed(cond->getType());
+        fir::ExprId v = RValueOf(cond);
+        bool exact = true;  // 没有区间、所有 case 值都放得进 int64
+        std::vector<int64_t> values;
+        llvm::DenseMap<const SwitchCase *, int64_t> caseValue;
+        for (const SwitchCase *sc = ss->getSwitchCaseList(); sc != nullptr; sc = sc->getNextSwitchCase()) {
+            const auto *cs = dyn_cast<CaseStmt>(sc);
+            if (cs == nullptr) {
+                continue;
+            }
+            llvm::APSInt c = cs->getLHS()->EvaluateKnownConstInt(ctx);
+            bool fits = c.isSigned() ? c.getMinSignedBits() <= 63 : c.getActiveBits() <= 62;
+            if (cs->getRHS() != nullptr || !fits) {
+                exact = false;
+                continue;
+            }
+            int64_t value = c.isSigned() ? c.getSExtValue() : static_cast<int64_t>(c.getZExtValue());
+            values.push_back(value);
+            caseValue[cs] = value;
+        }
+        std::sort(values.begin(), values.end());
+        unsigned i = 0;
+        for (const CFGBlock::AdjacentBlock &succ : block->succs()) {
+            const CFGBlock *target = succ.getReachableBlock();
+            const Stmt *label = target != nullptr ? target->getLabel() : nullptr;
+            const auto *cs = dyn_cast_or_null<CaseStmt>(label);
+            if (cs != nullptr) {
+                auto it = caseValue.find(cs);
+                if (it != caseValue.end()) {
+                    assumes[i] = Add(fir::Expr::Cmp(fir::CmpOp::Eq, v, Const(it->second), isSigned));
+                }
+            } else if (exact && !values.empty() && values.size() <= 16) {
+                fir::ExprId conj = fir::kNone;
+                for (int64_t value : values) {
+                    fir::ExprId ne = Add(fir::Expr::Cmp(fir::CmpOp::Ne, v, Const(value), isSigned));
+                    conj = conj == fir::kNone ? ne : Add(fir::Expr::Bin(fir::BinOp::And, conj, ne));
+                }
+                assumes[i] = conj;
+            }
+            ++i;
+        }
+        return true;
     }
 
     void LowerElement(const Stmt *stmt)
@@ -479,7 +673,8 @@ private:
             }
         }
         if (isa<ConditionalOperator>(e) || isa<BinaryConditionalOperator>(e)) {
-            return R(Unknown("cond_value"));  // A-04：S5
+            auto it = mergeTmps.find(e);
+            return R(it != mergeTmps.end() ? Local(it->second) : Unknown("cond_value"));  // A-04、SPEC-0009 §2.3
         }
         if (isa<ImplicitValueInitExpr>(e) && e->getType()->isScalarType()) {
             return R(Const(0));
@@ -783,7 +978,8 @@ private:
             return ValueOf(rhs);
         }
         if (opc == BO_LAnd || opc == BO_LOr) {
-            return R(Unknown("cond_value"));  // A-04：S5
+            auto it = mergeTmps.find(bo);
+            return R(it != mergeTmps.end() ? Local(it->second) : Unknown("cond_value"));  // A-04、SPEC-0009 §2.3
         }
         QualType lt = lhs->getType();
         QualType rt = rhs->getType();
@@ -1050,6 +1246,7 @@ private:
     fir::Block *cur = nullptr;
     llvm::DenseMap<const Expr *, Val> memo;
     llvm::DenseMap<const VarDecl *, uint32_t> localIds;
+    llvm::DenseMap<const Expr *, uint32_t> mergeTmps;  // 当值用的 ?: / && / || → 临时局部（SPEC-0009 §2.3）
     unsigned tmpCount = 0;
     uint32_t callOrd = 0;
 };

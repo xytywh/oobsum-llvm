@@ -1,5 +1,5 @@
 // 模块骨架（oobsum/specs/SPEC-0007 §2.3、§2.4；SPEC-0006 §3 的 Dump=fir）：全局、函数签名、局部（param / obj）、CFG 块与边。
-// 块号与 debug.DumpCFG 的 [B<n>] 一致；本步的边都不带条件（S5 加 assume）。
+// 块号与 debug.DumpCFG 的 [B<n>] 一致；边上的条件在 fir-branches.c 里测。
 // RUN: rm -rf %t && mkdir -p %t
 // RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -I %S/Inputs \
 // RUN:   -analyzer-checker=rb.enhance.ipa.OobSummary -analyzer-config rb.enhance.ipa.OobSummary:Dump=fir \
@@ -68,7 +68,7 @@ static void Mod_Nop(void) {}
 // CHECK-NEXT: [oobsum:fir]   local l6 p: i32*
 // CHECK-NEXT: [oobsum:fir]   local l7 i: u32
 // CHECK-NEXT: [oobsum:fir]   local l8 x: i32
-// 块与边与 debug.DumpCFG 一致（B9 的两个后继来自函数内 static 的初始化分支；while 的回边 B4 -> B6）；边不带条件。
+// 块与边与 debug.DumpCFG 一致（B9 的两个后继来自函数内 static 的初始化分支；while 的回边 B4 -> B6）。
 // 指令在 fir-straight.c 里测，这里只看骨架：每个块的边紧接在下一个块头之前
 // CHECK: [oobsum:fir]   b10 entry:
 // CHECK: [oobsum:fir]     -> b9
