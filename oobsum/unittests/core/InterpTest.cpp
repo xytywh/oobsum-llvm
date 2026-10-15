@@ -130,6 +130,9 @@ std::string Print(const summary::Req &r)
 {
     std::string s = r.kind + " have=" + r.have + " obj=" + r.obj + " end=[" + r.endLo + ", " + r.endHi +
                     "] bound=" + r.bound + " at=" + r.access.at;
+    for (const std::string &g : r.guard) {
+        s += " guard=" + g;
+    }
     if (r.absorbed) {
         for (const summary::Absorbed &a : *r.absorbed) {
             s += " +" + a.kind + "[" + a.endLo + ", " + a.endHi + "]";
@@ -211,11 +214,14 @@ TEST(Interp, LocalArrayAndCells)
     b.Straight({b.Store(idxAddr, 4, b.L(n), 10), b.Load(t, idxAddr, 4, 11),
                 b.Store(b.PAdd(bufAddr, b.Math(BinOp::Mul, b.L(t), b.C(4))), 4, b.C(0), 12),
                 b.Store(b.PAdd(bufAddr, b.C(20)), 4, b.C(0), 13)});
-    EXPECT_EQ(Reqs(b.Run()),
-              // 第 11 行读 aulIdx[0] 与第 10 行的写末端相同：读并进写（写优先，A-44）
-              "W have=8 obj=local:aulIdx end=[4, 4] bound=exact at=t.c:10 +R[4, 4] | W have=16 obj=local:aulBuf "
-              "end=[4*p0 + 4, 4*p0 + 4] "
-              "bound=exact at=t.c:12 | W have=16 obj=local:aulBuf end=[24, 24] bound=exact at=t.c:13");
+    interp::FunctionFacts facts = b.Run();
+    // aulIdx[0] 的写与读（末端 4 ≤ 8）当场证明安全，不生成 Req（A-43 / A-44，SPEC-0016 §2.2）；常数越界的照常生成
+    EXPECT_EQ(Reqs(facts),
+              "W have=16 obj=local:aulBuf end=[4*p0 + 4, 4*p0 + 4] bound=exact at=t.c:12 | "
+              "W have=16 obj=local:aulBuf end=[24, 24] bound=exact at=t.c:13");
+    ASSERT_TRUE(facts.safe.size() == 2);
+    EXPECT_EQ(Print(facts.safe[0]), "W have=8 obj=local:aulIdx end=[4, 4] bound=exact at=t.c:10");
+    EXPECT_EQ(Print(facts.safe[1]), "R have=8 obj=local:aulIdx end=[4, 4] bound=exact at=t.c:11");
 }
 
 TEST(Interp, ParamFieldsAndMemberArray)
@@ -394,4 +400,184 @@ TEST(Interp, CallRecords)
     EXPECT_EQ(facts.calls[2].locals->at("t0").bound, "data");
     // 完全未知（havoc）的实参写成非接口符号（只会走向 entry_unproven，不写 null）
     EXPECT_EQ(args(facts.calls[3]), "_unknown0");
+}
+
+// ---- 条件边与守卫（SPEC-0016）----
+
+// 菱形：入口（带条件的两条边）→ 真 / 假 → 汇合 → 出口。块号：入口 5、真 4、假 3、汇合 1、出口 0
+struct Diamond {
+    Block entry, yes, no, join, exit;
+    Diamond()
+    {
+        entry.id = 5;
+        yes.id = 4;
+        no.id = 3;
+        join.id = 1;
+        exit.id = 0;
+        yes.succ = {{1, kNone}};
+        no.succ = {{1, kNone}};
+        join.succ = {{0, kNone}};
+    }
+    void Install(Builder &b, ExprId cond, ExprId negated)
+    {
+        entry.succ = {{4, cond}, {3, negated}};
+        b.f.blocks = {entry, yes, no, join, exit};
+        b.f.entry = 5;
+        b.f.exit = 0;
+    }
+};
+
+TEST(Interp, GuardFromEarlyReturn)
+{
+    // LV2-09 Hist_GetPrevSafe：if (n == 0) return; p[n − 1] → 守卫 p1 >= 1、n − 1 不回绕、末端 p1
+    Builder b;
+    uint32_t p = b.Param("pucHist", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("ulPos", b.u32);
+    uint32_t t = b.LocalVar("t", b.u8);
+    Diamond d;
+    d.yes.succ = {{0, kNone}};  // return 0
+    d.no.insts = {b.Load(t, b.PAdd(b.L(p), b.Wrap(BinOp::Sub, b.L(n), b.C(1))), 1, 37)};
+    ExprId eq = b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(n), b.C(0), false));
+    ExprId ne = b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(n), b.C(0), false));
+    d.Install(b, eq, ne);
+    interp::FunctionFacts facts = b.Run();
+    EXPECT_EQ(Reqs(facts), "R have=ext(p0) obj=*p0 end=[p1, p1] bound=exact at=t.c:37 guard=p1 >= 1");
+    ASSERT_TRUE(facts.reqs.size() == 1);
+    EXPECT_EQ(facts.reqs[0].start.getValueOr("-"), "p1 - 1");
+}
+
+TEST(Interp, GuardFromRangeCheck)
+{
+    // if (i >= 32) return; p[24*i + 4] = …（LV3-03 Port_SetMode）→ 守卫 p1 <= 31；!(i < 16) 写成 LNot
+    Builder b;
+    uint32_t p = b.Param("astPort", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t i = b.Param("ulPortId", b.u32);
+    Diamond d;
+    d.yes.succ = {{0, kNone}};
+    d.no.insts = {
+        b.Store(b.PAdd(b.L(p), b.Math(BinOp::Add, b.Math(BinOp::Mul, b.L(i), b.C(24)), b.C(4))), 4, b.C(0), 20)};
+    ExprId ge = b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(i), b.C(32), false));
+    d.Install(b, ge, b.f.Add(Expr::Unary(ExprOp::LNot, ge)));
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[24*p1 + 8, 24*p1 + 8] bound=exact at=t.c:20 guard=p1 <= 31");
+}
+
+TEST(Interp, GuardsUnreachableAndUnfaithful)
+{
+    // 两边常数且为假 → 边不可达（访问不产出）；n != 5 推不出线性原子；off + len 可能回绕 → 不当守卫
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t off = b.Param("off", b.u32);
+    uint32_t len = b.Param("len", b.u32);
+    uint32_t k = b.LocalVar("k", b.u32);
+    Block entry;
+    entry.id = 6;
+    entry.insts = {b.Set(k, b.C(3))};
+    ExprId never = b.f.Add(Expr::Cmp(CmpOp::Gt, b.L(k), b.C(10), false));
+    ExprId always = b.f.Add(Expr::Cmp(CmpOp::Le, b.L(k), b.C(10), false));
+    entry.succ = {{5, never}, {4, always}};
+    Block dead;
+    dead.id = 5;
+    dead.insts = {b.Store(b.PAdd(b.L(p), b.C(100)), 1, b.C(0), 10)};
+    dead.succ = {{0, kNone}};
+    Block live;
+    live.id = 4;
+    ExprId ne = b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(off), b.C(5), false));
+    live.succ = {{3, ne}, {0, b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(off), b.C(5), false))}};
+    Block checked;
+    checked.id = 3;
+    ExprId sum = b.Wrap(BinOp::Add, b.L(off), b.L(len));
+    ExprId fits = b.f.Add(Expr::Cmp(CmpOp::Le, sum, b.C(64), false));
+    checked.succ = {{2, fits}, {0, b.f.Add(Expr::Cmp(CmpOp::Gt, sum, b.C(64), false))}};
+    Block body;
+    body.id = 2;
+    body.insts = {b.Store(b.PAdd(b.L(p), b.L(off)), 1, b.C(0), 12)};
+    body.succ = {{0, kNone}};
+    Block exit;
+    exit.id = 0;
+    b.f.blocks = {entry, dead, live, checked, body, exit};
+    b.f.entry = 6;
+    b.f.exit = 0;
+    std::vector<std::string> trace;
+    interp::FunctionFacts facts = interp::AnalyzeFunction(b.m, b.f, &trace);
+    EXPECT_EQ(Reqs(facts), "W have=ext(p0) obj=*p0 end=[p1 + 1, p1 + 1] bound=exact at=t.c:12");
+    bool deadSeen = false;
+    for (const std::string &line : trace) {
+        deadSeen = deadSeen || line.rfind("b5:", 0) == 0;
+    }
+    EXPECT_FALSE(deadSeen);
+}
+
+TEST(Interp, GuardsJoinMergeAndCalls)
+{
+    // 一支有守卫 p1 <= 15、一支没有 → 汇合后没有守卫；守卫不同的两次访问不合并；调用点带守卫
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t i = b.Param("i", b.u32);
+    Diamond d;
+    ExprId lt = b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(i), b.C(16), false));
+    ExprId ge = b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(i), b.C(16), false));
+    Inst call;
+    call.op = InstOp::Call;
+    call.callee = "F@abc:Leaf";
+    call.args = {b.L(i)};
+    call.loc = {0, 8, 5};
+    d.yes.insts = {b.Store(b.PAdd(b.L(p), b.L(i)), 1, b.C(0), 7), call};
+    d.join.insts = {b.Store(b.PAdd(b.L(p), b.L(i)), 1, b.C(0), 9)};
+    d.Install(b, lt, ge);
+    std::vector<std::string> trace;
+    interp::FunctionFacts facts = interp::AnalyzeFunction(b.m, b.f, &trace);
+    EXPECT_EQ(Reqs(facts),
+              "W have=ext(p0) obj=*p0 end=[p1 + 1, p1 + 1] bound=exact at=t.c:7 guard=p1 <= 15 | "
+              "W have=ext(p0) obj=*p0 end=[p1 + 1, p1 + 1] bound=exact at=t.c:9");
+    ASSERT_TRUE(facts.calls.size() == 1);
+    ASSERT_TRUE(facts.calls[0].guards.hasValue());
+    ASSERT_TRUE(facts.calls[0].guards->size() == 1);
+    EXPECT_EQ((*facts.calls[0].guards)[0].cond, "p1 <= 15");
+    EXPECT_EQ((*facts.calls[0].guards)[0].bound, "check");
+    std::string joined;
+    for (const std::string &line : trace) {
+        if (line.rfind("b1:", 0) == 0) {
+            joined = line;
+        }
+        if (line.rfind("b4:", 0) == 0) {
+            EXPECT_EQ(line, "b4: p=*p0+0 i=p1 guards: p1 <= 15");
+        }
+    }
+    EXPECT_EQ(joined, "b1: p=*p0+0 i=p1");
+}
+
+TEST(Interp, NarrowRangeLocal)
+{
+    // 从未知内存读到的 u32（data）：if (k < 16) → [0, 15]（check），p[k] 末端 16；k == 3 → 确切值 3；
+    // k 是 [0, 15] 时 k > 20 的边不可达
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t q = b.Param("q", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t k = b.LocalVar("k", b.u32);
+    Block entry;
+    entry.id = 6;
+    entry.insts = {b.Load(k, b.f.Add(Expr::Unknown("float")), 4, 3)};
+    entry.succ = {{5, b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(k), b.C(16), false))},
+                  {0, b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(k), b.C(16), false))}};
+    Block small;
+    small.id = 5;
+    small.insts = {b.Store(b.PAdd(b.L(p), b.L(k)), 1, b.C(0), 5)};
+    small.succ = {{4, b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(k), b.C(3), false))},
+                  {3, b.f.Add(Expr::Cmp(CmpOp::Gt, b.L(k), b.C(20), false))}};
+    Block three;
+    three.id = 4;
+    three.insts = {b.Store(b.PAdd(b.L(q), b.Math(BinOp::Add, b.L(k), b.C(20))), 1, b.C(0), 6)};
+    three.succ = {{0, kNone}};
+    Block dead;
+    dead.id = 3;
+    dead.insts = {b.Store(b.PAdd(b.L(p), b.C(1000)), 1, b.C(0), 7)};
+    dead.succ = {{0, kNone}};
+    Block exit;
+    exit.id = 0;
+    b.f.blocks = {entry, small, three, dead, exit};
+    b.f.entry = 6;
+    b.f.exit = 0;
+    EXPECT_EQ(Reqs(b.Run()),
+              "W have=ext(p0) obj=*p0 end=[1, 16] bound=check at=t.c:5 | "
+              "W have=ext(p1) obj=*p1 end=[24, 24] bound=exact at=t.c:6 | open untracked_pointer at=t.c:3");
 }

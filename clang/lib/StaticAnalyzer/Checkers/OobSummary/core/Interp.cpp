@@ -386,7 +386,10 @@ struct State {
     bool reached = false;
     std::map<uint32_t, Value> locals;
     std::map<CellKey, Value> cells;
+    std::vector<LinExpr> guards;  // A-14：只含接口符号的 L ≤ 0，至多 8 个，先进先出（SPEC-0016）
 };
+
+const size_t kMaxGuards = 8;
 
 State Join(const State &a, const State &b)
 {
@@ -408,7 +411,49 @@ State Join(const State &a, const State &b)
             out.cells.insert(entry);  // 两边都有且相同才保留
         }
     }
+    for (const LinExpr &g : a.guards) {
+        if (llvm::is_contained(b.guards, g)) {
+            out.guards.push_back(g);  // A-15：守卫取交集
+        }
+    }
     return out;
+}
+
+// 线性式里出现的符号名（不透明项看里面；ext(x) 记成 ext:x），用来挑与 Req 相关的守卫（A-44，SPEC-0016 §2.2）
+void CollectSyms(const LinExpr &e, std::set<std::string> &out)
+{
+    for (const auto &term : e.Terms()) {
+        const Atom &atom = term.first;
+        switch (atom.kind) {
+            case Atom::Kind::Sym:
+                out.insert(atom.name);
+                break;
+            case Atom::Kind::Ext:
+                out.insert("ext:" + atom.name);
+                break;
+            default:
+                if (atom.a) {
+                    CollectSyms(*atom.a, out);
+                }
+                if (atom.b) {
+                    CollectSyms(*atom.b, out);
+                }
+                break;
+        }
+    }
+}
+
+bool IsCondExpr(const fir::Function &f, ExprId e)
+{
+    if (e >= f.exprs.size()) {
+        return false;
+    }
+    const fir::Expr &x = f.exprs[e];
+    if (x.op == ExprOp::Cmp || x.op == ExprOp::LNot) {
+        return true;
+    }
+    return x.op == ExprOp::Bin && static_cast<fir::BinOp>(x.sub) == fir::BinOp::And && IsCondExpr(f, x.a) &&
+           IsCondExpr(f, x.b);
 }
 
 // 一次访问（覆盖合并之前）
@@ -421,6 +466,7 @@ struct RawAccess {
     llvm::Optional<LinExpr> start;
     Tag tag = Tag::Exact;
     std::string at;
+    std::vector<std::string> guard;  // 与 have / end 有公共符号的守卫（ShowLe0）
 };
 
 class Analyzer {
@@ -491,7 +537,15 @@ private:
     // ---- 指令 ----
     void Step(const fir::Inst &inst, State &s);
     Value LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const State &s) const;
-    void Access(const char *kind, const PtrVal &addr, int64_t size, const fir::Loc &loc);
+    void Access(const char *kind, const PtrVal &addr, int64_t size, const fir::Loc &loc, const State &s);
+
+    // ---- 条件边与守卫（SPEC-0016）----
+    SymEnv Env(const State &s) const;
+    bool Faithful(ExprId e, const IntVal &v, const SymEnv &env) const;
+    bool Assume(ExprId c, bool negate, State &s);
+    bool AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s);
+    bool Narrow(ExprId e, fir::CmpOp op, const LinExpr &c, State &s);
+    static void AddGuard(State &s, const LinExpr &le0);
     void SetLocal(State &s, uint32_t dst, Value v) const
     {
         bool ptr = IsPtrLocal(dst);
@@ -510,6 +564,7 @@ private:
 
     State Entry() const;
     std::vector<summary::Req> Merge() const;
+    summary::Req ToReq(const RawAccess &a, size_t number) const;
     void RecordCall(const fir::Inst &inst, const State &s);
     std::string ShowState(const fir::Block &b, const State &s) const;
 
@@ -520,6 +575,7 @@ private:
     const fir::Module &m;
     const fir::Function &f;
     std::vector<RawAccess> accesses;
+    std::vector<RawAccess> safe;
     std::vector<summary::Open> opens;
     std::vector<summary::Call> calls;
     mutable std::map<std::string, summary::FieldInfo> fields;
@@ -578,7 +634,10 @@ IntVal Analyzer::Bin(const fir::Expr &x, const State &s)
     }
     if (op == fir::BinOp::Sub && !x.isSigned) {
         llvm::Optional<LinExpr> lo = r.Lower();
-        bool nonNegative = lo && lo->IsConst() && lo->Constant() >= 0;
+        // 下界是非负常数，或在守卫与类型范围下能证明非负（SPEC-0016 §2.2：if (n == 0) return; 之后 n − 1 不回绕）
+        bool nonNegative =
+            lo && ((lo->IsConst() && lo->Constant() >= 0) ||
+                   (!lo->IsUnknown() && !s.guards.empty() && EntailsLe0(lo->Scale(-1), s.guards, Env(s))));
         if (!nonNegative) {
             if (r.kind == IntVal::Kind::Exact && (x.width == 32 || x.width == 16)) {
                 return IntVal::Exact(LinExpr::Wrap(x.width, r.value));
@@ -809,7 +868,7 @@ Value Analyzer::LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const 
     return v;
 }
 
-void Analyzer::Access(const char *kind, const PtrVal &addr, int64_t size, const fir::Loc &loc)
+void Analyzer::Access(const char *kind, const PtrVal &addr, int64_t size, const fir::Loc &loc, const State &s)
 {
     std::string at = SiteOf(m, loc);
     auto open = [&](const char *reason) {
@@ -845,6 +904,26 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, int64_t size, const 
         open("type_range_only");
         return;
     }
+    std::set<std::string> syms;
+    CollectSyms(a.have, syms);
+    CollectSyms(a.lo, syms);
+    CollectSyms(a.hi, syms);
+    for (const LinExpr &g : s.guards) {
+        std::set<std::string> gs;
+        CollectSyms(g, gs);
+        if (llvm::any_of(gs, [&](const std::string &x) { return syms.count(x) != 0; })) {
+            a.guard.push_back(ShowLe0(g));
+        }
+    }
+    // A-43 / A-44：末端上界 ≤ have 在守卫与类型范围下恒成立 → 安全，不生成 Req（SPEC-0016 §2.2）
+    LinExpr need = a.hi - a.have;
+    if (!need.IsUnknown() && EntailsLe0(need, s.guards, Env(s))) {
+        if (trace != nullptr) {
+            trace->push_back("safe " + a.at + " " + a.kind + " end " + a.hi.Show() + " <= have " + a.have.Show());
+        }
+        safe.push_back(std::move(a));
+        return;
+    }
     accesses.push_back(std::move(a));
 }
 
@@ -856,13 +935,13 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             return;
         case fir::InstOp::Load: {
             PtrVal addr = EvalPtr(inst.addr, s);
-            Access("R", addr, inst.size, inst.loc);
+            Access("R", addr, inst.size, inst.loc, s);
             SetLocal(s, inst.dst, LoadValue(addr, inst.size, inst.dst, s));
             return;
         }
         case fir::InstOp::Store: {
             PtrVal addr = EvalPtr(inst.addr, s);
-            Access("W", addr, inst.size, inst.loc);
+            Access("W", addr, inst.size, inst.loc, s);
             if (addr.kind == BaseKind::Unknown) {
                 s.cells.clear();  // A-12：经未知基址的写
                 return;
@@ -924,7 +1003,9 @@ State Analyzer::Entry() const
 // A-44 覆盖合并（SPEC-0014 §2.4）：同一 have / 对象 / 守卫，end 上界恒不大于另一条的并进去；差为 0 时写优先，再按出现顺序
 std::vector<summary::Req> Analyzer::Merge() const
 {
-    auto group = [&](const RawAccess &a, const RawAccess &b) { return a.have == b.have && a.obj == b.obj; };
+    auto group = [&](const RawAccess &a, const RawAccess &b) {
+        return a.have == b.have && a.obj == b.obj && a.guard == b.guard;  // 守卫不同的不合并
+    };
     auto beats = [&](size_t j, size_t i) {  // j 把 i 并掉？
         const RawAccess &a = accesses[i];
         const RawAccess &b = accesses[j];
@@ -956,19 +1037,7 @@ std::vector<summary::Req> Analyzer::Merge() const
     }
     for (size_t k : kept) {
         const RawAccess &a = accesses[k];
-        summary::Req r;
-        r.id = "R" + std::to_string(out.size() + 1);
-        r.kind = a.kind;
-        r.have = a.have.Show();
-        r.obj = a.obj;
-        r.endLo = a.lo.Show();
-        r.endHi = a.hi.Show();
-        if (a.start) {
-            r.start = a.start->Show();
-        }
-        r.bound = TagName(a.tag).str();
-        r.access = {f.name, f.key, a.at, r.endHi};
-        r.path = {f.name + "@" + a.at};
+        summary::Req r = ToReq(a, out.size() + 1);
         std::vector<summary::Absorbed> absorbed;
         for (size_t i = 0; i < accesses.size(); ++i) {
             if (i != k && beats(k, i)) {
@@ -981,6 +1050,25 @@ std::vector<summary::Req> Analyzer::Merge() const
         out.push_back(std::move(r));
     }
     return out;
+}
+
+summary::Req Analyzer::ToReq(const RawAccess &a, size_t number) const
+{
+    summary::Req r;
+    r.id = "R" + std::to_string(number);
+    r.kind = a.kind;
+    r.have = a.have.Show();
+    r.obj = a.obj;
+    r.endLo = a.lo.Show();
+    r.endHi = a.hi.Show();
+    if (a.start) {
+        r.start = a.start->Show();
+    }
+    r.bound = TagName(a.tag).str();
+    r.guard = a.guard;
+    r.access = {f.name, f.key, a.at, r.endHi};
+    r.path = {f.name + "@" + a.at};
+    return r;
 }
 
 FunctionFacts Analyzer::Run()
@@ -1035,12 +1123,23 @@ FunctionFacts Analyzer::Run()
         }
         for (const fir::Edge &e : f.blocks[*it].succ) {
             auto t = index.find(e.to);
-            if (t != index.end()) {
+            if (t == index.end()) {
+                continue;
+            }
+            if (e.assume == fir::kNone) {
                 in[t->second] = Join(in[t->second], s);
+                continue;
+            }
+            State taken = s;
+            if (Assume(e.assume, false, taken)) {
+                in[t->second] = Join(in[t->second], taken);
             }
         }
     }
     facts.reqs = Merge();
+    for (size_t i = 0; i < safe.size(); ++i) {
+        facts.safe.push_back(ToReq(safe[i], i + 1));
+    }
     facts.calls = calls;
     facts.fields = fields;
     facts.opens = opens;
@@ -1108,7 +1207,274 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s)
         }
         call.args.push_back(std::move(arg));
     }
+    if (!s.guards.empty()) {
+        std::vector<summary::CallGuard> guards;
+        for (const LinExpr &g : s.guards) {
+            guards.push_back({ShowLe0(g), "check"});  // 调用点上的环境守卫（D-25）
+        }
+        call.guards = guards;
+    }
     calls.push_back(std::move(call));
+}
+
+// ---- 条件边与守卫（SPEC-0016）----
+
+// 接口符号的取值范围：形参、用到的字段、全局的类型范围，加上当前的守卫
+SymEnv Analyzer::Env(const State &s) const
+{
+    SymEnv env;
+    int64_t lo = 0;
+    int64_t hi = 0;
+    for (const fir::Local &l : f.locals) {
+        if (l.param >= 0 && TypeRangeOf(fir::TypeText(m, l.type), lo, hi)) {
+            env.SetTypeRange("p" + std::to_string(l.param), lo, hi);
+        }
+    }
+    for (const auto &field : fields) {
+        if (field.second.type && TypeRangeOf(*field.second.type, lo, hi)) {
+            env.SetTypeRange(field.first, lo, hi);
+        }
+    }
+    for (const fir::Global &g : m.globals) {
+        if (g.type < m.types.size() && m.types[g.type].kind == fir::TypeKind::Int &&
+            TypeRangeOf(fir::TypeText(m, g.type), lo, hi)) {
+            env.SetTypeRange("g:" + g.name, lo, hi);
+        }
+    }
+    for (const LinExpr &g : s.guards) {
+        env.AddGuard(g, Tag::Check);
+    }
+    return env;
+}
+
+// 比较的一边算出来的值就是 C 的值：常数；或能证明落在它的 C 类型范围内（无符号加法 / 有符号运算可能溢出时不是——
+// if (off + len > max) 这种检查本身可能被回绕绕过，不能当守卫，SPEC-0016 §2.1）
+bool Analyzer::Faithful(ExprId e, const IntVal &v, const SymEnv &env) const
+{
+    if (v.IsConst()) {
+        return true;
+    }
+    llvm::Optional<IntType> t = IntTypeOf(e);
+    if (!t) {
+        return false;
+    }
+    if (t->width >= 63) {
+        return true;  // 64 位：线性式在 int64 里溢出时已成为未知
+    }
+    IntVal range = TypeRange(t->width, t->isSigned, Tag::Type);
+    Limit lo;
+    Limit hi;
+    if (v.kind == IntVal::Kind::Exact) {
+        lo = env.RangeOf(v.value, false);
+        hi = env.RangeOf(v.value, true);
+    } else if (v.kind == IntVal::Kind::Range && v.hasLo && v.hasHi) {
+        lo = env.RangeOf(v.lo, false);
+        hi = env.RangeOf(v.hi, true);
+    }
+    return lo.known && hi.known && lo.value >= range.lo.Constant() && hi.value <= range.hi.Constant();
+}
+
+void Analyzer::AddGuard(State &s, const LinExpr &le0)
+{
+    if (llvm::is_contained(s.guards, le0)) {
+        return;
+    }
+    s.guards.push_back(le0);
+    if (s.guards.size() > kMaxGuards) {
+        s.guards.erase(s.guards.begin());  // 先进先出（A-14）
+    }
+}
+
+// 条件 → 状态：比较、!x、条件的按位与（switch 的 default）；其余的值 v 当成 v != 0。返回 false = 这条边不可达
+bool Analyzer::Assume(ExprId c, bool negate, State &s)
+{
+    if (c >= f.exprs.size()) {
+        return true;
+    }
+    const fir::Expr &x = f.exprs[c];
+    if (x.op == ExprOp::LNot) {
+        return Assume(x.a, !negate, s);
+    }
+    if (x.op == ExprOp::Cmp) {
+        static const fir::CmpOp flipped[] = {fir::CmpOp::Ne, fir::CmpOp::Eq, fir::CmpOp::Ge,
+                                             fir::CmpOp::Gt, fir::CmpOp::Le, fir::CmpOp::Lt};
+        fir::CmpOp op = static_cast<fir::CmpOp>(x.sub);
+        return AssumeCmp(negate ? flipped[x.sub] : op, x.a, x.b, s);
+    }
+    if (IsCondExpr(f, c)) {  // 条件的按位与
+        if (negate) {
+            return true;  // ¬(A ∧ B) 是析取，不产生信息
+        }
+        return Assume(x.a, false, s) && Assume(x.b, false, s);
+    }
+    return AssumeCmp(negate ? fir::CmpOp::Eq : fir::CmpOp::Ne, c, fir::kNone, s);
+}
+
+// a op b（b 为 kNone 时是常数 0）。两边都是确切值 → 原子（常数为假 → 不可达）；一边是区间、一边是确切值 → 收窄区间
+bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
+{
+    Value va = Eval(a, s);
+    Value vb;
+    vb.i = IntVal::Exact(LinExpr::Const(0));
+    if (b != fir::kNone) {
+        vb = Eval(b, s);
+    }
+    if (va.isPtr || vb.isPtr) {
+        return true;  // 指针比较本步不产生信息
+    }
+    SymEnv env = Env(s);
+    if (!Faithful(a, va.i, env) || (b != fir::kNone && !Faithful(b, vb.i, env))) {
+        return true;
+    }
+    const IntVal &ia = va.i;
+    const IntVal &ib = vb.i;
+    if (ia.kind == IntVal::Kind::Exact && ib.kind == IntVal::Kind::Exact) {
+        LinExpr d = ia.value - ib.value;  // a − b
+        if (d.IsUnknown()) {
+            return true;
+        }
+        LinExpr one = LinExpr::Const(1);
+        std::vector<LinExpr> atoms;
+        switch (op) {
+            case fir::CmpOp::Lt:
+                atoms = {d + one};
+                break;
+            case fir::CmpOp::Le:
+                atoms = {d};
+                break;
+            case fir::CmpOp::Gt:
+                atoms = {one - d};
+                break;
+            case fir::CmpOp::Ge:
+                atoms = {d.Scale(-1)};
+                break;
+            case fir::CmpOp::Eq:
+                atoms = {d, d.Scale(-1)};
+                break;
+            case fir::CmpOp::Ne: {
+                if (d.IsConst()) {
+                    return d.Constant() != 0;
+                }
+                // != 不是线性约束：只在 a − b 的界正好是 0 时推出严格不等式（u32 的 n != 0 → n >= 1）
+                Limit lo = env.RangeOf(d, false);
+                Limit hi = env.RangeOf(d, true);
+                if (lo.known && hi.known && lo.value == 0 && hi.value == 0) {
+                    return false;
+                }
+                if (lo.known && lo.value == 0) {
+                    atoms = {one - d};
+                } else if (hi.known && hi.value == 0) {
+                    atoms = {d + one};
+                }
+                break;
+            }
+        }
+        for (const LinExpr &atom : atoms) {
+            if (atom.IsUnknown()) {
+                continue;
+            }
+            if (atom.IsConst()) {
+                if (atom.Constant() > 0) {
+                    return false;
+                }
+                continue;
+            }
+            AddGuard(s, atom);
+        }
+        return true;
+    }
+    static const fir::CmpOp mirrored[] = {fir::CmpOp::Eq, fir::CmpOp::Ne, fir::CmpOp::Gt,
+                                          fir::CmpOp::Ge, fir::CmpOp::Lt, fir::CmpOp::Le};
+    if (ia.kind == IntVal::Kind::Range && ib.kind == IntVal::Kind::Exact) {
+        return Narrow(a, op, ib.value, s);
+    }
+    if (ib.kind == IntVal::Kind::Range && ia.kind == IntVal::Kind::Exact && b != fir::kNone) {
+        return Narrow(b, mirrored[static_cast<int>(op)], ia.value, s);
+    }
+    return true;
+}
+
+// e op c，e 的值是区间：收窄（e 是局部、或保值的类型转换下的局部时写回）；区间为空 → 不可达
+bool Analyzer::Narrow(ExprId e, fir::CmpOp op, const LinExpr &c, State &s)
+{
+    IntVal v = EvalInt(e, s);
+    llvm::Optional<LinExpr> lo = v.Lower();
+    llvm::Optional<LinExpr> hi = v.Upper();
+    llvm::Optional<LinExpr> newLo;
+    llvm::Optional<LinExpr> newHi;
+    LinExpr one = LinExpr::Const(1);
+    auto same = [](const llvm::Optional<LinExpr> &x, const LinExpr &y) {
+        return x && (*x - y).IsConst() && (*x - y).Constant() == 0;
+    };
+    switch (op) {
+        case fir::CmpOp::Lt:
+            newHi = c - one;
+            break;
+        case fir::CmpOp::Le:
+            newHi = c;
+            break;
+        case fir::CmpOp::Gt:
+            newLo = c + one;
+            break;
+        case fir::CmpOp::Ge:
+            newLo = c;
+            break;
+        case fir::CmpOp::Eq:
+            newLo = c;
+            newHi = c;
+            break;
+        case fir::CmpOp::Ne:
+            if (same(lo, c)) {
+                newLo = c + one;
+            } else if (same(hi, c)) {
+                newHi = c - one;
+            }
+            break;
+    }
+    if (!newLo && !newHi) {
+        return true;
+    }
+    // 与原来的界取更紧的；两者不可比时留原来的（都是对的界）
+    auto tighter = [](const llvm::Optional<LinExpr> &old, const llvm::Optional<LinExpr> &cand, bool upper) {
+        if (!cand || cand->IsUnknown()) {
+            return old;
+        }
+        if (!old) {
+            return cand;
+        }
+        LinExpr d = *cand - *old;
+        if (!d.IsConst()) {
+            return old;
+        }
+        return (upper ? d.Constant() < 0 : d.Constant() > 0) ? cand : old;
+    };
+    llvm::Optional<LinExpr> l = tighter(lo, newLo, false);
+    llvm::Optional<LinExpr> h = tighter(hi, newHi, true);
+    if (l && h) {
+        LinExpr width = *h - *l;
+        if (width.IsConst() && width.Constant() < 0) {
+            return false;
+        }
+    }
+    // 写回局部：跳过保值的类型转换（转换的值与里面的值相同）
+    ExprId cur = e;
+    while (cur < f.exprs.size() && f.exprs[cur].op == ExprOp::Cast && EvalInt(f.exprs[cur].a, s) == v) {
+        cur = f.exprs[cur].a;
+    }
+    if (cur >= f.exprs.size() || f.exprs[cur].op != ExprOp::Local) {
+        return true;
+    }
+    Value out;
+    if (l && h && same(l, *h)) {
+        out.i = IntVal::Exact(*l);
+    } else {
+        // 标签说的是上界的来源（F-12 只看上界，同 replay.py）：上界被代码里的检查收窄 → check；只收窄了下界 → 原标签不变
+        bool hiNarrowed = h && (!hi || !(*h == *hi));
+        Tag tag = !hiNarrowed ? v.tag : (IsCodeTag(v.tag) ? WorseTag(v.tag, Tag::Check) : Tag::Check);
+        out.i = IntVal::Range(l, h, tag);
+    }
+    s.locals[static_cast<uint32_t>(f.exprs[cur].value)] = out;
+    return true;
 }
 
 std::string Analyzer::ShowState(const fir::Block &b, const State &s) const
@@ -1129,6 +1495,12 @@ std::string Analyzer::ShowState(const fir::Block &b, const State &s) const
         const Value &v = cell.second;
         out += " [" + std::get<0>(cell.first) + "+" + std::to_string(std::get<1>(cell.first)) + ":" +
                std::to_string(std::get<2>(cell.first)) + "]=" + (v.isPtr ? v.p.obj : v.i.Show());
+    }
+    if (!s.guards.empty()) {
+        out += " guards:";
+        for (size_t i = 0; i < s.guards.size(); ++i) {
+            out += (i == 0 ? " " : ", ") + ShowLe0(s.guards[i]);
+        }
     }
     return out;
 }

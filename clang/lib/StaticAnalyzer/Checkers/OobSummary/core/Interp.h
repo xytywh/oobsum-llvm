@@ -2,7 +2,8 @@
 //
 // 函数内解释（SPEC-0014；06- §6.2–§6.4 A-10…A-12、A-20…A-29、A-40…A-45）：把 FIR 的值算成接口符号的线性式，
 // 在每条 load / store 上做访问检查，产出 depth 0 的 Req（与 cases/summaries 里的局部事实同形）。
-// 本步（S7a-1）：无环代码、不看条件边；有回边的函数标 partial:loop_pending、不产出 Req（S7c 补）。不依赖 Clang。
+// 已有：无环代码（S7a）、条件边与守卫（S7b，SPEC-0016）；有回边的函数标 partial:loop_pending、不产出 Req（S7c 补）。
+// 不依赖 Clang。
 //
 //===----------------------------------------------------------------------===//
 
@@ -80,9 +81,10 @@ struct Value {
 
 // 一个函数的局部事实（SPEC-0014 §2.4、SPEC-0015）：depth 0 的 Req、调用点记录、用到的形参字段、账本
 struct FunctionFacts {
-    std::string status = "analyzed";   // D-28；partial:loop_pending（S7c 之前不分析有回边的函数）
-    std::vector<summary::Req> reqs;    // depth 0，已覆盖合并
-    std::vector<summary::Call> calls;  // 调用点记录（D-25；results 留空，由求解填）
+    std::string status = "analyzed";  // D-28；partial:loop_pending（S7c 之前不分析有回边的函数）
+    std::vector<summary::Req> reqs;   // depth 0，已覆盖合并
+    std::vector<summary::Req> safe;  // 本函数里就证明了安全的访问（A-43 / A-44，SPEC-0016 §2.2；判定日志记 SAFE）
+    std::vector<summary::Call> calls;                  // 调用点记录（D-25；results 留空，由求解填）
     std::map<std::string, summary::FieldInfo> fields;  // 用到的 pi->字段（D-23 的 fields 表）
     std::vector<summary::Open> opens;
 };

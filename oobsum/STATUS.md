@@ -3,7 +3,7 @@
 > 每次会话开始先读这里；每次提交一批改动后更新这里（"已完成"挪进 CHANGELOG 时可以删）。
 > 规则在 `../CLAUDE.md`，背景与决策在 `HANDOFF.md`，主规格 `06-spec.md`，增量规格 `specs/`。
 
-更新：2026-10-15 · 分支 `oobsum/dev` · 版本 v4.0
+更新：2026-10-16 · 分支 `oobsum/dev` · 版本 v4.0
 
 ## 已完成
 
@@ -77,8 +77,16 @@
       未知写成非接口符号）、`BuildSummary`、`Dump=summary` / `Dump=state`；`oobsum/tools/engine_check.py`（键、类型规范化后交 `replay.py` 推到底）。
       **LV1-01、LV1-02、LV1-07（三个 TU）从 C 源码端到端与 `alerts.json` 逐条相同，`@expect` 全对**（lit `engine-check.test` 守住）。
       LV2-09：TP 对，TN 误报 L1——缺守卫（`if (ulPos == 0) return`），S7b 解决。
-- [ ] **S7b 条件边与守卫**（A-14、A-30）；**S7c 循环**（WTO、widening 阈值、narrowing，A-16、A-33；带 `min` / `max` 的界 A-10、A-15、A-17）；
-      **S7d 效果与模型**（`ret_new` 等 D-24、A-63…A-65、A-70；分配器、`memcpy_s` 族，WP5 / WP8）。
+- [x] **S7b 条件边与守卫**（SPEC-0016）：`assume` 边 → 原子（`!=` 只在界正好等于常数时推出严格不等式）、区间局部收窄（标签跟上界走）、常数为假 / 区间为空 → 边不可达；
+      只用"忠实"的比较（两边常数或能证明在 C 类型范围内——`if (off + len > max)` 可能被回绕绕过，不当守卫）；守卫让无符号减法不回绕；
+      Req 带相关守卫、守卫不同不合并、调用点带 `guards`、汇合取交集；**A-43 / A-44 当场证明安全的访问不生成 Req**（记进 `FunctionFacts::safe`，S8c 写判定日志）。
+      `engine_check.py` 加严：告警相同之外，上传 / 判定 / 入口账本条数、每个函数的本地账本原因要与金标准相同，且没有没分析完的函数。
+      **16 个用例里 5 个一致**（LV1-01、LV1-02、LV1-07、LV2-09、LV3-03，lit 守住）。其余 11 个缺的东西：
+      循环（S7c）LV2-05、LV3-07、LV4-01、LV7-04、LV8-01；效果与模型（S7d）LV2-03、LV5-01、LV10-04（`memcpy_s`）、LV4-06（校验函数的条件效应）、
+      LV9-04（`unknown_callee` 账本）；LV6-01（`extern` 不完整数组 → `ext(g:名)` 符号 + 跨 TU 全局大小表；现在记账 `alloc_size_unknown`，召回不丢但金标准要符号）。
+- [ ] **S7c 循环**（WTO、widening 阈值、narrowing，A-16、A-33；带 `min` / `max` 的界 A-10、A-15、A-17）：先做单层 `for (i = 0; i < n; i++)`，对上 LV2-05、LV4-01。
+- [ ] **S7d 效果与模型**（`ret_new` 等 D-24、A-63…A-65、A-70；分配器、`memcpy_s` 族，WP5 / WP8）；`unknown_callee` 账本。
+- [ ] **S7e** `extern` 不完整数组的大小符号 `ext(g:名)`（LV6-01；全局大小表在 S8c / WP9 接上）。
 - [ ] **S8c 接进 checker**（WP4 其余）：`core/Solver`（同 TU 的调用图、SCC 逆拓扑序求解，A-80…A-82）、`Dump=summary` / `Dump=apply`；
       S7 产出的摘要经 `Apply` 判定 → 标签 / 告警 / 判定日志；Lv1 + Lv2 用例出告警，`run.py csa` 对照 `@expect`（G1）。
 - [ ] S9 之后：WP5 安全函数族模型 → WP7 循环与守卫 → WP8 效果与分配器 → WP9 大小模型 → WP10 驱动 → WP11 真实代码子集（公司）→ WP12 全量与性能 → WP13 冻结。

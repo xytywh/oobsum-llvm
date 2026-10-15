@@ -48,3 +48,4 @@
 | [SPEC-0013](SPEC-0013-propagate-alerts.md) | 从局部事实推到底（`core/Solver` 的 `Propagate`）与告警成品（`core/Alert`），与 `alerts.json` 逐条相同 | 已实现（S8b） |
 | [SPEC-0014](SPEC-0014-interp-straight.md) | 函数内解释第一步：无环代码的值与访问检查（`core/Interp`），产出 depth 0 的 Req | 已实现（S7a-1） |
 | [SPEC-0015](SPEC-0015-local-facts-dump.md) | 调用点记录与摘要组装、`Dump=summary` / `Dump=state`、引擎对照脚本（端到端 T-06） | 已实现（S7a-2） |
+| [SPEC-0016](SPEC-0016-interp-guards.md) | 函数内解释第二步：条件边与守卫、当场证明安全（A-14、A-30、A-43、A-44） | 已实现（S7b） |
