@@ -110,6 +110,8 @@ private:
 
 // D-21 的语法；失败时返回 false 与带位置的原因（不 assert，A-96）
 bool ParseLin(llvm::StringRef text, LinExpr &out, std::string &error);
+// 条件按第一个比较符拆成左边、比较符、右边（同 replay.py 的 split_cmp）；不是条件返回 false
+bool SplitCond(llvm::StringRef text, std::string &lhs, std::string &op, std::string &rhs);
 // "a <= b" 等 → 若干个 L ≤ 0（同 replay.py 的 C）
 bool ParseCond(llvm::StringRef text, std::vector<LinExpr> &le0, std::string &error);
 // L ≤ 0 打印成可读的不等式（同 replay.py 的 show_atom_le0）

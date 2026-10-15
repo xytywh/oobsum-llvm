@@ -148,6 +148,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   OobSummary/core/LinExpr.cpp
   OobSummary/core/Range.cpp
   OobSummary/core/Summary.cpp
+  OobSummary/core/Apply.cpp
 
   LINK_LIBS
   clangAST

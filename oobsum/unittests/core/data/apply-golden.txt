@@ -1,0 +1,261 @@
+# 由 gen_apply_golden.py 从 replay.py（机器版摘要）的逐调用点核对生成，不要手改
+## LV1-01
+- Cell_UpdateStat @ lv1_01_stat_enum_butt.c:42  调用 LOG_Print(3, …, p0)
+    · 纯函数模型 LOG_Print：不失效、不产生条件
+- Cell_UpdateStat @ lv1_01_stat_enum_butt.c:43  调用 Stat_Inc(p0)
+    · Stat_Inc.R1：末端 4*p0 + 4，对象 g:g_aulCellStat（16 字节）→ up → 本函数 R1
+- Cell_RecordFail @ lv1_01_stat_enum_butt.c:48  调用 LOG_Print(2, …, p0)
+    · 纯函数模型 LOG_Print：不失效、不产生条件
+- Cell_RecordFail @ lv1_01_stat_enum_butt.c:49  调用 Cell_UpdateStat(p1)
+    · Cell_UpdateStat.R1：末端 4*p1 + 4，对象 g:g_aulCellStat（16 字节）→ up → 本函数 R1
+- Cell_OnSetupTimeout_TN @ lv1_01_stat_enum_butt.c:59  调用 Cell_RecordFail(p0, 1)
+    · Cell_RecordFail.R1：末端 8，对象 g:g_aulCellStat（16 字节）→ safe（最大末端 8 ≤ 16）
+- Cell_OnSetupTimeout_TP @ lv1_01_stat_enum_butt.c:54  调用 Cell_RecordFail(p0, 4)
+    · Cell_RecordFail.R1：末端 20，对象 g:g_aulCellStat（16 字节）→ L1（最小末端 20 > 16，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
+## LV1-02
+- Name_Format @ lv1_02_name_terminator.c:36  调用 Name_Terminate(*p0)
+    · Name_Terminate.R1：末端 17，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Ue_BuildName @ lv1_02_name_terminator.c:41  调用 Name_Format(*p0, p1)
+    · Name_Format.R1：末端 17，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Ue_ShowInfo_TN @ lv1_02_name_terminator.c:54  调用 Ue_BuildName(local:szName, p0)
+    · Ue_BuildName.R1：末端 17，对象 local:szName（17 字节）→ safe（最大末端 17 ≤ 17）
+- Ue_ShowInfo_TN @ lv1_02_name_terminator.c:55  调用 LOG_Print(3, …, …)
+    · 纯函数模型 LOG_Print：不失效、不产生条件
+- Ue_ShowInfo_TP @ lv1_02_name_terminator.c:47  调用 Ue_BuildName(local:szName, p0)
+    · Ue_BuildName.R1：末端 17，对象 local:szName（16 字节）→ L1（最小末端 17 > 16，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
+- Ue_ShowInfo_TP @ lv1_02_name_terminator.c:48  调用 LOG_Print(3, …, …)
+    · 纯函数模型 LOG_Print：不失效、不产生条件
+## LV1-07
+- Alm_RaiseOne @ alm_low.c:12  调用 Alm_SetFlag(p0)
+    · Alm_SetFlag.R1：末端 p0 + 1，对象 g:g_aucAlmFlag（3 字节）→ up → 本函数 R1
+- Alm_Dispatch @ alm_mid.c:5  调用 LOG_Print(2, …, p0, p1)
+    · 纯函数模型 LOG_Print：不失效、不产生条件
+- Alm_Dispatch @ alm_mid.c:6  调用 Alm_RaiseOne(p0)
+    · Alm_RaiseOne.R1：末端 p0 + 1，对象 g:g_aucAlmFlag（3 字节）→ up → 本函数 R1
+- Alm_ReportAll_TN @ alm_top.c:23  调用 Alm_Dispatch(2, p0)
+    · Alm_Dispatch.R1：末端 3，对象 g:g_aucAlmFlag（3 字节）→ safe（最大末端 3 ≤ 3）
+- Alm_ReportAll_TP @ alm_top.c:22  调用 Alm_Dispatch(3, p0)
+    · Alm_Dispatch.R1：末端 4，对象 g:g_aucAlmFlag（3 字节）→ L1（最小末端 4 > 3，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
+## LV2-03
+- Tlv_WriteVal @ lv2_03_tlv_destmax_no_off.c:31  调用 memcpy_s(*p0, 128, *p2, p3)
+    · 访问类模型 memcpy_s → 在本函数生成 R1、R2
+- Tlv_WriteVal_OK @ lv2_03_tlv_destmax_no_off.c:36  调用 memcpy_s(*p0, 128 - ulOff, *p2, p3)
+    · 访问类模型 memcpy_s → 在本函数生成 R1、R2
+- Tlv_Append @ lv2_03_tlv_destmax_no_off.c:42  调用 Tlv_WriteVal(*p0, p1 + 4, *p2, p3)
+    · Tlv_WriteVal.R1：末端 p1 + 132，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Tlv_WriteVal.R2：末端 p3，守卫 p3 <= 128，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
+- Tlv_Append_OK @ lv2_03_tlv_destmax_no_off.c:48  调用 Tlv_WriteVal_OK(*p0, p1 + 4, *p2, p3)
+    · Tlv_WriteVal_OK.R1：末端 128，守卫 p1 <= 124，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Tlv_WriteVal_OK.R2：末端 p3，守卫 p1 + p3 <= 124，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
+- Pkt_AddIe @ lv2_03_tlv_destmax_no_off.c:51  调用 Tlv_Append(*p0, p1, *p2, p3)
+    · Tlv_Append.R1：末端 p1 + 132，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Tlv_Append.R2：末端 p3，守卫 p3 <= 128，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
+- Pkt_AddIe_OK @ lv2_03_tlv_destmax_no_off.c:52  调用 Tlv_Append_OK(*p0, p1, *p2, p3)
+    · Tlv_Append_OK.R1：末端 128，守卫 p1 <= 124，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Tlv_Append_OK.R2：末端 p3，守卫 p1 + p3 <= 124，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
+    · Tlv_Append_OK.R3：末端 p1 + 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R3
+- Pkt_Build_TN @ lv2_03_tlv_destmax_no_off.c:63  调用 Pkt_AddIe_OK(local:aucPkt, 16, *p0, 8)
+    · Pkt_AddIe_OK.R1：末端 128，守卫在此成立，对象 local:aucPkt（128 字节）→ safe（最大末端 128 ≤ 128）
+    · Pkt_AddIe_OK.R2：末端 8，守卫在此成立，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Pkt_AddIe_OK.R3：末端 17，对象 local:aucPkt（128 字节）→ safe（最大末端 17 ≤ 128）
+- Pkt_Build_TN 是入口（没有调用方）：R1 到此为止 → 记账 entry_unproven
+- Pkt_Build_TP @ lv2_03_tlv_destmax_no_off.c:57  调用 Pkt_AddIe(local:aucPkt, 16, *p0, 8)
+    · Pkt_AddIe.R1：末端 148，对象 local:aucPkt（128 字节）→ L1（最小末端 148 > 128，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
+    · Pkt_AddIe.R2：末端 8，守卫在此成立，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Pkt_Build_TP 是入口（没有调用方）：R1 到此为止 → 记账 entry_unproven
+## LV2-05
+- Ue_ResetMap @ lv2_05_bitmap_cast_words.c:46  调用 Map_ClearWords(*p0, p1)
+    · Map_ClearWords.R1：末端 [4, 4*div(p1, 32) + 4]，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Ue_ResetMap_OK @ lv2_05_bitmap_cast_words.c:47  调用 Map_ClearWords_OK(*p0, p1)
+    · Map_ClearWords_OK.R1：末端 [4, 4*div(p1 + 31, 32)]，守卫 div(p1 + 31, 32) >= 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Cell_ClearUeMap @ lv2_05_bitmap_cast_words.c:48  调用 Ue_ResetMap(*p0, p1)
+    · Ue_ResetMap.R1：末端 [4, 4*div(p1, 32) + 4]，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Cell_ClearUeMap_OK @ lv2_05_bitmap_cast_words.c:49  调用 Ue_ResetMap_OK(*p0, p1)
+    · Ue_ResetMap_OK.R1：末端 [4, 4*div(p1 + 31, 32)]，守卫 div(p1 + 31, 32) >= 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Cell_ResetUeMap_TN @ lv2_05_bitmap_cast_words.c:60  调用 Cell_ClearUeMap_OK(local:aulAlign, 64)
+    · Cell_ClearUeMap_OK.R1：末端 [4, 8]，守卫在此成立，对象 local:aulAlign（8 字节）→ safe（最大末端 8 ≤ 8）
+- Cell_ResetUeMap_TP @ lv2_05_bitmap_cast_words.c:54  调用 Cell_ClearUeMap(local:aulAlign, 64)
+    · Cell_ClearUeMap.R1：末端 [4, 12]，对象 local:aulAlign（8 字节）→ L2（最大末端 12 > 8（上界来自 loop），最小末端 4 不越界） → RPT1（depth 3, eff_depth 0，报）
+## LV2-09
+- Ue_CalcJitter @ lv2_09_unsigned_wrap.c:40  调用 Hist_GetPrev(*p0, p1)
+    · Hist_GetPrev.R1：末端 wrap32(p1 - 1) + 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Ue_CalcJitter_OK @ lv2_09_unsigned_wrap.c:41  调用 Hist_GetPrevSafe(*p0, p1)
+    · Hist_GetPrevSafe.R1：末端 p1，守卫 p1 >= 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Ue_UpdateJitter @ lv2_09_unsigned_wrap.c:42  调用 Ue_CalcJitter(*p0, p1)
+    · Ue_CalcJitter.R1：末端 wrap32(p1 - 1) + 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Ue_UpdateJitter_OK @ lv2_09_unsigned_wrap.c:43  调用 Ue_CalcJitter_OK(*p0, p1)
+    · Ue_CalcJitter_OK.R1：末端 p1，守卫 p1 >= 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Ue_CheckJitter_TN @ lv2_09_unsigned_wrap.c:54  调用 Ue_UpdateJitter_OK(local:aucHist, 0)
+    · Ue_UpdateJitter_OK.R1：末端 0，守卫在此不成立，对象 local:aucHist（16 字节）→ safe（守卫 0 >= 1 在此为假，访问走不到）
+- Ue_CheckJitter_TP @ lv2_09_unsigned_wrap.c:48  调用 Ue_UpdateJitter(local:aucHist, 0)
+    · Ue_UpdateJitter.R1：末端 4294967296，对象 local:aucHist（16 字节）→ L1（最小末端 4294967296 > 16，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
+## LV3-03
+- Port_ApplyCfg @ lv3_03_callee_guard_wrong.c:43  调用 Port_SetMode(*p0, p1, p2)
+    · Port_SetMode.R1：末端 24*p1 + 4，守卫 p1 <= 31，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Board_CfgPort @ lv3_03_callee_guard_wrong.c:44  调用 Port_ApplyCfg(*p0, p1, p2)
+    · Port_ApplyCfg.R1：末端 24*p1 + 4，守卫 p1 <= 31，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Board_InitDefault_TN @ lv3_03_callee_guard_wrong.c:47  调用 Board_CfgPort(g:g_astBoardPort, 3, 0)
+    · Board_CfgPort.R1：末端 76，守卫在此成立，对象 g:g_astBoardPort（384 字节）→ safe（最大末端 76 ≤ 384）
+- Board_OnCfgMsg_TP @ lv3_03_callee_guard_wrong.c:46  调用 Board_CfgPort(g:g_astBoardPort, p0, p1)
+    · Board_CfgPort.R1：末端 24*p0 + 4，守卫 p0 <= 31，对象 g:g_astBoardPort（384 字节）→ L2（guard 给出的范围内最大末端 748 > 384，最小末端 4 不越界） → RPT1（depth 3, eff_depth 0，报）
+## LV3-07
+- Pkt_PutIes @ lv3_07_pkt_loop_destmax.c:58  调用 memcpy_s(*p0, p1, …, …)
+    · 访问类模型 memcpy_s → 在本函数生成 R1
+- Pkt_PutIes_OK @ lv3_07_pkt_loop_destmax.c:42  调用 memcpy_s(*p0, p1 - ulOff, …, …)
+    · 访问类模型 memcpy_s → 在本函数生成 R1
+- Body_PutIes @ lv3_07_pkt_loop_destmax.c:66  调用 Pkt_PutIes(*p0, p1, *p2, p3)
+    · Pkt_PutIes.R1：末端 [p1, 2*p1]，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Body_PutIes_OK @ lv3_07_pkt_loop_destmax.c:67  调用 Pkt_PutIes_OK(*p0, p1, *p2, p3)
+    · Pkt_PutIes_OK.R1：末端 p1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Msg_BuildBody @ lv3_07_pkt_loop_destmax.c:68  调用 Body_PutIes(*p0, p1, *p2, p3)
+    · Body_PutIes.R1：末端 [p1, 2*p1]，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Msg_BuildBody_OK @ lv3_07_pkt_loop_destmax.c:69  调用 Body_PutIes_OK(*p0, p1, *p2, p3)
+    · Body_PutIes_OK.R1：末端 p1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Msg_Encode_TN @ lv3_07_pkt_loop_destmax.c:80  调用 Msg_BuildBody_OK(local:aucPkt, 128, *p0, p1)
+    · Msg_BuildBody_OK.R1：末端 128，对象 local:aucPkt（128 字节）→ safe（最大末端 128 ≤ 128）
+- Msg_Encode_TP @ lv3_07_pkt_loop_destmax.c:74  调用 Msg_BuildBody(local:aucPkt, 128, *p0, p1)
+    · Msg_BuildBody.R1：末端 [128, 256]，对象 local:aucPkt（128 字节）→ L2（最大末端 256 > 128（上界来自 check），最小末端 128 不越界） → RPT1（depth 3, eff_depth 0，报）
+## LV4-01
+- Pub_MemAlloc @ common.h:53  调用 VOS_MemAlloc(PID_CELL, 0, p0)
+    · 分配器模型 VOS_MemAlloc → 本函数的效果 effs[0]
+- Cell_MemAlloc @ lv4_01_wrapper_alloc_spec.c:38  调用 Pub_MemAlloc(p0)
+    · 效果 ret_new → new(p0) 或 NULL 
+- Cell_MemAlloc @ lv4_01_wrapper_alloc_spec.c:40  调用 LOG_Print(1, …, p0)
+    · 纯函数模型 LOG_Print：不失效、不产生条件
+- Ue_InitTbl @ lv4_01_wrapper_alloc_spec.c:59  调用 Ue_InitOne(*p0, i)
+    · Ue_InitOne.R1：末端 16*i + 4 → 局部换成区间 [4, 16*p1 - 12]，守卫 p1 >= 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Ue_AllocTbl @ lv4_01_wrapper_alloc_spec.c:47  调用 Cell_MemAlloc(512)
+    · 效果 ret_new → new(512) 或 NULL 
+- Ue_Setup @ lv4_01_wrapper_alloc_spec.c:63  调用 Ue_InitTbl(*p0, 64)
+    · Ue_InitTbl.R1：末端 [4, 1012]，守卫在此成立，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Ue_Setup_OK @ lv4_01_wrapper_alloc_spec.c:64  调用 Ue_InitTbl(*p0, 32)
+    · Ue_InitTbl.R1：末端 [4, 500]，守卫在此成立，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Ue_ModuleInit_TN @ lv4_01_wrapper_alloc_spec.c:77  调用 Ue_AllocTbl()
+    · 效果 ret_new → new(512) 或 NULL 
+- Ue_ModuleInit_TN @ lv4_01_wrapper_alloc_spec.c:81  调用 Ue_Setup_OK(heap@lv4_01_wrapper_alloc_spec.c:77)
+    · Ue_Setup_OK.R1：末端 [4, 500]，对象 heap@lv4_01_wrapper_alloc_spec.c:77（512 字节）→ safe（最大末端 500 ≤ 512）
+- Ue_ModuleInit_TP @ lv4_01_wrapper_alloc_spec.c:68  调用 Ue_AllocTbl()
+    · 效果 ret_new → new(512) 或 NULL 
+- Ue_ModuleInit_TP @ lv4_01_wrapper_alloc_spec.c:72  调用 Ue_Setup(heap@lv4_01_wrapper_alloc_spec.c:68)
+    · Ue_Setup.R1：末端 [4, 1012]，对象 heap@lv4_01_wrapper_alloc_spec.c:68（512 字节）→ L2（最大末端 1012 > 512（上界来自 loop），最小末端 4 不越界） → RPT1（depth 3, eff_depth 3，报）
+## LV4-06
+- Ctx_Clear @ lv4_06_validator_func.c:54  调用 memset_s(g:g_astCellCtx, 32, 0, 32)
+    · 访问类模型 memset_s → 在本函数生成 R1
+- Cell_CheckPara @ lv4_06_validator_func.c:38  调用 Cell_IsValidId(p0)
+    · 效果 ret_cond → ret == 1 ⇒ p0 <= 16 
+    · 效果 ret_cond → ret == 0 ⇒ p0 >= 17 
+- Cell_CheckPara_OK @ lv4_06_validator_func.c:46  调用 Cell_IsValidId_OK(p0)
+    · 效果 ret_cond → ret == 1 ⇒ p0 <= 15 
+    · 效果 ret_cond → ret == 0 ⇒ p0 >= 16 
+- Cell_FreeCtx @ lv4_06_validator_func.c:57  调用 Ctx_Clear(p0)
+    · Ctx_Clear.R1：末端 32*p0 + 32，对象 g:g_astCellCtx（512 字节）→ up → 本函数 R1
+- Cell_Delete @ lv4_06_validator_func.c:58  调用 Cell_FreeCtx(p0)
+    · Cell_FreeCtx.R1：末端 32*p0 + 32，对象 g:g_astCellCtx（512 字节）→ up → 本函数 R1
+- Cell_OnDelReq_TN @ lv4_06_validator_func.c:71  调用 Cell_CheckPara_OK(p0)
+    · 效果 ret_cond → ret == 0 ⇒ p0 <= 15 
+    · 效果 ret_cond → ret == 1 ⇒ p0 >= 16 
+- Cell_OnDelReq_TN @ lv4_06_validator_func.c:74  调用 Cell_Delete(p0)
+    · Cell_Delete.R1：末端 32*p0 + 32，对象 g:g_astCellCtx（512 字节）→ safe（守卫蕴含 32*p0 + 32 ≤ 512）
+- Cell_OnDelReq_TP @ lv4_06_validator_func.c:62  调用 Cell_CheckPara(p0)
+    · 效果 ret_cond → ret == 0 ⇒ p0 <= 16 
+    · 效果 ret_cond → ret == 1 ⇒ p0 >= 17 
+- Cell_OnDelReq_TP @ lv4_06_validator_func.c:65  调用 Cell_Delete(p0)
+    · Cell_Delete.R1：末端 32*p0 + 32，对象 g:g_astCellCtx（512 字节）→ L2（check 给出的范围内最大末端 544 > 512，最小末端 32 不越界） → RPT1（depth 3, eff_depth 0，报）
+## LV5-01
+- Enc_PutBytes @ lv5_01_ctx_filled_at_top.c:36  调用 memcpy_s(*p0->pucBuf, p0->ulBufLen, *p1, p2)
+    · 访问类模型 memcpy_s → 在本函数生成 R1、R2
+- Enc_PutIe @ lv5_01_ctx_filled_at_top.c:40  调用 Enc_PutBytes(*p0, *p1, p2)
+    · Enc_PutBytes.R1：末端 p0->ulBufLen，对象 *p0->pucBuf（ext(p0->pucBuf) 字节）→ up → 本函数 R1
+    · Enc_PutBytes.R2：末端 p2，守卫 p2 <= p0->ulBufLen，对象 *p1（ext(p1) 字节）→ up → 本函数 R2
+    · 效果 field → 实参 0 所指对象的 ulUsed := p2 
+- Enc_Encode @ lv5_01_ctx_filled_at_top.c:41  调用 Enc_PutIe(*p0, *p1, p2)
+    · Enc_PutIe.R1：末端 p0->ulBufLen，对象 *p0->pucBuf（ext(p0->pucBuf) 字节）→ up → 本函数 R1
+    · Enc_PutIe.R2：末端 p2，守卫 p2 <= p0->ulBufLen，对象 *p1（ext(p1) 字节）→ up → 本函数 R2
+    · 效果 field → 实参 0 所指对象的 ulUsed := p2 
+- Rrc_EncodeMsg_TN @ lv5_01_ctx_filled_at_top.c:62  调用 Enc_Encode(local:stCtx, local:aucIe, 16)
+    · Enc_Encode.R1：末端 128，对象 local:aucBuf（128 字节）→ safe（最大末端 128 ≤ 128）
+    · Enc_Encode.R2：末端 16，守卫在此成立，对象 local:aucIe（16 字节）→ safe（最大末端 16 ≤ 16）
+    · 效果 field → 实参 0 所指对象的 ulUsed := 16 
+- Rrc_EncodeMsg_TP @ lv5_01_ctx_filled_at_top.c:51  调用 Enc_Encode(local:stCtx, local:aucIe, 16)
+    · Enc_Encode.R1：末端 256，对象 local:aucBuf（128 字节）→ L1（最小末端 256 > 128，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
+    · Enc_Encode.R2：末端 16，守卫在此成立，对象 local:aucIe（16 字节）→ safe（最大末端 16 ≤ 16）
+    · 效果 field → 实参 0 所指对象的 ulUsed := 16 
+## LV6-01
+- Port_CountDown @ port_stat_use.c:27  调用 Stat_PortInc(p0)
+    · Stat_PortInc.R1：末端 4*p0 + 4，对象 g:g_aulPortStat（64 字节）→ up → 本函数 R1
+- Port_HandleDown @ port_stat_use.c:28  调用 Port_CountDown(p0)
+    · Port_CountDown.R1：末端 4*p0 + 4，对象 g:g_aulPortStat（64 字节）→ up → 本函数 R1
+- Port_OnLinkDown_TN @ port_stat_use.c:31  调用 Port_HandleDown(15)
+    · Port_HandleDown.R1：末端 64，对象 g:g_aulPortStat（64 字节）→ safe（最大末端 64 ≤ 64）
+- Port_OnLinkDown_TP @ port_stat_use.c:30  调用 Port_HandleDown(16)
+    · Port_HandleDown.R1：末端 68，对象 g:g_aulPortStat（64 字节）→ L1（最小末端 68 > 64，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
+## LV7-04
+- Reg_Snapshot @ lv7_04_pointer_stepping.c:31  调用 Buf_CopyStep(*p0, *p1, p2)
+    · 被调者没有 Req、没有要用的 Eff
+- Om_CollectReg @ lv7_04_pointer_stepping.c:32  调用 Reg_Snapshot(*p0, *p1, p2)
+    · 被调者没有 Req、没有要用的 Eff
+- Om_DumpReg_TN @ lv7_04_pointer_stepping.c:45  调用 Om_CollectReg(local:aucOut, local:aucIn, 16)
+    · 被调者没有 Req、没有要用的 Eff
+- Om_DumpReg_TP @ lv7_04_pointer_stepping.c:38  调用 Om_CollectReg(local:aucOut, local:aucIn, 32)
+    · 被调者没有 Req、没有要用的 Eff
+## LV8-01
+- Tlv_ParseAll @ lv8_01_tlv_relative_check.c:34  调用 memcpy_s(*p2, 256, *p0, ulLen)
+    · 访问类模型 memcpy_s → 在本函数生成 R1、R2
+- Tlv_ParseAll_OK @ lv8_01_tlv_relative_check.c:47  调用 memcpy_s(*p2, 256, *p0, ulLen)
+    · 访问类模型 memcpy_s → 在本函数生成 R1、R2
+- Msg_ParseBody @ lv8_01_tlv_relative_check.c:52  调用 Tlv_ParseAll(*p0, p1, *p2)
+    · Tlv_ParseAll.R1：末端 [2, p1 + 2]，守卫 p1 >= 2，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Tlv_ParseAll.R2：末端 256，守卫 p1 >= 2，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
+- Msg_ParseBody_OK @ lv8_01_tlv_relative_check.c:53  调用 Tlv_ParseAll_OK(*p0, p1, *p2)
+    · Tlv_ParseAll_OK.R1：末端 [2, p1]，守卫 p1 >= 2，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Tlv_ParseAll_OK.R2：末端 256，守卫 p1 >= 2，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
+- Om_HandleCfg @ lv8_01_tlv_relative_check.c:54  调用 Msg_ParseBody(*p0, p1, *p2)
+    · Msg_ParseBody.R1：末端 [2, p1 + 2]，守卫 p1 >= 2，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Msg_ParseBody.R2：末端 256，守卫 p1 >= 2，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
+- Om_HandleCfg_OK @ lv8_01_tlv_relative_check.c:55  调用 Msg_ParseBody_OK(*p0, p1, *p2)
+    · Msg_ParseBody_OK.R1：末端 [2, p1]，守卫 p1 >= 2，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Msg_ParseBody_OK.R2：末端 256，守卫 p1 >= 2，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
+- Om_OnCfgMsg_TN @ lv8_01_tlv_relative_check.c:69  调用 memcpy_s(local:aucMsg, 64, *p0, 64)
+    · 访问类模型 memcpy_s → 在本函数生成 R1
+- Om_OnCfgMsg_TN @ lv8_01_tlv_relative_check.c:70  调用 Om_HandleCfg_OK(local:aucMsg, 64, local:aucOut)
+    · Om_HandleCfg_OK.R1：末端 [2, 64]，守卫在此成立，对象 local:aucMsg（64 字节）→ safe（最大末端 64 ≤ 64）
+    · Om_HandleCfg_OK.R2：末端 256，守卫在此成立，对象 local:aucOut（256 字节）→ safe（最大末端 256 ≤ 256）
+- Om_OnCfgMsg_TN 是入口（没有调用方）：R1 到此为止 → 记账 entry_unproven
+- Om_OnCfgMsg_TP @ lv8_01_tlv_relative_check.c:61  调用 memcpy_s(local:aucMsg, 64, *p0, 64)
+    · 访问类模型 memcpy_s → 在本函数生成 R1
+- Om_OnCfgMsg_TP @ lv8_01_tlv_relative_check.c:62  调用 Om_HandleCfg(local:aucMsg, 64, local:aucOut)
+    · Om_HandleCfg.R1：末端 [2, 66]，守卫在此成立，对象 local:aucMsg（64 字节）→ L2（最大末端 66 > 64（上界来自 check），最小末端 2 不越界） → RPT1（depth 3, eff_depth 0，报）
+    · Om_HandleCfg.R2：末端 256，守卫在此成立，对象 local:aucOut（256 字节）→ safe（最大末端 256 ≤ 256）
+- Om_OnCfgMsg_TP 是入口（没有调用方）：R1 到此为止 → 记账 entry_unproven
+## LV9-04
+- Chip_ReadStatus @ lv9_04_external_driver.c:25  调用 Drv_ReadReg(0x40000000, *p0, p1)
+    · 未知函数 Drv_ReadReg：记账 unknown_callee
+- Om_CollectChip @ lv9_04_external_driver.c:26  调用 Chip_ReadStatus(*p0, p1)
+    · 被调者没有 Req、没有要用的 Eff
+- Om_ReadAll @ lv9_04_external_driver.c:27  调用 Om_CollectChip(*p0, p1)
+    · 被调者没有 Req、没有要用的 Eff
+- Om_ReadChip_TN @ lv9_04_external_driver.c:38  调用 Om_ReadAll(local:aucStatus, 16)
+    · 被调者没有 Req、没有要用的 Eff
+- Om_ReadChip_TP @ lv9_04_external_driver.c:32  调用 Om_ReadAll(local:aucStatus, 32)
+    · 被调者没有 Req、没有要用的 Eff
+## LV10-04
+- Cfg_Save @ lv10_04_unchecked_ext_len.c:36  调用 memcpy_s(g:g_aucCfg, p1, *p0, p1)
+    · 访问类模型 memcpy_s → 在本函数生成 R1、R2
+- Om_ModInit @ lv10_04_unchecked_ext_len.c:45  调用 OM_RegMsg(0x3001, …, 256)
+    · 未知函数 OM_RegMsg：记账 unknown_callee
+- Cfg_Store @ lv10_04_unchecked_ext_len.c:39  调用 Cfg_Save(*p0, p1)
+    · Cfg_Save.R1：末端 p1，对象 g:g_aucCfg（256 字节）→ up → 本函数 R1
+    · Cfg_Save.R2：末端 p1，对象 *p0（ext(p0) 字节）→ up → 本函数 R2
+- Om_SaveCfg @ lv10_04_unchecked_ext_len.c:40  调用 Cfg_Store(*p0, p1)
+    · Cfg_Store.R1：末端 p1，对象 g:g_aucCfg（256 字节）→ up → 本函数 R1
+    · Cfg_Store.R2：末端 p1，对象 *p0（ext(p0) 字节）→ up → 本函数 R2
+- Om_OnSaveCfg_TN @ lv10_04_unchecked_ext_len.c:43  调用 Om_SaveCfg(p0->aucBody, p0->usMsgLen)
+    · Om_SaveCfg.R1：末端 p0->usMsgLen，对象 g:g_aucCfg（256 字节）→ up → 本函数 R1
+    · Om_SaveCfg.R2：末端 p0->usMsgLen，对象 p0->aucBody（1024 字节）→ up → 本函数 R2
+- Om_OnSaveCfg_TN 是入口（没有调用方）：R1 到此为止 → 记账 type_range_only
+- Om_OnSaveCfg_TN 是入口（没有调用方）：R2 到此为止 → 记账 type_range_only
+- Om_OnSaveCfg_TP @ lv10_04_unchecked_ext_len.c:42  调用 Om_SaveCfg(p0->aucBody, p0->usMsgLen)
+    · Om_SaveCfg.R1：末端 p0->usMsgLen，对象 g:g_aucCfg（256 字节）→ up → 本函数 R1
+    · Om_SaveCfg.R2：末端 p0->usMsgLen，对象 p0->aucBody（1024 字节）→ up → 本函数 R2
+- Om_OnSaveCfg_TP 是入口（没有调用方）：R1 到此为止 → 记账 type_range_only
+- Om_OnSaveCfg_TP 是入口（没有调用方）：R2 到此为止 → 记账 type_range_only

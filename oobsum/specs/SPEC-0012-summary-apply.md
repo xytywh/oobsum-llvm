@@ -1,6 +1,6 @@
 # SPEC-0012 摘要的读写（`core/Summary`）与调用点判定（`core/Apply`），在 104 份金标准摘要上对照 `replay.py`
 
-状态：§2.1（读写）已实现（S8a-1）；§2.2–§2.4（调用点判定、核对、`Dump=apply` 的文本）随 S8a-2
+状态：已实现（§2.1 S8a-1；§2.2–§2.4 S8a-2）
 来源：`STATUS.md` S8a；06- §5.3（D-20…D-30，摘要格式 `oobsum-summary/1`，D-30：机器字段与 `doc`）、§6.6（A-60…A-64 调用点五步）、
 F-10…F-22（判定）、T-06（金标准：`cases/summaries/` 去掉 `doc` 的机器版）；参考实现 `replay.py`（`load_case` / `strip_doc` / `check_shape`、
 `build_map`、`subst_obj`、`eliminate_locals`、`classify`、`rep_of`、`apply_eff`、`replay` 的逐调用点核对）。SPEC-0011 §1 的顺序调整。
@@ -27,6 +27,9 @@ F-10…F-22（判定）、T-06（金标准：`cases/summaries/` 去掉 `doc` 的
 → 调用方的对象与 `via`）、`EliminateLocals`（调用方局部换成它在调用点的区间，收集标签与非空约束）、`Classify`（守卫在此为假 → 安全；
 末端常数 → 安全 / L1 / L2 / 记账；守卫蕴含 → 安全；守卫界判定 F-12b；全是接口符号 → 上传；否则记账 `entry_unproven`）、`RepOf`（判定记录与指纹 F-34）、
 `ApplyEff`（`ret_new` / `ret_int` / `ret_cond` / `field`）。
+
+与 `replay.py` 唯一有意的不同：`eliminate_locals` 用到多个调用方局部、它们的界标签不同时，`replay.py` 用 `set.pop()` 取一个（随哈希种子变，不确定），
+C++ 取其中最"差"的（SPEC-0011 §2.1 的优先级）；只有一个标签时两者相同（104 份金标准摘要里都是这种情况）。
 
 ### 2.3 逐调用点核对
 

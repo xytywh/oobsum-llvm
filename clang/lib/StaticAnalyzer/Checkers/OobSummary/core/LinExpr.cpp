@@ -543,6 +543,27 @@ bool ParseLin(llvm::StringRef text, LinExpr &out, std::string &error)
     return true;
 }
 
+bool SplitCond(llvm::StringRef text, std::string &lhs, std::string &op, std::string &rhs)
+{
+    // 第一个比较符（同 replay.py 的 <=|>=|==|<|(?<!-)>）
+    for (size_t i = 0; i < text.size(); ++i) {
+        llvm::StringRef rest = text.substr(i);
+        size_t len = 0;
+        if (rest.startswith("<=") || rest.startswith(">=") || rest.startswith("==")) {
+            len = 2;
+        } else if (text[i] == '<' || (text[i] == '>' && (i == 0 || text[i - 1] != '-'))) {
+            len = 1;
+        }
+        if (len != 0) {
+            lhs = text.substr(0, i).str();
+            op = text.substr(i, len).str();
+            rhs = text.substr(i + len).str();
+            return true;
+        }
+    }
+    return false;
+}
+
 bool ParseCond(llvm::StringRef text, std::vector<LinExpr> &le0, std::string &error)
 {
     // 第一个比较符（同 replay.py 的 <=|>=|==|<|(?<!-)>）

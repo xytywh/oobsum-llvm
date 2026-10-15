@@ -66,11 +66,14 @@
       **顺序调整**（SPEC-0011 §1）：带 `min` / `max` 的符号界、合并、widening（A-10、A-15…A-17）移到 S7；先做 S8a。
 - [x] **S8a-1 摘要读写**（SPEC-0012 §2.1）：`core/Summary`（schema 的全部机器字段；读入忽略 `doc`、其余严格校验带位置；写出）；
       104 份金标准摘要读入再写出与去掉 `doc` 的原文完全相同；单测 48 个。
-- [ ] **S8a-2 调用点判定**：`core/Summary`（读 `oobsum-summary/1`，去掉 `doc`）+ `core/Apply`（`replay.py` 的 `build_map` / `subst_obj` /
-      `eliminate_locals` / `classify`，A-60…A-62）；`Dump=apply`；在 104 份金标准摘要上逐调用点与 `replay.py` 的"① 逐调用点核对"一致（T-06 的前一半）。
+- [x] **S8a-2 调用点判定**（SPEC-0012 §2.2–§2.4）：`core/Apply`（`BuildMap` / `SubstObj` / `EliminateLocals` / `Classify` / `RepOf` / `ApplyEff` /
+      `CheckCase`）；16 个用例逐调用点核对 0 处不一致，输出与 `replay.py`（机器版）逐行相同（金标准 `apply-golden.txt`，244 行；反向改坏一行会失败，已验证）。
+      单测 50 个（T-06 的前一半）。
+- [ ] **S8b 推到底**（SPEC-0012 §9）：`replay.py` 的 `derive`——只用每个函数的局部事实（depth 0 的 Req、调用点实参 / 区间 / 守卫）自底向上
+      重推全部上传 Req、判定、入口账本，最终告警与 `alerts.json` 逐条相同（消息、调用链 note、指纹；T-06 后一半）。
 - [ ] **S7 函数内解释**（WP3）：状态、WTO、不动点、转移、访问检查与 Req 生成；`Dump=state`；depth 0 的判定接进标签与日志。
-- [ ] **S8 摘要与代换**（WP4）：`core/Summary*`、`core/Apply`、`core/Solver`；`Dump=summary`、`Dump=apply`；Lv1 + Lv2 用例出告警；
-      与 `cases/summaries/`（去掉 doc）和 `alerts.json` 对照（T-06）。
+- [ ] **S8c 接进 checker**（WP4 其余）：`core/Solver`（同 TU 的调用图、SCC 逆拓扑序求解，A-80…A-82）、`Dump=summary` / `Dump=apply`；
+      S7 产出的摘要经 `Apply` 判定 → 标签 / 告警 / 判定日志；Lv1 + Lv2 用例出告警，`run.py csa` 对照 `@expect`（G1）。
 - [ ] S9 之后：WP5 安全函数族模型 → WP7 循环与守卫 → WP8 效果与分配器 → WP9 大小模型 → WP10 驱动 → WP11 真实代码子集（公司）→ WP12 全量与性能 → WP13 冻结。
 
 ## 等用户提供 / 在公司做的
