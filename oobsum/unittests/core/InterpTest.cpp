@@ -331,3 +331,67 @@ TEST(Interp, UnknownBaseAndLoops)
     EXPECT_EQ(facts.status, "partial:loop_pending");
     EXPECT_TRUE(facts.reqs.empty());
 }
+
+TEST(Interp, CallRecords)
+{
+    // 调用点记录（SPEC-0015 §2.1）：确切整数、纯函数模型的指针 → null、指针的 have / alias、偏移、局部数组、未知
+    Builder b;
+    uint32_t p = b.Param("pucBuf", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("ulLen", b.u32);
+    uint32_t buf = b.LocalVar("aucTmp", b.m.Intern(Type::Arr(b.u8, 16)), true);
+    uint32_t t = b.LocalVar("t0", b.u32);
+    auto call = [&](const std::string &callee, std::vector<ExprId> args, unsigned line) {
+        Inst i;
+        i.op = InstOp::Call;
+        i.callee = callee;
+        i.args = std::move(args);
+        i.loc = {0, line, 5};
+        return i;
+    };
+    auto havoc = [&](uint32_t dst, unsigned line) {
+        Inst i;
+        i.op = InstOp::Havoc;
+        i.dst = dst;
+        i.why = "inline_asm";
+        i.loc = {0, line, 5};
+        return i;
+    };
+    b.Straight({call("F:LOG_Print", {b.C(3), b.f.Add(Expr::Str(4)), b.L(n)}, 10),
+                call("F@abc:Leaf", {b.L(p), b.PAdd(b.L(p), b.C(4)), b.f.Add(Expr::LAddr(buf)), b.L(n)}, 11),
+                b.Load(t, b.f.Add(Expr::Unknown("float")), 4, 12), call("F@abc:Leaf", {b.L(t)}, 13), havoc(t, 14),
+                call("F@abc:Leaf", {b.L(t)}, 15)});
+    interp::FunctionFacts facts = b.Run();
+    ASSERT_TRUE(facts.calls.size() == 4);
+    auto show = [](const summary::ArgValue &a) {
+        switch (a.kind) {
+            case summary::ArgValue::Kind::Null:
+                return std::string("null");
+            case summary::ArgValue::Kind::Expr:
+                return a.expr;
+            case summary::ArgValue::Kind::Ptr:
+                return "{" + a.ptr->obj + ", " + a.ptr->have + (a.ptr->alias ? ", alias " + *a.ptr->alias : "") + "}";
+        }
+        return std::string("?");
+    };
+    auto args = [&](const summary::Call &c) {
+        std::string out;
+        for (const summary::ArgValue &a : c.args) {
+            out += (out.empty() ? "" : " ") + show(a);
+        }
+        return out;
+    };
+    EXPECT_EQ(facts.calls[0].callee, "LOG_Print");
+    EXPECT_EQ(facts.calls[0].model.getValueOr("-"), "pure");
+    EXPECT_EQ(args(facts.calls[0]), "3 null p1");
+    EXPECT_EQ(facts.calls[1].site, "t.c:11");
+    EXPECT_EQ(facts.calls[1].callee, "Leaf");
+    EXPECT_FALSE(facts.calls[1].model.hasValue());
+    EXPECT_EQ(args(facts.calls[1]), "{*p0, ext(p0), alias p0} {*p0, ext(p0) - 4} {local:aucTmp, 16} p1");
+    // 从未知地址读到的 u32：类型范围（data）→ 局部名 + locals（data 不是代码给出的界，调用点上只会记账）
+    EXPECT_EQ(args(facts.calls[2]), "t0");
+    ASSERT_TRUE(facts.calls[2].locals.hasValue());
+    EXPECT_EQ(facts.calls[2].locals->at("t0").hi, "4294967295");
+    EXPECT_EQ(facts.calls[2].locals->at("t0").bound, "data");
+    // 完全未知（havoc）的实参写成非接口符号（只会走向 entry_unproven，不写 null）
+    EXPECT_EQ(args(facts.calls[3]), "_unknown0");
+}

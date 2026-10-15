@@ -73,8 +73,10 @@
       判定 13、入口账本 8（同 `replay.py`），13 条告警与 `alerts.json` 逐条相同（反向改坏一处即失败，已验证）。单测 54 个。**T-06 的两半都在 C++ 里成立了。**
 - [x] **S7a-1 函数内解释第一步**（SPEC-0014）：`core/Interp`——值（确切线性式 / 区间 / 未知）、指针（形参、形参字段与数组成员、全局、局部、字符串）、
       内存格、无环 CFG 的逆后序与汇合、访问检查 → depth 0 的 Req（写优先的覆盖合并）；有回边的函数先标 `partial:loop_pending`。单测 62 个。
-- [ ] **S7a-2**：调用点记录（实参的表达式 / 指针 `{obj, have, alias}` / 纯函数模型的指针实参为 null）、摘要组装、`Dump=summary` / `Dump=state`、
-      与金标准局部事实的对照脚本（键规范化：`F@<id>` → 定义文件名）；先对上 LV1-01、LV1-02、LV2-09 里无环无守卫的函数。
+- [x] **S7a-2 调用点记录与端到端对照**（SPEC-0015）：`RecordCall`（确切 / 区间 / 未知的整数实参，指针 `{obj, have, alias}`，纯函数模型的指针为 null，
+      未知写成非接口符号）、`BuildSummary`、`Dump=summary` / `Dump=state`；`oobsum/tools/engine_check.py`（键、类型规范化后交 `replay.py` 推到底）。
+      **LV1-01、LV1-02、LV1-07（三个 TU）从 C 源码端到端与 `alerts.json` 逐条相同，`@expect` 全对**（lit `engine-check.test` 守住）。
+      LV2-09：TP 对，TN 误报 L1——缺守卫（`if (ulPos == 0) return`），S7b 解决。
 - [ ] **S7b 条件边与守卫**（A-14、A-30）；**S7c 循环**（WTO、widening 阈值、narrowing，A-16、A-33；带 `min` / `max` 的界 A-10、A-15、A-17）；
       **S7d 效果与模型**（`ret_new` 等 D-24、A-63…A-65、A-70；分配器、`memcpy_s` 族，WP5 / WP8）。
 - [ ] **S8c 接进 checker**（WP4 其余）：`core/Solver`（同 TU 的调用图、SCC 逆拓扑序求解，A-80…A-82）、`Dump=summary` / `Dump=apply`；

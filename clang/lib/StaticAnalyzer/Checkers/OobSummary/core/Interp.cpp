@@ -6,6 +6,9 @@
 
 #include "OobSummary/core/Interp.h"
 
+#include "OobSummary/core/FirText.h"
+#include "OobSummary/core/Key.h"
+
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Path.h"
@@ -507,11 +510,19 @@ private:
 
     State Entry() const;
     std::vector<summary::Req> Merge() const;
+    void RecordCall(const fir::Inst &inst, const State &s);
+    std::string ShowState(const fir::Block &b, const State &s) const;
 
+public:
+    std::vector<std::string> *trace = nullptr;
+
+private:
     const fir::Module &m;
     const fir::Function &f;
     std::vector<RawAccess> accesses;
     std::vector<summary::Open> opens;
+    std::vector<summary::Call> calls;
+    mutable std::map<std::string, summary::FieldInfo> fields;
 };
 
 IntVal Analyzer::Bin(const fir::Expr &x, const State &s)
@@ -759,6 +770,11 @@ Value Analyzer::LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const 
                 }
                 std::string name = "p" + std::to_string(param) + "->" + field.name;
                 const fir::Type &ft = m.types[field.type];
+                summary::FieldInfo info;
+                info.off = field.off;
+                info.size = fieldSize;
+                info.type = fir::TypeText(m, field.type);
+                fields[name] = info;
                 if (ft.kind == fir::TypeKind::Ptr) {
                     v.isPtr = true;
                     v.p = Base(BaseKind::ParamPtr, "PP" + std::to_string(param) + "." + field.name, "*" + name,
@@ -861,6 +877,7 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             return;
         }
         case fir::InstOp::Call:
+            RecordCall(inst, s);
             s.cells.clear();  // 被调者可能经指针 / 全局写内存（效果在 S7d）
             if (inst.dst != fir::kNone) {
                 Value v;
@@ -1010,6 +1027,9 @@ FunctionFacts Analyzer::Run()
         if (!s.reached) {
             continue;
         }
+        if (trace != nullptr) {
+            trace->push_back(ShowState(f.blocks[*it], s));
+        }
         for (const fir::Inst &inst : f.blocks[*it].insts) {
             Step(inst, s);
         }
@@ -1021,16 +1041,139 @@ FunctionFacts Analyzer::Run()
         }
     }
     facts.reqs = Merge();
+    facts.calls = calls;
+    facts.fields = fields;
     facts.opens = opens;
     return facts;
 }
 
+// 调用点记录（D-25，SPEC-0015 §2.1）：整数实参写表达式（区间写成局部名 + locals）；指针实参写 {obj, have, alias?}；
+// 纯函数模型的指针实参为 null；不知道的值写成不是接口符号的名字（_unknown<k>），以后在调用点只会走向 entry_unproven
+void Analyzer::RecordCall(const fir::Inst &inst, const State &s)
+{
+    if (inst.calleeExpr != fir::kNone) {
+        return;  // 间接调用（fptr）留到 S9
+    }
+    summary::Call call;
+    call.site = SiteOf(m, inst.loc);
+    call.callee = KeyName(inst.callee).str();
+    bool defined = llvm::any_of(m.funcs, [&](const fir::Function &g) { return g.key == inst.callee; });
+    bool pure = !defined && IsPureModel(call.callee);
+    if (pure) {
+        call.model = std::string("pure");
+    }
+    for (size_t k = 0; k < inst.args.size(); ++k) {
+        Value v = Eval(inst.args[k], s);
+        summary::ArgValue arg;
+        std::string unknown = "_unknown" + std::to_string(k);
+        if (v.isPtr) {
+            if (pure) {
+                arg.kind = summary::ArgValue::Kind::Null;
+            } else {
+                arg.kind = summary::ArgValue::Kind::Ptr;
+                arg.ptr = std::make_shared<summary::PtrArg>();
+                llvm::Optional<LinExpr> hi = v.p.off.Upper();
+                bool known = v.p.kind != BaseKind::Unknown && v.p.kind != BaseKind::Func && v.p.hasSize && hi;
+                if (known) {
+                    arg.ptr->obj = v.p.obj;
+                    arg.ptr->have = (v.p.size - *hi).Show();  // 偏移是区间时取最小的剩余（多报不少报）
+                    if (v.p.kind == BaseKind::Param && v.p.off.IsConst() && v.p.off.value.Constant() == 0) {
+                        arg.ptr->alias = v.p.obj.substr(1);  // *p0 → p0
+                    }
+                } else {
+                    arg.ptr->obj = "local:" + unknown;
+                    arg.ptr->have = unknown;
+                }
+            }
+        } else if (v.i.kind == IntVal::Kind::Exact) {
+            arg.kind = summary::ArgValue::Kind::Expr;
+            arg.expr = v.i.value.Show();
+        } else {
+            arg.kind = summary::ArgValue::Kind::Expr;
+            llvm::Optional<LinExpr> lo = v.i.Lower();
+            llvm::Optional<LinExpr> hi = v.i.Upper();
+            if (v.i.kind == IntVal::Kind::Range && lo && hi) {
+                const fir::Expr &x = f.exprs[inst.args[k]];
+                const fir::Local *l = x.op == ExprOp::Local ? f.FindLocal(static_cast<uint32_t>(x.value)) : nullptr;
+                std::string name = l != nullptr && !l->tmp ? l->name : "_arg" + std::to_string(k);
+                if (!call.locals) {
+                    call.locals = std::map<std::string, summary::Local>();
+                }
+                (*call.locals)[name] = {lo->Show(), hi->Show(),
+                                        TagName(v.i.tag == Tag::None ? Tag::Branch : v.i.tag).str()};
+                arg.expr = name;
+            } else {
+                arg.expr = unknown;
+            }
+        }
+        call.args.push_back(std::move(arg));
+    }
+    calls.push_back(std::move(call));
+}
+
+std::string Analyzer::ShowState(const fir::Block &b, const State &s) const
+{
+    std::string out = "b" + std::to_string(b.id) + ":";
+    for (const auto &entry : s.locals) {
+        const fir::Local *l = f.FindLocal(entry.first);
+        if (l == nullptr || l->tmp) {
+            continue;
+        }
+        const Value &v = entry.second;
+        std::string text = v.isPtr
+                               ? (v.p.kind == BaseKind::Unknown ? "?(" + v.p.why + ")" : v.p.obj + "+" + v.p.off.Show())
+                               : v.i.Show();
+        out += " " + l->name + "=" + text;
+    }
+    for (const auto &cell : s.cells) {
+        const Value &v = cell.second;
+        out += " [" + std::get<0>(cell.first) + "+" + std::to_string(std::get<1>(cell.first)) + ":" +
+               std::to_string(std::get<2>(cell.first)) + "]=" + (v.isPtr ? v.p.obj : v.i.Show());
+    }
+    return out;
+}
+
 }  // namespace
 
-FunctionFacts AnalyzeFunction(const fir::Module &m, const fir::Function &f)
+bool IsPureModel(llvm::StringRef name)
+{
+    // 日志不接收任何会流进内存访问的东西（cases/common.h）；WP5 的模型表接上后由 config 提供（I8 / I9）
+    static const char *const pure[] = {"LOG_Print"};
+    return llvm::is_contained(pure, name);
+}
+
+FunctionFacts AnalyzeFunction(const fir::Module &m, const fir::Function &f, std::vector<std::string> *stateTrace)
 {
     Analyzer a(m, f);
+    a.trace = stateTrace;
     return a.Run();
+}
+
+summary::Summary BuildSummary(const fir::Module &m, const fir::Function &f, const FunctionFacts &facts)
+{
+    summary::Summary s;
+    s.fn = f.name;
+    s.key = f.key;
+    s.loc = SiteOf(m, f.loc);
+    std::vector<const fir::Local *> params;
+    for (const fir::Local &l : f.locals) {
+        if (l.param >= 0) {
+            params.push_back(&l);
+        }
+    }
+    std::sort(params.begin(), params.end(),
+              [](const fir::Local *a, const fir::Local *b) { return a->param < b->param; });
+    for (const fir::Local *l : params) {
+        s.params.push_back({l->name, fir::TypeText(m, l->type)});
+    }
+    if (!facts.fields.empty()) {
+        s.fields = facts.fields;
+    }
+    s.status = facts.status;
+    s.reqs = facts.reqs;
+    s.calls = facts.calls;
+    s.opens = facts.opens;
+    return s;
 }
 
 }  // namespace interp

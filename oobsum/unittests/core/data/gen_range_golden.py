@@ -8,6 +8,8 @@
   E <形参类型,…> <字段名:类型;…> <环境守卫 条件@标签;…> <d> <守卫 条件;…> <1|0>
 只依赖 Python 3 标准库。
 """
+import sys
+sys.dont_write_bytecode = True  # 不在 cases/summaries 里留 __pycache__
 import importlib.util, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))

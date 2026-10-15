@@ -105,6 +105,15 @@ bool TypeRangeOf(llvm::StringRef typeName, int64_t &lo, int64_t &hi)
             return true;
         }
     }
+    // FIR 的类型写法（引擎产出的摘要用它，SPEC-0015 §2.2）：u8 / u16 / u32 / i8 / i16 / i32
+    unsigned width = 0;
+    if (typeName.size() >= 2 && (typeName[0] == 'u' || typeName[0] == 'i') &&
+        !typeName.drop_front().getAsInteger(10, width) && (width == 8 || width == 16 || width == 32)) {
+        bool isSigned = typeName[0] == 'i';
+        lo = isSigned ? -(int64_t(1) << (width - 1)) : 0;
+        hi = isSigned ? (int64_t(1) << (width - 1)) - 1 : (int64_t(1) << width) - 1;
+        return true;
+    }
     return false;
 }
 

@@ -51,6 +51,7 @@ cmake-build-release/bin/llvm-lit -sv cmake-build-release/tools/clang/test/Analys
 python3 oobsum/cases/summaries/replay.py                 # 摘要金标准回放（只要 Python 3）
 python3 oobsum/cases/run.py csa                          # 67 个用例按 @expect 对照 + 与 csa-baseline.json 比召回不回退（SPEC-0002）
 oobsum/devenv/core-tests.sh [子串]                        # core/ 单元测试 oobsum-core-tests（SPEC-0004；lit 的 core-unittests.test 也会跑）
+python3 oobsum/tools/engine_check.py [-v] LV1-01 …       # 引擎从 C 源码算局部事实 → replay.py 推到底，告警与 alerts.json 逐条比（SPEC-0015）
 cmake-build-release/bin/clang-format -i --style=file:clang/lib/StaticAnalyzer/Checkers/OobSummary/.clang-format <文件>   # 排版（先 ninja -C cmake-build-release clang-format；不重排中文注释）
 python3 oobsum/devenv/land.py --drop oobsum/landing/OobSummaryChecker.manifest --check-tree   # 新文件是否都登记了
 oobsum/devenv/40-smoke.sh                                # 整体冒烟（7 项）

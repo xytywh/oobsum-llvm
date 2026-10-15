@@ -41,7 +41,9 @@
 #include "OobSummary/core/Fingerprint.h"
 #include "OobSummary/core/FirJson.h"
 #include "OobSummary/core/FirText.h"
+#include "OobSummary/core/Interp.h"
 #include "OobSummary/core/Policy.h"
+#include "OobSummary/core/Summary.h"
 #include "OobSummary/debug/DumpSink.h"
 #include "OobSummary/lower/Keys.h"
 #include "OobSummary/lower/Lowering.h"
@@ -137,8 +139,8 @@ private:
 
     void dumpCallGraph(const TranslationUnitDecl *tu, oobsum::KeyMaker &keys) const;
     void dumpKeys(const TranslationUnitDecl *tu, const std::string &tuId, oobsum::KeyMaker &keys) const;
-    void dumpFir(const TranslationUnitDecl *tu, AnalysisManager &mgr, const std::string &mainFile,
-                 const std::string &tuId, oobsum::KeyMaker &keys) const;
+    void dumpFir(const oobsum::fir::Module &module, const std::string &tuId) const;
+    void dumpSummaries(const oobsum::fir::Module &module, const std::string &tuId) const;
 };
 
 void OobSummaryChecker::dumpCallGraph(const TranslationUnitDecl *tu, oobsum::KeyMaker &keys) const
@@ -184,11 +186,9 @@ void OobSummaryChecker::dumpKeys(const TranslationUnitDecl *tu, const std::strin
     dump.File(tuId + "/keys/keys.txt", content);
 }
 
-void OobSummaryChecker::dumpFir(const TranslationUnitDecl *tu, AnalysisManager &mgr, const std::string &mainFile,
-                                const std::string &tuId, oobsum::KeyMaker &keys) const
+void OobSummaryChecker::dumpFir(const oobsum::fir::Module &module, const std::string &tuId) const
 {
-    // SPEC-0006 §3、SPEC-0007 §2.5：只有 Dump=fir 时才降级；模块头总打，函数按 DumpFilter
-    oobsum::fir::Module module = oobsum::LowerTranslationUnit(tu, mgr, keys, mainFile);
+    // SPEC-0006 §3、SPEC-0007 §2.5：模块头总打，函数按 DumpFilter
     std::vector<std::string> lines = oobsum::fir::ModuleHeaderText(module);
     for (const oobsum::fir::Function &f : module.funcs) {
         if (dump.Wants("fir", f.name)) {
@@ -227,6 +227,35 @@ void OobSummaryChecker::dumpFir(const TranslationUnitDecl *tu, AnalysisManager &
     dump.File(tuId + "/fir/" + tuId + ".json", prettyOs.str());
 }
 
+void OobSummaryChecker::dumpSummaries(const oobsum::fir::Module &module, const std::string &tuId) const
+{
+    // SPEC-0015 §2.3：每个函数的局部事实（函数内解释的结果）写成摘要；Dump=state 打每个块入口的状态
+    for (const oobsum::fir::Function &f : module.funcs) {
+        bool wantSummary = dump.Wants("summary", f.name);
+        bool wantState = dump.Wants("state", f.name);
+        if (!wantSummary && !wantState) {
+            continue;
+        }
+        std::vector<std::string> trace;
+        oobsum::interp::FunctionFacts facts = oobsum::interp::AnalyzeFunction(module, f, wantState ? &trace : nullptr);
+        for (const std::string &line : trace) {
+            dump.Line("state", "fn " + f.name + " " + line);
+        }
+        if (!wantSummary) {
+            continue;
+        }
+        llvm::json::Value json = oobsum::summary::SummaryToJson(oobsum::interp::BuildSummary(module, f, facts));
+        std::string compact;
+        llvm::raw_string_ostream compactOs(compact);
+        compactOs << json;
+        dump.Line("summary", compactOs.str());
+        std::string pretty;
+        llvm::raw_string_ostream prettyOs(pretty);
+        prettyOs << llvm::formatv("{0:1}", json) << "\n";
+        dump.File(tuId + "/summary/" + f.name + ".json", prettyOs.str());
+    }
+}
+
 void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisManager &mgr, BugReporter &br) const
 {
     const SourceManager &sm = mgr.getSourceManager();
@@ -244,8 +273,15 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
     if (dump.On("callgraph")) {
         dumpCallGraph(tu, keys);
     }
-    if (dump.On("fir")) {
-        dumpFir(tu, mgr, mainFile, tuId, keys);
+    // 降级只在要看 FIR / 状态 / 摘要时才做（引擎接上前不增加默认运行的开销，SPEC-0007 §2.5）
+    if (dump.On("fir") || dump.On("summary") || dump.On("state")) {
+        oobsum::fir::Module module = oobsum::LowerTranslationUnit(tu, mgr, keys, mainFile);
+        if (dump.On("fir")) {
+            dumpFir(module, tuId);
+        }
+        if (dump.On("summary") || dump.On("state")) {
+            dumpSummaries(module, tuId);
+        }
     }
 
     // 判定来源：目前只有调试内建函数；引擎接入后在这里加上 lower → solve → apply 产出的判定

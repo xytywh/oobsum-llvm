@@ -78,14 +78,22 @@ struct Value {
     }
 };
 
-// 一个函数的局部事实（本步只有 depth 0 的 Req 与账本）
+// 一个函数的局部事实（SPEC-0014 §2.4、SPEC-0015）：depth 0 的 Req、调用点记录、用到的形参字段、账本
 struct FunctionFacts {
-    std::string status = "analyzed";  // D-28；partial:loop_pending（S7a-1 不分析有回边的函数）
-    std::vector<summary::Req> reqs;   // depth 0，已覆盖合并
+    std::string status = "analyzed";   // D-28；partial:loop_pending（S7c 之前不分析有回边的函数）
+    std::vector<summary::Req> reqs;    // depth 0，已覆盖合并
+    std::vector<summary::Call> calls;  // 调用点记录（D-25；results 留空，由求解填）
+    std::map<std::string, summary::FieldInfo> fields;  // 用到的 pi->字段（D-23 的 fields 表）
     std::vector<summary::Open> opens;
 };
 
-FunctionFacts AnalyzeFunction(const fir::Module &m, const fir::Function &f);
+// stateTrace 非空时，每个块入口的状态各一行（Dump=state）
+FunctionFacts AnalyzeFunction(const fir::Module &m, const fir::Function &f,
+                              std::vector<std::string> *stateTrace = nullptr);
+// 局部事实 → 摘要（只有局部事实；上传的 Req、判定、账本由求解补上）
+summary::Summary BuildSummary(const fir::Module &m, const fir::Function &f, const FunctionFacts &facts);
+// 纯函数模型（日志等；WP5 的模型表之前的最小清单，SPEC-0015 §2.1）
+bool IsPureModel(llvm::StringRef name);
 
 // FIR 类型的字节数；未知（不完整、void、函数）返回 false
 bool TypeSize(const fir::Module &m, fir::TypeId type, int64_t &out);

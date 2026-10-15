@@ -6,6 +6,8 @@ C++ 的 ApplyTest 用 CheckCase 逐行比对。标题（来自 case.json）与 @
 用法：python3 -I gen_apply_golden.py
 只依赖 Python 3 标准库。
 """
+import sys
+sys.dont_write_bytecode = True  # 不在 cases/summaries 里留 __pycache__
 import importlib.util, json, os, shutil, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))

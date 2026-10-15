@@ -10,6 +10,8 @@
   C <输入> <各 L<=0 原子的 ShowLe0，以 " ; " 连接>
 只依赖 Python 3 标准库。
 """
+import sys
+sys.dont_write_bytecode = True  # 不在 cases/summaries 里留 __pycache__
 import glob, importlib.util, json, os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
