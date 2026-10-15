@@ -45,3 +45,4 @@
 | [SPEC-0010](SPEC-0010-linexpr.md) | 线性式 `core/LinExpr`：规范形式、D-21 文本语法、条件、代换（与 `replay.py` 同语义） | 已实现（S6a） |
 | [SPEC-0011](SPEC-0011-range-entail.md) | 取值范围与蕴含 `core/Range`（符号环境、`range_of`、守卫收窄、`entails_le0`） | 已实现（S6b） |
 | [SPEC-0012](SPEC-0012-summary-apply.md) | 摘要读写 `core/Summary` 与调用点判定 `core/Apply`，在 104 份金标准摘要上对照 `replay.py` | 已实现（S8a-1、S8a-2） |
+| [SPEC-0013](SPEC-0013-propagate-alerts.md) | 从局部事实推到底（`core/Solver` 的 `Propagate`）与告警成品（`core/Alert`），与 `alerts.json` 逐条相同 | 已实现（S8b） |

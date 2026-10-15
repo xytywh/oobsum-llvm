@@ -221,8 +221,21 @@ bool AllIface(const LinExpr &e)
     return llvm::all_of(e.Terms(), [](const std::pair<const Atom, int64_t> &t) { return IsIface(t.first); });
 }
 
+Tag TagOf(const std::string &name)
+{
+    llvm::Optional<Tag> t = ParseTag(name);
+    return t ? *t : Tag::None;
+}
+
+std::string NumberOrNone(bool has, int64_t v)
+{
+    return has ? std::to_string(v) : std::string("None");
+}
+
+}  // namespace
+
 // 同 replay.py 的 Env(caller.params, caller.fields)
-SymEnv EnvOf(const Summary &caller)
+SymEnv CallerEnv(const Summary &caller)
 {
     SymEnv env;
     auto add = [&](const std::string &name, const std::string &type) {
@@ -242,19 +255,6 @@ SymEnv EnvOf(const Summary &caller)
     }
     return env;
 }
-
-Tag TagOf(const std::string &name)
-{
-    llvm::Optional<Tag> t = ParseTag(name);
-    return t ? *t : Tag::None;
-}
-
-std::string NumberOrNone(bool has, int64_t v)
-{
-    return has ? std::to_string(v) : std::string("None");
-}
-
-}  // namespace
 
 EnvGuards EnvGuardsOf(const Call &call)
 {
@@ -288,7 +288,7 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
                                  entry.second.bound.empty() ? "loop" : entry.second.bound};
         }
     }
-    SymEnv env = EnvOf(caller);
+    SymEnv env = CallerEnv(caller);
     for (const auto &g : envGuards) {
         env.AddGuard(g.first, g.second);
     }
@@ -526,41 +526,6 @@ std::string FmtRange(const LinExpr &lo, const LinExpr &hi)
     return lo == hi ? Show(lo) : "[" + Show(lo) + ", " + Show(hi) + "]";
 }
 
-// 同 replay.py 的 topo：按"离叶子的层数"排，同层按名字
-std::vector<std::string> Topo(const std::map<std::string, Summary> &fns)
-{
-    std::map<std::string, int> level;
-    std::function<int(const std::string &, std::vector<std::string> &)> lv = [&](const std::string &n,
-                                                                                 std::vector<std::string> &stack) {
-        auto known = level.find(n);
-        if (known != level.end()) {
-            return known->second;
-        }
-        auto it = fns.find(n);
-        if (it == fns.end() || llvm::is_contained(stack, n)) {
-            return -1;
-        }
-        int best = -1;
-        stack.push_back(n);
-        for (const Call &c : it->second.calls) {
-            best = std::max(best, lv(c.callee, stack));
-        }
-        stack.pop_back();
-        level[n] = best + 1;
-        return best + 1;
-    };
-    std::vector<std::string> names;
-    for (const auto &entry : fns) {
-        std::vector<std::string> stack;
-        lv(entry.first, stack);
-        names.push_back(entry.first);
-    }
-    std::stable_sort(names.begin(), names.end(), [&](const std::string &a, const std::string &b) {
-        return std::make_pair(level[a], a) < std::make_pair(level[b], b);
-    });
-    return names;
-}
-
 std::vector<std::string> SameReq(const summary::Req &r, const Outcome &mine)
 {
     std::vector<std::string> probs;
@@ -594,6 +559,56 @@ std::vector<std::string> SameReq(const summary::Req &r, const Outcome &mine)
     return probs;
 }
 
+std::string Label(const ArgValue &a)
+{
+    switch (a.kind) {
+        case ArgValue::Kind::Ptr:
+            return a.ptr->obj;  // 机器版没有 doc，replay.py 的 label 也取 obj
+        case ArgValue::Kind::Expr:
+            return a.expr;
+        case ArgValue::Kind::Null:
+            return "…";
+    }
+    return "…";
+}
+
+}  // namespace
+
+// 同 replay.py 的 topo：按"离叶子的层数"排，同层按名字
+std::vector<std::string> TopoOrder(const std::map<std::string, Summary> &fns)
+{
+    std::map<std::string, int> level;
+    std::function<int(const std::string &, std::vector<std::string> &)> lv = [&](const std::string &n,
+                                                                                 std::vector<std::string> &stack) {
+        auto known = level.find(n);
+        if (known != level.end()) {
+            return known->second;
+        }
+        auto it = fns.find(n);
+        if (it == fns.end() || llvm::is_contained(stack, n)) {
+            return -1;
+        }
+        int best = -1;
+        stack.push_back(n);
+        for (const Call &c : it->second.calls) {
+            best = std::max(best, lv(c.callee, stack));
+        }
+        stack.pop_back();
+        level[n] = best + 1;
+        return best + 1;
+    };
+    std::vector<std::string> names;
+    for (const auto &entry : fns) {
+        std::vector<std::string> stack;
+        lv(entry.first, stack);
+        names.push_back(entry.first);
+    }
+    std::stable_sort(names.begin(), names.end(), [&](const std::string &a, const std::string &b) {
+        return std::make_pair(level[a], a) < std::make_pair(level[b], b);
+    });
+    return names;
+}
+
 std::vector<std::string> DiffRep(const summary::Rep &want, const summary::Rep &got)
 {
     std::vector<std::string> bad;
@@ -619,21 +634,6 @@ std::vector<std::string> DiffRep(const summary::Rep &want, const summary::Rep &g
     cmp("via", want.via.getValueOr("null"), got.via.getValueOr("null"));
     return bad;
 }
-
-std::string Label(const ArgValue &a)
-{
-    switch (a.kind) {
-        case ArgValue::Kind::Ptr:
-            return a.ptr->obj;  // 机器版没有 doc，replay.py 的 label 也取 obj
-        case ArgValue::Kind::Expr:
-            return a.expr;
-        case ArgValue::Kind::Null:
-            return "…";
-    }
-    return "…";
-}
-
-}  // namespace
 
 llvm::Optional<summary::Apply> ApplyEff(const summary::Eff &eff, const Call &call)
 {
@@ -687,7 +687,7 @@ CheckResult CheckCase(const std::string &caseId, const std::map<std::string, Sum
             callees.insert(c.callee);
         }
     }
-    for (const std::string &fn : Topo(fns)) {
+    for (const std::string &fn : TopoOrder(fns)) {
         const Summary &s = fns.at(fn);
         for (const Call &call : s.calls) {
             std::vector<std::string> labels;

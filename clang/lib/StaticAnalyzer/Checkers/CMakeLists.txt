@@ -149,6 +149,8 @@ add_clang_library(clangStaticAnalyzerCheckers
   OobSummary/core/Range.cpp
   OobSummary/core/Summary.cpp
   OobSummary/core/Apply.cpp
+  OobSummary/core/Alert.cpp
+  OobSummary/core/Solver.cpp
 
   LINK_LIBS
   clangAST

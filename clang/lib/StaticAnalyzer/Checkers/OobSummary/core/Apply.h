@@ -52,6 +52,13 @@ struct Outcome {
     int64_t loEnd = 0;
 };
 
+// 调用方的符号环境：形参与字段按类型名取范围（同 replay.py 的 Env(caller.params, caller.fields)）
+SymEnv CallerEnv(const summary::Summary &caller);
+// 自底向上的顺序：离叶子的层数，同层按名字（同 replay.py 的 topo）
+std::vector<std::string> TopoOrder(const std::map<std::string, summary::Summary> &fns);
+// 判定记录逐字段比较（同 replay.py 的 diff_rep）；返回不同的字段
+std::vector<std::string> DiffRep(const summary::Rep &want, const summary::Rep &got);
+
 // 调用点处的环境守卫（调用方的守卫，条件 → 原子，带来源标签）
 using EnvGuards = std::vector<std::pair<LinExpr, Tag>>;
 EnvGuards EnvGuardsOf(const summary::Call &call);
