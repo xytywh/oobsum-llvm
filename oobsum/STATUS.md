@@ -61,8 +61,11 @@
 - [ ] **S5b**：`MaxBlocks`（A-09，要改 Checkers.td）；不支持的构造（`unk(<类名>)`）计入判定日志（SUSPECT:unsupported_construct）——引擎接上时一起做。
 - [x] **S6a 线性式**（SPEC-0010）：`core/LinExpr`（规范形式、D-21 解析与打印、不透明项的常数求值、溢出 → 未知、`ParseCond` / `ShowLe0`、`Substitute`）；
       单测 39 个，含金标准 `unittests/core/data/lin-golden.txt`（`gen_lin_golden.py` 用 `replay.py` 从 104 份摘要抽出的 101 条表达式 / 条件，逐字一致）。
-- [ ] **S6b 界与区间**（A-10、A-15…A-17）：`core/Bound`（`[lo, hi]`，界 = 线性式 / `min(c, LE)` / `max(c, LE)` / ±∞，来源标签，合并、widening 阈值、化简）；
-      与 `replay.py` 的 `Env.range_of` 同语义的取值范围；单元测试。
+- [x] **S6b 取值范围与蕴含**（SPEC-0011）：`core/Range`（来源标签与优先级、类型表、`SymEnv` 的单符号守卫收窄、六种原子的界、`RangeOf`、`EntailsLe0`）；
+      单测 44 个，含金标准 `range-golden.txt`（`gen_range_golden.py` 用 `replay.py` 的 `Env` / `entails_le0` 算出的 54 条查询，逐条一致）。
+      **顺序调整**（SPEC-0011 §1）：带 `min` / `max` 的符号界、合并、widening（A-10、A-15…A-17）移到 S7；先做 S8a。
+- [ ] **S8a 摘要读入与调用点判定**：`core/Summary`（读 `oobsum-summary/1`，去掉 `doc`）+ `core/Apply`（`replay.py` 的 `build_map` / `subst_obj` /
+      `eliminate_locals` / `classify`，A-60…A-62）；`Dump=apply`；在 104 份金标准摘要上逐调用点与 `replay.py` 的"① 逐调用点核对"一致（T-06 的前一半）。
 - [ ] **S7 函数内解释**（WP3）：状态、WTO、不动点、转移、访问检查与 Req 生成；`Dump=state`；depth 0 的判定接进标签与日志。
 - [ ] **S8 摘要与代换**（WP4）：`core/Summary*`、`core/Apply`、`core/Solver`；`Dump=summary`、`Dump=apply`；Lv1 + Lv2 用例出告警；
       与 `cases/summaries/`（去掉 doc）和 `alerts.json` 对照（T-06）。

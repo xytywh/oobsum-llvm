@@ -1,0 +1,55 @@
+# 由 gen_range_golden.py 用 replay.py 的 Env / entails_le0 生成，不要手改
+R	UINT32			p0	hi	4294967295	type
+R	UINT32			p0	lo	0	type
+R	INT32			p0	lo	-2147483648	type
+R	CHAR			p0	lo	-128	type
+R	size_t			p0	hi	4294967295	type
+R	UINT8 *			p0	hi	none	-
+R	UINT32		p0 <= 15@check	4*p0 + 4	hi	64	check
+R	UINT32		p0 < 16@loop	p0	hi	15	loop
+R	UINT32		p0 >= 3@check	p0	lo	3	check
+R	UINT32		2*p0 <= 7@check	p0	hi	3	check
+R	UINT32		3*p0 >= 7@check	p0	lo	3	check
+R	UINT32		p0 <= 1099511627776@guard	p0	hi	1099511627776	guard
+R	UINT32		p0 <= 15@check;p0 <= 20@loop	p0	hi	15	check
+R	UINT32		p0 <= 20@loop;p0 <= 15@check	p0	hi	15	check
+R	UINT32,UINT32		p0 + p1 <= 10@check	p0	hi	4294967295	type
+R	UINT32			ext(p0)	hi	none	-
+R	UINT32			ext(p0)	lo	0	type
+R	UINT8 *,UINT32			ext(p0) - 4*p1	hi	none	-
+R	UINT8 *,UINT32		p1 >= 1@check	16 - 4*p1	hi	12	check
+R	UINT8 *,UINT32		p1 <= 100@check	div(p1 + 31, 32)	hi	4	check
+R	UINT8 *,UINT32		p1 <= 100@check	div(p1 + 31, 32)	lo	0	type
+R	UINT32			mod(p0, 8)	hi	7	mask
+R	UINT32			mod(p0, 8)	lo	0	mask
+R	UINT8 *,UINT32		p1 >= 1@check	wrap32(p1 - 1)	hi	4294967294	type
+R	UINT8 *,UINT32			wrap32(p1 - 1)	hi	4294967295	type
+R	UINT8 *,UINT32			wrap32(p1 - 1)	lo	0	type
+R	UINT32		p0 <= 100@check	wrap16(p0)	hi	100	check
+R	UINT32		p0 <= 100@check	wrap16(p0)	lo	0	check
+R	UINT32,UINT32		p0 <= 4@check;p1 <= 8@loop	mul(p0, p1)	hi	32	check
+R	UINT8 *	p0->ulLen:UINT16		p0->ulLen	hi	65535	type
+R	UINT32			g:g_x	hi	none	-
+R	UINT32			i	lo	none	-
+R	UINT32			5	hi	5	-
+R	UINT32,UINT32		p0 <= 3@loop;p1 <= 4@check	p0 + p1	hi	7	check
+R	UINT32,UINT32		p0 <= 3@guard;p1 <= 4@mask	p0 + p1	hi	7	guard
+R	UINT32,UINT32		p1 <= 4@check	p0 + p1	hi	4294967299	type
+R	UINT32		p0 <= 4@check	10 - p0	lo	6	check
+R	UINT32		p0 <= 4@check	10 - p0	hi	10	type
+R	UINT32		p0 == 7@branch	p0	lo	7	branch
+R	UINT8 *,UINT32	p0->ulLen:UINT32	p0->ulLen <= 64@check	2*p0->ulLen + p1	hi	4294967423	type
+E	UINT32		p0 <= 15@check	4*p0 + 4 - 64		1
+E	UINT32			4*p0 - 60	p0 <= 15	1
+E	UINT32,UINT32			p0 - p1	p0 <= p1	1
+E	UINT32,UINT32			p0 - p1 + 1	p0 <= p1	0
+E	UINT8 *,UINT32			16*p1 - 12 - ext(p0)	16*p1 <= ext(p0)	1
+E	UINT32,UINT32			p0 - 10	p1 <= 3	0
+E	UINT32			2*p0 - 7	p0 <= 3	1
+E	UINT32,UINT32		p1 <= 5@check	p0 + p1 - 10	p0 <= 4	1
+E	UINT32			p0 - 5	p0 >= 3	0
+E	UINT8 *			ext(p0) - 4		0
+E	UINT8 *			4 - ext(p0)	ext(p0) >= 8	0
+E	UINT32,UINT32			p0 + p1 - 9	p0 <= 4;p1 <= 5	0
+E	UINT32,UINT32			p0 + p1 - 8	p0 <= 4;p1 <= 5	0
+E	UINT32			div(p0, 2) - 3	div(p0, 2) <= 3	1

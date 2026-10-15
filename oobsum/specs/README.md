@@ -43,3 +43,4 @@
 | [SPEC-0008](SPEC-0008-lower-straight-line.md) | 降级：直线代码的指令（A-01…A-03、A-05…A-08） | 已实现（S4c-1、S4c-2） |
 | [SPEC-0009](SPEC-0009-lower-control-flow.md) | 降级：条件边（`assume`）、`switch`、`?:` / `&&` / `\|\|` 当值用（D-14、A-04） | 已实现（S5） |
 | [SPEC-0010](SPEC-0010-linexpr.md) | 线性式 `core/LinExpr`：规范形式、D-21 文本语法、条件、代换（与 `replay.py` 同语义） | 已实现（S6a） |
+| [SPEC-0011](SPEC-0011-range-entail.md) | 取值范围与蕴含 `core/Range`（符号环境、`range_of`、守卫收窄、`entails_le0`） | 已实现（S6b） |
