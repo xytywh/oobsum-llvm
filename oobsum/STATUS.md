@@ -71,7 +71,12 @@
       单测 50 个（T-06 的前一半）。
 - [x] **S8b 推到底**（SPEC-0013）：`core/Solver::Propagate` + `core/Alert`；16 个用例推出的 Req / 判定 / 入口账本与 JSON 一致，统计上传 58、
       判定 13、入口账本 8（同 `replay.py`），13 条告警与 `alerts.json` 逐条相同（反向改坏一处即失败，已验证）。单测 54 个。**T-06 的两半都在 C++ 里成立了。**
-- [ ] **S7 函数内解释**（WP3）：状态、WTO、不动点、转移、访问检查与 Req 生成；`Dump=state`；depth 0 的判定接进标签与日志。
+- [x] **S7a-1 函数内解释第一步**（SPEC-0014）：`core/Interp`——值（确切线性式 / 区间 / 未知）、指针（形参、形参字段与数组成员、全局、局部、字符串）、
+      内存格、无环 CFG 的逆后序与汇合、访问检查 → depth 0 的 Req（写优先的覆盖合并）；有回边的函数先标 `partial:loop_pending`。单测 62 个。
+- [ ] **S7a-2**：调用点记录（实参的表达式 / 指针 `{obj, have, alias}` / 纯函数模型的指针实参为 null）、摘要组装、`Dump=summary` / `Dump=state`、
+      与金标准局部事实的对照脚本（键规范化：`F@<id>` → 定义文件名）；先对上 LV1-01、LV1-02、LV2-09 里无环无守卫的函数。
+- [ ] **S7b 条件边与守卫**（A-14、A-30）；**S7c 循环**（WTO、widening 阈值、narrowing，A-16、A-33；带 `min` / `max` 的界 A-10、A-15、A-17）；
+      **S7d 效果与模型**（`ret_new` 等 D-24、A-63…A-65、A-70；分配器、`memcpy_s` 族，WP5 / WP8）。
 - [ ] **S8c 接进 checker**（WP4 其余）：`core/Solver`（同 TU 的调用图、SCC 逆拓扑序求解，A-80…A-82）、`Dump=summary` / `Dump=apply`；
       S7 产出的摘要经 `Apply` 判定 → 标签 / 告警 / 判定日志；Lv1 + Lv2 用例出告警，`run.py csa` 对照 `@expect`（G1）。
 - [ ] S9 之后：WP5 安全函数族模型 → WP7 循环与守卫 → WP8 效果与分配器 → WP9 大小模型 → WP10 驱动 → WP11 真实代码子集（公司）→ WP12 全量与性能 → WP13 冻结。

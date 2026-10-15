@@ -151,6 +151,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   OobSummary/core/Apply.cpp
   OobSummary/core/Alert.cpp
   OobSummary/core/Solver.cpp
+  OobSummary/core/Interp.cpp
 
   LINK_LIBS
   clangAST
