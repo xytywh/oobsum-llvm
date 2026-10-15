@@ -28,6 +28,9 @@
   `#<FIR 哈希>` 留到 S4。文件 id 与 `replay.py` 的 Python xxh64 交叉核对一致。lit 8 个全过（新增 `keys.c`）。
 * S3a `core/` 单元测试（SPEC-0004）：`oobsum/unittests/`（框架 `Test.h`，独立 CMake 工程链接 `LLVMSupport`）+ `oobsum/devenv/core-tests.sh`；
   17 个用例：键、指纹（与 `replay.py` 的 `fingerprint()` 同值）、报告策略全部分支、标签。lit `core-unittests.test` 驱动，lit 9 个全过。
+* S3b FIR（SPEC-0005）：`core/Fir`（结构、类型表去重、表达式池与构造函数、按号查找）、`core/FirJson`（写出、严格读入带出错位置、
+  文件读写先 `.tmp` 再改名）；§5.2 没写死的 10 处约定见 SPEC-0005 §2.3。单测 26 个（新增 9 个：§5.2 例子逐字往返、全部
+  16 种表达式 / 6 种指令 / 6 种类型往返、18 种坏输入逐条带位置报错、嵌套过深、文件往返）。
 
 ## 下一步（小步，每步一个提交；做完一步勾掉一步）
 
@@ -36,7 +39,7 @@
       SPEC-0002 写清 `@expect` 与标签的对应（L1→DEFINITE、L2→POSSIBLE、记账→SUSPECT 或日志、TN→不报或 SAFE）。
 - [x] **S2 函数键**（06- D-01…D-08）：`lower/Keys`；`Dump=keys` 或并入 `Dump=fir`；lit 覆盖 static / extern / 头文件 static inline。
 - [x] **S3a `core/` 单元测试框架**（06- §9.3）：`oobsum-core-tests`；补上 S2 的 `core/Key` 单元测试。
-- [ ] **S3b FIR 结构与 JSON**（D-10…D-14）：`core/Fir`、`core/FirJson`（读写往返、坏输入报错不崩，A-96）；`FirTest`、`FirJsonTest`。
+- [x] **S3b FIR 结构与 JSON**（D-10…D-14）：`core/Fir`、`core/FirJson`（读写往返、坏输入报错不崩，A-96）；`FirTest`、`FirJsonTest`。
 - [ ] **S4 降级第一刀**（A-01…A-09 的直线代码子集）：赋值、数组下标、成员、指针算术、调用、返回；`Dump=fir` 快照用例。
 - [ ] **S5 降级补全**：分支 / 循环（assume 边）、`?:`、`&&`/`||`、`switch`；`unsupported` 计入判定日志（SUSPECT:unsupported_construct）。
 - [ ] **S6 表达式代数**（WP2，A-10…A-17）：`core/LinExpr`、`core/Bound`；与 `replay.py` 的 `Lin`/`Env` 同语义；约 120 条单元测试。
@@ -60,6 +63,8 @@
 * `summary.schema.json` 的 `$id` 是相对的（`oobsum-summary/1`）：别的脚本要用 jsonschema 校验摘要，也要先去掉 `$id`（jsonschema 3.x 会解析失败，见 `replay.py`）。
 * `run.py csa` 的基线只在有意改变时 `--save`（不能与 `--only` 同用），提交信息里写清楚哪些入口的实际变了；`csa-result.json` 在
   `cmake-build-release/oobsum-csa/`。`alerts.json` / `replay.py` 仍把 `记账` 当成不报，补不补 SUSPECT 条目留到 S8 另写 SPEC。
+* **LLVM 14.0.0 的 `json::parse` 把超出 int64 的整数悄悄饱和成 INT64_MAX / INT64_MIN**（实测，不报错）。FIR 读入因此把这两个值本身也拒绝，
+  降级遇到这么大的常量要写 `["unk", "const_overflow"]`（SPEC-0005 §2.3 #5）；S8 的 C++ 摘要读入同样要守这条。
 * 头文件里的 `static inline` 目前同名同键（SPEC-0003 §2.1）：S4 加 `#<FIR 哈希前 8 位>` 之前，同一头文件里因宏展开不同而函数体不同的版本
   会共用一个键；S8 摘要接上之前必须补上。
 * `InlineDepth` 默认 2：浅层的 DEFINITE / POSSIBLE 交给现有规则（仍写日志，原因 `inline_depth`）；要全报设 0。

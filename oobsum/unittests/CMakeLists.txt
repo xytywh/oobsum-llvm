@@ -18,6 +18,12 @@ if(NOT LLVM_ENABLE_RTTI)
   add_compile_options(-fno-rtti)
 endif()
 add_compile_options(-fno-exceptions -Wall -Wextra -Wno-unused-parameter)
+# 与 LLVM 自己的构建一致：core/ 里 "return std::move(object);"（Object → Value）为照顾老编译器保留 move
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag(-Wredundant-move OOBSUM_HAS_REDUNDANT_MOVE)
+if(OOBSUM_HAS_REDUNDANT_MOVE)
+  add_compile_options(-Wno-redundant-move)
+endif()
 
 file(GLOB OOBSUM_CORE_SRCS CONFIGURE_DEPENDS "${OOBSUM_CHECKERS_DIR}/OobSummary/core/*.cpp")
 file(GLOB OOBSUM_TEST_SRCS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/core/*Test.cpp")
