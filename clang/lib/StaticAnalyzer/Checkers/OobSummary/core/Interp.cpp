@@ -316,6 +316,9 @@ IntVal AndConst(const IntVal &a, int64_t m)
 struct Comparer {
     const SymEnv *env = nullptr;
     const std::vector<LinExpr> *guards = nullptr;
+    // 两边各自路上的守卫与类型范围（SPEC-0042）：共同环境下比不出来时，各自求常数界
+    const SymEnv *sideA = nullptr;
+    const SymEnv *sideB = nullptr;
 };
 
 // x <= y 恒成立：差是常数，或在类型范围与守卫下可证
@@ -364,6 +367,22 @@ llvm::Optional<LinExpr> MaxOpt(const llvm::Optional<LinExpr> &a, const llvm::Opt
     return llvm::None;
 }
 
+// v 在它那条路上的常数界（SPEC-0042）：端点在那条路的守卫与类型范围下求；标签取端点的来源（常数 → branch）
+llvm::Optional<Limit> SideLimit(const IntVal &v, bool upper, const SymEnv *env)
+{
+    llvm::Optional<LinExpr> e = upper ? v.Upper() : v.Lower();
+    if (!e || e->IsUnknown() || env == nullptr) {
+        return llvm::None;
+    }
+    Limit l = env->RangeOf(*e, upper);
+    if (!l.known) {
+        return llvm::None;
+    }
+    Tag own = v.kind == IntVal::Kind::Exact ? Tag::Branch : v.tag;
+    l.tag = l.tag == Tag::None ? own : WorseTag(own, l.tag);
+    return l;
+}
+
 IntVal JoinInt(const IntVal &a, const IntVal &b, const Comparer *cmp = nullptr)
 {
     if (a == b) {
@@ -374,13 +393,32 @@ IntVal JoinInt(const IntVal &a, const IntVal &b, const Comparer *cmp = nullptr)
     }
     llvm::Optional<LinExpr> lo = MinOpt(a.Lower(), b.Lower(), cmp);
     llvm::Optional<LinExpr> hi = MaxOpt(a.Upper(), b.Upper(), cmp);
+    // 共同环境下比不出来的一端：各自在自己路上的守卫下求常数界、取 min / max（钳位写法，SPEC-0042）。
+    // 上界只在两边都是代码给出的界时才用（类型范围 / widen / data 照旧丢掉，记账方式不变）
+    bool sides = cmp != nullptr && cmp->sideA != nullptr && cmp->sideB != nullptr;
+    llvm::Optional<Tag> sideTag;
+    if (!lo && sides) {
+        llvm::Optional<Limit> la = SideLimit(a, false, cmp->sideA);
+        llvm::Optional<Limit> lb = SideLimit(b, false, cmp->sideB);
+        if (la && lb) {
+            lo = LinExpr::Const(std::min(la->value, lb->value));
+        }
+    }
+    if (!hi && sides) {
+        llvm::Optional<Limit> ha = SideLimit(a, true, cmp->sideA);
+        llvm::Optional<Limit> hb = SideLimit(b, true, cmp->sideB);
+        if (ha && hb && IsCodeTag(WorseTag(ha->tag, hb->tag))) {
+            hi = LinExpr::Const(std::max(ha->value, hb->value));
+            sideTag = WorseTag(ha->tag, hb->tag);
+        }
+    }
     if (!lo && !hi) {
         return IntVal::Top("imprecise_join");
     }
     // 两条路上的确切值合成区间，来源是分支（D-22 的 branch）
     Tag tag = WorseTag(a.kind == IntVal::Kind::Exact ? Tag::Branch : a.tag,
                        b.kind == IntVal::Kind::Exact ? Tag::Branch : b.tag);
-    return IntVal::Range(lo, hi, tag);
+    return IntVal::Range(lo, hi, sideTag ? *sideTag : tag);
 }
 
 PtrVal UnknownPtr(llvm::StringRef why)
@@ -510,11 +548,17 @@ State Join(const State &a, const State &b, const std::function<SymEnv(const std:
     out.clobbered = a.clobbered || b.clobbered;
     out.called = a.called || b.called;
     SymEnv env;
+    SymEnv envA;
+    SymEnv envB;
     Comparer cmp;
     if (envOf) {
         env = envOf(out.guards);
         cmp.env = &env;
         cmp.guards = &out.guards;
+        envA = envOf(a.guards);
+        envB = envOf(b.guards);
+        cmp.sideA = &envA;
+        cmp.sideB = &envB;
     }
     for (const auto &entry : a.locals) {
         auto it = b.locals.find(entry.first);
