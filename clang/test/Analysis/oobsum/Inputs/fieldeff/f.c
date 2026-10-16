@@ -13,9 +13,10 @@ void Set_TN(void) { UINT8 a[16]; CTX_S st; Cfg_Set(&st, 16); Fill(a, &st); }
 static UINT32 Get_Len(UINT32 *pulLen, UINT32 ulMax) { if (ulMax < 8) { return 1; } *pulLen = 32; return 0; }
 void Len_TP(void) { UINT8 a[16]; UINT32 n = 0; (void)Get_Len(&n, 16); Fill2(a, n); }
 void Len_TN(void) { UINT8 a[32]; UINT32 n = 0; (void)Get_Len(&n, 16); Fill2(a, n); }
-/* 对照：两条路径写不同的值 → 不记；写了不确切的值 → 不记 */
+/* 两条路径写不同的常数 → 区间（SPEC-0074）；写了不确切的值 → 不记 */
 static void Two(CTX_S *pst, UINT32 c) { if (c) { pst->ulLen = 32; } else { pst->ulLen = 8; } }
 void Two_TP(UINT32 c) { UINT8 a[16]; CTX_S st; Two(&st, c); Fill(a, &st); }
 UINT32 Ext_Get(void);
 static void Ext(CTX_S *pst) { pst->ulLen = Ext_Get(); }
 void Ext_TP(void) { UINT8 a[16]; CTX_S st; Ext(&st); Fill(a, &st); }
+void Two_TN(UINT32 c) { UINT8 a[32]; CTX_S st; Two(&st, c); Fill(a, &st); }

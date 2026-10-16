@@ -3455,7 +3455,8 @@ std::vector<std::pair<CellKey, Value>> Analyzer::FieldWrites(const fir::Inst &in
 {
     std::vector<std::pair<CellKey, Value>> out;
     for (const summary::Eff &e : callee.effs) {
-        if (e.kind != "field" || !e.target || !e.value || !callee.fields) {
+        bool ranged = !e.value && e.range && e.range->size() == 2;  // 几个常数之一（SPEC-0074）
+        if (e.kind != "field" || !e.target || (!e.value && !ranged) || !callee.fields) {
             continue;
         }
         auto info = callee.fields->find(*e.target);
@@ -3469,15 +3470,25 @@ std::vector<std::pair<CellKey, Value>> Analyzer::FieldWrites(const fir::Inst &in
         if (!arg.isPtr || arg.p.kind == BaseKind::Unknown || arg.p.kind == BaseKind::Func || !arg.p.off.IsConst()) {
             continue;
         }
-        LinExpr calleeValue;
-        std::string error;
-        llvm::Optional<LinExpr> mine =
-            ParseLin(*e.value, calleeValue, error) ? CallerExpr(inst, calleeValue, s, &callee) : llvm::None;
-        if (!mine) {
-            continue;  // 换不了：格照旧被 mods 清掉（不知道）
-        }
         Value v;
-        v.i = IntVal::Exact(*mine);
+        if (ranged) {
+            int64_t lo = 0;
+            int64_t hi = 0;
+            if (llvm::StringRef((*e.range)[0]).getAsInteger(10, lo) ||
+                llvm::StringRef((*e.range)[1]).getAsInteger(10, hi) || hi < lo) {
+                continue;
+            }
+            v.i = IntVal::Range(LinExpr::Const(lo), LinExpr::Const(hi), Tag::Branch);
+        } else {
+            LinExpr calleeValue;
+            std::string error;
+            llvm::Optional<LinExpr> mine =
+                ParseLin(*e.value, calleeValue, error) ? CallerExpr(inst, calleeValue, s, &callee) : llvm::None;
+            if (!mine) {
+                continue;  // 换不了：格照旧被 mods 清掉（不知道）
+            }
+            v.i = IntVal::Exact(*mine);
+        }
         PtrVal addr = arg.p;
         addr.off = AddVals(addr.off, IntVal::Exact(LinExpr::Const(info->second.off)));
         if (e.may.getValueOr(false)) {
@@ -3771,6 +3782,10 @@ std::vector<summary::Eff> Analyzer::Effects() const
     // 写效应 field：每条路径要么写了同一个确切值、要么没碰；至少一条写了（SPEC-0073）
     for (const FieldSlot &slot : fieldOuts.empty() ? std::vector<FieldSlot>() : FieldSlots()) {
         llvm::Optional<LinExpr> value;
+        bool same = true;    // 写的值都相同
+        bool consts = true;  // 写的值都是常数（不同时记区间，SPEC-0074）
+        int64_t lo = 0;
+        int64_t hi = 0;
         bool may = false;
         bool ok = true;
         for (const auto &path : fieldOuts) {
@@ -3783,19 +3798,27 @@ std::vector<summary::Eff> Analyzer::Effects() const
                 may = true;
                 continue;
             }
-            if (value && !(*value == it->second.value)) {
-                ok = false;
-                break;
+            const LinExpr &v = it->second.value;
+            if (v.IsConst()) {
+                lo = value ? std::min(lo, v.Constant()) : v.Constant();
+                hi = value ? std::max(hi, v.Constant()) : v.Constant();
+            } else {
+                consts = false;
             }
-            value = it->second.value;
+            same = same && (!value || *value == v);
+            value = v;
         }
-        if (!ok || !value) {
+        if (!ok || !value || (!same && !consts)) {
             continue;
         }
         summary::Eff e;
         e.kind = "field";
         e.target = slot.name;
-        e.value = value->Show();
+        if (same) {
+            e.value = value->Show();
+        } else {
+            e.range = std::vector<std::string>{std::to_string(lo), std::to_string(hi)};  // SPEC-0074
+        }
         if (may) {
             e.may = true;
         }

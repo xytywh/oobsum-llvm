@@ -1319,7 +1319,7 @@ TEST(Interp, ScalarPointee)
 TEST(Interp, FieldEffect)
 {
     // SPEC-0073：两条路径——一条写 *pLen = 32 后返回，一条没碰就返回 → field p0->_0 := 32（may）；
-    // 再加一条写不同值的路径 → 不记
+    // 两条路径写不同的常数 32 / 8 → range [8, 32]（SPEC-0074）
     auto build = [](bool third) {
         Builder b;
         uint32_t len = b.Param("pLen", b.m.Intern(Type::Ptr(b.u32)));
@@ -1357,6 +1357,10 @@ TEST(Interp, FieldEffect)
     EXPECT_TRUE(field->may.getValueOr(false));
     ASSERT_TRUE(facts.fields.count("p0->_0") == 1);
     interp::FunctionFacts two = build(true);
-    EXPECT_TRUE(
-        std::none_of(two.effs.begin(), two.effs.end(), [](const summary::Eff &e) { return e.kind == "field"; }));
+    auto ranged =
+        std::find_if(two.effs.begin(), two.effs.end(), [](const summary::Eff &e) { return e.kind == "field"; });
+    ASSERT_TRUE(ranged != two.effs.end());
+    EXPECT_FALSE(ranged->value.hasValue());
+    ASSERT_TRUE(ranged->range.hasValue() && ranged->range->size() == 2);
+    EXPECT_EQ((*ranged->range)[0] + " " + (*ranged->range)[1], "8 32");
 }

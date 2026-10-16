@@ -11,7 +11,7 @@ CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"field","target":"p0->ulLen","
 CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"field","target":"p0->ulLen","value":"p1"}],{{.*}}"fn":"Cfg_Set"
 # 出错路径没写：may
 CHECK-DAG: [oobsum:summary] {{.*}}{"kind":"field","may":true,"target":"p0->_0","value":"32"}],{{.*}}"fn":"Get_Len"
-CHECK-DAG: [oobsum:summary] {{.*}}"effs":[],{{.*}}"fn":"Two"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"field","range":["8","32"],"target":"p0->ulLen"}],{{.*}}"fn":"Two"
 CHECK-DAG: [oobsum:summary] {{.*}}"effs":[],{{.*}}"fn":"Ext"
 CHECK-DAG: f.c:8:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 64 of 'a' (16 bytes) may be accessed
 CHECK-DAG: f.c:10:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 20 of 'a' (16 bytes) may be accessed
@@ -19,6 +19,8 @@ CHECK-DAG: f.c:11:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte
 # n = 0 初值与 32 的并 [0, 32]
 CHECK-DAG: f.c:14:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 32 of 'a' (16 bytes) may be accessed
 CHECK-DAG: f.c:15:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 32 of 'a' (32 bytes)
-# 对照：照旧记账
-CHECK-DAG: f.c:18:1: warning: [OOB-SUSPECT:entry_unproven]
+# 写 32 / 8 → [8, 32]（SPEC-0074）
+CHECK-DAG: f.c:18:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 32 of 'a' (16 bytes) may be accessed
+CHECK-DAG: f.c:22:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 32 of 'a' (32 bytes)
+# 对照：写了不确切的值 → 照旧记账
 CHECK-DAG: f.c:21:1: warning: [OOB-SUSPECT:entry_unproven]
