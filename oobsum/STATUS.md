@@ -132,13 +132,17 @@
       被调者哪里都没有定义 → `unknown_callee`；判定按汇合点函数所在的 TU 写 `WorkDir/solved/<tu>.json`。`DecisionFromJson` 供 report 读回。
 - [x] **S9-4 `Phase=report`**（SPEC-0030）：各 TU 读 `solved/<tu>.json` 报出（策略在此生效）、写判定日志；没被求解的 TU 提示一行。
       **本地 export → solve → report 端到端跑通**（lit `phase-solve.test`）。
-- [ ] **S9-5 驱动**（`oobsum/tools/oobsum_run.py`）：本地按源文件列表跑三阶段；公司侧生成 bxen 命令（全量模式的命令格式待用户提供）。
+- [x] **S9-5 驱动**（SPEC-0031，`oobsum/tools/oobsum_run.py`）：`local` 按源文件列表跑三阶段（cc1，同 run.py csa）；`bxen` 生成桩 TU 的 cdb、report 的 cdb
+      （原样复制有判定的 TU）并打印 / 执行三段 bxen 命令；`status`。每条命令先打印再执行、输出存 `logs/<阶段>.log`、失败即停并提示单独重跑。
 - [ ] **S8c-2**：`field` 效果（被调者改调用方结构体的字段，LV5-02）、mod-ref（被调者不改的字段在调用后仍可用）；
       偏移与长度的抵消（A-41，LV3-07、LV8-01：需要局部的符号形与关系，且 `ulOff + len <= max` 这类检查的回绕问题要一起定）；
       告警 note 按 F-33 的三种写法；`unknown_callee` / 跨 TU（`export` / `solve` / `report`）。
 - [ ] S9 之后：WP5 安全函数族模型 → WP7 循环与守卫 → WP8 效果与分配器 → WP9 大小模型 → WP10 驱动 → WP11 真实代码子集（公司）→ WP12 全量与性能 → WP13 冻结。
 
 ## 等用户提供 / 在公司做的
+
+* **跨 TU 的 bxen 命令格式**（SPEC-0031 §8）：bxen 跑多个文件时 `-cc_json` 给目录还是文件、`-analysis_folder` 与过滤后的 cdb 怎么配合。驱动的模板按 COMPANY.md §4
+  的写法猜的；在公司先用 `oobsum_run.py bxen …`（不加 `--run`）打印三段命令，跑一遍 TestCase 目录，不对就把正确的写法告诉我。
 
 * **点头**：SPEC-0002 §7 提议把 07- / 06- T-09 的 G2"期望为 `-` / `记账` 的入口零告警"改成"零 DEFINITE / POSSIBLE 告警，SUSPECT 条数单列"
   （D16 召回优先的直接推论；不点头的话，G2 时 TN 上的 SUSPECT 都算不通过）。

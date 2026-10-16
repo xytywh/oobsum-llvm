@@ -75,7 +75,19 @@ python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /usr1/oobsum-work           
 python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /usr1/oobsum-work --emitted --jsonl review.jsonl   # 给大模型复核
 ```
 
-跨 TU 的 export → solve → report 三阶段（06- §7）由驱动 `oobsum/tools/oobsum.py` 负责（WP0 / WP10 实现后补命令）。
+上面是默认的 `Phase=inline`（单个 TU 内推到底，跨文件的被调者记 `not_in_tu`）。**跨 TU**（06- §7 的 export → solve → report，SPEC-0028…0031）用驱动生成三段命令：
+
+```bash
+python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py bxen --workdir /usr1/oobsum-work \
+  --bxen /usr1/BXPlugin/cmake-build-release-release/bxen --cc-json <业务工程目录> --analysis-folder <目录1>,<目录2> \
+  --extra "-analyzer-max-loop 3 -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+# 打印 export、solve 两段（solve 用生成的桩 TU：/usr1/oobsum-work/solve_stub/）；跑完这两段后再执行同一条命令，打印 report 那段
+#（report 的 cdb 从原 cdb 原样复制有判定的 TU：/usr1/oobsum-work/report_cdb/）。加 --run 直接执行；status 子命令看到哪一步了
+python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py status --workdir /usr1/oobsum-work
+```
+
+**待确认**：bxen 跑多个文件的写法（`-cc_json` 给目录还是文件、`-analysis_folder` 与过滤后的 cdb 怎么配合）——模板是按本节上面的命令猜的，
+不对就告诉我正确的写法改 `oobsum_run.py` 的 `bxen_cmd`。
 定位问题时加 `-analyzer-config rb.enhance.ipa.OobSummary:Dump=summary+apply -analyzer-config rb.enhance.ipa.OobSummary:DumpFilter=<函数名正则>`。
 
 ## 5. 更新与撤掉
