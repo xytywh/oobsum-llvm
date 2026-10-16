@@ -26,5 +26,5 @@ void Encode(void)
     Put(&stCtx);
 }
 // 三个字段都在（连续赋值不会互相清掉）
-// CHECK: [oobsum:summary] {"calls":[{"args":[{"fields":{"pucBuf":{"have":"128","obj":"local:aucBuf"},"ulBufLen":"256","ulUsed":"0"},"have":"12","obj":"local:stCtx"}],"callee":"Put"
+// CHECK: [oobsum:summary] {"calls":[{"args":[{"back":"0","fields":{"pucBuf":{"back":"0","have":"128","obj":"local:aucBuf"},"ulBufLen":"256","ulUsed":"0"},"have":"12","obj":"local:stCtx"}],"callee":"Put"
 // CHECK-SAME: "fn":"Encode"

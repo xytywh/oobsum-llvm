@@ -743,6 +743,7 @@ bool IsCondExpr(const fir::Function &f, ExprId e)
 // 一次访问（覆盖合并之前）
 struct RawAccess {
     std::string kind;
+    std::string dir;  // "back"：负偏移（SPEC-0039）
     LinExpr have;
     std::string obj;
     LinExpr lo;
@@ -823,7 +824,11 @@ private:
     void Step(const fir::Inst &inst, State &s);
     Value LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const State &s) const;
     void Access(const char *kind, const PtrVal &addr, ExprId addrExpr, const IntVal &bytes, const fir::Loc &loc,
-                const State &s, const std::vector<LinExpr> &forced = {});
+                const State &s, const std::vector<LinExpr> &forced = {}, bool checkBack = true);
+    void BackAccess(const char *kind, const PtrVal &addr, ExprId addrExpr, const std::string &at, const State &s,
+                    const std::vector<LinExpr> &forced);
+    void Record(RawAccess a, const State &s, const std::vector<LinExpr> &forced);
+    void AddOpen(const std::string &reason, const std::string &at);
     // ---- 模型（SPEC-0018）----
     void ApplyAccessModel(const fir::Inst &inst, const models::AccessModel &model, const State &s);
     Value HeapResult(const fir::Inst &inst, const std::string &size, int64_t effDepth, const State &s);
@@ -1199,14 +1204,57 @@ Value Analyzer::LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const 
 }
 
 // forced：模型给出的守卫（这次访问发生的条件），总挂在 Req 上，被其余守卫蕴含的不挂（SPEC-0020 §2.2）
+// 基址前面还有多少字节（SPEC-0039 §2.1）：形参 / 形参指针字段 → bext(…)；局部、全局、堆、字符串、成员数组 → 0（偏移从对象 / 成员起点算）
+llvm::Optional<LinExpr> BackOf(const PtrVal &p)
+{
+    switch (p.kind) {
+        case BaseKind::Param:
+        case BaseKind::ParamPtr:
+            return LinExpr::BExt(
+                llvm::StringRef(p.obj).drop_front());  // *p0 → bext(p0)；*p0->pucBuf → bext(p0->pucBuf)
+        case BaseKind::ParamField:
+        case BaseKind::Global:
+        case BaseKind::Local:
+        case BaseKind::Str:
+        case BaseKind::Heap:
+            return LinExpr::Const(0);
+        case BaseKind::Unknown:
+        case BaseKind::Func:
+            return llvm::None;
+    }
+    return llvm::None;
+}
+
+// 指针前面还有多少字节（调用点实参的 back，SPEC-0039 §2.2）：基址前面的字节数 + 偏移下界；不知道就不写
+llvm::Optional<std::string> BackText(const PtrVal &p)
+{
+    llvm::Optional<LinExpr> base = BackOf(p);
+    llvm::Optional<LinExpr> lo = p.off.Lower();
+    if (!base || !lo || lo->IsUnknown()) {
+        return llvm::None;
+    }
+    return (*base + *lo).Show();
+}
+
+void Analyzer::AddOpen(const std::string &reason, const std::string &at)
+{
+    bool seen = llvm::any_of(opens, [&](const summary::Open &o) { return o.reason == reason && o.at == at; });
+    if (!seen) {  // 按（原因, 位置）去重：同一行的读和写只记一条
+        summary::Open o;
+        o.reason = reason;
+        o.at = at;
+        opens.push_back(o);
+    }
+}
+
 void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, const IntVal &bytes, const fir::Loc &loc,
-                      const State &s, const std::vector<LinExpr> &forced)
+                      const State &s, const std::vector<LinExpr> &forced, bool checkBack)
 {
     if (!recording) {
         return;
     }
     // 成员数组：外层对象的边界也要满足（off(f) + 下标 + 字节数 <= ext(pK)，F-02；SPEC-0022）——只查成员会把
-    // "按大结构体访问小缓冲区"（LV7-03）证明成安全
+    // "按大结构体访问小缓冲区"（LV7-03）证明成安全。外层只查正向：成员起点就是下界，比外层更严（SPEC-0039 §2.1）
     if (addr.hasParent) {
         PtrVal parent;
         parent.kind = BaseKind::Param;
@@ -1215,24 +1263,19 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
         parent.hasSize = true;
         parent.size = addr.parentSize;
         parent.off = AddVals(IntVal::Exact(LinExpr::Const(addr.parentOff)), addr.off);
-        Access(kind, parent, fir::kNone, bytes, loc, s, forced);
+        Access(kind, parent, fir::kNone, bytes, loc, s, forced, false);
     }
     std::string at = SiteOf(m, loc);
-    auto open = [&](const char *reason) {
-        bool seen = llvm::any_of(opens, [&](const summary::Open &o) { return o.reason == reason && o.at == at; });
-        if (!seen) {  // 按（原因, 位置）去重：同一行的读和写只记一条
-            summary::Open o;
-            o.reason = reason;
-            o.at = at;
-            opens.push_back(o);
-        }
-    };
+    auto open = [&](const char *reason) { AddOpen(reason, at); };
     if (bytes.IsConst() && bytes.value.Constant() == 0) {
         return;  // 0 字节：不访问
     }
     if (addr.kind == BaseKind::Unknown || addr.kind == BaseKind::Func) {
         open("untracked_pointer");
         return;
+    }
+    if (checkBack) {
+        BackAccess(kind, addr, addrExpr, at, s, forced);  // 负偏移（SPEC-0039）
     }
     if (!addr.hasSize) {
         open("alloc_size_unknown");
@@ -1269,6 +1312,44 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
         open("type_range_only");
         return;
     }
+    Record(std::move(a), s, forced);
+}
+
+// 负偏移（06- §3.1，SPEC-0039 §2.1）：偏移下界不能证明 ≥ 0 时，记一条反向 Req：越到基址前面的字节数 −lo ≤ bext(基址)
+void Analyzer::BackAccess(const char *kind, const PtrVal &addr, ExprId addrExpr, const std::string &at, const State &s,
+                          const std::vector<LinExpr> &forced)
+{
+    llvm::Optional<LinExpr> have = BackOf(addr);
+    if (!have) {
+        return;
+    }
+    llvm::Optional<LinExpr> lo = addr.off.Lower();
+    if (!lo || lo->IsUnknown()) {
+        bool stepping = addr.off.kind == IntVal::Kind::Range && addr.off.tag == Tag::Widen &&
+                        addrExpr < f.exprs.size() && f.exprs[addrExpr].op == ExprOp::Local;
+        AddOpen(stepping ? "pointer_stepping" : "type_range_only", at);
+        return;
+    }
+    LinExpr under = LinExpr::Const(0) - *lo;
+    if (EntailsLe0(under, s.guards, Env(s))) {
+        return;  // 偏移下界 ≥ 0（常数、无符号类型、守卫）：没有负偏移，不记
+    }
+    llvm::Optional<LinExpr> hi = addr.off.Upper();
+    RawAccess b;
+    b.kind = kind;
+    b.dir = "back";
+    b.have = *have;
+    b.obj = addr.obj;
+    b.hi = under;
+    b.lo = hi && !hi->IsUnknown() ? LinExpr::Const(0) - *hi : LinExpr::Const(0);
+    b.tag = addr.off.kind == IntVal::Kind::Exact ? Tag::Exact : addr.off.tag;
+    b.at = at;
+    Record(std::move(b), s, forced);
+}
+
+// 挑守卫、在本函数里证明安全，否则记成 Req（正向与反向共用）
+void Analyzer::Record(RawAccess a, const State &s, const std::vector<LinExpr> &forced)
+{
     std::set<std::string> syms;  // 与 have / end / start 有公共符号的守卫（SPEC-0016 §2.2、SPEC-0018 §2.2）
     CollectSyms(a.have, syms);
     CollectSyms(a.lo, syms);
@@ -1300,7 +1381,8 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
     LinExpr need = a.hi - a.have;
     if (!need.IsUnknown() && EntailsLe0(need, s.guards, Env(s))) {
         if (trace != nullptr) {
-            trace->push_back("safe " + a.at + " " + a.kind + " end " + a.hi.Show() + " <= have " + a.have.Show());
+            trace->push_back("safe " + a.at + " " + a.kind + (a.dir.empty() ? "" : " " + a.dir) + " end " +
+                             a.hi.Show() + " <= have " + a.have.Show());
         }
         safe.push_back(std::move(a));
         return;
@@ -1450,7 +1532,7 @@ State Analyzer::Entry() const
 std::vector<summary::Req> Analyzer::Merge() const
 {
     auto group = [&](const RawAccess &a, const RawAccess &b) {
-        return a.have == b.have && a.obj == b.obj && a.guard == b.guard;  // 守卫不同的不合并
+        return a.have == b.have && a.obj == b.obj && a.guard == b.guard && a.dir == b.dir;  // 守卫 / 方向不同的不合并
     };
     auto beats = [&](size_t j, size_t i) {  // j 把 i 并掉？
         const RawAccess &a = accesses[i];
@@ -1503,6 +1585,7 @@ summary::Req Analyzer::ToReq(const RawAccess &a, size_t number) const
     summary::Req r;
     r.id = "R" + std::to_string(number);
     r.kind = a.kind;
+    r.dir = a.dir;
     r.have = a.have.Show();
     r.obj = a.obj;
     r.endLo = a.lo.Show();
@@ -1732,6 +1815,7 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s)
                 if (known) {
                     arg.ptr->obj = v.p.obj;
                     arg.ptr->have = (v.p.size - *hi).Show();  // 偏移是区间时取最小的剩余（多报不少报）
+                    arg.ptr->back = BackText(v.p);            // 前面取最小的（偏移下界，SPEC-0039）
                     if (v.p.kind == BaseKind::Param && v.p.off.IsConst() && v.p.off.value.Constant() == 0) {
                         arg.ptr->alias = v.p.obj.substr(1);  // *p0 → p0
                     }
@@ -2623,6 +2707,7 @@ std::map<std::string, summary::ArgValue> Analyzer::ArgFields(const PtrVal &p, co
             a.ptr = std::make_shared<summary::PtrArg>();
             a.ptr->obj = v.p.obj;
             a.ptr->have = (v.p.size - *hi).Show();
+            a.ptr->back = BackText(v.p);  // SPEC-0039
             if (v.p.kind == BaseKind::Heap && v.p.effDepth > 0) {
                 a.ptr->effDepth = v.p.effDepth;
             }

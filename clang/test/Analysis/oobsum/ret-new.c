@@ -32,5 +32,5 @@ void Init(void)
 }
 // 调用方：堆对象 heap@<调用点>、64 字节，实参写 eff_depth
 // CHECK: [oobsum:summary] {"calls":[{"args":[],"callee":"Tbl_Alloc"
-// CHECK-SAME: {"args":[{"eff_depth":2,"have":"64","obj":"heap@ret-new.c:30"}],"callee":"Use"
+// CHECK-SAME: {"args":[{"back":"0","eff_depth":2,"have":"64","obj":"heap@ret-new.c:30"}],"callee":"Use"
 // CHECK-SAME: "fn":"Init"

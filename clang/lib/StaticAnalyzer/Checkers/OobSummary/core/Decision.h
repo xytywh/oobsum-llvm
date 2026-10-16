@@ -40,6 +40,7 @@ struct Decision {
     std::string endLo;   // 访问末端区间
     std::string endHi;
     std::string bound;  // 上界来源标签（D-22）
+    std::string dir;    // "back"：负偏移（越到指针前面的字节数，SPEC-0039）；空 = 正向
     unsigned depth = 0;
     unsigned effDepth = 0;
     std::vector<Hop> chain;

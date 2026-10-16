@@ -57,6 +57,7 @@ struct Absorbed {
 struct Req {
     std::string id;
     std::string kind;  // R / W
+    std::string dir;  // "back"：反向 Req，have 是 bext(…)、end 是越到基址前面的字节数（负偏移，SPEC-0039）；空 = 正向
     std::string have;
     std::string obj;
     std::string endLo;
@@ -106,6 +107,7 @@ struct PtrArg {
     std::string obj;
     std::string have;
     llvm::Optional<OuterObj> parent;  // 实参是形参所指结构体里的成员数组时：外层对象（SPEC-0035）
+    llvm::Optional<std::string> back;  // 这个指针前面还有多少字节（调用方的说法；负偏移，SPEC-0039）
     llvm::Optional<std::string> alias;
     llvm::Optional<int64_t> effDepth;
     llvm::Optional<std::map<std::string, ArgValue>> fields;  // 值是表达式或指针（不为 null）
@@ -167,6 +169,7 @@ struct Call {
 struct Rep {
     std::string id;
     std::string level;  // L1 / L2
+    std::string dir;    // 同 Req::dir（SPEC-0039）
     bool reported = false;
     std::string site;
     Access access;

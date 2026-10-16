@@ -82,15 +82,24 @@ std::string SizeText(const std::string &have)
 }  // namespace
 
 std::string SuspectMessage(const std::string &kind, int64_t depth, const std::string &object, const std::string &have,
-                           const std::string &endHi)
+                           const std::string &endHi, const std::string &dir)
 {
     std::string levels = depth > 0 ? " through a " + std::to_string(depth) + "-level call chain" : "";
+    if (!dir.empty()) {  // 负偏移（SPEC-0039 §2.3）
+        return "Cannot prove the " + Word(kind) + levels + " stays within " + object + " (" + SizeText(have) +
+               " before the pointer): up to " + endHi + " bytes before it may be accessed";
+    }
     return "Cannot prove the " + Word(kind) + levels + " stays within " + object + " (" + SizeText(have) +
            "): up to byte " + endHi + " may be accessed";
 }
 
-std::string SafeMessage(const std::string &object, const std::string &have, const std::string &endHi)
+std::string SafeMessage(const std::string &object, const std::string &have, const std::string &endHi,
+                        const std::string &dir)
 {
+    if (!dir.empty()) {
+        return "Proven within bounds: up to " + endHi + " bytes before " + object + " (" + SizeText(have) +
+               " before the pointer)";
+    }
     return "Proven within bounds: up to byte " + endHi + " of " + object + " (" + SizeText(have) + ")";
 }
 
@@ -230,6 +239,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.endLo = rep.endLo;
             d.endHi = rep.endHi;
             d.bound = rep.bound;
+            d.dir = rep.dir;
             d.depth = static_cast<unsigned>(rep.depth);
             d.effDepth = static_cast<unsigned>(rep.effDepth);
             d.chain = allSites.Chain(rep.chain);
@@ -260,6 +270,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.endLo = (mine.hasBase ? mine.end2Lo : mine.endLo).Show();
             d.endHi = (mine.hasBase ? mine.end2Hi : mine.endHi).Show();
             d.bound = mine.hasBase ? mine.bound : so.req.bound;
+            d.dir = so.req.dir;
             d.depth = static_cast<unsigned>(mine.hasBase ? mine.depth : so.req.depth + 1);
             d.effDepth = static_cast<unsigned>(mine.hasBase ? mine.effDepth : so.req.effDepth);
             std::vector<std::string> path{s.fn + "@" + so.site};  // 函数名（fn 是函数键，SPEC-0027）
@@ -269,9 +280,10 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             std::string object = d.obj == "?" && out.summaries.count(so.callee) != 0
                                      ? alert::ObjName(so.req.obj, out.summaries.at(so.callee).params)
                                      : alert::ObjName(d.obj, s.params);
-            d.msg =
-                safe ? SafeMessage(object, d.have, d.endHi) : SuspectMessage(d.kind, d.depth, object, d.have, d.endHi);
-            d.fp = DecisionFingerprint(LabelName(d.label), s.key, so.req.access.key, d.kind, so.req.access.end, d.obj);
+            d.msg = safe ? SafeMessage(object, d.have, d.endHi, d.dir)
+                         : SuspectMessage(d.kind, d.depth, object, d.have, d.endHi, d.dir);
+            d.fp = DecisionFingerprint(LabelName(d.label), s.key, so.req.access.key, d.kind, so.req.access.end,
+                                       apply::FingerprintObj(d.obj, d.dir));
             out.decisions.push_back(std::move(d));
         }
         // 入口函数上推不下去的 Req（A-80）
@@ -289,11 +301,13 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
                 d.endLo = r.lo.Show();
                 d.endHi = r.hi.Show();
                 d.bound = r.bound;
+                d.dir = r.dir;
                 d.depth = static_cast<unsigned>(r.depth);
                 d.effDepth = static_cast<unsigned>(r.effDepth);
                 d.chain = allSites.Chain(r.path);
-                d.msg = SuspectMessage(d.kind, d.depth, alert::ObjName(d.obj, s.params), d.have, d.endHi);
-                d.fp = DecisionFingerprint(LabelName(d.label), s.key, r.access.key, d.kind, r.access.end, d.obj);
+                d.msg = SuspectMessage(d.kind, d.depth, alert::ObjName(d.obj, s.params), d.have, d.endHi, d.dir);
+                d.fp = DecisionFingerprint(LabelName(d.label), s.key, r.access.key, d.kind, r.access.end,
+                                           apply::FingerprintObj(d.obj, d.dir));
                 auto first = firstFp.emplace(r.access.key + "@" + r.access.at + "|" + d.kind, d.fp);
                 if (!first.second) {
                     d.dupOf = first.first->second;
@@ -317,9 +331,11 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.endLo = r.endLo;
             d.endHi = r.endHi;
             d.bound = r.bound;
+            d.dir = r.dir;
             d.chain = allSites.Chain(r.path);
-            d.msg = SafeMessage(alert::ObjName(d.obj, s.params), d.have, d.endHi);
-            d.fp = DecisionFingerprint(LabelName(d.label), s.key, r.access.key, d.kind, r.access.end, d.obj);
+            d.msg = SafeMessage(alert::ObjName(d.obj, s.params), d.have, d.endHi, d.dir);
+            d.fp = DecisionFingerprint(LabelName(d.label), s.key, r.access.key, d.kind, r.access.end,
+                                       apply::FingerprintObj(d.obj, d.dir));
             out.decisions.push_back(std::move(d));
         }
         // 本函数的账本

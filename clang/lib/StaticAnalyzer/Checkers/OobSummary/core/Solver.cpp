@@ -46,10 +46,10 @@ std::string GuardKey(const std::vector<LinExpr> &guards)
 }
 
 std::string Key(const LinExpr &have, const std::string &obj, const LinExpr &lo, const LinExpr &hi,
-                const std::vector<LinExpr> &guards, int64_t depth)
+                const std::vector<LinExpr> &guards, int64_t depth, const std::string &dir)
 {
     return have.Show() + " | " + obj + " | " + lo.Show() + " | " + hi.Show() + " | {" + GuardKey(guards) + "} | " +
-           std::to_string(depth);
+           std::to_string(depth) + (dir.empty() ? "" : " | " + dir);  // 正向的键不变（同 replay.py 的 req_key）
 }
 
 // 推出的 Req → 交给 Classify 的被调者 Req（同 derive 里的 rj：字符串都是规范打印）
@@ -69,6 +69,7 @@ summary::Req AsReq(const DerivedReq &r)
     out.access = r.access;
     out.path = r.path;
     out.kind = r.kind;
+    out.dir = r.dir;
     return out;
 }
 
@@ -76,7 +77,7 @@ summary::Req AsReq(const DerivedReq &r)
 
 std::string ReqKey(const DerivedReq &r)
 {
-    return Key(r.have, r.obj, r.lo, r.hi, r.guards, r.depth);
+    return Key(r.have, r.obj, r.lo, r.hi, r.guards, r.depth, r.dir);
 }
 
 std::string ReqKey(const summary::Req &r)
@@ -86,7 +87,7 @@ std::string ReqKey(const summary::Req &r)
         std::vector<LinExpr> atoms = C(g);
         guards.insert(guards.end(), atoms.begin(), atoms.end());
     }
-    return Key(P(r.have), r.obj, P(r.endLo), P(r.endHi), guards, r.depth);
+    return Key(P(r.have), r.obj, P(r.endLo), P(r.endHi), guards, r.depth, r.dir);
 }
 
 // SPEC-0019 §2.1：对象是入口自己的形参所指 *pK、have 就是 ext(pK)、末端上界是常数且 ≤ 形参声明的所指类型大小 → typed_field
@@ -116,7 +117,7 @@ std::vector<DerivedReq> Absorb(const std::vector<DerivedReq> &cand)
         bool dominated = false;
         for (size_t j = 0; j < cand.size() && !dominated; ++j) {
             const DerivedReq &r2 = cand[j];
-            if (i == j || r.have.Show() != r2.have.Show() || r.obj != r2.obj || r.gkey != r2.gkey) {
+            if (i == j || r.have.Show() != r2.have.Show() || r.obj != r2.obj || r.gkey != r2.gkey || r.dir != r2.dir) {
                 continue;
             }
             LinExpr d = r.hi - r2.hi;
@@ -181,6 +182,7 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns)
                 d.path = r.path;
                 d.access = r.access;
                 d.kind = a.kind;
+                d.dir = r.dir;
                 cand.push_back(std::move(d));
             }
         }
@@ -213,6 +215,7 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns)
                         d.path = path;
                         d.access = r.access;
                         d.kind = r.kind;
+                        d.dir = r.dir;
                         cand.push_back(std::move(d));
                         ++out.up;
                     } else if (mine.outcome == "L1" || mine.outcome == "L2") {

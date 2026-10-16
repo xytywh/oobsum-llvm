@@ -96,7 +96,14 @@ std::string AlertMessage(const summary::Rep &rep, const std::vector<summary::Par
         size += "; via " + llvm::StringRef(*rep.via).split(':').second.str();
     }
     std::string s;
-    if (rep.level == "L1") {
+    if (!rep.dir.empty()) {  // 负偏移：越到指针前面的字节数（SPEC-0039 §2.3，同 replay.py 的 alert_msg）
+        s = std::string(rep.level == "L1" ? "Definite" : "Possible") + " out-of-bound " + w + " through a " +
+            std::to_string(rep.depth) + "-level call chain: up to " + rep.endHi + " bytes before " + name + " (" +
+            size + " available before the pointer) " + (rep.level == "L1" ? "are accessed" : "may be accessed");
+        if (rep.level != "L1") {
+            s += "; the bound comes from " + BoundPhrase(rep.bound);
+        }
+    } else if (rep.level == "L1") {
         s = "Definite out-of-bound " + w + " through a " + std::to_string(rep.depth) +
             "-level call chain: up to byte " + rep.endHi + " of " + name + " (" + size + ") is accessed";
     } else {

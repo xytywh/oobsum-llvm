@@ -5,7 +5,7 @@
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary+stats -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=Msg_Clear$' \
 # RUN:   %S/Inputs/member/member_arg.c 2>&1 | FileCheck %s
 
-CHECK: [oobsum:summary] {"calls":[{"args":[{"have":"1024","obj":"p0->aucBody","parent":{"have":"ext(p0) - 4","obj":"*p0"}},"512"]
+CHECK: [oobsum:summary] {"calls":[{"args":[{"back":"0","have":"1024","obj":"p0->aucBody","parent":{"have":"ext(p0) - 4","obj":"*p0"}},"512"]
 CHECK: [oobsum:stats] tu={{[0-9a-f]+}} decisions=7 emitted=6
 # 64 字节的缓冲区当成 MSG：成员 512 <= 1024 成立，外层 512 <= 64 - 4 不成立（原来这里是错误的 SAFE）
 CHECK-DAG: member_arg.c:23:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 2-level call chain: up to byte 512 of 'auc' (60 bytes) is accessed

@@ -77,6 +77,8 @@ struct SiteClass {
 };
 std::vector<SiteClass> ClassifyAll(const summary::Req &req, const summary::Call &call, const summary::Summary &caller,
                                    const EnvGuards &envGuards);
+// 指纹里的对象：反向 Req 加 "#back"，与同一次访问的正向区分（SPEC-0039）；正向不变
+std::string FingerprintObj(const std::string &obj, const std::string &dir);
 // 判出 L1 / L2 时的判定记录（与 JSON reps[] 同形，不含 id）
 summary::Rep RepOf(const Outcome &mine, const summary::Call &call, const std::string &fn,
                    const summary::Summary &caller, const summary::Req &calleeReq);

@@ -418,7 +418,7 @@ FIR 是"能决定越界的最少信息"：类型只留大小与字段布局，�
 * `Emit=machine`（I-25，默认）只写机器字段；`Emit=doc` 额外生成 `doc`，供调试与评审。T-06 快照比的是去掉 `doc` 后的 JSON。
 * 用例目录里的 `case.json`（标题、要点、代码）是走查文档用的元数据，**不是摘要**，引擎不产生也不读。
 
-**D-20 接口符号**（摘要里允许出现的符号）与**对象写法**：
+**D-20 接口符号**（摘要里允许出现的符号）与**对象写法**〔由 SPEC-0039 修订：加 `bext(x)`，指针 `x` 前面还有多少字节〕：
 
 | 符号 | 含义 |
 |---|---|
@@ -457,7 +457,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 **D-22 来源标签** `bound`〔由 SPEC-0034 修订：加 `model`——库函数大小实参给的上界，代码给出的界，优先级在 `data` 之后、`check` 之前〕：`exact`（没有区间）、`const`、`check`、`mask`、`branch`、`loop`、`ret`、`guard`（以上是代码给出的界，可判 L2）；
 `type`、`widen`、`data`（不可判 L2，只能记账）。
 
-**D-23 顶层与 Req**〔由 SPEC-0015、SPEC-0019 修订〕（下表只列机器字段；每个对象都可以另带 `doc`）：
+**D-23 顶层与 Req**〔由 SPEC-0015、SPEC-0019、SPEC-0039 修订：负偏移用反向 Req（`dir: back`，`have` 是 `bext(…)` / 0）判〕（下表只列机器字段；每个对象都可以另带 `doc`）：
 
 | 顶层字段 | 含义 |
 |---|---|
@@ -473,7 +473,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | `id`、`kind` | 编号、`R` / `W` |
 | `have`、`obj` | 从基址起对象还剩多少字节（常数、`ext(…)`）；是哪个对象（D-20 写法） |
 | `end` | `[下界, 上界]`：访问末端（偏移 + 字节数）的范围。**安全条件就是 `end[1] <= have`** |
-| `start` | 最小偏移（判负偏移用） |
+| `start` | 最小偏移（说明用；负偏移由反向 Req 判，SPEC-0039） |
 | `bound` | `end[1]` 的来源标签（D-22） |
 | `guard` | 守卫：只有它们成立时才发生这次访问 |
 | `access` | `{fn, key, at, end}`：真正的访问点——函数、函数键、位置、访问点自身的末端上界（访问函数的符号）。代换过程中原样上传，`key + end` 用于指纹 |
@@ -486,7 +486,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 `ret_cond`（`when: "ret == c"`、`then: [条件…]`，至多 4 条）、`out_new` / `out_int`、`field`（`target: "p0->ulUsed"`、`value`）、`global`、`invalidate`。
 `doc.via` 记效果是从哪个分配器 / 封装传上来的（只给人看）。
 
-**D-25 调用点记录**〔由 SPEC-0015、SPEC-0027、SPEC-0035 修订：成员数组实参加 `parent: {obj, have}`，`results[]` 的外层对象那一条标 `parent: true`〕 `calls[]`：`site`、`callee`、`model`（`access` / `alloc` / `pure` / `unknown`，被调者是模型或未知时）、
+**D-25 调用点记录**〔由 SPEC-0015、SPEC-0027、SPEC-0035、SPEC-0039 修订：成员数组实参加 `parent: {obj, have}`，`results[]` 的外层对象那一条标 `parent: true`；指针实参加 `back`（指针前面的字节数）〕 `calls[]`：`site`、`callee`、`model`（`access` / `alloc` / `pure` / `unknown`，被调者是模型或未知时）、
 `args`（整数实参写表达式；指针实参写 `{obj, have, alias?, fields?, eff_depth?}`——指向哪个对象、从这个指针起还剩多少字节、
 就是调用方的哪个形参、栈帧里记着的字段值；与越界无关的写 `null`）、`locals`（`{名字: {range: [lo, hi], bound}}`）、
 `guards`（`[{cond, bound}]`）、`results`——被调者每条 Req / Eff 在这里的结局，全部结构化：

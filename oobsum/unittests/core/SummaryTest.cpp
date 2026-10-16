@@ -160,3 +160,34 @@ TEST(Summary, FileRoundTrip)
     llvm::sys::fs::remove(path);
     llvm::sys::fs::remove(dir);
 }
+
+// 负偏移（SPEC-0039）：Req / Rep 的 dir、指针实参的 back 读入再写出不变；dir 只能是 back
+TEST(Summary, BackFieldsRoundTrip)
+{
+    std::string path;
+    for (const std::string &p : SummaryFiles()) {
+        if (llvm::StringRef(p).endswith("Om_OnSaveCfg_TP.json")) {
+            path = p;
+        }
+    }
+    ASSERT_TRUE(!path.empty());
+    auto buffer = llvm::MemoryBuffer::getFile(path);
+    ASSERT_TRUE(static_cast<bool>(buffer));
+    llvm::Expected<llvm::json::Value> v = llvm::json::parse((*buffer)->getBuffer());
+    ASSERT_TRUE(static_cast<bool>(v));
+    llvm::json::Value in = StripDoc(*v);
+    llvm::json::Object *o = in.getAsObject();
+    (*o->getArray("reqs"))[0].getAsObject()->insert({"dir", "back"});
+    llvm::json::Object *arg = (*(*o->getArray("calls"))[0].getAsObject()->getArray("args"))[0].getAsObject();
+    ASSERT_TRUE(arg != nullptr);
+    arg->insert({"back", "p1 + bext(p0)"});
+    Summary s;
+    std::string error;
+    ASSERT_TRUE(ReadSummary(in, s, error));
+    EXPECT_EQ(s.reqs[0].dir, "back");
+    ASSERT_TRUE(s.calls[0].args[0].ptr->back.hasValue());
+    EXPECT_EQ(*s.calls[0].args[0].ptr->back, "p1 + bext(p0)");
+    EXPECT_EQ(Print(SummaryToJson(s)), Print(in));
+    (*(*o->getArray("reqs"))[0].getAsObject())["dir"] = "front";
+    EXPECT_FALSE(ReadSummary(in, s, error));
+}

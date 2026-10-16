@@ -595,7 +595,13 @@ def alert_msg(rep, params=()):
     w = 'write' if rep['kind'] == 'W' else 'read'
     name = obj_name(rep['obj'], params)
     size = '%s bytes' % rep['have'] + ('; via %s' % rep['via'].split(':', 1)[1] if rep.get('via') else '')
-    if rep['level'] == 'L1':
+    if rep.get('dir'):                                 # 负偏移：越到指针前面的字节数（SPEC-0039 §2.3）
+        s = '%s out-of-bound %s through a %d-level call chain: up to %s bytes before %s (%s available before the pointer) %s' % (
+            'Definite' if rep['level'] == 'L1' else 'Possible', w, rep['depth'], rep['end'][1], name, size,
+            'are accessed' if rep['level'] == 'L1' else 'may be accessed')
+        if rep['level'] != 'L1':
+            s += '; the bound comes from %s' % BOUND_PHRASE.get(rep['bound'], rep['bound'])
+    elif rep['level'] == 'L1':
         s = 'Definite out-of-bound %s through a %d-level call chain: up to byte %s of %s (%s) is accessed' % (
             w, rep['depth'], rep['end'][1], name, size)
     else:
@@ -701,12 +707,15 @@ def build_map(call, callee):
         p = 'p%d' % i
         if isinstance(arg, dict):
             m['ext(%s)' % p] = P(arg['have'])
+            # 指针前面的字节数；没写 back → 不是接口符号的名字，调用点上只会走向记账（不当成 0，SPEC-0039 §2.2）
+            m['bext(%s)' % p] = P(arg['back']) if 'back' in arg else Lin(0, {('s', '_noback%d' % i): 1})
             effd = max(effd, arg.get('eff_depth', 0))
             if 'alias' in arg:
                 alias[p] = arg['alias']
             for f, v in arg.get('fields', {}).items():
                 if isinstance(v, dict):
                     m['ext(%s->%s)' % (p, f)] = P(v['have'])
+                    m['bext(%s->%s)' % (p, f)] = P(v['back']) if 'back' in v else Lin(0, {('s', '_noback%d_%s' % (i, f)): 1})
                     effd = max(effd, v.get('eff_depth', 0))
                 else:
                     m['%s->%s' % (p, f)] = P(v)
@@ -735,8 +744,8 @@ def eliminate_locals(l, locs, upper):
 def parent_call(req, call):
     """成员数组实参的外层对象（SPEC-0035）：req 的对象是 *pK、第 K 个实参带 parent → 把它换成外层对象的调用点；否则 None。"""
     m = re.match(r'^\*p([0-9]+)$', req['obj'])
-    if not m or int(m.group(1)) >= len(call['args']):
-        return None
+    if req.get('dir') or not m or int(m.group(1)) >= len(call['args']):
+        return None                                    # 反向 Req 只查成员起点（SPEC-0039 §2.1）
     k = int(m.group(1))
     arg = call['args'][k]
     if not isinstance(arg, dict) or 'parent' not in arg:
@@ -852,6 +861,8 @@ def rep_of(mine, call, fn, s, r_callee):
     """调用点判出 L1 / L2 时，按机器字段组装判定记录（与 JSON reps[] 同形，不含 id / doc）。"""
     rep = {'level': mine['outcome'], 'reported': max(mine['depth'], mine['eff_depth']) > INLINE_DEPTH, 'site': call['site'],
            'access': r_callee['access'], 'kind': r_callee['kind'], 'obj': mine['obj']}
+    if r_callee.get('dir'):
+        rep['dir'] = r_callee['dir']                   # 负偏移（SPEC-0039）
     if mine.get('via'):
         rep['via'] = mine['via']
     lo, hi = mine['end2']
@@ -861,12 +872,17 @@ def rep_of(mine, call, fn, s, r_callee):
             lo = Lin(int(mine['lo_end']))
     rep.update({'have': show(mine['have']), 'end': [show(lo), show(hi)], 'bound': mine['bound'], 'depth': mine['depth'],
                 'eff_depth': mine['eff_depth'], 'chain': ['%s@%s' % (fn, call['site'])] + r_callee['path']})
-    rep['fp'] = fingerprint(rep['level'], s['key'], rep['access'], rep['kind'], rep['obj'])
+    rep['fp'] = fingerprint(rep['level'], s['key'], rep['access'], rep['kind'], fingerprint_obj(rep['obj'], rep.get('dir')))
     return rep
 
 
+def fingerprint_obj(obj, dir_):
+    """指纹里的对象：反向 Req 加 "#back"，与同一次访问的正向区分（SPEC-0039）；正向不变。"""
+    return obj + '#' + dir_ if dir_ else obj
+
+
 def diff_rep(want, got):
-    keys = [k for k in REQUIRED['rep'] if k != 'id'] + ['via']
+    keys = [k for k in REQUIRED['rep'] if k != 'id'] + ['via', 'dir']
     return ['%s: JSON %s / 推出 %s' % (k, json.dumps(want.get(k), ensure_ascii=False), json.dumps(got.get(k), ensure_ascii=False))
             for k in keys if want.get(k) != got.get(k)]
 
@@ -993,6 +1009,8 @@ def replay(cid, verbose=False, out=None):
                 ok = mine['outcome'] == res['outcome']
                 if ok and mine['outcome'] == 'up':
                     probs = same_req(reqs[res['as']], mine)
+                    if reqs[res['as']].get('dir', '') != r.get('dir', ''):   # SPEC-0039
+                        probs.append('dir: JSON %s / 被调者 %s' % (reqs[res['as']].get('dir', ''), r.get('dir', '')))
                     msg += ' → 本函数 %s' % res['as']
                     if probs:
                         ok = False
@@ -1041,12 +1059,14 @@ def replay(cid, verbose=False, out=None):
 
 
 # ---------------------------------------------------------------- 从局部事实推到底
-def req_key(have, obj, lo, hi, guards, depth):
-    return (show(have), obj, show(lo), show(hi), frozenset(show_atom_le0(g) for g in guards), depth)
+def req_key(have, obj, lo, hi, guards, depth, dir_=None):
+    key = (show(have), obj, show(lo), show(hi), frozenset(show_atom_le0(g) for g in guards), depth)
+    return key + (dir_,) if dir_ else key              # 正向的键不变（SPEC-0039）
 
 
 def json_req_key(r):
-    return req_key(P(r['have']), r['obj'], P(r['end'][0]), P(r['end'][1]), [g for s in r.get('guard', []) for g in C(s)], r['depth'])
+    return req_key(P(r['have']), r['obj'], P(r['end'][0]), P(r['end'][1]), [g for s in r.get('guard', []) for g in C(s)], r['depth'],
+                   r.get('dir'))
 
 
 def typed_field(r, params):
@@ -1066,7 +1086,8 @@ def absorb(reqs):
     for i, r in enumerate(reqs):
         dominated = False
         for j, r2 in enumerate(reqs):
-            if i == j or show(r['have']) != show(r2['have']) or r['obj'] != r2['obj'] or r['gkey'] != r2['gkey']:
+            if i == j or show(r['have']) != show(r2['have']) or r['obj'] != r2['obj'] or r['gkey'] != r2['gkey'] or \
+                    r.get('dir') != r2.get('dir'):
                 continue
             d = (r['hi'] - r2['hi']).const()
             if d is not None and (d < 0 or (d == 0 and j < i)):
@@ -1098,7 +1119,7 @@ def derive(cid):
             for kind, end, at in [(r['kind'], r['end'], r['access']['at'])] + [(a['kind'], a['end'], a['at']) for a in r.get('absorbed', [])]:
                 cand.append({'have': P(r['have']), 'obj': r['obj'], 'lo': P(end[0]), 'hi': P(end[1]), 'guards': g,
                              'gkey': frozenset(show_atom_le0(x) for x in g), 'depth': 0, 'eff_depth': r['eff_depth'], 'bound': r['bound'],
-                             'path': r['path'], 'access': r['access'], 'kind': kind})
+                             'path': r['path'], 'access': r['access'], 'kind': kind, 'dir': r.get('dir')})
         reps = []
         for call in s['calls']:
             callee = fns.get(call['callee'])
@@ -1108,20 +1129,23 @@ def derive(cid):
             for r in dreqs[call['callee']]:
                 rj = {'have': show(r['have']), 'obj': r['obj'], 'end': [show(r['lo']), show(r['hi'])],
                       'guard': [show_atom_le0(g) for g in r['guards']], 'depth': r['depth'], 'eff_depth': r['eff_depth'], 'bound': r['bound']}
+                if r.get('dir'):
+                    rj['dir'] = r['dir']                   # 负偏移（SPEC-0039）
                 path = ['%s@%s' % (fn, call['site'])] + r['path']
                 for mine, used, _ in classify_all(rj, call, s, callee, env_guards):   # 成员数组实参：外层也查（SPEC-0035）
                     if mine['outcome'] == 'up':
                         g = mine.get('guards2', [])
                         cand.append({'have': mine['have'], 'obj': mine['obj'], 'lo': mine['end2'][0], 'hi': mine['end2'][1], 'guards': g,
                                      'gkey': frozenset(show_atom_le0(x) for x in g), 'depth': mine['depth'], 'eff_depth': mine['eff_depth'],
-                                     'bound': mine['bound'], 'path': path, 'access': r['access'], 'kind': r['kind']})
+                                     'bound': mine['bound'], 'path': path, 'access': r['access'], 'kind': r['kind'],
+                                     'dir': r.get('dir')})
                         stat['up'] += 1
                     elif mine['outcome'] in ('L1', 'L2'):
                         reps.append(rep_of(mine, used, fn, s, r))
                         stat['rep'] += 1
         mine_reqs = absorb(cand)
         dreqs[fn] = mine_reqs
-        got = sorted(req_key(r['have'], r['obj'], r['lo'], r['hi'], r['guards'], r['depth']) for r in mine_reqs)
+        got = sorted(req_key(r['have'], r['obj'], r['lo'], r['hi'], r['guards'], r['depth'], r.get('dir')) for r in mine_reqs)
         want = sorted(json_req_key(r) for r in s['reqs'])
         if [repr(x) for x in got] != [repr(x) for x in want]:
             probs.append('%s %s：推出的 Req 与 JSON 不同\n      推出 %s\n      JSON %s' % (cid, fn, got, want))

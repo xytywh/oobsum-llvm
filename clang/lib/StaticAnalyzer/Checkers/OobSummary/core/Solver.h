@@ -34,6 +34,7 @@ struct DerivedReq {
     std::vector<std::string> path;
     summary::Access access;
     std::string kind;
+    std::string dir;  // "back"：反向 Req（SPEC-0039）
 };
 
 // 调用点上被调者一条 Req 的结局（Dump=apply 与判定日志用，SPEC-0021 §2.2）

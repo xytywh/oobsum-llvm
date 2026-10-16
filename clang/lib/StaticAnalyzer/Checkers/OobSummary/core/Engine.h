@@ -46,8 +46,9 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
 
 // 文本（SPEC-0021 §2.3）
 std::string SuspectMessage(const std::string &kind, int64_t depth, const std::string &object, const std::string &have,
-                           const std::string &endHi);
-std::string SafeMessage(const std::string &object, const std::string &have, const std::string &endHi);
+                           const std::string &endHi, const std::string &dir = "");
+std::string SafeMessage(const std::string &object, const std::string &have, const std::string &endHi,
+                        const std::string &dir = "");  // dir：负偏移（SPEC-0039）
 std::string LedgerMessage(const std::string &reason, const std::string &callee = "");
 
 }  // namespace engine

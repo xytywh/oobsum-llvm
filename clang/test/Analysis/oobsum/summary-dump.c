@@ -29,7 +29,7 @@ void Top(UINT32 ulIdx)
 // CHECK-SAME: "kind":"W","obj":"*p0"
 // 调用方：指针实参 {obj, have}、整数实参、纯函数模型的指针实参为 null
 // CHECK: [oobsum:state] fn Top b{{[0-9]+}}: ulIdx=p0
-// CHECK: [oobsum:summary] {{.*}}"calls":[{"args":[{"have":"8","obj":"local:aucBuf"},"p0"],"callee":"Leaf"
+// CHECK: [oobsum:summary] {{.*}}"calls":[{"args":[{"back":"0","have":"8","obj":"local:aucBuf"},"p0"],"callee":"Leaf"
 // CHECK-SAME: {"args":["1",null,"p0"],"callee":"LOG_Print",{{("callee_key":"[^"]*",)?}}"model":"pure"
 // CHECK-SAME: "fn":"Top"
 

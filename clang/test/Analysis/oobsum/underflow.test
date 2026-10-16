@@ -1,0 +1,23 @@
+# 负偏移（下溢，oobsum/specs/SPEC-0039；06- §3.1）：反向 Req（dir: back），安全条件 −lo <= bext(基址)；调用点实参带 back。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Back_Set|Neg_Checked|Back_OK)$' \
+# RUN:   %S/Inputs/underflow/under.c 2>&1 | FileCheck %s
+
+# 反向 Req 与实参的 back（Dump=summary）
+CHECK-DAG: [oobsum:summary] {{.*}}"args":[{"back":"8","have":"8","obj":"local:auc"}]{{.*}}"fn":"Back_OK"
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Back_Set"{{.*}}"reqs":[{"access":{{.*}}"dir":"back","eff_depth":0,"end":["4","4"],"guard":[],"have":"bext(p0)"
+# 检查了下界（i >= 1）：没有反向 Req
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Neg_Checked"{{.*}}"reqs":[{"access":{{.*}}"end":["p1","p1"]{{.*}}"have":"ext(p0)"{{.*}}}],"schema"
+
+# p[i - 1]，i = 0（原来是错误的 SAFE）
+CHECK-DAG: under.c:14:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to 1 bytes before 'auc' (0 bytes available before the pointer) are accessed
+CHECK-DAG: under.c:19:1: warning: [OOB-SAFE:within] Proven within bounds: up to 0 bytes before 'auc' (0 bytes before the pointer)
+# p - 4：实参在起点 → DEFINITE；实参 auc + 8 → SAFE
+CHECK-DAG: under.c:31:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to 4 bytes before 'auc' (0 bytes available before the pointer) are accessed
+CHECK-DAG: under.c:36:1: warning: [OOB-SAFE:within] Proven within bounds: up to 4 bytes before 'auc' (8 bytes before the pointer)
+# 入口：指针前面有多少字节不知道
+CHECK-DAG: under.c:54:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within '*p' (size bext(p0) before the pointer): up to 4 bytes before it may be accessed
+# 无符号回绕是上溢
+CHECK-DAG: under.c:67:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 4294967296 of 'auc' (16 bytes) is accessed

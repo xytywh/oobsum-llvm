@@ -36,7 +36,8 @@ def dominated_by(r, keep):
         if k is r:
             return k
     for k in keep:
-        if R.show(r['have']) == R.show(k['have']) and r['obj'] == k['obj'] and r['gkey'] == k['gkey']:
+        if R.show(r['have']) == R.show(k['have']) and r['obj'] == k['obj'] and r['gkey'] == k['gkey'] and \
+                r.get('dir') == k.get('dir'):
             d = (r['hi'] - k['hi']).const()
             if d is not None and d <= 0:
                 return k
@@ -65,7 +66,7 @@ def regen(cid):
             g = [x for c in r.get('guard', []) for x in R.C(c)]
             base = {'have': R.P(r['have']), 'obj': r['obj'], 'guards': g, 'gkey': frozenset(R.show_atom_le0(x) for x in g),
                     'depth': 0, 'eff_depth': r['eff_depth'], 'bound': r['bound'], 'path': r['path'], 'access': r['access'],
-                    'src': 'local'}
+                    'src': 'local', 'dir': r.get('dir')}
             main = dict(base, lo=R.P(r['end'][0]), hi=R.P(r['end'][1]), kind=r['kind'], json=r)
             cand.append(main)
             local_json[id(main)] = r
@@ -87,7 +88,7 @@ def regen(cid):
                         c = {'have': mine['have'], 'obj': mine['obj'], 'lo': mine['end2'][0], 'hi': mine['end2'][1], 'guards': g,
                              'gkey': frozenset(R.show_atom_le0(x) for x in g), 'depth': mine['depth'], 'eff_depth': mine['eff_depth'],
                              'bound': mine['bound'], 'path': ['%s@%s' % (fn, call['site'])] + r['path'], 'access': r['access'],
-                             'kind': r['kind'], 'src': 'up', 'blind': r['blind'],
+                             'kind': r['kind'], 'src': 'up', 'blind': r['blind'], 'dir': r.get('dir'),
                              'start': R.subst(R.P(r['start']), mm) if 'start' in r else None}
                         cand.append(c)
                     pending.append((call, r, mine, c, ucall, outer))
@@ -102,11 +103,13 @@ def regen(cid):
                 errors.append('%s %s：absorbed 里的访问 %s 留了下来（局部事实本身要改）' % (cid, fn, k['at']))
                 continue
             else:
-                key = R.req_key(k['have'], k['obj'], k['lo'], k['hi'], k['guards'], k['depth'])
+                key = R.req_key(k['have'], k['obj'], k['lo'], k['hi'], k['guards'], k['depth'], k.get('dir'))
                 j = old_by_key.get(key)
                 if j is None:
-                    j = {'id': next_id(used), 'kind': k['kind'], 'have': R.show(k['have']), 'obj': k['obj'],
-                         'end': [R.show(k['lo']), R.show(k['hi'])]}
+                    j = {'id': next_id(used), 'kind': k['kind']}
+                    if k.get('dir'):
+                        j['dir'] = k['dir']  # 负偏移（SPEC-0039）
+                    j.update({'have': R.show(k['have']), 'obj': k['obj'], 'end': [R.show(k['lo']), R.show(k['hi'])]})
                     if k['start'] is not None:
                         j['start'] = R.show(k['start'])
                     j.update({'bound': k['bound'], 'guard': [R.show_atom_le0(x) for x in k['guards']], 'access': k['access'],

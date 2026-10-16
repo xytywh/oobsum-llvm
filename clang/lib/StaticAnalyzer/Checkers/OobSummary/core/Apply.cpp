@@ -73,6 +73,8 @@ Map BuildMap(const Call &call)
         const ArgValue &arg = call.args[i];
         if (arg.kind == ArgValue::Kind::Ptr) {
             out.m.ext[p] = P(arg.ptr->have);
+            // 指针前面的字节数；实参没写 back → 不是接口符号的名字，调用点上只会走向记账（不当成 0，SPEC-0039 §2.2）
+            out.m.bext[p] = arg.ptr->back ? P(*arg.ptr->back) : LinExpr::Sym("_noback" + std::to_string(i));
             out.effDepth = std::max(out.effDepth, arg.ptr->effDepth.getValueOr(0));
             if (arg.ptr->alias) {
                 out.m.alias[p] = *arg.ptr->alias;
@@ -82,6 +84,9 @@ Map BuildMap(const Call &call)
                     std::string name = p + "->" + entry.first;
                     if (entry.second.kind == ArgValue::Kind::Ptr) {
                         out.m.ext[name] = P(entry.second.ptr->have);
+                        out.m.bext[name] = entry.second.ptr->back
+                                               ? P(*entry.second.ptr->back)
+                                               : LinExpr::Sym("_noback" + std::to_string(i) + "_" + entry.first);
                         out.effDepth = std::max(out.effDepth, entry.second.ptr->effDepth.getValueOr(0));
                     } else {
                         out.m.sym[name] = P(entry.second.expr);
@@ -417,8 +422,16 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
     return o;
 }
 
+std::string FingerprintObj(const std::string &obj, const std::string &dir)
+{
+    return dir.empty() ? obj : obj + "#" + dir;
+}
+
 llvm::Optional<Call> ParentCall(const summary::Req &req, const Call &call)
 {
+    if (!req.dir.empty()) {
+        return llvm::None;  // 反向 Req 只查成员起点（SPEC-0039 §2.1）
+    }
     static llvm::Regex re("^\\*p([0-9]+)$");
     llvm::SmallVector<llvm::StringRef, 2> groups;
     unsigned long long k = 0;
@@ -468,6 +481,7 @@ summary::Rep RepOf(const Outcome &mine, const Call &call, const std::string &fn,
     rep.site = call.site;
     rep.access = calleeReq.access;
     rep.kind = calleeReq.kind;
+    rep.dir = calleeReq.dir;
     rep.obj = mine.obj;
     rep.via = mine.via;
     LinExpr lo = mine.end2Lo;
@@ -486,7 +500,8 @@ summary::Rep RepOf(const Outcome &mine, const Call &call, const std::string &fn,
     rep.effDepth = mine.effDepth;
     rep.chain.push_back(fn + "@" + call.site);
     rep.chain.insert(rep.chain.end(), calleeReq.path.begin(), calleeReq.path.end());
-    rep.fp = DecisionFingerprint(rep.level, caller.key, rep.access.key, rep.kind, rep.access.end, rep.obj);
+    rep.fp = DecisionFingerprint(rep.level, caller.key, rep.access.key, rep.kind, rep.access.end,
+                                 FingerprintObj(rep.obj, rep.dir));
     return rep;
 }
 
@@ -687,6 +702,7 @@ std::vector<std::string> DiffRep(const summary::Rep &want, const summary::Rep &g
     cmp("chain", Join(want.chain, " "), Join(got.chain, " "));
     cmp("fp", want.fp, got.fp);
     cmp("via", want.via.getValueOr("null"), got.via.getValueOr("null"));
+    cmp("dir", want.dir, got.dir);
     return bad;
 }
 
@@ -859,6 +875,9 @@ CheckResult CheckCase(const std::string &caseId, const std::map<std::string, Sum
                     std::vector<std::string> probs = mineReq != nullptr
                                                          ? SameReq(*mineReq, mine)
                                                          : std::vector<std::string>{"JSON 里没有 " + res.as};
+                    if (mineReq != nullptr && mineReq->dir != r->dir) {
+                        probs.push_back("dir: JSON " + mineReq->dir + " / 被调者 " + r->dir);  // SPEC-0039
+                    }
                     msg += " → 本函数 " + res.as;
                     if (!probs.empty()) {
                         ok = false;

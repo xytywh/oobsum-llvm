@@ -267,8 +267,14 @@ bool Reader::ReadReq(const Value &v, Req &r)
 {
     const Object *o =
         Obj(v, {"id", "kind", "have", "obj", "end", "bound", "guard", "access", "path", "depth", "eff_depth", "blind"},
-            {"start", "absorbed"});
+            {"start", "absorbed", "dir"});
     auto kind = [&](const Value &x, std::string &y) { return OneOf(x, y, {"R", "W"}); };
+    llvm::Optional<std::string> dir;  // SPEC-0039
+    if (o != nullptr &&
+        !OptKey(*o, "dir", dir, [&](const Value &x, std::string &y) { return OneOf(x, y, {"back"}); })) {
+        return false;
+    }
+    r.dir = dir.getValueOr("");
     auto absorbed = [&](const Value &x, Absorbed &y) {
         const Object *ao = Obj(x, {"kind", "end", "at"}, {});
         return ao != nullptr && Key(*ao, "kind", y.kind, kind) &&
@@ -303,7 +309,7 @@ bool Reader::ReadEff(const Value &v, Eff &e)
 
 bool Reader::ReadPtr(const Value &v, PtrArg &p)
 {
-    const Object *o = Obj(v, {"obj", "have"}, {"alias", "eff_depth", "fields", "parent"});
+    const Object *o = Obj(v, {"obj", "have"}, {"alias", "eff_depth", "fields", "parent", "back"});
     auto outer = [&](const Value &x, OuterObj &y) {
         const Object *po = Obj(x, {"obj", "have"}, {});
         return po != nullptr && Key(*po, "obj", y.obj, OOBSUM_M(ObjName)) && Key(*po, "have", y.have, OOBSUM_M(Expr));
@@ -324,7 +330,8 @@ bool Reader::ReadPtr(const Value &v, PtrArg &p)
     };
     return o != nullptr && Key(*o, "obj", p.obj, OOBSUM_M(ObjName)) && Key(*o, "have", p.have, OOBSUM_M(Expr)) &&
            OptKey(*o, "alias", p.alias, OOBSUM_M(Str)) && OptKey(*o, "eff_depth", p.effDepth, OOBSUM_M(Int)) &&
-           OptKey(*o, "fields", p.fields, fields) && OptKey(*o, "parent", p.parent, outer);
+           OptKey(*o, "fields", p.fields, fields) && OptKey(*o, "parent", p.parent, outer) &&
+           OptKey(*o, "back", p.back, OOBSUM_M(Expr));
 }
 
 bool Reader::ReadArg(const Value &v, ArgValue &a, bool allowNull)
@@ -471,8 +478,14 @@ bool Reader::ReadRep(const Value &v, Rep &r)
     const Object *o = Obj(v,
                           {"id", "level", "reported", "site", "access", "kind", "obj", "have", "end", "bound", "depth",
                            "eff_depth", "chain", "fp"},
-                          {"via"});
+                          {"via", "dir"});
     auto via = [&](const Value &x, std::string &y) { return Str(x, y) && (IsVia(y) || Fail("bad via '" + y + "'")); };
+    llvm::Optional<std::string> dir;  // SPEC-0039
+    if (o != nullptr &&
+        !OptKey(*o, "dir", dir, [&](const Value &x, std::string &y) { return OneOf(x, y, {"back"}); })) {
+        return false;
+    }
+    r.dir = dir.getValueOr("");
     return o != nullptr && Key(*o, "id", r.id, OOBSUM_M(Str)) &&
            Key(*o, "level", r.level,
                [&](const Value &x, std::string &y) {
@@ -590,6 +603,7 @@ Value PtrJson(const PtrArg &p)
     if (p.parent) {
         o["parent"] = Object{{"obj", p.parent->obj}, {"have", p.parent->have}};
     }
+    Put(o, "back", p.back);
     if (p.fields) {
         Object f;
         for (const auto &entry : *p.fields) {
@@ -717,6 +731,9 @@ Value SummaryToJson(const Summary &s)
                  {"eff_depth", r.effDepth},
                  {"blind", r.blind}};
         Put(o, "start", r.start);
+        if (!r.dir.empty()) {
+            o["dir"] = r.dir;
+        }
         if (r.absorbed) {
             Array a;
             for (const Absorbed &x : *r.absorbed) {
@@ -787,6 +804,9 @@ Value SummaryToJson(const Summary &s)
                  {"chain", Strings(r.chain)},
                  {"fp", r.fp}};
         Put(o, "via", r.via);
+        if (!r.dir.empty()) {
+            o["dir"] = r.dir;
+        }
         reps.push_back(std::move(o));
     }
     Array opens;
