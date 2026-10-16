@@ -1,0 +1,21 @@
+# 入口函数上深度 0 的常数 Req 按 F-10 / F-11 / F-12 判级（oobsum/specs/SPEC-0087）。原来一律记 SUSPECT entry_unproven。
+#
+# InlineDepth=0：报出；深度 0 不写调用链
+# RUN: rm -rf %t && mkdir -p %t
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/entryc/e.c 2>&1 | FileCheck %s
+# 默认 InlineDepth：DEFINITE / POSSIBLE 交现有规则（F-20），只写判定日志
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t %S/Inputs/entryc/e.c 2>&1 | FileCheck %s --check-prefix=DEF
+# RUN: cat %t/decisions/*.jsonl | FileCheck %s --check-prefix=LOG
+
+CHECK-DAG: e.c:4:1: warning: [OOB-DEFINITE] Definite out-of-bound write: up to byte 101 of 'a' (4 bytes) is accessed
+CHECK-DAG: e.c:5:1: warning: [OOB-POSSIBLE] Possible out-of-bound write: up to byte 10 of 'a' (4 bytes) may be accessed; the bound comes from a loop condition
+CHECK-DAG: e.c:7:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write stays within 'a' (4 bytes): up to byte p0 + 1 may be accessed
+
+DEF-NOT: OOB-DEFINITE
+DEF-NOT: OOB-POSSIBLE
+DEF: e.c:7:1: warning: [OOB-SUSPECT:type_range_only]
+
+LOG-DAG: "fn":"F:T9"{{.*}}"label":"definite"{{.*}}"not_emitted_because":"inline_depth"
+LOG-DAG: "fn":"F:T12"{{.*}}"label":"possible"{{.*}}"not_emitted_because":"inline_depth"

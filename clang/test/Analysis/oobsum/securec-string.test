@@ -12,7 +12,7 @@ CHECK: [oobsum:summary] {{.*}}"fn":"Name_Set"{{.*}}"bound":"model"
 CHECK-DAG: str.c:21:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 2-level call chain: up to byte 32 of 'buf' (16 bytes) may be accessed; the bound comes from a size argument of a library function
 CHECK-DAG: str.c:27:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'buf' (16 bytes)
 CHECK-DAG: str.c:33:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 2-level call chain
-# 入口函数自己的访问只在入口记账（现有设计：只在调用点定级）；照样报出
-CHECK-DAG: str.c:39:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write stays within 'buf' (8 bytes): up to byte 64 may be accessed
+# 入口函数自己的访问：have 与末端都是常数时按 F-11 / F-12 判级（SPEC-0087；原来一律记 entry_unproven）
+CHECK-DAG: str.c:39:1: warning: [OOB-POSSIBLE] Possible out-of-bound write: up to byte 64 of 'buf' (8 bytes) may be accessed; the bound comes from a size argument of a library function
 CHECK-DAG: str.c:42:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 2-level call chain stays within '*dst' (size ext(p0)): up to byte 32 may be accessed
 CHECK-NOT: not_in_tu

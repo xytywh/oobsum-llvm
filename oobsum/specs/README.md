@@ -118,4 +118,5 @@
 | [SPEC-0084](SPEC-0084-congruence.md) | 区间带同余（值 ≡ 锚点 mod 步长）：宽元素指针循环、步长大于 1 的整数循环判准 | 已实现 |
 | [SPEC-0085](SPEC-0085-ne-threshold-body.md) | `!=` 阈值的候选扩到循环体里的比较（`while (1) { if (i == n) break; … }`） | 已实现 |
 | [SPEC-0086](SPEC-0086-global-symbol-identity.md) | 全局符号的身份：内部链接带哈希后缀；被调者改了本模块看不到的全局要记账（修三处错误 SAFE） | 已实现 |
+| [SPEC-0087](SPEC-0087-entry-constant-level.md) | 入口函数上深度 0 的常数 Req 按 F-10 / F-11 / F-12 判级（不再一律记"入口未证明"） | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

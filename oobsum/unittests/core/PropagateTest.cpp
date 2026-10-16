@@ -262,3 +262,41 @@ TEST(Propagate, CalleeKeyDisambiguatesStatics)
     EXPECT_EQ(r.fns.at("F:Top_B").reps[0].level, "L1");
     EXPECT_EQ(r.fns.at("F:Top_B").reps[0].chain[0], "Top_B@t.c:3");  // 调用链写函数名
 }
+
+TEST(Propagate, EntryConstantLevel)
+{
+    // SPEC-0087：入口函数自己的深度 0 常数 Req：末端 101 > 4 → L1；[1, 10] 来自循环 → L2；含入口形参的照旧记账
+    auto entry = [](const std::string &name, const std::string &have, const std::string &lo, const std::string &hi,
+                    const std::string &bound) {
+        summary::Summary s;
+        std::string error;
+        std::string text =
+            R"j({"schema":"oobsum-summary/1","fn":")j" + name + R"j(","key":"F:)j" + name +
+            R"j(","loc":"t.c:1","params":[{"name":"n","type":"UINT32"}],"status":"analyzed","reqs":[{"id":"R1","kind":"W",)j"
+            R"j("have":")j" +
+            have + R"j(","obj":"local:a","end":[")j" + lo + R"j(",")j" + hi + R"j("],"bound":")j" + bound +
+            R"j(","guard":[],"access":{"fn":")j" + name + R"j(","key":"F:)j" + name + R"j(","at":"t.c:2","end":")j" +
+            hi + R"j("},"path":[")j" + name +
+            R"j(@t.c:2"],"depth":0,"eff_depth":0,"blind":false}],"effs":[],"calls":[],"reps":[],"opens":[]})j";
+        llvm::Expected<llvm::json::Value> v = llvm::json::parse(text);
+        EXPECT_TRUE(static_cast<bool>(v));
+        EXPECT_TRUE(summary::ReadSummary(*v, s, error));
+        return s;
+    };
+    std::map<std::string, summary::Summary> fns;
+    fns["F:T9"] = entry("T9", "4", "101", "101", "exact");
+    fns["F:T12"] = entry("T12", "4", "1", "10", "loop");
+    fns["F:T13"] = entry("T13", "4", "p0 + 1", "p0 + 1", "exact");
+    fns["F:T14"] = entry("T14", "4", "1", "256", "type");
+    solver::PropagateResult r = solver::Propagate(fns);
+    ASSERT_TRUE(r.fns.at("F:T9").reps.size() == 1);
+    EXPECT_EQ(r.fns.at("F:T9").reps[0].level, "L1");
+    EXPECT_EQ(r.fns.at("F:T9").reps[0].site, "t.c:2");
+    EXPECT_TRUE(r.fns.at("F:T9").reqs.empty());
+    ASSERT_TRUE(r.fns.at("F:T12").reps.size() == 1);
+    EXPECT_EQ(r.fns.at("F:T12").reps[0].level, "L2");
+    EXPECT_TRUE(r.fns.at("F:T13").reps.empty());
+    EXPECT_EQ(r.fns.at("F:T13").entryOpens.size(), size_t(1));
+    EXPECT_TRUE(r.fns.at("F:T14").reps.empty());  // 只有类型范围：不是代码给出的界
+    EXPECT_EQ(r.fns.at("F:T14").entryOpens.size(), size_t(1));
+}

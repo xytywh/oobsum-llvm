@@ -7,6 +7,7 @@
 #include "OobSummary/core/Solver.h"
 
 #include "OobSummary/core/Apply.h"
+#include "OobSummary/core/Fingerprint.h"
 #include "OobSummary/core/Range.h"
 
 #include <algorithm>
@@ -14,6 +15,54 @@
 
 namespace oobsum {
 namespace solver {
+
+namespace {
+
+// 入口函数上深度 0 的常数 Req（SPEC-0087）：末端下界 > 大小 → L1（F-11）；末端上界 > 大小且来源是代码给出的界 → L2（F-12）；其余不判
+llvm::Optional<std::string> EntryLevel(const DerivedReq &r)
+{
+    if (r.depth != 0 || !r.dir.empty() || !r.have.IsConst() || !r.lo.IsConst() || !r.hi.IsConst()) {
+        return llvm::None;
+    }
+    for (const LinExpr &g : r.guards) {
+        if (!g.IsConst() || g.Constant() > 0) {
+            return llvm::None;  // 带符号的守卫、或守卫为假：不在这里判
+        }
+    }
+    if (r.lo.Constant() > r.have.Constant()) {
+        return std::string("L1");
+    }
+    llvm::Optional<Tag> tag = ParseTag(r.bound);
+    if (r.hi.Constant() > r.have.Constant() && tag && IsCodeTag(*tag)) {
+        return std::string("L2");
+    }
+    return llvm::None;
+}
+
+// 同调用点的 Rep（apply::RepOf）：site 是访问点、chain 是访问路径
+summary::Rep EntryRep(const std::string &level, const DerivedReq &r, const summary::Summary &s)
+{
+    summary::Rep rep;
+    rep.level = level;
+    rep.reported = std::max(r.depth, r.effDepth) > apply::kInlineDepth;
+    rep.site = r.access.at;
+    rep.access = r.access;
+    rep.kind = r.kind;
+    rep.dir = r.dir;
+    rep.obj = r.obj;
+    rep.have = r.have.Show();
+    rep.endLo = r.lo.Show();
+    rep.endHi = r.hi.Show();
+    rep.bound = r.bound;
+    rep.depth = r.depth;
+    rep.effDepth = r.effDepth;
+    rep.chain = r.path;
+    rep.fp = DecisionFingerprint(rep.level, s.key, rep.access.key, rep.kind, rep.access.end,
+                                 apply::FingerprintObj(rep.obj, rep.dir));
+    return rep;
+}
+
+}  // namespace
 
 namespace {
 
@@ -227,10 +276,20 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns)
             }
         }
         result.reqs = Absorb(cand);
-        // 入口（没有调用方）：每条推出的 Req 到此为止，记账
+        // 入口（没有调用方）：每条推出的 Req 到此为止——深度 0 的常数 Req 先按 F-10 / F-11 / F-12 判（SPEC-0087），其余记账
         if (callees.count(fn) == 0) {
             result.entry = true;
             SymEnv env = apply::CallerEnv(s);
+            std::vector<DerivedReq> open;
+            for (const DerivedReq &r : result.reqs) {
+                if (llvm::Optional<std::string> level = EntryLevel(r)) {
+                    result.reps.push_back(EntryRep(*level, r, s));
+                    ++out.rep;
+                    continue;
+                }
+                open.push_back(r);
+            }
+            result.reqs = std::move(open);
             for (const DerivedReq &r : result.reqs) {
                 Limit l = env.RangeOf(r.hi - r.have, true);
                 bool typeOnly = r.have.IsConst() && l.known && l.tag == Tag::Type;
