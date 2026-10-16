@@ -56,6 +56,8 @@ struct Outcome {
 SymEnv CallerEnv(const summary::Summary &caller);
 // 自底向上的顺序：离叶子的层数，同层按名字（同 replay.py 的 topo）
 std::vector<std::string> TopoOrder(const std::map<std::string, summary::Summary> &fns);
+// 调用点的被调者在摘要表里的索引（SPEC-0027）：有 callee_key 且表里有就用它，否则按名字
+const std::string &CalleeOf(const summary::Call &call, const std::map<std::string, summary::Summary> &fns);
 // 判定记录逐字段比较（同 replay.py 的 diff_rep）；返回不同的字段
 std::vector<std::string> DiffRep(const summary::Rep &want, const summary::Rep &got);
 

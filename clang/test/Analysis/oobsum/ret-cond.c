@@ -37,5 +37,5 @@ void OnReq(UINT32 ulIdx)
 }
 // 调用方：Check 返回 0 之后，Set 的调用点带守卫 p0 <= 16（校验差了一，Set 需要 p0 <= 15）
 // CHECK: [oobsum:summary] {"calls":[{"args":["p0"],"callee":"Check"
-// CHECK-SAME: {"args":["p0"],"callee":"Set","guards":[{"bound":"check","cond":"p0 <= 16"}]
+// CHECK-SAME: {"args":["p0"],"callee":"Set",{{("callee_key":"[^"]*",)?}}"guards":[{"bound":"check","cond":"p0 <= 16"}]
 // CHECK-SAME: "fn":"OnReq"

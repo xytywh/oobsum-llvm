@@ -32,7 +32,7 @@ void Set(UINT32 ulPortId)
 // CHECK: [oobsum:state] fn Set safe guards.c:26 W end 4 <= have 128
 // CHECK: [oobsum:state] fn Set b{{[0-9]+}}: ulPortId=p0 {{.*}}guards: p0 <= 31
 // CHECK: [oobsum:state] fn Set safe guards.c:30 W end 4*p0 + 4 <= have 128
-// CHECK: [oobsum:summary] {"calls":[{"args":["p0"],"callee":"Leaf","guards":[{"bound":"check","cond":"p0 <= 31"}]
+// CHECK: [oobsum:summary] {"calls":[{"args":["p0"],"callee":"Leaf",{{("callee_key":"[^"]*",)?}}"guards":[{"bound":"check","cond":"p0 <= 31"}]
 // CHECK-SAME: "fn":"Set",
 // CHECK-SAME: "reqs":[]
 

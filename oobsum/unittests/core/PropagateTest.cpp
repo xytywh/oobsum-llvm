@@ -222,3 +222,42 @@ TEST(Alert, ObjectNamesAndPhrases)
         "Possible out-of-bound read through a 3-level call chain: up to byte 20 of 'g_x' (16 bytes) may be accessed; "
         "the bound comes from a bit mask [Top (a.c:9) -> Mid (b.c:4) -> Leaf (b.c:2)]");
 }
+
+TEST(Propagate, CalleeKeyDisambiguatesStatics)
+{
+    // 两个文件里各有一个 static Init（同名、键不同）：调用点按 callee_key 接到各自的函数上（SPEC-0027）
+    auto parse = [](const std::string &text) {
+        summary::Summary s;
+        std::string error;
+        llvm::Expected<llvm::json::Value> v = llvm::json::parse(text);
+        EXPECT_TRUE(static_cast<bool>(v));
+        EXPECT_TRUE(summary::ReadSummary(*v, s, error));
+        return s;
+    };
+    auto init = [&](const std::string &key, const std::string &end) {
+        return parse(
+            R"j({"schema":"oobsum-summary/1","fn":"Init","key":")j" + key +
+            R"j(","loc":"a.c:1","params":[{"name":"p","type":"UINT8*"}],"status":"analyzed","reqs":[{"id":"R1","kind":"W",)j"
+            R"j("have":"ext(p0)","obj":"*p0","end":[")j" +
+            end + R"j(",")j" + end + R"j("],"bound":"exact","guard":[],"access":{"fn":"Init","key":")j" + key +
+            R"j(","at":"a.c:2","end":")j" + end +
+            R"j("},"path":["Init@a.c:2"],"depth":0,"eff_depth":0,"blind":false}],"effs":[],"calls":[],"reps":[],"opens":[]})j");
+    };
+    auto top = [&](const std::string &name, const std::string &calleeKey) {
+        return parse(
+            R"j({"schema":"oobsum-summary/1","fn":")j" + name + R"j(","key":"F:)j" + name +
+            R"j(","loc":"t.c:1","params":[],"status":"analyzed","reqs":[],"effs":[],"calls":[{"site":"t.c:3","callee":"Init",)j"
+            R"j("callee_key":")j" +
+            calleeKey + R"j(","args":[{"obj":"local:aucBuf","have":"8"}],"results":[]}],"reps":[],"opens":[]})j");
+    };
+    std::map<std::string, summary::Summary> fns;
+    fns["F@aaaa:Init"] = init("F@aaaa:Init", "4");    // 写到第 4 字节：8 字节的缓冲区装得下
+    fns["F@bbbb:Init"] = init("F@bbbb:Init", "100");  // 写到第 100 字节：越界
+    fns["F:Top_A"] = top("Top_A", "F@aaaa:Init");
+    fns["F:Top_B"] = top("Top_B", "F@bbbb:Init");
+    solver::PropagateResult r = solver::Propagate(fns);
+    EXPECT_TRUE(r.fns.at("F:Top_A").reps.empty());
+    ASSERT_TRUE(r.fns.at("F:Top_B").reps.size() == 1);
+    EXPECT_EQ(r.fns.at("F:Top_B").reps[0].level, "L1");
+    EXPECT_EQ(r.fns.at("F:Top_B").reps[0].chain[0], "Top_B@t.c:3");  // 调用链写函数名
+}

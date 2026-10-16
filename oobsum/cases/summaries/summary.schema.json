@@ -157,7 +157,8 @@
       "properties": {
         "site": { "$ref": "#/definitions/site" },
         "callee": { "type": "string" },
-        "model": { "enum": ["access", "alloc", "pure", "unknown"] },
+        "callee_key": { "type": "string", "description": "被调者的函数键（D-07；引擎写，有它时按它找被调者，SPEC-0027）" },
+        "model": { "enum": ["access", "alloc", "pure", "unknown", "free"] },
         "args": { "type": "array", "items": { "$ref": "#/definitions/arg" } },
         "locals": { "type": "object", "description": "实参里用到的本函数局部在调用点的区间",
                     "additionalProperties": { "type": "object", "additionalProperties": false, "required": ["range", "bound"],

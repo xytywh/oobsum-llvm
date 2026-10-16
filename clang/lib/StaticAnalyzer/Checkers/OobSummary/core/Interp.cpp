@@ -1351,7 +1351,10 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                 result = HeapResult(inst, models.Alloc(name)->size, 0, s);
             } else if (kind == models::Kind::None && inst.calleeExpr == fir::kNone && callees != nullptr) {
                 // 本 TU 里已算出摘要的被调者：代入它的 ret_new（SPEC-0024 §2.2）
-                auto callee = callees->find(name.str());
+                auto callee = callees->find(inst.callee);  // 按函数键（SPEC-0027）；找不到再按名字
+                if (callee == callees->end()) {
+                    callee = callees->find(name.str());
+                }
                 if (callee != callees->end()) {
                     for (const summary::Eff &e : callee->second.effs) {
                         if (e.kind == "ret_new" && e.size) {
@@ -1688,6 +1691,7 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s)
     summary::Call call;
     call.site = SiteOf(m, inst.loc);
     call.callee = KeyName(inst.callee).str();
+    call.calleeKey = inst.callee;  // SPEC-0027
     // 模型表优先（I-44，SPEC-0018 §2.1）
     models::Kind kind = models.KindOf(call.callee);
     bool pure = kind == models::Kind::Pure;

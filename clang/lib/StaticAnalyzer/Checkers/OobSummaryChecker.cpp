@@ -242,7 +242,7 @@ void OobSummaryChecker::dumpSummaries(const oobsum::fir::Module &module, const s
                 dump.Line("state", "fn " + f.name + " " + line);
             }
         }
-        auto summary = result.summaries.find(f.name);
+        auto summary = result.summaries.find(f.key);
         if (!wantSummary || summary == result.summaries.end()) {
             continue;
         }

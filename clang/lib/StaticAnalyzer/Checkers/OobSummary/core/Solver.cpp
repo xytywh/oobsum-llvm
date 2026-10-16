@@ -137,7 +137,7 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns)
     std::set<std::string> callees;
     for (const auto &entry : fns) {
         for (const summary::Call &c : entry.second.calls) {
-            callees.insert(c.callee);
+            callees.insert(apply::CalleeOf(c, fns));
         }
     }
     out.order = apply::TopoOrder(fns);
@@ -186,15 +186,16 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns)
         }
         // 每个调用点：被调者推出的 Req 代进来
         for (const summary::Call &call : s.calls) {
-            auto calleeIt = out.fns.find(call.callee);
-            if (fns.count(call.callee) == 0 || calleeIt == out.fns.end()) {
+            const std::string &callee = apply::CalleeOf(call, fns);
+            auto calleeIt = out.fns.find(callee);
+            if (fns.count(callee) == 0 || calleeIt == out.fns.end()) {
                 continue;
             }
             apply::EnvGuards envGuards = apply::EnvGuardsOf(call);
             for (const DerivedReq &r : calleeIt->second.reqs) {
                 summary::Req rj = AsReq(r);
                 apply::Outcome mine = apply::Classify(rj, call, s, envGuards);
-                std::vector<std::string> path{fn + "@" + call.site};
+                std::vector<std::string> path{s.fn + "@" + call.site};  // 写函数名（表的索引可能是函数键，SPEC-0027）
                 path.insert(path.end(), r.path.begin(), r.path.end());
                 if (mine.outcome == "up") {
                     DerivedReq d;
@@ -213,10 +214,10 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns)
                     cand.push_back(std::move(d));
                     ++out.up;
                 } else if (mine.outcome == "L1" || mine.outcome == "L2") {
-                    result.reps.push_back(apply::RepOf(mine, call, fn, s, rj));
+                    result.reps.push_back(apply::RepOf(mine, call, s.fn, s, rj));
                     ++out.rep;
                 }
-                result.sites.push_back({call.site, call.callee, mine, r});
+                result.sites.push_back({call.site, callee, mine, r});
             }
         }
         result.reqs = Absorb(cand);

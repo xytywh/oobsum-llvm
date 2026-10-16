@@ -24,13 +24,13 @@ namespace oobsum {
 namespace engine {
 
 struct InlineResult {
-    std::map<std::string, summary::Summary> summaries;  // 函数名 → 摘要（只有局部事实）
+    std::map<std::string, summary::Summary> summaries;  // 函数键 → 摘要（只有局部事实；SPEC-0027）
     std::map<std::string, interp::FunctionFacts> facts;
     solver::PropagateResult propagate;
     std::vector<Decision> decisions;
     std::vector<std::string> applyLines;  // Dump=apply：<函数> @ <调用点> <被调者>.<访问位置> → <结局>[ (<原因>)]
     std::map<std::string, std::vector<std::string>> traces;  // Dump=state：traceFilter 选中的函数
-    std::vector<std::string> order;                          // 解释的顺序（被调者先，SPEC-0024 §2.3）
+    std::vector<std::string> order;  // 解释的顺序（函数键，被调者先，SPEC-0024 §2.3）
 };
 
 // traceFilter：哪些函数记 Dump=state 的轨迹（空 = 都不记）

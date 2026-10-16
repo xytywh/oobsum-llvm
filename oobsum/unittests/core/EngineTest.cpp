@@ -66,16 +66,27 @@ TEST(Engine, InlineDecisions)
         EXPECT_EQ(got[i], want[i]);
     }
     // 判定的调用链：汇合点 → … → 访问点（完整路径换回来了）
+    // 摘要表按函数键（SPEC-0027）：按名字找
+    auto byName = [&](const std::string &name) -> const summary::Summary & {
+        for (const auto &entry : r.summaries) {
+            if (entry.second.fn == name) {
+                return entry.second;
+            }
+        }
+        return r.summaries.begin()->second;
+    };
     // ret_new 逐层推出（SPEC-0024）：Wrap_Alloc 的 eff_depth 1、Tbl_Alloc 2；Heap_TP 的判定 eff_depth 2
-    ASSERT_TRUE(r.summaries.at("Wrap_Alloc").effs.size() == 1);
-    EXPECT_EQ(r.summaries.at("Wrap_Alloc").effs[0].kind, "ret_new");
-    EXPECT_EQ(r.summaries.at("Wrap_Alloc").effs[0].size.getValueOr("-"), "p0");
-    EXPECT_EQ(r.summaries.at("Wrap_Alloc").effs[0].effDepth.getValueOr(0), 1);
-    ASSERT_TRUE(r.summaries.at("Tbl_Alloc").effs.size() == 1);
-    EXPECT_EQ(r.summaries.at("Tbl_Alloc").effs[0].size.getValueOr("-"), "8");
-    EXPECT_EQ(r.summaries.at("Tbl_Alloc").effs[0].effDepth.getValueOr(0), 2);
+    ASSERT_TRUE(byName("Wrap_Alloc").effs.size() == 1);
+    EXPECT_EQ(byName("Wrap_Alloc").effs[0].kind, "ret_new");
+    EXPECT_EQ(byName("Wrap_Alloc").effs[0].size.getValueOr("-"), "p0");
+    EXPECT_EQ(byName("Wrap_Alloc").effs[0].effDepth.getValueOr(0), 1);
+    ASSERT_TRUE(byName("Tbl_Alloc").effs.size() == 1);
+    EXPECT_EQ(byName("Tbl_Alloc").effs[0].size.getValueOr("-"), "8");
+    EXPECT_EQ(byName("Tbl_Alloc").effs[0].effDepth.getValueOr(0), 2);
     // 自底向上：被调者先
-    auto pos = [&](const std::string &fn) { return std::find(r.order.begin(), r.order.end(), fn) - r.order.begin(); };
+    auto pos = [&](const std::string &fn) {
+        return std::find(r.order.begin(), r.order.end(), byName(fn).key) - r.order.begin();
+    };
     EXPECT_TRUE(pos("Wrap_Alloc") < pos("Tbl_Alloc"));
     EXPECT_TRUE(pos("Tbl_Alloc") < pos("Heap_TP"));
     for (const Decision &d : r.decisions) {

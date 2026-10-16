@@ -125,7 +125,9 @@
       **LV5-01 端到端一致（金标准 11 个）**；`run.py csa`：LV5-01、LV5-04 TP → DEFINITE——**通过 78、漏报 14**，回退 0。
 - [x] **健壮性**（2026-10-16，无代码改动）：上游 `clang/test/Analysis/*.c` 234 个文件（x86_64）跑引擎：213 个正常、21 个本身编译不过（不加本规则也一样），
       **无崩溃、无超时**，最慢 0.5 秒。
-- [ ] **S9 跨 TU（06- §7 方案 B）**：S9-1 调用点记被调者的函数键（`callee_key`），引擎内部按键找被调者（`static` 同名不串）；S9-2 `Phase=export` 写 `fir/<tu>.json`；
+- [x] **S9-1 调用点记被调者的函数键**（SPEC-0027）：`callee_key`；引擎的摘要表、`Propagate`、`TopoOrder`、效果代入、`not_in_tu` 按键找被调者（金标准没有
+      `callee_key` 时照旧按名字）；调用链仍写函数名。
+- [ ] **S9 跨 TU（06- §7 方案 B）**：S9-2 `Phase=export` 写 `fir/<tu>.json`；
       S9-3 `Phase=solve` 读全部 FIR、自底向上解释与求解、写 `decisions/` 与 `reports.json`；S9-4 `Phase=report` 按求解结果报出；S9-5 驱动脚本（bxen 命令、桩 TU）。
 - [ ] **S8c-2**：`field` 效果（被调者改调用方结构体的字段，LV5-02）、mod-ref（被调者不改的字段在调用后仍可用）；
       偏移与长度的抵消（A-41，LV3-07、LV8-01：需要局部的符号形与关系，且 `ulOff + len <= max` 这类检查的回绕问题要一起定）；

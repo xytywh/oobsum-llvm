@@ -11,7 +11,7 @@ static void *Pub_Alloc(UINT32 ulSize)
 {
     return VOS_MemAlloc(1, 0, ulSize);
 }
-// CHECK: [oobsum:summary] {"calls":[{"args":["1","0","p0"],"callee":"VOS_MemAlloc","model":"alloc"
+// CHECK: [oobsum:summary] {"calls":[{"args":["1","0","p0"],"callee":"VOS_MemAlloc",{{("callee_key":"[^"]*",)?}}"model":"alloc"
 // CHECK-SAME: "effs":[{"eff_depth":1,"kind":"ret_new","maybe_null":true,"size":"p0"}],"fn":"Pub_Alloc"
 
 static UINT8 *Tbl_Alloc(void)

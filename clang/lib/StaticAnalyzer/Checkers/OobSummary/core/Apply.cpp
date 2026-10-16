@@ -579,6 +579,14 @@ std::string Label(const ArgValue &a)
 }  // namespace
 
 // 同 replay.py 的 topo：按"离叶子的层数"排，同层按名字
+const std::string &CalleeOf(const Call &call, const std::map<std::string, Summary> &fns)
+{
+    if (call.calleeKey && fns.count(*call.calleeKey) != 0) {
+        return *call.calleeKey;
+    }
+    return call.callee;
+}
+
 std::vector<std::string> TopoOrder(const std::map<std::string, Summary> &fns)
 {
     std::map<std::string, int> level;
@@ -595,7 +603,7 @@ std::vector<std::string> TopoOrder(const std::map<std::string, Summary> &fns)
         int best = -1;
         stack.push_back(n);
         for (const Call &c : it->second.calls) {
-            best = std::max(best, lv(c.callee, stack));
+            best = std::max(best, lv(CalleeOf(c, fns), stack));
         }
         stack.pop_back();
         level[n] = best + 1;

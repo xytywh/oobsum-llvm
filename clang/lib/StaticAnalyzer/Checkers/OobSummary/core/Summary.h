@@ -147,6 +147,7 @@ struct CallGuard {
 struct Call {
     std::string site;
     std::string callee;
+    llvm::Optional<std::string> calleeKey;  // 被调者的函数键（D-07；引擎写，有它时按它找被调者，SPEC-0027）
     llvm::Optional<std::string> model;
     std::vector<ArgValue> args;
     llvm::Optional<std::map<std::string, Local>> locals;

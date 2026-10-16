@@ -154,9 +154,9 @@ InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
         std::vector<std::string> trace;
         bool traced = traceFilter && traceFilter(f.name);
         interp::FunctionFacts facts = interp::AnalyzeFunction(m, f, traced ? &trace : nullptr, models, &out.summaries);
-        out.summaries[f.name] = interp::BuildSummary(m, f, facts);
-        out.facts[f.name] = std::move(facts);
-        out.order.push_back(f.name);
+        out.summaries[f.key] = interp::BuildSummary(m, f, facts);  // 按函数键（SPEC-0027）
+        out.facts[f.key] = std::move(facts);
+        out.order.push_back(f.key);
         if (traced) {
             out.traces[f.name] = std::move(trace);
         }
@@ -196,7 +196,10 @@ InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
         // 调用点上判安全 / 记账的
         for (const solver::SiteOutcome &so : result.sites) {
             const apply::Outcome &mine = so.mine;
-            std::string line = fn + " @ " + so.site + " " + so.callee + "." + so.req.access.at + " → " + mine.outcome;
+            auto calleeSummary = out.summaries.find(so.callee);
+            std::string calleeName = calleeSummary != out.summaries.end() ? calleeSummary->second.fn : so.callee;
+            std::string line =
+                s.fn + " @ " + so.site + " " + calleeName + "." + so.req.access.at + " → " + mine.outcome;
             if (!mine.reason.empty()) {
                 line += " (" + mine.reason + ")";
             }
@@ -288,7 +291,8 @@ InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
         }
         // 指针流进本 TU 没有函数体、也不在模型表里的被调者（D-27 not_in_tu）：每个调用点一条
         for (const summary::Call &c : s.calls) {
-            if (out.summaries.count(c.callee) != 0 || models.KindOf(c.callee) != models::Kind::None) {
+            if (out.summaries.count(apply::CalleeOf(c, out.summaries)) != 0 ||
+                models.KindOf(c.callee) != models::Kind::None) {
                 continue;
             }
             bool pointer = false;

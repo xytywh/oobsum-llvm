@@ -69,6 +69,8 @@ def normalize(s, names):
             d['type'] = ty(d['type'])
     for r in s['reqs']:
         r['access']['key'] = key(r['access']['key'])
+    for c in s['calls']:
+        c.pop('callee_key', None)  # 引擎写的被调者函数键（SPEC-0027）；金标准按名字
     return s
 
 

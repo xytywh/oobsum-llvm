@@ -416,7 +416,7 @@ bool Reader::ReadResult(const Value &v, Result &r)
 
 bool Reader::ReadCall(const Value &v, Call &c)
 {
-    const Object *o = Obj(v, {"site", "callee", "args", "results"}, {"model", "locals", "guards"});
+    const Object *o = Obj(v, {"site", "callee", "args", "results"}, {"model", "locals", "guards", "callee_key"});
     auto locals = [&](const Value &x, std::map<std::string, Local> &y) {
         const Object *lo = x.getAsObject();
         if (lo == nullptr) {
@@ -443,9 +443,11 @@ bool Reader::ReadCall(const Value &v, Call &c)
                    Key(*go, "bound", out.bound, OOBSUM_M(TagName));
         });
     };
-    auto model = [&](const Value &x, std::string &y) { return OneOf(x, y, {"access", "alloc", "pure", "unknown"}); };
+    auto model = [&](const Value &x, std::string &y) {
+        return OneOf(x, y, {"access", "alloc", "pure", "unknown", "free"});
+    };
     return o != nullptr && Key(*o, "site", c.site, OOBSUM_M(Str)) && Key(*o, "callee", c.callee, OOBSUM_M(Str)) &&
-           OptKey(*o, "model", c.model, model) &&
+           OptKey(*o, "callee_key", c.calleeKey, OOBSUM_M(Str)) && OptKey(*o, "model", c.model, model) &&
            In("args",
               [&] {
                   return List(*o->get("args"), c.args,
@@ -735,6 +737,7 @@ Value SummaryToJson(const Summary &s)
         }
         Object o{{"site", c.site}, {"callee", c.callee}, {"args", std::move(args)}, {"results", std::move(results)}};
         Put(o, "model", c.model);
+        Put(o, "callee_key", c.calleeKey);
         if (c.locals) {
             Object l;
             for (const auto &entry : *c.locals) {
