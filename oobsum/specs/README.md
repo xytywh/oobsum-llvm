@@ -61,4 +61,5 @@
 | [SPEC-0027](SPEC-0027-callee-key.md) | 调用点记被调者的函数键（`callee_key`），引擎内部按键找被调者（跨 TU 的准备） | 已实现（S9-1） |
 | [SPEC-0028](SPEC-0028-phase-export.md) | `Phase=export`：每个 TU 写 `fir/<tu>.json`，不求解、不报 | 已实现（S9-2） |
 | [SPEC-0029](SPEC-0029-phase-solve.md) | `Phase=solve`：读全部 FIR，跨 TU 自底向上解释与求解，判定按 TU 落盘 | 已实现（S9-3） |
+| [SPEC-0030](SPEC-0030-phase-report.md) | `Phase=report`：各 TU 按求解结果报出，写判定日志 | 已实现（S9-4） |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

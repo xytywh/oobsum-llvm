@@ -36,6 +36,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/JSON.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -148,6 +149,7 @@ private:
     void dumpFir(const oobsum::fir::Module &module, const std::string &tuId) const;
     std::string writeFir(const oobsum::fir::Module &module, const std::string &tuId) const;
     void solveAll() const;
+    void loadSolved(const std::string &tuId, std::vector<oobsum::Decision> &out) const;
     void dumpSummaries(const oobsum::fir::Module &module, const std::string &tuId,
                        const oobsum::engine::InlineResult &result) const;
 };
@@ -271,6 +273,37 @@ void OobSummaryChecker::solveAll() const
         dump.Line("stats", "solve tus=" + std::to_string(mods.size()) +
                                " functions=" + std::to_string(result.summaries.size()) +
                                " decisions=" + std::to_string(result.decisions.size()));
+    }
+}
+
+// Phase=report（SPEC-0030）：读 WorkDir/solved/<tu-id>.json 的判定；没有就提示一行（没被求解，或 TU id 对不上）
+void OobSummaryChecker::loadSolved(const std::string &tuId, std::vector<oobsum::Decision> &out) const
+{
+    llvm::SmallString<256> path(workDir);
+    llvm::sys::path::append(path, "solved", tuId + ".json");
+    auto buffer = llvm::MemoryBuffer::getFile(path);
+    if (workDir.empty() || !buffer) {
+        llvm::errs() << "[oobsum] warning: no solved decisions for this TU (" << path << ")\n";
+        return;
+    }
+    llvm::Expected<llvm::json::Value> value = llvm::json::parse((*buffer)->getBuffer());
+    const llvm::json::Object *o = value ? value->getAsObject() : nullptr;
+    const llvm::json::Array *list = o != nullptr ? o->getArray("decisions") : nullptr;
+    if (list == nullptr) {
+        if (!value) {
+            llvm::consumeError(value.takeError());
+        }
+        llvm::errs() << "[oobsum] warning: cannot read " << path << "\n";
+        return;
+    }
+    for (const llvm::json::Value &v : *list) {
+        oobsum::Decision d;
+        std::string error;
+        if (oobsum::DecisionFromJson(v, d, error)) {
+            out.push_back(std::move(d));
+        } else {
+            llvm::errs() << "[oobsum] warning: " << path << ": " << error << "\n";
+        }
     }
 }
 
@@ -422,6 +455,11 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
             }
             decisions = std::move(result.decisions);
         }
+    }
+
+    // Phase=report：判定来自 solve 的结果（SPEC-0030）
+    if (phase == "report") {
+        loadSolved(tuId, decisions);
     }
 
     // 另一个判定来源：调试内建函数（SPEC-0001 §6.2）

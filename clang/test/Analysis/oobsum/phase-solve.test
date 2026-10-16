@@ -25,3 +25,22 @@ CHECK-DAG: "fn":"F:Top_B"{{.*}}"label":"definite"
 # 调用点上的 SAFE：调用链写函数名
 CHECK-DAG: "chain":["Top_A@{{.*}}a.c:15","Init@{{.*}}a.c:9"]{{.*}}"label":"safe"
 CHECK-DAG: "label":"suspect"{{.*}}"reason":"unknown_callee"
+
+# Phase=report（oobsum/specs/SPEC-0030）：各 TU 读自己的 solved/<tu>.json 报出，写判定日志
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=report -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/solve/a.c 2>&1 | FileCheck %s --check-prefix=REPA
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=report -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/solve/b.c 2>&1 | FileCheck %s --check-prefix=REPB
+# RUN: ls %t/decisions/*.jsonl | count 2
+# 没被求解的 TU：提示一行
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=report -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t \
+# RUN:   %S/Inputs/solve/stub.c 2>&1 | FileCheck %s --check-prefix=NOSOLVE
+
+REPA: a.c:16:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 17 of 'aucBuf' (16 bytes) may be accessed; the bound comes from a loop condition [Top_A (a.c:16) -> Fill (b.c:16)]
+REPA-NOT: warning:
+REPB-DAG: b.c:24:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 101 of 'aucBuf' (64 bytes) is accessed
+REPB-DAG: b.c:18:1: warning: [OOB-SUSPECT:unknown_callee] Cannot prove this access is within bounds: a pointer is passed to 'Send', which is not defined in any analyzed translation unit
+NOSOLVE: [oobsum] warning: no solved decisions for this TU
