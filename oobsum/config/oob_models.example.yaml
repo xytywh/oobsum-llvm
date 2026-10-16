@@ -27,6 +27,10 @@ access:                         # 访问类函数：在第 base 个实参指向�
   - { name: memcpy,    conds: [ { base: p0, bytes: "p2", kind: W }, { base: p1, bytes: "p2", kind: R } ] }
   - { name: memmove,   conds: [ { base: p0, bytes: "p2", kind: W }, { base: p1, bytes: "p2", kind: R } ] }
   - { name: memset,    conds: [ { base: p0, bytes: "p2", kind: W } ] }
+  # libc 的 strncpy（补满 n 字节；源读到 NUL 或 n 字节）、snprintf / vsnprintf（最多写 n 字节）（SPEC-0065）
+  - { name: strncpy,   conds: [ { base: p0, bytes: "p2", kind: W }, { base: p1, bytes: "p2", kind: R, upto: true } ] }
+  - { name: snprintf,  conds: [ { base: p0, bytes: "p1", kind: W, upto: true } ] }
+  - { name: vsnprintf, conds: [ { base: p0, bytes: "p1", kind: W, upto: true } ] }
   # 内部封装的拷贝 / 填充函数（07- 输入 I8）加在这里
 
 pure:                           # 不改任何被跟踪内存、返回值无约束的函数（日志、打点）。写错会漏掉它的副作用

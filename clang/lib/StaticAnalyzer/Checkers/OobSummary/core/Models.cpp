@@ -157,6 +157,10 @@ const ModelTable &ModelTable::Default()
         t.access.push_back({"memcpy", {{0, "p2", "W", "", false}, {1, "p2", "R", "", false}}, -1});
         t.access.push_back({"memmove", {{0, "p2", "W", "", false}, {1, "p2", "R", "", false}}, -1});
         t.access.push_back({"memset", {{0, "p2", "W", "", false}}, -1});
+        // libc 的 strncpy（补满 n 字节；源读到 NUL 或 n 字节）、snprintf / vsnprintf（最多写 n 字节）（SPEC-0065）
+        t.access.push_back({"strncpy", {{0, "p2", "W", "", false}, {1, "p2", "R", "", true}}, -1});
+        t.access.push_back({"snprintf", {{0, "p1", "W", "", true}}, -1});
+        t.access.push_back({"vsnprintf", {{0, "p1", "W", "", true}}, -1});
         // A-06：结构体整体赋值（lower 生成的内部调用，SPEC-0051）
         t.access.push_back(StructCopyModel());
         // 底层分配器（VOS_MemAlloc 的字节数是第几个形参待用户确认：07- 输入 I5）
