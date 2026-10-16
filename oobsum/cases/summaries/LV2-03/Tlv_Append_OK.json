@@ -89,6 +89,46 @@
         "code": "pucPkt[ulOff] = 0x10",
         "note": "本函数自己的访问；R1 带守卫，不能覆盖它，所以单列"
       }
+    },
+    {
+      "id": "R4",
+      "kind": "W",
+      "have": "ext(p0)",
+      "obj": "*p0",
+      "end": ["4294967424", "4294967424"],
+      "start": "p1 + 4",
+      "bound": "exact",
+      "guard": ["p1 >= 2147483773"],
+      "access": {
+        "fn": "Tlv_WriteVal_OK",
+        "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal_OK",
+        "at": "lv2_03_tlv_destmax_no_off.c:36",
+        "end": "4294967424"
+      },
+      "path": ["Tlv_Append_OK@lv2_03_tlv_destmax_no_off.c:48", "Tlv_WriteVal_OK@lv2_03_tlv_destmax_no_off.c:36"],
+      "depth": 1,
+      "eff_depth": 0,
+      "blind": false
+    },
+    {
+      "id": "R5",
+      "kind": "R",
+      "have": "ext(p2)",
+      "obj": "*p2",
+      "end": ["p3", "p3"],
+      "start": "0",
+      "bound": "exact",
+      "guard": ["p1 + p3 <= 4294967420", "p1 >= 2147483773"],
+      "access": {
+        "fn": "Tlv_WriteVal_OK",
+        "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal_OK",
+        "at": "lv2_03_tlv_destmax_no_off.c:36",
+        "end": "p3"
+      },
+      "path": ["Tlv_Append_OK@lv2_03_tlv_destmax_no_off.c:48", "Tlv_WriteVal_OK@lv2_03_tlv_destmax_no_off.c:36"],
+      "depth": 1,
+      "eff_depth": 0,
+      "blind": false
     }
   ],
   "effs": [],
@@ -102,7 +142,12 @@
         {"obj": "*p2", "have": "ext(p2)", "alias": "p2", "doc": "pucVal"},
         "p3"
       ],
-      "results": [{"req": "R1", "outcome": "up", "as": "R1"}, {"req": "R2", "outcome": "up", "as": "R2"}]
+      "results": [
+        {"req": "R1", "outcome": "up", "as": "R1"},
+        {"req": "R2", "outcome": "up", "as": "R2"},
+        {"req": "R3", "outcome": "up", "as": "R4"},
+        {"req": "R4", "outcome": "up", "as": "R5"}
+      ]
     }
   ],
   "reps": [],

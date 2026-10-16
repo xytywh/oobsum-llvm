@@ -52,7 +52,9 @@
       "results": [
         {"req": "R1", "outcome": "safe"},
         {"req": "R2", "outcome": "up", "as": "R1"},
-        {"req": "R3", "outcome": "safe"}
+        {"req": "R3", "outcome": "safe"},
+        {"req": "R4", "outcome": "safe"},
+        {"req": "R5", "outcome": "safe"}
       ]
     }
   ],

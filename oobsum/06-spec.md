@@ -119,7 +119,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 |---|---|---|---|
 | **F-01** | 数组下标读 / 写 `a[i]`、`p[i]`、`s.arr[i]`、`p->arr[i]`、`g.arr[i]` | `off + size ≤ ext(base)`，且 `off ≥ 0` | 结构体成员数组以**成员**为对象（子对象边界，`01-` §3.1 #2–#7、#11） |
 | **F-02** | 指针解引用 `*p`、`*(p + k)`、`p->f`（`p` 指向的对象可能比类型小） | `off(f) + sizeof(f) ≤ ext(p)` | 覆盖"按大结构体访问小对象"（LV1-05、LV4-02） 〔由 SPEC-0019 修订：入口上按声明类型的常数偏移访问记账 `typed_field`〕 |
-| **F-03** | `memcpy_s` / `memmove_s(dest, destMax, src, count)` | 目的：`destMax ≤ ext(dest)`；源：`count ≤ destMax ⇒ count ≤ ext(src)` | 按 securec（libboundscheck）的实现【文档】：`destMax == 0` 或 `> SECUREC_MEM_MAX_LEN`（默认 `0x7fffffff`）直接返回、不写；`count > destMax` 时先把 `dest` 的 `destMax` 字节清零再返回、不读源。所以目的一侧总是写 `destMax` 字节，源一侧只在 `count ≤ destMax` 时读。`destMax` 是**可能回绕的无符号减法**（`128 − ulOff`）时，回绕后的值必然大于上限 → 生成守卫"减法不为负"（LV2-03 TN） |
+| **F-03** | `memcpy_s` / `memmove_s(dest, destMax, src, count)` | 目的：`destMax ≤ ext(dest)`；源：`count ≤ destMax ⇒ count ≤ ext(src)` | 按 securec（libboundscheck）的实现【文档】：`destMax == 0` 或 `> SECUREC_MEM_MAX_LEN`（默认 `0x7fffffff`）直接返回、不写；`count > destMax` 时先把 `dest` 的 `destMax` 字节清零再返回、不读源。所以目的一侧总是写 `destMax` 字节，源一侧只在 `count ≤ destMax` 时读。`destMax` 是**可能回绕的无符号减法**（`128 − ulOff`）时，回绕后的值必然大于上限 → 生成守卫"减法不为负"（LV2-03 TN） 〔由 SPEC-0020 修订：两段，`E >= 0` 与 `E <= 0x7fffffff − 2^W`（destMax = E + 2^W）〕 |
 | **F-04** | `memset_s(dest, destMax, c, count)` | `destMax ≤ ext(dest)` | 同 F-03 的 `destMax` 规则 |
 | **F-05** | libc `memcpy` / `memmove` / `memset` | `n ≤ ext(dest)`；`n ≤ ext(src)` | 代价很小，顺带支持 |
 | **F-06** | 模型表里配置的其它访问函数（内部封装） | 按配置（§4.4） | 清单由你提供（`07-` 输入 I8） |

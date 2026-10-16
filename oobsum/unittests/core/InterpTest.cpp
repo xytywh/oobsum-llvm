@@ -788,9 +788,23 @@ TEST(Interp, MemcpySecurec)
     uint32_t n2 = c.Param("ulValLen", c.u32);
     c.Straight({CallOf("F:memcpy_s",
                        {c.PAdd(c.L(p2), c.L(off2)), c.Wrap(BinOp::Sub, c.C(128), c.L(off2)), c.L(v2), c.L(n2)}, 36)});
+    // 第二段（SPEC-0020）：ulOff >= 2^31 + 129 时 wrap32(128 − ulOff) = 2^32 + 128 − ulOff 不超过 0x7fffffff，照样写；
+    // 模型给出的段守卫总挂上（第一段的源上 p1 <= 128 被 p1 + p3 <= 128 蕴含，不挂）
     EXPECT_EQ(Reqs(c.Run()),
               "W have=ext(p0) obj=*p0 end=[128, 128] bound=exact at=t.c:36 guard=p1 <= 128 | "
-              "R have=ext(p2) obj=*p2 end=[p3, p3] bound=exact at=t.c:36 guard=p1 + p3 <= 128");
+              "R have=ext(p2) obj=*p2 end=[p3, p3] bound=exact at=t.c:36 guard=p1 + p3 <= 128 | "
+              "W have=ext(p0) obj=*p0 end=[4294967424, 4294967424] bound=exact at=t.c:36 "
+              "guard=p1 >= 2147483777 | "
+              "R have=ext(p2) obj=*p2 end=[p3, p3] bound=exact at=t.c:36 guard=p1 + p3 <= 4294967424 "
+              "guard=p1 >= 2147483777");
+    // wrap16：E = 0x8000 − n，回绕后最多 65535，从不超过上限 → 第二段只要 E <= −1
+    Builder w;
+    uint32_t p3 = w.Param("p", w.m.Intern(Type::Ptr(w.u8)));
+    uint32_t n3 = w.Param("usLen", w.m.Intern(Type::Int(16, false)));
+    w.Straight({CallOf("F:memset_s", {w.L(p3), w.Wrap(BinOp::Sub, w.C(0x8000), w.L(n3), 16), w.C(0), w.C(1)}, 9)});
+    EXPECT_EQ(Reqs(w.Run()),
+              "W have=ext(p0) obj=*p0 end=[-p1 + 32768, -p1 + 32768] bound=exact at=t.c:9 guard=p1 <= 32768 | "
+              "W have=ext(p0) obj=*p0 end=[-p1 + 98304, -p1 + 98304] bound=exact at=t.c:9 guard=p1 >= 32769");
 }
 
 TEST(Interp, SecurecNoAccess)

@@ -64,6 +64,60 @@
         "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN - ulOff, pucVal, ulValLen)",
         "note": "count <= destMax"
       }
+    },
+    {
+      "id": "R3",
+      "kind": "W",
+      "have": "ext(p0)",
+      "obj": "*p0",
+      "end": ["4294967424", "4294967424"],
+      "start": "p1",
+      "bound": "exact",
+      "guard": ["p1 >= 2147483777"],
+      "access": {
+        "fn": "Tlv_WriteVal_OK",
+        "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal_OK",
+        "at": "lv2_03_tlv_destmax_no_off.c:36",
+        "end": "4294967424"
+      },
+      "path": ["Tlv_WriteVal_OK@lv2_03_tlv_destmax_no_off.c:36"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "doc": {
+        "text": "ulOff >= 2147483777 ⇒ 写 2^32 + 128 - ulOff 字节 @ *pucPkt，末端 4294967424；需 4294967424 <= ext(pucPkt)",
+        "obj": "*pucPkt",
+        "bytes": "4294967424 - p1",
+        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN - ulOff, pucVal, ulValLen)",
+        "note": "F-03 第二段（SPEC-0020）：128 − ulOff 回绕成 2^32 + 128 − ulOff，不超过 0x7fffffff，securec 照样写"
+      }
+    },
+    {
+      "id": "R4",
+      "kind": "R",
+      "have": "ext(p2)",
+      "obj": "*p2",
+      "end": ["p3", "p3"],
+      "start": "0",
+      "bound": "exact",
+      "guard": ["p1 + p3 <= 4294967424", "p1 >= 2147483777"],
+      "access": {
+        "fn": "Tlv_WriteVal_OK",
+        "key": "F@lv2_03_tlv_destmax_no_off.c:Tlv_WriteVal_OK",
+        "at": "lv2_03_tlv_destmax_no_off.c:36",
+        "end": "p3"
+      },
+      "path": ["Tlv_WriteVal_OK@lv2_03_tlv_destmax_no_off.c:36"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "doc": {
+        "text": "ulOff >= 2147483777 且 ulOff + ulValLen <= 4294967424 ⇒ 读 ulValLen 字节 @ *pucVal；需 ulValLen <= ext(pucVal)",
+        "obj": "*pucVal",
+        "bytes": "p3",
+        "code": "memcpy_s(pucPkt + ulOff, PKT_MAX_LEN - ulOff, pucVal, ulValLen)",
+        "note": "F-03 第二段的源：count <= destMax 才读；段守卫总挂上（SPEC-0020 §2.2）"
+      }
     }
   ],
   "effs": [],

@@ -1,7 +1,7 @@
 //===-- PropagateTest.cpp - Tests for core/Solver and core/Alert -*- C++ -*-===//
 //
 // 从局部事实推到底与告警成品（SPEC-0013）：16 个用例推出的 Req / 判定 / 入口账本与 JSON 一致，
-// 全部告警与 cases/summaries/alerts.json 逐条相同；统计与 replay.py 相同（上传 66、判定 13、入口账本 12，SPEC-0019）。
+// 全部告警与 cases/summaries/alerts.json 逐条相同；统计与 replay.py 相同（上传 70、判定 13、入口账本 12，SPEC-0019 / 0020）。
 //
 //===----------------------------------------------------------------------===//
 
@@ -134,8 +134,8 @@ TEST(Propagate, DerivedFactsMatchJson)
             }
         }
     }
-    // replay.py：推出上传 Req 66 条、判定 13 条、入口账本 12 条（SPEC-0019 补齐金标准之前是 58 / 13 / 8）
-    EXPECT_EQ(up, 66u);
+    // replay.py：推出上传 Req 70 条、判定 13 条、入口账本 12 条（SPEC-0019 补齐金标准之前是 58 / 13 / 8，SPEC-0020 的第二段 +4）
+    EXPECT_EQ(up, 70u);
     EXPECT_EQ(rep, 13u);
     EXPECT_EQ(entry, 12u);
 }

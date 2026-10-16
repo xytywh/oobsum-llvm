@@ -706,7 +706,7 @@ private:
     void Step(const fir::Inst &inst, State &s);
     Value LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const State &s) const;
     void Access(const char *kind, const PtrVal &addr, ExprId addrExpr, const IntVal &bytes, const fir::Loc &loc,
-                const State &s);
+                const State &s, const std::vector<LinExpr> &forced = {});
     // ---- 模型（SPEC-0018）----
     void ApplyAccessModel(const fir::Inst &inst, const models::AccessModel &model, const State &s);
     Value AllocResult(const fir::Inst &inst, const models::AllocModel &model, const State &s);
@@ -1058,8 +1058,9 @@ Value Analyzer::LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const 
     return v;
 }
 
+// forced：模型给出的守卫（这次访问发生的条件），总挂在 Req 上，被其余守卫蕴含的不挂（SPEC-0020 §2.2）
 void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, const IntVal &bytes, const fir::Loc &loc,
-                      const State &s)
+                      const State &s, const std::vector<LinExpr> &forced)
 {
     if (!recording) {
         return;
@@ -1123,12 +1124,25 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
     if (a.start) {
         CollectSyms(*a.start, syms);
     }
+    std::vector<LinExpr> chosen;
     for (const LinExpr &g : s.guards) {
         std::set<std::string> gs;
         CollectSyms(g, gs);
         if (llvm::any_of(gs, [&](const std::string &x) { return syms.count(x) != 0; })) {
-            a.guard.push_back(ShowLe0(g));
+            chosen.push_back(g);
         }
+    }
+    for (const LinExpr &g : forced) {
+        // 环境只用类型范围与已挑中的守卫（Env(s) 里已经有 g 自己，会把它判成"已蕴含"）
+        State bare;
+        bare.reached = true;
+        bare.guards = chosen;
+        if (!llvm::is_contained(chosen, g) && !EntailsLe0(g, chosen, Env(bare))) {
+            chosen.push_back(g);
+        }
+    }
+    for (const LinExpr &g : chosen) {
+        a.guard.push_back(ShowLe0(g));
     }
     // A-43 / A-44：末端上界 ≤ have 在守卫与类型范围下恒成立 → 安全，不生成 Req（SPEC-0016 §2.2）
     LinExpr need = a.hi - a.have;
@@ -1931,79 +1945,118 @@ void Analyzer::ApplyAccessModel(const fir::Inst &inst, const models::AccessModel
         return;
     }
     SymEnv env = Env(s);
+    // 一段：这段的状态（带模型给出的守卫）、实参的值、实参是否忠实、模型给出的守卫
+    struct Segment {
+        State t;
+        std::vector<IntVal> ints;
+        std::vector<bool> faithful;
+        std::vector<LinExpr> forced;
+    };
     std::vector<Value> values;
-    std::vector<IntVal> ints;
-    std::vector<bool> faithful;
+    Segment base{s, {}, {}, {}};
     for (ExprId arg : inst.args) {
         Value v = Eval(arg, s);
         values.push_back(v);
-        ints.push_back(v.isPtr ? IntVal::Top("ptr_as_int") : v.i);
-        faithful.push_back(!v.isPtr && Faithful(arg, v.i, env));
+        base.ints.push_back(v.isPtr ? IntVal::Top("ptr_as_int") : v.i);
+        base.faithful.push_back(!v.isPtr && Faithful(arg, v.i, env));
     }
-    State t = s;
-    if (model.destMax >= 0 && static_cast<size_t>(model.destMax) < ints.size()) {
-        IntVal &dm = ints[model.destMax];
+    // 给一段加模型守卫 atom（L ≤ 0）：不可能成立 → false；已经成立 → 不加
+    auto guard = [&](Segment &seg, const LinExpr &atom) {
+        if (atom.IsUnknown()) {
+            return true;
+        }
+        if (atom.IsConst()) {
+            return atom.Constant() <= 0;
+        }
+        SymEnv e = Env(seg.t);
+        if (EntailsLe0(LinExpr::Const(1) - atom, seg.t.guards, e)) {
+            return false;  // 能证明 atom >= 1
+        }
+        if (!EntailsLe0(atom, seg.t.guards, e)) {
+            AddGuard(seg.t, atom);
+            seg.forced.push_back(atom);
+        }
+        return true;
+    };
+    std::vector<Segment> segments;
+    int dmIndex = model.destMax;
+    if (dmIndex >= 0 && static_cast<size_t>(dmIndex) < base.ints.size()) {
+        const IntVal dm = base.ints[dmIndex];
         if (dm.IsConst() && (dm.value.Constant() == 0 || dm.value.Constant() > kSecurecMemMax)) {
             return;  // securec 直接返回：不写、不读
         }
-        // destMax 是可能回绕的无符号减法 wrapW(E)：回绕后大于上限、不写 → 守卫 E >= 0，destMax 取 E（F-03，LV2-03 TN）
         LinExpr inner;
         unsigned bits = 0;
-        if (dm.kind == IntVal::Kind::Exact && SingleWrap(dm.value, inner, bits)) {
-            LinExpr atom = inner.Scale(-1);
-            if (atom.IsConst()) {
-                if (atom.Constant() > 0) {
-                    return;
-                }
-            } else if (!EntailsLe0(atom, t.guards, env)) {
-                AddGuard(t, atom);
+        if (dm.kind == IntVal::Kind::Exact && SingleWrap(dm.value, inner, bits) && bits < 63) {
+            // destMax = wrapW(E)：0 < 值 <= 0x7fffffff 才写（F-03，SPEC-0020 §2.1）
+            // 段 A：E >= 0，destMax = E（LV2-03 TN：128 − ulOff → 守卫 p1 <= 128）
+            Segment segA = base;
+            if (guard(segA, inner.Scale(-1))) {
+                segA.ints[dmIndex] = IntVal::Exact(inner);
+                segA.faithful[dmIndex] = FaithfulAs(segA.ints[dmIndex], IntType{bits, false}, Env(segA.t));
+                segments.push_back(segA);
             }
-            dm = IntVal::Exact(inner);
-            faithful[model.destMax] = FaithfulAs(dm, IntType{bits, false}, Env(t));
+            // 段 B：E <= 0x7fffffff − 2^W（且 E <= −1），回绕后的值仍不超过上限，照样写，destMax = E + 2^W
+            int64_t modulus = int64_t(1) << bits;
+            Segment segB = base;
+            if (guard(segB, inner - LinExpr::Const(kSecurecMemMax - modulus)) &&
+                guard(segB, inner + LinExpr::Const(1))) {
+                segB.ints[dmIndex] = IntVal::Exact(inner + LinExpr::Const(modulus));
+                segB.faithful[dmIndex] = FaithfulAs(segB.ints[dmIndex], IntType{bits, false}, Env(segB.t));
+                segments.push_back(segB);
+            }
+        } else {
+            segments.push_back(base);
         }
+    } else {
+        segments.push_back(base);
     }
-    SymEnv envT = Env(t);
-    for (const models::AccessCond &cond : model.conds) {
-        if (cond.base < 0 || static_cast<size_t>(cond.base) >= values.size()) {
-            continue;
-        }
-        LinExpr bytesExpr;
-        std::string error;
-        if (!ParseLin(cond.bytes, bytesExpr, error)) {
-            continue;
-        }
-        const Value &base = values[cond.base];
-        PtrVal addr = base.isPtr ? base.p : UnknownPtr("int_as_ptr");
-        IntVal bytes = EvalModelExpr(bytesExpr, ints);
-        State u = t;
-        std::vector<LinExpr> when;
-        if (!cond.when.empty() && ParseCond(cond.when, when, error)) {
-            bool never = false;
-            for (const LinExpr &g : when) {
-                // 用到的实参都忠实时才变成守卫；否则照常访问（多报不少报）
-                std::set<std::string> syms;
-                CollectSyms(g, syms);
-                bool ok = llvm::all_of(syms, [&](const std::string &x) {
-                    int k = ParamIndexOf(x);
-                    return k >= 0 && static_cast<size_t>(k) < faithful.size() && faithful[k];
-                });
-                IntVal v = EvalModelExpr(g, ints);
-                if (!ok || v.kind != IntVal::Kind::Exact) {
-                    continue;
+    for (const Segment &seg : segments) {
+        SymEnv envT = Env(seg.t);
+        for (const models::AccessCond &cond : model.conds) {
+            if (cond.base < 0 || static_cast<size_t>(cond.base) >= values.size()) {
+                continue;
+            }
+            LinExpr bytesExpr;
+            std::string error;
+            if (!ParseLin(cond.bytes, bytesExpr, error)) {
+                continue;
+            }
+            const Value &baseValue = values[cond.base];
+            PtrVal addr = baseValue.isPtr ? baseValue.p : UnknownPtr("int_as_ptr");
+            IntVal bytes = EvalModelExpr(bytesExpr, seg.ints);
+            State u = seg.t;
+            std::vector<LinExpr> forced = seg.forced;
+            std::vector<LinExpr> when;
+            if (!cond.when.empty() && ParseCond(cond.when, when, error)) {
+                bool never = false;
+                for (const LinExpr &g : when) {
+                    // 用到的实参都忠实时才变成守卫；否则照常访问（多报不少报）
+                    std::set<std::string> syms;
+                    CollectSyms(g, syms);
+                    bool ok = llvm::all_of(syms, [&](const std::string &x) {
+                        int k = ParamIndexOf(x);
+                        return k >= 0 && static_cast<size_t>(k) < seg.faithful.size() && seg.faithful[k];
+                    });
+                    IntVal v = EvalModelExpr(g, seg.ints);
+                    if (!ok || v.kind != IntVal::Kind::Exact) {
+                        continue;
+                    }
+                    if (v.value.IsConst()) {
+                        never = never || v.value.Constant() > 0;
+                        continue;
+                    }
+                    if (!EntailsLe0(v.value, u.guards, envT)) {
+                        AddGuard(u, v.value);
+                        forced.push_back(v.value);
+                    }
                 }
-                if (v.value.IsConst()) {
-                    never = never || v.value.Constant() > 0;
-                    continue;
-                }
-                if (!EntailsLe0(v.value, u.guards, envT)) {
-                    AddGuard(u, v.value);
+                if (never) {
+                    continue;  // count > destMax：securec 不读源
                 }
             }
-            if (never) {
-                continue;  // count > destMax：securec 不读源
-            }
+            Access(cond.kind == "W" ? "W" : "R", addr, fir::kNone, bytes, inst.loc, u, forced);
         }
-        Access(cond.kind == "W" ? "W" : "R", addr, fir::kNone, bytes, inst.loc, u);
     }
 }
 

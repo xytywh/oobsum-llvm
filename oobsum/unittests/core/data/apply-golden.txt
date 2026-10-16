@@ -47,6 +47,8 @@
 - Tlv_Append_OK @ lv2_03_tlv_destmax_no_off.c:48  调用 Tlv_WriteVal_OK(*p0, p1 + 4, *p2, p3)
     · Tlv_WriteVal_OK.R1：末端 128，守卫 p1 <= 124，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
     · Tlv_WriteVal_OK.R2：末端 p3，守卫 p1 + p3 <= 124，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
+    · Tlv_WriteVal_OK.R3：末端 4294967424，守卫 p1 >= 2147483773，对象 *p0（ext(p0) 字节）→ up → 本函数 R4
+    · Tlv_WriteVal_OK.R4：末端 p3，守卫 p1 + p3 <= 4294967420 且 p1 >= 2147483773，对象 *p2（ext(p2) 字节）→ up → 本函数 R5
 - Pkt_AddIe @ lv2_03_tlv_destmax_no_off.c:51  调用 Tlv_Append(*p0, p1, *p2, p3)
     · Tlv_Append.R1：末端 p1 + 132，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
     · Tlv_Append.R2：末端 p3，守卫 p3 <= 128，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
@@ -54,10 +56,14 @@
     · Tlv_Append_OK.R1：末端 128，守卫 p1 <= 124，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
     · Tlv_Append_OK.R2：末端 p3，守卫 p1 + p3 <= 124，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
     · Tlv_Append_OK.R3：末端 p1 + 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R3
+    · Tlv_Append_OK.R4：末端 4294967424，守卫 p1 >= 2147483773，对象 *p0（ext(p0) 字节）→ up → 本函数 R4
+    · Tlv_Append_OK.R5：末端 p3，守卫 p1 + p3 <= 4294967420 且 p1 >= 2147483773，对象 *p2（ext(p2) 字节）→ up → 本函数 R5
 - Pkt_Build_TN @ lv2_03_tlv_destmax_no_off.c:63  调用 Pkt_AddIe_OK(local:aucPkt, 16, *p0, 8)
     · Pkt_AddIe_OK.R1：末端 128，守卫在此成立，对象 local:aucPkt（128 字节）→ safe（最大末端 128 ≤ 128）
     · Pkt_AddIe_OK.R2：末端 8，守卫在此成立，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
     · Pkt_AddIe_OK.R3：末端 17，对象 local:aucPkt（128 字节）→ safe（最大末端 17 ≤ 128）
+    · Pkt_AddIe_OK.R4：末端 4294967424，守卫在此不成立，对象 local:aucPkt（128 字节）→ safe（守卫 0 >= 2147483757 在此为假，访问走不到）
+    · Pkt_AddIe_OK.R5：末端 8，守卫在此不成立，对象 *p0（ext(p0) 字节）→ safe（守卫 0 >= 2147483757 在此为假，访问走不到）
 - Pkt_Build_TN 是入口（没有调用方）：R1 到此为止 → 记账 entry_unproven
 - Pkt_Build_TP @ lv2_03_tlv_destmax_no_off.c:57  调用 Pkt_AddIe(local:aucPkt, 16, *p0, 8)
     · Pkt_AddIe.R1：末端 148，对象 local:aucPkt（128 字节）→ L1（最小末端 148 > 128，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）

@@ -23,6 +23,9 @@ void Put(UINT8 *pucPkt, UINT32 ulOff, const UINT8 *pucVal, UINT32 ulLen)
 // CHECK-SAME: "kind":"W"
 // CHECK-SAME: "end":["p3","p3"],"guard":["p1 + p3 <= 128"]
 // CHECK-SAME: "kind":"R"
+// 第二段（SPEC-0020）：ulOff >= 2^31 + 129 时回绕后不超过 0x7fffffff，照样写；段守卫总挂上
+// CHECK-SAME: "end":["4294967424","4294967424"],"guard":["p1 >= 2147483777"]
+// CHECK-SAME: "end":["p3","p3"],"guard":["p1 + p3 <= 4294967424","p1 >= 2147483777"]
 
 void Clear(void)
 {
@@ -32,11 +35,11 @@ void Clear(void)
 }
 // 堆对象 64 字节、memset_s 写 80 字节；日志按纯函数（^LOG_），指针实参为 null
 // CHECK: [oobsum:summary] {"calls":[{"args":["1","0","64"],"callee":"VOS_MemAlloc","model":"alloc"
-// CHECK-SAME: {"args":[{"have":"64","obj":"heap@models.c:29"},"80","0","80"],"callee":"memset_s","model":"access"
+// CHECK-SAME: {"args":[{"have":"64","obj":"heap@models.c:32"},"80","0","80"],"callee":"memset_s","model":"access"
 // CHECK-SAME: {"args":["1",null,null],"callee":"LOG_Warn","model":"pure"
 // CHECK-SAME: "fn":"Clear",
-// CHECK-SAME: "reqs":[{"access":{"at":"models.c:30","end":"80"
-// CHECK-SAME: "have":"64","id":"R1","kind":"W","obj":"heap@models.c:29"
+// CHECK-SAME: "reqs":[{"access":{"at":"models.c:33","end":"80"
+// CHECK-SAME: "have":"64","id":"R1","kind":"W","obj":"heap@models.c:32"
 
 static void Entry(void) {}
 void Reg(void) { OM_RegMsg(1, Entry); }
