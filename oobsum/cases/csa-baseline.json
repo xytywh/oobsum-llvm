@@ -683,8 +683,8 @@
    "kind": "TP",
    "entry": "Svc_OnSetReq_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:untracked_pointer@Tbl_Set",
+   "verdict": "通过"
   },
   {
    "case": "LV6-03",
@@ -699,8 +699,8 @@
    "kind": "TP",
    "entry": "Board_InitPorts_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:type_range_only@Port_ResetAll",
+   "verdict": "通过"
   },
   {
    "case": "LV6-04",
@@ -715,8 +715,8 @@
    "kind": "TP",
    "entry": "Om_SaveTrace_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:untracked_pointer@Shm_WriteAt",
+   "verdict": "通过"
   },
   {
    "case": "LV6-05",
@@ -779,8 +779,8 @@
    "kind": "TP",
    "entry": "Om_DumpReg_TP",
    "pa": "记账",
-   "actual": "SAFE:local_entailed(未报出:safe)",
-   "verdict": "漏报"
+   "actual": "SUSPECT:pointer_stepping@Buf_CopyStep",
+   "verdict": "通过"
   },
   {
    "case": "LV7-04",
@@ -811,8 +811,8 @@
    "kind": "TP",
    "entry": "Cell_BuildMap_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven@Map_Fill",
+   "verdict": "通过"
   },
   {
    "case": "LV7-06",
@@ -843,8 +843,8 @@
    "kind": "TP",
    "entry": "Om_OnBatchMsg_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:type_range_only@Tlv_SumLen×3",
+   "verdict": "通过"
   },
   {
    "case": "LV8-02",
@@ -859,8 +859,8 @@
    "kind": "TP",
    "entry": "Cell_SetDefault_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:pointer_stepping@Str_CopyRaw×3",
+   "verdict": "通过"
   },
   {
    "case": "LV8-03",
@@ -875,8 +875,8 @@
    "kind": "TP",
    "entry": "Phy_BuildGrid_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven@Grid_Fill",
+   "verdict": "通过"
   },
   {
    "case": "LV8-04",
@@ -955,8 +955,8 @@
    "kind": "TP",
    "entry": "Om_ReadChip_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:not_in_tu@Chip_ReadStatus",
+   "verdict": "通过"
   },
   {
    "case": "LV9-04",
@@ -1019,8 +1019,8 @@
    "kind": "TP",
    "entry": "Om_QueryDev_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:not_in_tu@Dev_Read",
+   "verdict": "通过"
   },
   {
    "case": "LV10-02",

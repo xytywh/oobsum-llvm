@@ -270,6 +270,18 @@ def _entry_actual(ds):
     return text, (best['label'] if best['label'] != 'safe' else None)
 
 
+def _reachable(starts, edges):
+    """从 starts 经静态调用能到达的函数键（含自己，SPEC-0047）"""
+    seen, todo = set(), list(starts)
+    while todo:
+        k = todo.pop()
+        if k in seen:
+            continue
+        seen.add(k)
+        todo.extend(edges.get(k, ()))
+    return seen
+
+
 def _verdict(kind, pa, rep, cross_tu):
     """对照口径（SPEC-0002 §2.3，修订 06- T-03）；rep 是报出的最强标签（不含 safe）"""
     strong = rep in ('definite', 'possible')
@@ -348,6 +360,8 @@ def cmd_csa(a):
         if os.path.isdir(wd):
             shutil.rmtree(wd)
         os.makedirs(wd)
+        edges = {}  # 函数键 → 被调者的键（Dump=summary 的 calls，SPEC-0047）
+        names_of = {}  # 函数键 → 函数名
         with open(os.path.join(wd, 'stderr.txt'), 'w', encoding='utf-8') as err:
             for s in srcs:
                 ntu += 1
@@ -358,9 +372,19 @@ def cmd_csa(a):
                     args.append('-fno-signed-char')  # driver 对 ARM / AArch64 会加；直接跑 cc1 要自己加（SPEC-0007 §2.1）
                 for kv in a.config:
                     args += ['-analyzer-config', '%s:%s' % (CHECKER, kv)]
+                if not any(kv.startswith('Dump=') for kv in a.config):
+                    args += ['-analyzer-config', '%s:Dump=summary' % CHECKER]  # 取调用图（SPEC-0047），不影响结果
                 args += a.cc1_arg + [s]
                 r = subprocess.run(args, capture_output=True, text=True)
                 err.write('== %s\n%s%s' % (' '.join(args), r.stdout, r.stderr))
+                for line in r.stderr.splitlines():
+                    if line.startswith('[oobsum:summary] '):
+                        try:
+                            sm = json.loads(line[len('[oobsum:summary] '):])
+                        except ValueError:
+                            continue
+                        names_of[sm['key']] = sm['fn']
+                        edges.setdefault(sm['key'], set()).update(c.get('callee_key', '') for c in sm.get('calls', []))
                 if r.returncode != 0:
                     errors.append('%s：cc1 退出码 %d（见 %s）' % (os.path.relpath(s, root), r.returncode,
                                                                os.path.join(wd, 'stderr.txt')))
@@ -372,6 +396,15 @@ def cmd_csa(a):
         for e in m['expect']:
             actual, rep = _entry_actual([d for d in decs if _fn_name(d['fn']) == e['entry']])
             pa = e.get('pa', '?')
+            if pa == '记账' and e['kind'] == 'TP' and rep is None:
+                # 账本可以在入口经静态调用能到达的函数里（被调者本函数的账本、没有调用方的函数，SPEC-0047）
+                reach = _reachable([k for k, n in names_of.items() if n == e['entry']], edges) - \
+                    {k for k, n in names_of.items() if n == e['entry']}
+                sus = [d for d in decs if d.get('emitted') and d['label'] == 'suspect' and d['fn'] in reach]
+                if sus:
+                    rep = 'suspect'
+                    actual = '%s@%s' % (_tag(sus[0]), names_of.get(sus[0]['fn'], _fn_name(sus[0]['fn']))) + \
+                        ('×%d' % len(sus) if len(sus) > 1 else '')
             entries.append({'case': cid, 'kind': e['kind'], 'entry': e['entry'], 'pa': pa, 'actual': actual,
                             'verdict': _verdict(e['kind'], pa, rep, len(srcs) > 1)})
         for d in decs:
