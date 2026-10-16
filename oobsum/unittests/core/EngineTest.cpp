@@ -205,3 +205,27 @@ TEST(Engine, DecisionJsonRoundTrip)
     ASSERT_TRUE(DecisionFromJson(llvm::json::Value(DecisionToJson(dup, Disposition())), back, error));
     EXPECT_EQ(back.dupOf, "0123456789abcdef");
 }
+
+// A-09（SPEC-0037）：lower 没降级函数体的函数（块数超限、建不出 CFG）→ skipped、没有 Req，声明处一条 unanalyzed
+TEST(Engine, SkippedFunctionsAreSuspect)
+{
+    fir::Module m;
+    std::string error;
+    ASSERT_TRUE(fir::ReadModuleFile(OOBSUM_TEST_DATA_DIR "/engine-fir.json", m, error));
+    ASSERT_TRUE(m.funcs.size() >= 2);
+    m.funcs[0].flags.push_back("cfg_too_large");
+    m.funcs[1].flags.push_back("no_cfg");
+    engine::InlineResult r = engine::RunInline(m);
+    for (size_t i = 0; i < 2; ++i) {
+        const std::string &key = m.funcs[i].key;
+        std::string want = i == 0 ? "cfg_too_large" : "no_cfg";
+        ASSERT_TRUE(r.summaries.count(key) == 1);
+        EXPECT_EQ(r.summaries.at(key).status, "skipped:" + want);
+        EXPECT_TRUE(r.summaries.at(key).reqs.empty());
+        bool found = false;
+        for (const Decision &d : r.decisions) {
+            found = found || (d.fn == key && d.label == Label::Suspect && d.reason == "unanalyzed:" + want);
+        }
+        EXPECT_TRUE(found);
+    }
+}

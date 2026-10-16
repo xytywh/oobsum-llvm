@@ -129,6 +129,8 @@ public:
     {
     }
 
+    unsigned maxBlocks = 0;  // A-09（SPEC-0037）；0 = 不限
+
     fir::Function Lower(const FunctionDecl *fd)
     {
         fir::Function f;
@@ -203,8 +205,10 @@ private:
     void LowerBody(const FunctionDecl *fd, fir::Function &f)
     {
         const CFG *cfg = mgr.getCFG(fd);
-        if (cfg == nullptr) {
-            f.flags.push_back("no_cfg");
+        bool tooLarge = cfg != nullptr && maxBlocks > 0 && cfg->getNumBlockIDs() > maxBlocks;
+        if (cfg == nullptr || tooLarge) {
+            // 建不出 CFG / 块数超限：不降级函数体，只放一个空块；core 按 skipped 报 SUSPECT（A-09，SPEC-0037）
+            f.flags.push_back(tooLarge ? "cfg_too_large" : "no_cfg");
             fir::Block only;
             only.id = 0;
             f.blocks.push_back(std::move(only));
@@ -1299,7 +1303,7 @@ private:
 }  // namespace
 
 fir::Module LowerTranslationUnit(const TranslationUnitDecl *tu, AnalysisManager &mgr, KeyMaker &keys,
-                                 llvm::StringRef mainFile)
+                                 llvm::StringRef mainFile, unsigned maxBlocks)
 {
     const ASTContext &ctx = mgr.getASTContext();
     const TargetInfo &target = ctx.getTargetInfo();
@@ -1313,6 +1317,7 @@ fir::Module LowerTranslationUnit(const TranslationUnitDecl *tu, AnalysisManager 
     FileTable files(mgr.getSourceManager(), module);
     TypeLayout layout(ctx, module);
     FunctionLowerer lowerer(mgr, keys, layout, files);
+    lowerer.maxBlocks = maxBlocks;
     ModuleCollector collector(module, keys, layout, files, lowerer);
     collector.TraverseDecl(const_cast<TranslationUnitDecl *>(tu));
     return module;

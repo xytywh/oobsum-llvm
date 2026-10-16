@@ -18,8 +18,9 @@
 namespace oobsum {
 
 // mainFile：主文件路径（按 FileEntry 名）；keys：本 TU 的 KeyMaker
+// maxBlocks：CFG 块数超过它的函数不降级函数体，只打 cfg_too_large（A-09，SPEC-0037）；0 = 不限
 fir::Module LowerTranslationUnit(const clang::TranslationUnitDecl *tu, clang::ento::AnalysisManager &mgr,
-                                 KeyMaker &keys, llvm::StringRef mainFile);
+                                 KeyMaker &keys, llvm::StringRef mainFile, unsigned maxBlocks = 0);
 
 }  // namespace oobsum
 

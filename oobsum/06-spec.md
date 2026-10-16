@@ -513,7 +513,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
   加运行类 11 个：`ambiguous_callee`、`not_exported`（被调者不在 cdb 里）、`not_in_tu`（inline 模式下的跨 TU 被调者）、`cfg_too_large`、`timeout`、
   `iter_limit`、`unsupported_construct`、`struct_by_value`、`inline_asm`、`imprecise_join`（两个不可比的符号界合并后丢失）、
   `untracked_pointer`（指针来自数组元素或超过两层的字段，不跟踪它指向多大）。
-* **D-28 状态** `status`：`analyzed`；`partial:iter_limit|cond_truncated`；`skipped:cfg_too_large|timeout|no_body`。
+* **D-28 状态**〔由 SPEC-0037 修订：加 `skipped:no_cfg`；`partial:*` / `skipped:*` 在声明处报 SUSPECT `unanalyzed:<后缀>`〕 `status`：`analyzed`；`partial:iter_limit|cond_truncated`；`skipped:cfg_too_large|timeout|no_body`。
 
 **D-29 可读输出**：`doc.text`、`Dump=summary` 与 `oobsum.py show / explain` 都用形参名渲染（`ulNum >= 1 ⇒ 写 4 字节 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 <= ext(pstTbl)`），
 与用例文件头的"摘要"块同形。它们都是从机器字段**派生**的；T-06 的快照测试比的是去掉 `doc` 的 JSON（规范形式）。

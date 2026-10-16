@@ -135,6 +135,7 @@ public:
     std::string dumpFilter;
     std::string optionsText;  // Dump=options 打印用
     std::string modelFile;
+    unsigned maxBlocks = 5000;                                                  // A-09、I-18（SPEC-0037）
     oobsum::models::ModelTable models = oobsum::models::ModelTable::Default();  // 内置表 + ModelFile（SPEC-0033）
     oobsum::DumpSink dump;
 
@@ -443,7 +444,7 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
     bool keepFir = exporting || (engine && !workDir.empty());  // X-01 / X-06（SPEC-0028）
     std::vector<oobsum::Decision> decisions;
     if (engine || exporting || dump.On("fir") || dump.On("summary") || dump.On("state")) {
-        oobsum::fir::Module module = oobsum::LowerTranslationUnit(tu, mgr, keys, mainFile);
+        oobsum::fir::Module module = oobsum::LowerTranslationUnit(tu, mgr, keys, mainFile, maxBlocks);
         if (dump.On("fir")) {
             dumpFir(module, tuId);
         }
@@ -551,6 +552,12 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
                                             "got '" +
                                                 unknownKind + "'");
     }
+    int maxBlocks = opts.getCheckerIntegerOption(chk, "MaxBlocks");
+    if (maxBlocks < 0) {
+        mgr.reportInvalidCheckerOptionValue(chk, "MaxBlocks", "a non-negative integer");
+        maxBlocks = 0;
+    }
+    chk->maxBlocks = static_cast<unsigned>(maxBlocks);
     // ModelFile（SPEC-0033 §2.1）：读不了、YAML 错 → 选项错误；坏条目跳过并提示
     chk->modelFile = opts.getCheckerStringOption(chk, "ModelFile").str();
     if (!chk->modelFile.empty()) {
@@ -573,7 +580,8 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
                        " InlineDepth=" + std::to_string(chk->policy.inlineDepth) +
                        " ReportSafe=" + (chk->policy.reportSafe ? "true" : "false") + " SuspectReasons=\"" +
                        opts.getCheckerStringOption(chk, "SuspectReasons").str() + "\" Dump=\"" + chk->dumpKinds +
-                       "\" DumpFilter=\"" + chk->dumpFilter + "\" ModelFile=\"" + chk->modelFile + "\"";
+                       "\" DumpFilter=\"" + chk->dumpFilter + "\" ModelFile=\"" + chk->modelFile +
+                       "\" MaxBlocks=" + std::to_string(chk->maxBlocks);
 }
 
 bool ento::shouldRegisterOobSummaryChecker(const CheckerManager &mgr)

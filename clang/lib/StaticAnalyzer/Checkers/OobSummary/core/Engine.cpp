@@ -331,9 +331,10 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, o.at, "", "", o.reason);
             out.decisions.push_back(std::move(d));
         }
-        // 没分析完的函数：函数声明处一条
-        if (s.status.compare(0, 8, "partial:") == 0) {
-            std::string reason = "unanalyzed:" + s.status.substr(8);
+        // 没分析完 / 没分析的函数：函数声明处一条（SPEC-0037：skipped 也报）
+        llvm::StringRef status = s.status;
+        if (status.startswith("partial:") || status.startswith("skipped:")) {
+            std::string reason = "unanalyzed:" + status.split(':').second.str();
             Decision d = base(Label::Suspect, reason, fn);
             d.site = sitesOf(fn).Of(s.loc);
             d.msg = LedgerMessage(reason);

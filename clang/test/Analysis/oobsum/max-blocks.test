@@ -1,0 +1,23 @@
+# MaxBlocks（oobsum/specs/SPEC-0037；06- A-09、I-18）：块数超限的函数不降级函数体，声明处一条 SUSPECT unanalyzed:cfg_too_large。
+#
+# 默认（5000）：照常分析，最后一个 case 的越界报 DEFINITE
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:Dump=options \
+# RUN:   %S/Inputs/maxblocks/big.c 2>&1 | FileCheck %s --check-prefix=DEFAULT
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:MaxBlocks=5 \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=fir+summary -analyzer-config rb.enhance.ipa.OobSummary:DumpFilter=Msg_Dispatch \
+# RUN:   %S/Inputs/maxblocks/big.c 2>&1 | FileCheck %s --check-prefix=LIMIT
+# RUN: not %clang_analyze_cc1 -triple armebv7-linux-gnueabi -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:MaxBlocks=-1 %S/Inputs/maxblocks/big.c 2>&1 | FileCheck %s --check-prefix=BAD
+
+DEFAULT: [oobsum:options] {{.*}} MaxBlocks=5000
+DEFAULT: big.c:26:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 17 of 'aucBuf' (16 bytes) is accessed
+DEFAULT-NOT: unanalyzed
+
+LIMIT: [oobsum:fir] fn F@{{[0-9a-f]+}}:Msg_Dispatch -> void @big.c:5:13 [cfg_too_large]
+LIMIT: [oobsum:summary] {{.*}}"fn":"Msg_Dispatch"{{.*}}"reqs":[]{{.*}}"status":"skipped:cfg_too_large"
+LIMIT: big.c:5:1: warning: [OOB-SUSPECT:unanalyzed:cfg_too_large] Cannot prove this access is within bounds: the function was not fully analyzed (cfg_too_large)
+LIMIT-NOT: OOB-DEFINITE
+
+BAD: error: invalid input for checker option 'rb.enhance.ipa.OobSummary:MaxBlocks', that expects a non-negative integer

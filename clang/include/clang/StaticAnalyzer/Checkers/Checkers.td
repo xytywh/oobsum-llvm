@@ -1745,7 +1745,11 @@ def OobSummaryChecker : Checker<"OobSummary">,
     CmdLineOption<String, "ModelFile",
                   "YAML model table merged into the built-in one (allocators, access functions, pure functions, "
                   "frees; empty: built-in table only)",
-                  "", Released>
+                  "", Released>,
+    CmdLineOption<Integer, "MaxBlocks",
+                  "Functions with more CFG blocks than this are not analyzed and get a suspect decision "
+                  "(0: no limit)",
+                  "5000", Released>
   ]>,
   Documentation<NotDocumented>;
 

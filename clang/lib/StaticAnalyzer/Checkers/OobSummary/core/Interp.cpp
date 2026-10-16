@@ -1551,6 +1551,13 @@ FunctionFacts Analyzer::Run()
         facts.status = "skipped:no_body";
         return facts;
     }
+    // lower 没降级函数体的（块数超限、建不出 CFG）：不分析，引擎在声明处报 SUSPECT（A-09，SPEC-0037）
+    for (const char *flag : {"cfg_too_large", "no_cfg"}) {
+        if (llvm::is_contained(f.flags, flag)) {
+            facts.status = std::string("skipped:") + flag;
+            return facts;
+        }
+    }
     // DFS：后序；指向栈上块的边是回边，它的目标是循环头。后继倒着走，逆后序里后继 0（条件为真 / 循环体）排在前面：
     // 先把循环算稳再传给出口，Dump=state 也按源码顺序
     std::vector<int> mark(n, 0);  // 0 未访问、1 在栈上、2 完成

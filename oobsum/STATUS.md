@@ -58,7 +58,9 @@
       去掉 `body_pending`；修正 S4c-1 的赋值表达式取值（`y = (x = x + 1)`）。lit 14 个；67 个用例只剩 `unk(cond_value)`（S5）。
 - [x] **S5 控制流**（SPEC-0009）：条件边 `assume`（后继 0 为真，与 `debug.DumpCFG` 逐个对照）、`switch`（`case` / `default` / 区间）、`?:` / `&&` / `||`
       当值用（汇合块前驱补 `set`）。lit 15 个；67 个用例 1451 条边里 260 条带条件，`unk` / `havoc` 一处都不剩。
-- [ ] **S5b**：`MaxBlocks`（A-09，要改 Checkers.td）；不支持的构造（`unk(<类名>)`）计入判定日志（SUSPECT:unsupported_construct）——引擎接上时一起做。
+- [x] **S5b-1 `MaxBlocks`**（SPEC-0037）：CFG 块数超过 `MaxBlocks`（默认 5000）的函数不降级函数体（`cfg_too_large`），建不出 CFG 的（`no_cfg`，原来悄悄当成空函数）同样
+      `skipped:…`；`partial:*` / `skipped:*` 的函数都在声明处报 SUSPECT `unanalyzed:<后缀>`。
+- [ ] **S5b-2**：不支持的构造（`unk(<类名>)`）计入判定日志（SUSPECT:unsupported_construct）。
 - [x] **S6a 线性式**（SPEC-0010）：`core/LinExpr`（规范形式、D-21 解析与打印、不透明项的常数求值、溢出 → 未知、`ParseCond` / `ShowLe0`、`Substitute`）；
       单测 39 个，含金标准 `unittests/core/data/lin-golden.txt`（`gen_lin_golden.py` 用 `replay.py` 从 104 份摘要抽出的 101 条表达式 / 条件，逐字一致）。
 - [x] **S6b 取值范围与蕴含**（SPEC-0011）：`core/Range`（来源标签与优先级、类型表、`SymEnv` 的单符号守卫收窄、六种原子的界、`RangeOf`、`EntailsLe0`）；
@@ -166,6 +168,7 @@
 * **确认 securec 的 `strcpy_s` 族出错时写多少**（SPEC-0034）：我按 libboundscheck 的实现理解为"最多写实际长度 + 1，出错只写 `dest[0] = '\0'`"，
   所以 destMax 超过目的大小报 **POSSIBLE**；用例 LV7-05 的注释写的是"出错路径会按 destMax 清零"（`later=L1`）。公司的 securec 版本若真按 destMax 清零，
   告诉我改成 DEFINITE（内置表去掉 `upto`；在模型文件里覆盖也行，不用改代码）。确认前不改 LV7-05 的 `@expect`。
+* 公司（可选）：业务代码里函数 CFG 块数的分布（P99、最大值），用来定 `MaxBlocks` 的默认值（现在 5000，06- I-18"探针给出 P99 后再定"；SPEC-0037 §8）。
 * **I5 / I8 / I9 现在写进模型文件即可，不用改代码**（SPEC-0033）：复制 `oobsum/config/oob_models.example.yaml`，改 `VOS_MemAlloc` 的 `size`（I5）、
   加内部封装的拷贝 / 分配函数（I8）、纯函数清单（I9），bxen 命令加 `-analyzer-config rb.enhance.ipa.OobSummary:ModelFile=<路径>`，用 `Dump=models` 确认生效。
   文件留在公司；只带回"哪几类、各多少条"即可（如果想让我把某些通用的放进内置表，告诉我函数原型）。
