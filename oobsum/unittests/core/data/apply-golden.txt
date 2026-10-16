@@ -105,16 +105,24 @@
     · 访问类模型 memcpy_s → 在本函数生成 R1
 - Body_PutIes @ lv3_07_pkt_loop_destmax.c:66  调用 Pkt_PutIes(*p0, p1, *p2, p3)
     · Pkt_PutIes.R1：末端 [p1, 2*p1]，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Pkt_PutIes.R2：末端 [8, 8*p3]，守卫 p3 >= 1，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
 - Body_PutIes_OK @ lv3_07_pkt_loop_destmax.c:67  调用 Pkt_PutIes_OK(*p0, p1, *p2, p3)
     · Pkt_PutIes_OK.R1：末端 p1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Pkt_PutIes_OK.R2：末端 [8, 8*p3]，守卫 p3 >= 1，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
 - Msg_BuildBody @ lv3_07_pkt_loop_destmax.c:68  调用 Body_PutIes(*p0, p1, *p2, p3)
     · Body_PutIes.R1：末端 [p1, 2*p1]，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Body_PutIes.R2：末端 [8, 8*p3]，守卫 p3 >= 1，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
 - Msg_BuildBody_OK @ lv3_07_pkt_loop_destmax.c:69  调用 Body_PutIes_OK(*p0, p1, *p2, p3)
     · Body_PutIes_OK.R1：末端 p1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+    · Body_PutIes_OK.R2：末端 [8, 8*p3]，守卫 p3 >= 1，对象 *p2（ext(p2) 字节）→ up → 本函数 R2
 - Msg_Encode_TN @ lv3_07_pkt_loop_destmax.c:80  调用 Msg_BuildBody_OK(local:aucPkt, 128, *p0, p1)
     · Msg_BuildBody_OK.R1：末端 128，对象 local:aucPkt（128 字节）→ safe（最大末端 128 ≤ 128）
+    · Msg_BuildBody_OK.R2：末端 [8, 8*p1]，守卫 p1 >= 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Msg_Encode_TN 是入口（没有调用方）：R1 到此为止 → 记账 entry_unproven
 - Msg_Encode_TP @ lv3_07_pkt_loop_destmax.c:74  调用 Msg_BuildBody(local:aucPkt, 128, *p0, p1)
     · Msg_BuildBody.R1：末端 [128, 256]，对象 local:aucPkt（128 字节）→ L2（最大末端 256 > 128（上界来自 check），最小末端 128 不越界） → RPT1（depth 3, eff_depth 0，报）
+    · Msg_BuildBody.R2：末端 [8, 8*p1]，守卫 p1 >= 1，对象 *p0（ext(p0) 字节）→ up → 本函数 R1
+- Msg_Encode_TP 是入口（没有调用方）：R1 到此为止 → 记账 entry_unproven
 ## LV4-01
 - Pub_MemAlloc @ common.h:53  调用 VOS_MemAlloc(PID_CELL, 0, p0)
     · 分配器模型 VOS_MemAlloc → 本函数的效果 effs[0]
@@ -167,18 +175,22 @@
 - Enc_PutIe @ lv5_01_ctx_filled_at_top.c:40  调用 Enc_PutBytes(*p0, *p1, p2)
     · Enc_PutBytes.R1：末端 p0->ulBufLen，对象 *p0->pucBuf（ext(p0->pucBuf) 字节）→ up → 本函数 R1
     · Enc_PutBytes.R2：末端 p2，守卫 p2 <= p0->ulBufLen，对象 *p1（ext(p1) 字节）→ up → 本函数 R2
+    · Enc_PutBytes.R3：末端 12，对象 *p0（ext(p0) 字节）→ up → 本函数 R3
     · 效果 field → 实参 0 所指对象的 ulUsed := p2 
 - Enc_Encode @ lv5_01_ctx_filled_at_top.c:41  调用 Enc_PutIe(*p0, *p1, p2)
     · Enc_PutIe.R1：末端 p0->ulBufLen，对象 *p0->pucBuf（ext(p0->pucBuf) 字节）→ up → 本函数 R1
     · Enc_PutIe.R2：末端 p2，守卫 p2 <= p0->ulBufLen，对象 *p1（ext(p1) 字节）→ up → 本函数 R2
+    · Enc_PutIe.R3：末端 12，对象 *p0（ext(p0) 字节）→ up → 本函数 R3
     · 效果 field → 实参 0 所指对象的 ulUsed := p2 
 - Rrc_EncodeMsg_TN @ lv5_01_ctx_filled_at_top.c:62  调用 Enc_Encode(local:stCtx, local:aucIe, 16)
     · Enc_Encode.R1：末端 128，对象 local:aucBuf（128 字节）→ safe（最大末端 128 ≤ 128）
     · Enc_Encode.R2：末端 16，守卫在此成立，对象 local:aucIe（16 字节）→ safe（最大末端 16 ≤ 16）
+    · Enc_Encode.R3：末端 12，对象 local:stCtx（12 字节）→ safe（最大末端 12 ≤ 12）
     · 效果 field → 实参 0 所指对象的 ulUsed := 16 
 - Rrc_EncodeMsg_TP @ lv5_01_ctx_filled_at_top.c:51  调用 Enc_Encode(local:stCtx, local:aucIe, 16)
     · Enc_Encode.R1：末端 256，对象 local:aucBuf（128 字节）→ L1（最小末端 256 > 128，对所有取值都越界） → RPT1（depth 3, eff_depth 0，报）
     · Enc_Encode.R2：末端 16，守卫在此成立，对象 local:aucIe（16 字节）→ safe（最大末端 16 ≤ 16）
+    · Enc_Encode.R3：末端 12，对象 local:stCtx（12 字节）→ safe（最大末端 12 ≤ 12）
     · 效果 field → 实参 0 所指对象的 ulUsed := 16 
 ## LV6-01
 - Port_CountDown @ port_stat_use.c:27  调用 Stat_PortInc(p0)
@@ -254,8 +266,10 @@
     · Om_SaveCfg.R2：末端 p0->usMsgLen，对象 p0->aucBody（1024 字节）→ up → 本函数 R2
 - Om_OnSaveCfg_TN 是入口（没有调用方）：R1 到此为止 → 记账 type_range_only
 - Om_OnSaveCfg_TN 是入口（没有调用方）：R2 到此为止 → 记账 type_range_only
+- Om_OnSaveCfg_TN 是入口（没有调用方）：R3 到此为止 → 记账 typed_field
 - Om_OnSaveCfg_TP @ lv10_04_unchecked_ext_len.c:42  调用 Om_SaveCfg(p0->aucBody, p0->usMsgLen)
     · Om_SaveCfg.R1：末端 p0->usMsgLen，对象 g:g_aucCfg（256 字节）→ up → 本函数 R1
     · Om_SaveCfg.R2：末端 p0->usMsgLen，对象 p0->aucBody（1024 字节）→ up → 本函数 R2
 - Om_OnSaveCfg_TP 是入口（没有调用方）：R1 到此为止 → 记账 type_range_only
 - Om_OnSaveCfg_TP 是入口（没有调用方）：R2 到此为止 → 记账 type_range_only
+- Om_OnSaveCfg_TP 是入口（没有调用方）：R3 到此为止 → 记账 typed_field

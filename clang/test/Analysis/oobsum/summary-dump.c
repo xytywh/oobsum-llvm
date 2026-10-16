@@ -23,7 +23,7 @@ void Top(UINT32 ulIdx)
 
 // 被调者：depth 0 的 Req（无符号减法回绕）
 // CHECK: [oobsum:summary] {"calls":[],"effs":[],"fn":"Leaf",
-// CHECK-SAME: "params":[{"name":"pucBuf","type":"u8*"},{"name":"ulIdx","type":"u32"}]
+// CHECK-SAME: "params":[{"name":"pucBuf","size":1,"type":"u8*"},{"name":"ulIdx","type":"u32"}]
 // CHECK-SAME: "reqs":[{"access":{"at":"summary-dump.c:14","end":"wrap32(p1 - 1) + 1"
 // CHECK-SAME: "have":"ext(p0)"
 // CHECK-SAME: "kind":"W","obj":"*p0"

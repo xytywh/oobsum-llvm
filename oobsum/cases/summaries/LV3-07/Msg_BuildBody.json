@@ -40,6 +40,30 @@
         "bytes": "p1",
         "code": "memcpy_s(pucPkt + ulOff, ulPktLen, astIe[i].pucVal, astIe[i].ulLen)"
       }
+    },
+    {
+      "id": "R2",
+      "kind": "R",
+      "have": "ext(p2)",
+      "obj": "*p2",
+      "end": ["8", "8*p3"],
+      "start": "4",
+      "bound": "loop",
+      "guard": ["p3 >= 1"],
+      "access": {
+        "fn": "Pkt_PutIes",
+        "key": "F@lv3_07_pkt_loop_destmax.c:Pkt_PutIes",
+        "at": "lv3_07_pkt_loop_destmax.c:55",
+        "end": "8*p3"
+      },
+      "path": [
+        "Msg_BuildBody@lv3_07_pkt_loop_destmax.c:68",
+        "Body_PutIes@lv3_07_pkt_loop_destmax.c:66",
+        "Pkt_PutIes@lv3_07_pkt_loop_destmax.c:55"
+      ],
+      "depth": 2,
+      "eff_depth": 0,
+      "blind": false
     }
   ],
   "effs": [],
@@ -53,7 +77,7 @@
         {"obj": "*p2", "have": "ext(p2)", "alias": "p2", "doc": "a"},
         "p3"
       ],
-      "results": [{"req": "R1", "outcome": "up", "as": "R1"}]
+      "results": [{"req": "R1", "outcome": "up", "as": "R1"}, {"req": "R2", "outcome": "up", "as": "R2"}]
     }
   ],
   "reps": [],

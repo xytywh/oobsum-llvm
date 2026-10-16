@@ -118,7 +118,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 | 编号 | 访问形态 | 生成的安全条件（字节） | 备注 |
 |---|---|---|---|
 | **F-01** | 数组下标读 / 写 `a[i]`、`p[i]`、`s.arr[i]`、`p->arr[i]`、`g.arr[i]` | `off + size ≤ ext(base)`，且 `off ≥ 0` | 结构体成员数组以**成员**为对象（子对象边界，`01-` §3.1 #2–#7、#11） |
-| **F-02** | 指针解引用 `*p`、`*(p + k)`、`p->f`（`p` 指向的对象可能比类型小） | `off(f) + sizeof(f) ≤ ext(p)` | 覆盖"按大结构体访问小对象"（LV1-05、LV4-02） |
+| **F-02** | 指针解引用 `*p`、`*(p + k)`、`p->f`（`p` 指向的对象可能比类型小） | `off(f) + sizeof(f) ≤ ext(p)` | 覆盖"按大结构体访问小对象"（LV1-05、LV4-02） 〔由 SPEC-0019 修订：入口上按声明类型的常数偏移访问记账 `typed_field`〕 |
 | **F-03** | `memcpy_s` / `memmove_s(dest, destMax, src, count)` | 目的：`destMax ≤ ext(dest)`；源：`count ≤ destMax ⇒ count ≤ ext(src)` | 按 securec（libboundscheck）的实现【文档】：`destMax == 0` 或 `> SECUREC_MEM_MAX_LEN`（默认 `0x7fffffff`）直接返回、不写；`count > destMax` 时先把 `dest` 的 `destMax` 字节清零再返回、不读源。所以目的一侧总是写 `destMax` 字节，源一侧只在 `count ≤ destMax` 时读。`destMax` 是**可能回绕的无符号减法**（`128 − ulOff`）时，回绕后的值必然大于上限 → 生成守卫"减法不为负"（LV2-03 TN） |
 | **F-04** | `memset_s(dest, destMax, c, count)` | `destMax ≤ ext(dest)` | 同 F-03 的 `destMax` 规则 |
 | **F-05** | libc `memcpy` / `memmove` / `memset` | `n ≤ ext(dest)`；`n ≤ ext(src)` | 代价很小，顺带支持 |
@@ -277,7 +277,7 @@ bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/report_cdb/compile_commands.js
 
 ### 4.4 配置
 
-**I-40 模型表 `oob_models.yaml`**（`llvm::yaml` 读取；默认随代码放 `OobSummary/config/oob_models.yaml`）：
+**I-40 模型表 `oob_models.yaml`**〔由 SPEC-0018 修订〕（`llvm::yaml` 读取；默认随代码放 `OobSummary/config/oob_models.yaml`）：
 
 ```yaml
 allocators:                     # 底层分配器：只配最底层几个，封装函数由摘要推出（01- §3.7.1）
@@ -456,7 +456,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 **D-22 来源标签** `bound`：`exact`（没有区间）、`const`、`check`、`mask`、`branch`、`loop`、`ret`、`guard`（以上是代码给出的界，可判 L2）；
 `type`、`widen`、`data`（不可判 L2，只能记账）。
 
-**D-23 顶层与 Req**（下表只列机器字段；每个对象都可以另带 `doc`）：
+**D-23 顶层与 Req**〔由 SPEC-0015、SPEC-0019 修订〕（下表只列机器字段；每个对象都可以另带 `doc`）：
 
 | 顶层字段 | 含义 |
 |---|---|
@@ -485,7 +485,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 `ret_cond`（`when: "ret == c"`、`then: [条件…]`，至多 4 条）、`out_new` / `out_int`、`field`（`target: "p0->ulUsed"`、`value`）、`global`、`invalidate`。
 `doc.via` 记效果是从哪个分配器 / 封装传上来的（只给人看）。
 
-**D-25 调用点记录** `calls[]`：`site`、`callee`、`model`（`access` / `alloc` / `pure` / `unknown`，被调者是模型或未知时）、
+**D-25 调用点记录**〔由 SPEC-0015 修订〕 `calls[]`：`site`、`callee`、`model`（`access` / `alloc` / `pure` / `unknown`，被调者是模型或未知时）、
 `args`（整数实参写表达式；指针实参写 `{obj, have, alias?, fields?, eff_depth?}`——指向哪个对象、从这个指针起还剩多少字节、
 就是调用方的哪个形参、栈帧里记着的字段值；与越界无关的写 `null`）、`locals`（`{名字: {range: [lo, hi], bound}}`）、
 `guards`（`[{cond, bound}]`）、`results`——被调者每条 Req / Eff 在这里的结局，全部结构化：
@@ -506,7 +506,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 全局告警记录 `reports.json` 每条是 F-30…F-35 的成品（`checker`、`bug_type`、`category`、`level`、`fn`、`loc`、`msg`、`notes`、`fp`），
 另带 `decision_fn`、`decision_tu`（`report` 阶段按它分发）。`replay.py --alerts FILE` 输出的就是这个形状。
 
-* **D-27 账本** `opens[]` / `ledger.jsonl`：`{reason, at, req?}`（`req` 指向入口处到此为止的那条 Req），`doc` 写细节。`reason` 取值：
+* **D-27 账本**〔由 SPEC-0019 修订：加 `typed_field`〕 `opens[]` / `ledger.jsonl`：`{reason, at, req?}`（`req` 指向入口处到此为止的那条 Req），`doc` 写细节。`reason` 取值：
   `01-` §3.12 的 16 类（`fptr`、`unknown_callee`、`recursion`、`msg_edge`、`global_value`、`global_ptr_target`、`field_written_by_callee`、
   `alloc_size_unknown`、`flexible_array`、`struct_overlay`、`pointer_stepping`、`string_length`、`nonlinear`、`type_range_only`、`entry_unproven`、`cond_truncated`）
   加运行类 11 个：`ambiguous_callee`、`not_exported`（被调者不在 cdb 里）、`not_in_tu`（inline 模式下的跨 TU 被调者）、`cfg_too_large`、`timeout`、
@@ -575,20 +575,20 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | 编号 | 指令 / 表达式 | 规则 |
 |---|---|---|
 | A-20 | `set` | 求值写入局部；更新定义式；失效引用了被写局部的定义式 |
-| A-21 | `add` / `sub` / 乘常数 | 界逐项运算；乘负常数交换上下界 |
+| A-21 | `add` / `sub` / 乘常数 | 界逐项运算；乘负常数交换上下界 〔由 SPEC-0014 修订〕 |
 | A-22 | 变量 × 变量 | 两边都是确切符号值 → 不透明项 `<mul a b>`（确切），区间由两边数值范围相乘；否则 `±∞`，`src: nonlinear` |
 | A-23 | `/ c`、`>> k` | 确切符号值 → 不透明项 `<div a c>`（确切），区间为数值范围的商；**不丢成 ∞**（Infer 在 LV2-05 / LV2-06 上的误报即出于此【实测数据】） |
 | A-24 | `% c`、`& m`（常数，非负） | `[0, c−1]` / `[0, m]`，`src: mask` |
 | A-25 | `| ^ ~`、位域 | 两边常数则求值；否则类型范围，`src: type` |
-| A-26 | 无符号减法可能为负 | 确切符号值 → `<wrapW a−b>`（代换成常数后按 2^W 取模）；区间为类型范围，`src: type` |
+| A-26 | 无符号减法可能为负 | 确切符号值 → `<wrapW a−b>`（代换成常数后按 2^W 取模）；区间为类型范围，`src: type` 〔由 SPEC-0014、SPEC-0017 修订〕 |
 | A-27 | 截断 `cast` | 区间落在目标类型内则不变；否则 `<truncW a>`，区间为类型范围 |
 | A-28 | `load` | 先做访问检查（§6.4）；值：命中格 → 格值；形参可达 → 初值符号；`const` 全局且有常量初值 → 常数；其余全局 → `g:K`；数组元素 / 消息内容 → 类型范围，`src: data` |
 | A-29 | `store` | 先做访问检查；常量偏移、base 已知 → 强更新格；否则按 A-12 失效 |
-| A-30 | `assume a op b` | 收窄出现在两边的局部（`l < E` → `hi := min(hi, E−1)`）；两边都是常数且为假 → 该边不可达；含接口符号 → 加守卫；`p != 0` / `p == 0` 收窄 `maybeNull`；被比较的局部是带条件效应的调用结果 → 应用条件效应（§6.6 第 5 步） |
+| A-30 | `assume a op b` | 收窄出现在两边的局部（`l < E` → `hi := min(hi, E−1)`）；两边都是常数且为假 → 该边不可达；含接口符号 → 加守卫；`p != 0` / `p == 0` 收窄 `maybeNull`；被比较的局部是带条件效应的调用结果 → 应用条件效应（§6.6 第 5 步） 〔由 SPEC-0016、SPEC-0017 修订〕 |
 | A-31 | `call` | §6.6 |
 | A-32 | `havoc` / `unk` | 未知值，`src: unknown`，原因随值携带（只在它真正影响某次判定时才写进账本） |
 
-**A-33 不动点**：Bourdoncle WTO（递归策略）；分量头上 widening / narrowing；每个分量头迭代上限 20 次、全函数 `TimeLimitMs`；
+**A-33 不动点**〔由 SPEC-0017 修订〕：Bourdoncle WTO（递归策略）；分量头上 widening / narrowing；每个分量头迭代上限 20 次、全函数 `TimeLimitMs`；
 超限 → 仍不稳定的值置 `±∞`，`status = partial:iter_limit`，**照常产出摘要**。
 
 ### 6.4 访问检查与 Req 生成
@@ -600,7 +600,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 3. **A-42 代区间**：`D` 里剩下的局部换成它们的界（系数为正取上界、为负取下界），得到 `D` 的上界 `U` 与下界 `L`（只含接口符号），并记下所用界的来源标签；
    另对 `offExpr` 求下界，检查 `off ≥ 0`。
 4. **A-43 当场判定**：`U`、`L` 不含符号时按 F-10…F-14 判；`depth = 0`，判出的进 `reps`（只有 F-21 / F-22 时才会报出，其余被 F-20 过滤，但照样入 `reports.json` 并标 `filtered`）。
-5. **A-44 生成 Req**：含接口符号时，先用守卫判蕴含（§6.5）：`U ≤ 0` 成立 → 安全，丢弃；否则生成 Req：`have`、`end`（末端的 [下界, 上界]）、`start`、`bytes`、`bound`、
+5. **A-44 生成 Req**〔由 SPEC-0014、SPEC-0016、SPEC-0018 修订〕：含接口符号时，先用守卫判蕴含（§6.5）：`U ≤ 0` 成立 → 安全，丢弃；否则生成 Req：`have`、`end`（末端的 [下界, 上界]）、`start`、`bytes`、`bound`、
    与 Req 符号相关的守卫原子、访问位置与序号、`depth = 0`、`blind`（A-07）。**覆盖合并**：同一 `have`、守卫相同的两条 Req，若一条的 `end[1]` 恒不大于另一条
 （差为非正常数），弱的那条并进强的、记进 `absorbed`（LV1-02 的 `pszName[0]`、`pszName[1]`）；守卫不同的不合并（LV2-03 TN 的 `R3`）。
 6. **A-45 记账**：`have` 无法表示（`Ret` / `Unknown` base、未知大小的分配）→ 记账 `alloc_size_unknown` / 对应原因；上界只来自 `type` / `widen` / `data` → `type_range_only` / `pointer_stepping`；含 `nonlinear` → `nonlinear`。
@@ -637,7 +637,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 
 ### 6.8 调度
 
-* **A-80 solve**：读全部 FIR；建函数表（D-07 处理重名）与全局大小表（D-34）；按直接调用 + 可静态解析的函数指针建全局调用图；
+* **A-80 solve**〔由 SPEC-0019 修订〕：读全部 FIR；建函数表（D-07 处理重名）与全局大小表（D-34）；按直接调用 + 可静态解析的函数指针建全局调用图；
   Tarjan 求 SCC，逆拓扑序逐个求解；SCC 内（递归）按键排序各求一次，环内调用按未知处理并记账 `recursion`（`01-` §3.9）。
 * **A-81 inline**：同样的过程，范围限于本 TU。
 * **A-82** 求解过程**单线程、确定性**（所有遍历按键排序，不依赖指针地址）；并行求解 `[P1]`（按 SCC 层级分批）。

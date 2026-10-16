@@ -2078,7 +2078,14 @@ summary::Summary BuildSummary(const fir::Module &m, const fir::Function &f, cons
     std::sort(params.begin(), params.end(),
               [](const fir::Local *a, const fir::Local *b) { return a->param < b->param; });
     for (const fir::Local *l : params) {
-        s.params.push_back({l->name, fir::TypeText(m, l->type)});
+        summary::Param p{l->name, fir::TypeText(m, l->type), llvm::None};
+        // 指向完整类型的指针：所指类型的字节数（SPEC-0019 §2.2，入口记账 typed_field 用）
+        int64_t size = 0;
+        if (l->type < m.types.size() && m.types[l->type].kind == fir::TypeKind::Ptr &&
+            TypeSize(m, m.types[l->type].to, size)) {
+            p.size = size;
+        }
+        s.params.push_back(p);
     }
     if (!facts.fields.empty()) {
         s.fields = facts.fields;

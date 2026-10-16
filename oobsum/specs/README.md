@@ -51,3 +51,4 @@
 | [SPEC-0016](SPEC-0016-interp-guards.md) | 函数内解释第二步：条件边与守卫、当场证明安全（A-14、A-30、A-43、A-44） | 已实现（S7b） |
 | [SPEC-0017](SPEC-0017-interp-loops.md) | 函数内解释第三步：循环（工作表不动点、widening、narrowing、`loop` 标签、`pointer_stepping`） | 已实现（S7c-1） |
 | [SPEC-0018](SPEC-0018-models-access.md) | 模型表第一步：securec / libc 访问函数、纯函数、分配器的直接调用（F-03…F-05、I-40） | 已实现（S7d-1） |
+| [SPEC-0019](SPEC-0019-typed-field.md) | F-02 的字段访问照生成、入口记 `typed_field`；形参带 `size`；金标准补齐漏写的访问、`golden_regen.py` | 已实现 |

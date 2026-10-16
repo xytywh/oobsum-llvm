@@ -47,6 +47,7 @@ const std::set<std::string> &Reasons()
                                                   "type_range_only",
                                                   "entry_unproven",
                                                   "cond_truncated",
+                                                  "typed_field",
                                                   "ambiguous_callee",
                                                   "not_exported",
                                                   "not_in_tu",
@@ -498,8 +499,9 @@ bool Reader::ReadSummary(const Value &v, Summary &s)
     }
     std::string schema;
     auto params = [&](const Value &x, Param &y) {
-        const Object *po = Obj(x, {"name", "type"}, {});
-        return po != nullptr && Key(*po, "name", y.name, OOBSUM_M(Str)) && Key(*po, "type", y.type, OOBSUM_M(Str));
+        const Object *po = Obj(x, {"name", "type"}, {"size"});
+        return po != nullptr && Key(*po, "name", y.name, OOBSUM_M(Str)) && Key(*po, "type", y.type, OOBSUM_M(Str)) &&
+               OptKey(*po, "size", y.size, OOBSUM_M(Int));
     };
     auto fields = [&](const Value &x, std::map<std::string, FieldInfo> &y) {
         const Object *fo = x.getAsObject();
@@ -679,7 +681,9 @@ Value SummaryToJson(const Summary &s)
 {
     Array params;
     for (const Param &p : s.params) {
-        params.push_back(Object{{"name", p.name}, {"type", p.type}});
+        Object po{{"name", p.name}, {"type", p.type}};
+        Put(po, "size", p.size);
+        params.push_back(std::move(po));
     }
     Array reqs;
     for (const Req &r : s.reqs) {

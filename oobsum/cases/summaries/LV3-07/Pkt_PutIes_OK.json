@@ -37,6 +37,38 @@
         "code": "memcpy_s(pucPkt + ulOff, ulPktLen - ulOff, astIe[i].pucVal, astIe[i].ulLen)",
         "note": "末端 ulOff + (ulPktLen − ulOff)：先抵消 ulOff 再代区间；校验 ulOff + len <= ulPktLen 保证减法不回绕"
       }
+    },
+    {
+      "id": "R2",
+      "kind": "R",
+      "have": "ext(p2)",
+      "obj": "*p2",
+      "end": ["8", "8*p3"],
+      "start": "4",
+      "bound": "loop",
+      "guard": ["p3 >= 1"],
+      "access": {
+        "fn": "Pkt_PutIes_OK",
+        "key": "F@lv3_07_pkt_loop_destmax.c:Pkt_PutIes_OK",
+        "at": "lv3_07_pkt_loop_destmax.c:39",
+        "end": "8*p3"
+      },
+      "path": ["Pkt_PutIes_OK@lv3_07_pkt_loop_destmax.c:39"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "absorbed": [
+        {"kind": "R", "end": ["4", "8*p3 - 4"], "at": "lv3_07_pkt_loop_destmax.c:42"},
+        {"kind": "R", "end": ["8", "8*p3"], "at": "lv3_07_pkt_loop_destmax.c:42"},
+        {"kind": "R", "end": ["8", "8*p3"], "at": "lv3_07_pkt_loop_destmax.c:45"}
+      ],
+      "doc": {
+        "text": "ulIeNum >= 1 ⇒ 读 4 字节 @ *astIe（astIe[i].ulLen），末端 [8, 8*ulIeNum]；需 8*ulIeNum <= ext(astIe)",
+        "obj": "*astIe",
+        "bytes": "4",
+        "code": "ulOff + astIe[i].ulLen",
+        "note": "F-01：i ∈ [0, ulIeNum − 1]（循环界），IE_S 8 字节、ulLen 在偏移 4；同一函数里读 astIe[i].pucVal 等并进来；金标准原先漏写（SPEC-0019 补）"
+      }
     }
   ],
   "effs": [],

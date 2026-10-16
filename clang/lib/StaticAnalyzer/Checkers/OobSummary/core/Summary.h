@@ -28,6 +28,7 @@ constexpr const char *kSummarySchema = "oobsum-summary/1";
 struct Param {
     std::string name;
     std::string type;
+    llvm::Optional<int64_t> size;  // 指向完整类型的指针：所指类型的字节数（SPEC-0019 §2.2，入口记账 typed_field 用）
 };
 
 struct FieldInfo {

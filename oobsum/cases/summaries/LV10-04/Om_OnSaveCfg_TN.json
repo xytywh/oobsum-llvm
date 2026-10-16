@@ -3,7 +3,7 @@
   "fn": "Om_OnSaveCfg_TN",
   "key": "F:Om_OnSaveCfg_TN",
   "loc": "lv10_04_unchecked_ext_len.c:43",
-  "params": [{"name": "pstMsg", "type": "OM_MSG_S*"}],
+  "params": [{"name": "pstMsg", "type": "OM_MSG_S*", "size": 1028}],
   "fields": {"p0->usMsgLen": {"off": 2, "size": 2, "type": "UINT16"}},
   "status": "analyzed",
   "reqs": [
@@ -68,6 +68,33 @@
         "bytes": "p0->usMsgLen",
         "code": "memcpy_s(g_aucCfg, ulLen, pucBody, ulLen)"
       }
+    },
+    {
+      "id": "R3",
+      "kind": "R",
+      "have": "ext(p0)",
+      "obj": "*p0",
+      "end": ["4", "4"],
+      "start": "2",
+      "bound": "exact",
+      "guard": [],
+      "access": {
+        "fn": "Om_OnSaveCfg_TN",
+        "key": "F:Om_OnSaveCfg_TN",
+        "at": "lv10_04_unchecked_ext_len.c:43",
+        "end": "4"
+      },
+      "path": ["Om_OnSaveCfg_TN@lv10_04_unchecked_ext_len.c:43"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "doc": {
+        "text": "读 2 字节 @ *pstMsg（usMsgLen），末端 4；需 4 <= ext(pstMsg)",
+        "obj": "*pstMsg",
+        "bytes": "2",
+        "code": "pstMsg->usMsgLen",
+        "note": "F-02：经形参指针读字段；入口上按声明类型（OM_MSG_S 1028 字节）记账 typed_field（SPEC-0019）"
+      }
     }
   ],
   "effs": [],
@@ -82,6 +109,7 @@
   ],
   "reps": [],
   "opens": [
+    {"reason": "typed_field", "at": "lv10_04_unchecked_ext_len.c:43", "req": "R3"},
     {
       "reason": "type_range_only",
       "at": "lv10_04_unchecked_ext_len.c:43",

@@ -67,6 +67,37 @@
         "code": "memcpy_s(pstCtx->pucBuf, pstCtx->ulBufLen, pucData, ulLen)",
         "note": "count <= destMax 才读"
       }
+    },
+    {
+      "id": "R3",
+      "kind": "W",
+      "have": "ext(p0)",
+      "obj": "*p0",
+      "end": ["12", "12"],
+      "start": "8",
+      "bound": "exact",
+      "guard": [],
+      "access": {
+        "fn": "Enc_PutBytes",
+        "key": "F@lv5_01_ctx_filled_at_top.c:Enc_PutBytes",
+        "at": "lv5_01_ctx_filled_at_top.c:37",
+        "end": "12"
+      },
+      "path": ["Enc_PutBytes@lv5_01_ctx_filled_at_top.c:37"],
+      "depth": 0,
+      "eff_depth": 0,
+      "blind": false,
+      "absorbed": [
+        {"kind": "R", "end": ["4", "4"], "at": "lv5_01_ctx_filled_at_top.c:36"},
+        {"kind": "R", "end": ["8", "8"], "at": "lv5_01_ctx_filled_at_top.c:36"}
+      ],
+      "doc": {
+        "text": "写 4 字节 @ *pstCtx（ulUsed），末端 12；需 12 <= ext(pstCtx)",
+        "obj": "*pstCtx",
+        "bytes": "4",
+        "code": "pstCtx->ulUsed += ulLen",
+        "note": "F-02：经形参指针读写字段 pucBuf、ulBufLen、ulUsed，读并进写（SPEC-0019 补）"
+      }
     }
   ],
   "effs": [{"kind": "field", "target": "p0->ulUsed", "value": "p2", "doc": {"text": "pstCtx->ulUsed := ulLen"}}],

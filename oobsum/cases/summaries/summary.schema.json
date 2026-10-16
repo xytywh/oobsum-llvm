@@ -49,7 +49,8 @@
              "description": "上界的来源；前 8 个是代码给出的，只有它们能判 L2" },
     "param": {
       "type": "object", "additionalProperties": false, "required": ["name", "type"],
-      "properties": { "name": { "type": "string" }, "type": { "type": "string" } }
+      "properties": { "name": { "type": "string" }, "type": { "type": "string" },
+                      "size": { "type": "integer", "minimum": 0, "description": "指向完整类型的指针：所指类型的字节数（SPEC-0019，入口记账 typed_field 用）" } }
     },
     "access": {
       "type": "object", "additionalProperties": false, "required": ["fn", "key", "at", "end"],
@@ -197,7 +198,7 @@
                          "pointer_stepping", "string_length", "nonlinear", "type_range_only", "entry_unproven",
                          "cond_truncated", "ambiguous_callee", "not_exported", "not_in_tu", "cfg_too_large", "timeout",
                          "iter_limit", "unsupported_construct", "struct_by_value", "inline_asm", "imprecise_join",
-                         "untracked_pointer"] },
+                         "untracked_pointer", "typed_field"] },
     "open": {
       "type": "object", "additionalProperties": false, "required": ["reason", "at"],
       "properties": {

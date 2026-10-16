@@ -89,6 +89,25 @@ std::string ReqKey(const summary::Req &r)
     return Key(P(r.have), r.obj, P(r.endLo), P(r.endHi), guards, r.depth);
 }
 
+// SPEC-0019 §2.1：对象是入口自己的形参所指 *pK、have 就是 ext(pK)、末端上界是常数且 ≤ 形参声明的所指类型大小 → typed_field
+bool TypedField(const DerivedReq &r, const summary::Summary &s)
+{
+    if (r.obj.size() < 3 || r.obj.compare(0, 2, "*p") != 0 || !r.hi.IsConst()) {
+        return false;
+    }
+    size_t k = 0;
+    for (size_t i = 2; i < r.obj.size(); ++i) {
+        if (r.obj[i] < '0' || r.obj[i] > '9') {
+            return false;  // *p0->pucBuf 之类：不是形参自己所指的对象
+        }
+        k = k * 10 + static_cast<size_t>(r.obj[i] - '0');
+    }
+    if (k >= s.params.size() || !s.params[k].size || !(r.have == LinExpr::Ext(r.obj.substr(1)))) {
+        return false;
+    }
+    return r.hi.Constant() <= *s.params[k].size;
+}
+
 std::vector<DerivedReq> Absorb(const std::vector<DerivedReq> &cand)
 {
     std::vector<DerivedReq> keep;
@@ -207,7 +226,8 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns)
             for (const DerivedReq &r : result.reqs) {
                 Limit l = env.RangeOf(r.hi - r.have, true);
                 bool typeOnly = r.have.IsConst() && l.known && l.tag == Tag::Type;
-                result.entryOpens.push_back(typeOnly ? "type_range_only" : "entry_unproven");
+                result.entryOpens.push_back(TypedField(r, s) ? "typed_field"
+                                                             : (typeOnly ? "type_range_only" : "entry_unproven"));
                 ++out.entry;
             }
         }

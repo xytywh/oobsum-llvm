@@ -5,7 +5,33 @@
   "loc": "lv3_07_pkt_loop_destmax.c:71",
   "params": [{"name": "astIe", "type": "IE_S*"}, {"name": "ulIeNum", "type": "UINT32"}],
   "status": "analyzed",
-  "reqs": [],
+  "reqs": [
+    {
+      "id": "R1",
+      "kind": "R",
+      "have": "ext(p0)",
+      "obj": "*p0",
+      "end": ["8", "8*p1"],
+      "start": "4",
+      "bound": "loop",
+      "guard": ["p1 >= 1"],
+      "access": {
+        "fn": "Pkt_PutIes",
+        "key": "F@lv3_07_pkt_loop_destmax.c:Pkt_PutIes",
+        "at": "lv3_07_pkt_loop_destmax.c:55",
+        "end": "8*p3"
+      },
+      "path": [
+        "Msg_Encode_TP@lv3_07_pkt_loop_destmax.c:74",
+        "Msg_BuildBody@lv3_07_pkt_loop_destmax.c:68",
+        "Body_PutIes@lv3_07_pkt_loop_destmax.c:66",
+        "Pkt_PutIes@lv3_07_pkt_loop_destmax.c:55"
+      ],
+      "depth": 3,
+      "eff_depth": 0,
+      "blind": false
+    }
+  ],
   "effs": [],
   "calls": [
     {
@@ -17,7 +43,7 @@
         {"obj": "*p0", "have": "ext(p0)", "alias": "p0", "doc": "astIe"},
         "p1"
       ],
-      "results": [{"req": "R1", "outcome": "L2", "report": "RPT1"}],
+      "results": [{"req": "R1", "outcome": "L2", "report": "RPT1"}, {"req": "R2", "outcome": "up", "as": "R1"}],
       "doc": "aucPkt 128 字节，ulPktLen = sizeof(aucPkt) = 128"
     }
   ],
@@ -52,5 +78,5 @@
       }
     }
   ],
-  "opens": []
+  "opens": [{"reason": "entry_unproven", "at": "lv3_07_pkt_loop_destmax.c:71", "req": "R1"}]
 }

@@ -453,7 +453,7 @@ REASONS = {'fptr', 'unknown_callee', 'recursion', 'msg_edge', 'global_value', 'g
            'alloc_size_unknown', 'flexible_array', 'struct_overlay', 'pointer_stepping', 'string_length', 'nonlinear',
            'type_range_only', 'entry_unproven', 'cond_truncated', 'ambiguous_callee', 'not_exported', 'not_in_tu',
            'cfg_too_large', 'timeout', 'iter_limit', 'unsupported_construct', 'struct_by_value', 'inline_asm',
-           'imprecise_join', 'untracked_pointer'}
+           'imprecise_join', 'untracked_pointer', 'typed_field'}
 
 
 NL = re.compile(r'[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]|[A-Za-z]{2,}\s+[A-Za-z]{2,}\s+[A-Za-z]{2,}')
@@ -1009,6 +1009,17 @@ def json_req_key(r):
     return req_key(P(r['have']), r['obj'], P(r['end'][0]), P(r['end'][1]), [g for s in r.get('guard', []) for g in C(s)], r['depth'])
 
 
+def typed_field(r, params):
+    """SPEC-0019 §2.1：对象是入口自己的形参所指 *pK、have 就是 ext(pK)、末端上界是常数且 ≤ 形参声明的所指类型大小。"""
+    m = re.match(r'^\*p(\d+)$', r['obj'])
+    if not m or r['hi'].const() is None:
+        return False
+    k = int(m.group(1))
+    if k >= len(params) or 'size' not in params[k] or show(r['have']) != 'ext(p%d)' % k:
+        return False
+    return r['hi'].const() <= params[k]['size']
+
+
 def absorb(reqs):
     """覆盖合并（06- A-44）：同一对象、同样守卫，end 上界恒不大于另一条的那条并进去。"""
     keep = []
@@ -1093,6 +1104,8 @@ def derive(cid):
                 env = Env(s.get('params', []), s.get('fields', {}))
                 _, tag = env.range_of(r['hi'] - r['have'], True)
                 reason = 'type_range_only' if r['have'].const() is not None and tag == 'type' else 'entry_unproven'
+                if typed_field(r, s.get('params', [])):
+                    reason = 'typed_field'
                 stat['entry'] += 1
                 if reason not in [o['reason'] for o in s['opens'] if o.get('req')]:
                     probs.append('%s %s：入口账本应为 %s' % (cid, fn, reason))

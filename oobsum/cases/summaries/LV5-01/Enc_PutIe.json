@@ -66,6 +66,26 @@
         "bytes": "p2",
         "code": "memcpy_s(pstCtx->pucBuf, pstCtx->ulBufLen, pucData, ulLen)"
       }
+    },
+    {
+      "id": "R3",
+      "kind": "W",
+      "have": "ext(p0)",
+      "obj": "*p0",
+      "end": ["12", "12"],
+      "start": "8",
+      "bound": "exact",
+      "guard": [],
+      "access": {
+        "fn": "Enc_PutBytes",
+        "key": "F@lv5_01_ctx_filled_at_top.c:Enc_PutBytes",
+        "at": "lv5_01_ctx_filled_at_top.c:37",
+        "end": "12"
+      },
+      "path": ["Enc_PutIe@lv5_01_ctx_filled_at_top.c:40", "Enc_PutBytes@lv5_01_ctx_filled_at_top.c:37"],
+      "depth": 1,
+      "eff_depth": 0,
+      "blind": false
     }
   ],
   "effs": [{"kind": "field", "target": "p0->ulUsed", "value": "p2", "doc": {"text": "pstCtx->ulUsed := ulLen"}}],
@@ -81,6 +101,7 @@
       "results": [
         {"req": "R1", "outcome": "up", "as": "R1"},
         {"req": "R2", "outcome": "up", "as": "R2"},
+        {"req": "R3", "outcome": "up", "as": "R3"},
         {"eff": 0, "apply": {"kind": "field", "arg": 0, "field": "ulUsed", "value": "p2"}}
       ]
     }
