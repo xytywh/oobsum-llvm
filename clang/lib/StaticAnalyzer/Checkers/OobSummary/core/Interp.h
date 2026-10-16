@@ -28,6 +28,16 @@
 namespace oobsum {
 namespace interp {
 
+// 值取某个常数时成立的守卫（SPEC-0025 §2.1）
+struct IntCase {
+    int64_t value = 0;
+    std::vector<LinExpr> guards;  // 各为 L ≤ 0
+    bool operator==(const IntCase &o) const
+    {
+        return value == o.value && guards == o.guards;
+    }
+};
+
 // 整数值（A-10 的子集）：确切值 / 区间（端点为线性式或无界，带来源标签）/ 未知（带原因）
 struct IntVal {
     enum class Kind { Exact, Range, Top };
@@ -38,7 +48,8 @@ struct IntVal {
     LinExpr lo;  // Range
     LinExpr hi;
     Tag tag = Tag::None;
-    std::string why;  // Top
+    std::string why;             // Top
+    std::vector<IntCase> cases;  // 区间的值只取这几个常数时：各自成立的守卫（SPEC-0025；空 = 没有）
 
     static IntVal Exact(const LinExpr &e);
     static IntVal Range(const llvm::Optional<LinExpr> &lo, const llvm::Optional<LinExpr> &hi, Tag tag);

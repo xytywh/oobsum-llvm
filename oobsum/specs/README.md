@@ -56,4 +56,5 @@
 | [SPEC-0021](SPEC-0021-inline-engine.md) | 引擎接进 checker（`Phase=inline`）：单个 TU 内推到判定、带标签报出、全部进判定日志；`Dump=apply` | 已实现（S8c-1） |
 | [SPEC-0023](SPEC-0023-symbolic-join.md) | 汇合、收窄时用类型范围与守卫比较符号界（循环后 `i == ulLen`，LV3-05）；尺子认"改报在汇合点" | 已实现 |
 | [SPEC-0024](SPEC-0024-ret-new.md) | 返回新对象的效果（`ret_new`）：自底向上解释，封装分配器逐层推出（LV4-01） | 已实现（S7d-3） |
+| [SPEC-0025](SPEC-0025-ret-cond.md) | 校验函数的条件效应（`ret_cond`）：值的"情形"、调用方代入、条件边筛选（LV4-06） | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

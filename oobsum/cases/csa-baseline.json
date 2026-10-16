@@ -523,16 +523,16 @@
    "kind": "TP",
    "entry": "Cell_OnDelReq_TP",
    "pa": "L2",
-   "actual": "SUSPECT:type_range_only",
-   "verdict": "级别不同"
+   "actual": "POSSIBLE",
+   "verdict": "通过"
   },
   {
    "case": "LV4-06",
    "kind": "TN",
    "entry": "Cell_OnDelReq_TN",
    "pa": "-",
-   "actual": "SUSPECT:type_range_only",
-   "verdict": "通过+S"
+   "actual": "SAFE:guard_entailed(未报出:safe)",
+   "verdict": "通过"
   },
   {
    "case": "LV4-07",
@@ -1793,20 +1793,11 @@
   },
   {
    "case": "LV4-06",
-   "site": "lv4/lv4_06_validator_func.c:60:0",
+   "site": "lv4/lv4_06_validator_func.c:65:0",
    "kind": "W",
    "fn": "F:Cell_OnDelReq_TP",
-   "label": "suspect",
-   "reason": "type_range_only",
-   "access": "lv4/lv4_06_validator_func.c:54"
-  },
-  {
-   "case": "LV4-06",
-   "site": "lv4/lv4_06_validator_func.c:69:0",
-   "kind": "W",
-   "fn": "F:Cell_OnDelReq_TN",
-   "label": "suspect",
-   "reason": "type_range_only",
+   "label": "possible",
+   "reason": "",
    "access": "lv4/lv4_06_validator_func.c:54"
   },
   {

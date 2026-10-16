@@ -925,3 +925,93 @@ TEST(Interp, RetNewEffect)
                e.f.Add(Expr::Cmp(CmpOp::Ne, e.L(k), e.C(0), false)));
     EXPECT_TRUE(e.Run().effs.empty());
 }
+
+TEST(Interp, RetCondEffect)
+{
+    // ?: 的校验函数（LV4-06 Cell_IsValidId）：两支是不同的常数，汇合时带上各自的守卫 → ret_cond 两条 + ret_int（SPEC-0025）
+    auto ret = [](ExprId v) {
+        Inst i;
+        i.op = InstOp::Ret;
+        i.val = v;
+        return i;
+    };
+    Builder b;
+    uint32_t id = b.Param("ulCellId", b.u32);
+    uint32_t t = b.LocalVar("t0", b.u32);
+    Diamond d;
+    d.yes.insts = {b.Set(t, b.C(1))};
+    d.no.insts = {b.Set(t, b.C(0))};
+    d.join.insts = {ret(b.L(t))};
+    d.Install(b, b.f.Add(Expr::Cmp(CmpOp::Le, b.L(id), b.C(16), false)),
+              b.f.Add(Expr::Cmp(CmpOp::Gt, b.L(id), b.C(16), false)));
+    std::vector<std::string> trace;
+    interp::FunctionFacts facts = interp::AnalyzeFunction(b.m, b.f, &trace);
+    ASSERT_TRUE(facts.effs.size() == 3);
+    EXPECT_EQ(facts.effs[0].kind, "ret_cond");
+    EXPECT_EQ(facts.effs[0].when.getValueOr("-"), "ret == 0");
+    ASSERT_TRUE(facts.effs[0].then.hasValue());
+    EXPECT_EQ((*facts.effs[0].then)[0], "p0 >= 17");
+    EXPECT_EQ(facts.effs[1].when.getValueOr("-"), "ret == 1");
+    EXPECT_EQ((*facts.effs[1].then)[0], "p0 <= 16");
+    EXPECT_EQ(facts.effs[2].kind, "ret_int");
+    // Dump=state：汇合点的值带情形
+    bool joined = false;
+    for (const std::string &line : trace) {
+        if (line.rfind("b1:", 0) == 0) {
+            joined = true;
+            EXPECT_EQ(line, "b1: ulCellId=p0 t0=[0, 1]:branch{0: p0 >= 17; 1: p0 <= 16}");
+        }
+    }
+    EXPECT_TRUE(joined);
+    // 有一条路径返回非常数：没有 ret_cond
+    Builder c;
+    uint32_t x = c.Param("x", c.u32);
+    uint32_t t2 = c.LocalVar("t0", c.u32);
+    Diamond d2;
+    d2.yes.insts = {c.Set(t2, c.C(1))};
+    d2.no.insts = {c.Set(t2, c.L(x))};
+    d2.join.insts = {ret(c.L(t2))};
+    d2.Install(c, c.f.Add(Expr::Cmp(CmpOp::Le, c.L(x), c.C(16), false)),
+               c.f.Add(Expr::Cmp(CmpOp::Gt, c.L(x), c.C(16), false)));
+    EXPECT_TRUE(c.Run().effs.empty());
+}
+
+TEST(Interp, RetCondAtCaller)
+{
+    // 调用方：if (Check(id) != 0) return; 之后加守卫 p0 <= 16；r == 2 的边不可达（SPEC-0025 §2.3、§2.4）
+    Builder b;
+    uint32_t id = b.Param("ulCellId", b.u32);
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t r = b.LocalVar("r", b.u32);
+    summary::Summary check;
+    check.fn = "Check";
+    summary::Eff ok;
+    ok.kind = "ret_cond";
+    ok.when = "ret == 0";
+    ok.then = std::vector<std::string>{"p0 <= 16"};
+    summary::Eff range;
+    range.kind = "ret_int";
+    range.range = std::vector<std::string>{"0", "1"};
+    range.bound = std::string("const");
+    check.effs = {ok, range};
+    std::map<std::string, summary::Summary> callees{{"Check", check}};
+    Diamond d;
+    d.entry.insts = {CallOf("F@abc:Check", {b.L(id)}, 3, r)};
+    d.yes.succ = {{0, kNone}};  // != 0 → return
+    d.no.insts = {b.Store(b.PAdd(b.L(p), b.L(id)), 1, b.C(0), 5)};
+    d.Install(b, b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(r), b.C(0), false)),
+              b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(r), b.C(0), false)));
+    interp::FunctionFacts facts = interp::AnalyzeFunction(b.m, b.f, nullptr, models::ModelTable::Default(), &callees);
+    EXPECT_EQ(Reqs(facts), "W have=ext(p1) obj=*p1 end=[p0 + 1, p0 + 1] bound=exact at=t.c:5 guard=p0 <= 16");
+    // r == 2：情形里没有 2 → 不可达
+    Builder c;
+    uint32_t id2 = c.Param("ulCellId", c.u32);
+    uint32_t p2 = c.Param("p", c.m.Intern(Type::Ptr(c.u8)));
+    uint32_t r2 = c.LocalVar("r", c.u32);
+    Diamond d2;
+    d2.entry.insts = {CallOf("F@abc:Check", {c.L(id2)}, 3, r2)};
+    d2.yes.insts = {c.Store(c.PAdd(c.L(p2), c.C(100)), 1, c.C(0), 6)};
+    d2.Install(c, c.f.Add(Expr::Cmp(CmpOp::Eq, c.L(r2), c.C(2), false)),
+               c.f.Add(Expr::Cmp(CmpOp::Ne, c.L(r2), c.C(2), false)));
+    EXPECT_EQ(Reqs(interp::AnalyzeFunction(c.m, c.f, nullptr, models::ModelTable::Default(), &callees)), "");
+}

@@ -94,7 +94,7 @@ bool IntVal::operator==(const IntVal &o) const
             return value == o.value;
         case Kind::Range:
             return hasLo == o.hasLo && hasHi == o.hasHi && (!hasLo || lo == o.lo) && (!hasHi || hi == o.hi) &&
-                   tag == o.tag;
+                   tag == o.tag && cases == o.cases;
         case Kind::Top:
             return why == o.why;
     }
@@ -106,9 +106,19 @@ std::string IntVal::Show() const
     switch (kind) {
         case Kind::Exact:
             return value.Show();
-        case Kind::Range:
-            return "[" + (hasLo ? lo.Show() : std::string("-inf")) + ", " + (hasHi ? hi.Show() : std::string("+inf")) +
-                   "]" + (tag == Tag::None ? "" : ":" + TagName(tag).str());
+        case Kind::Range: {
+            std::string out = "[" + (hasLo ? lo.Show() : std::string("-inf")) + ", " +
+                              (hasHi ? hi.Show() : std::string("+inf")) + "]" +
+                              (tag == Tag::None ? "" : ":" + TagName(tag).str());
+            for (size_t i = 0; i < cases.size(); ++i) {  // {0: p0 >= 17; 1: p0 <= 16}
+                out += (i == 0 ? "{" : "; ") + std::to_string(cases[i].value) + ":";
+                for (size_t k = 0; k < cases[i].guards.size(); ++k) {
+                    out += (k == 0 ? " " : ", ") + ShowLe0(cases[i].guards[k]);
+                }
+                out += i + 1 == cases.size() ? "}" : "";
+            }
+            return out;
+        }
         case Kind::Top:
             return "?(" + why + ")";
     }
@@ -417,6 +427,50 @@ struct State {
 };
 
 const size_t kMaxGuards = 8;
+const size_t kMaxCases = 4;  // 一个值至多带几个情形（SPEC-0025 §2.1）
+
+// 一边的情形：常数 → {(c, 这条路上的守卫)}；已带情形 → 每个情形再加上这条路上的守卫；其余没有
+bool CasesOf(const IntVal &v, const std::vector<LinExpr> &pathGuards, std::vector<IntCase> &out)
+{
+    if (v.IsConst()) {
+        out = {{v.value.Constant(), pathGuards}};
+        return true;
+    }
+    if (v.kind != IntVal::Kind::Range || v.cases.empty()) {
+        return false;
+    }
+    out = v.cases;
+    for (IntCase &c : out) {
+        for (const LinExpr &g : pathGuards) {
+            if (!llvm::is_contained(c.guards, g) && c.guards.size() < kMaxGuards) {
+                c.guards.push_back(g);
+            }
+        }
+    }
+    return true;
+}
+
+// 两边的情形合在一起：同一个常数的守卫取交集
+std::vector<IntCase> MergeCases(const std::vector<IntCase> &a, const std::vector<IntCase> &b)
+{
+    std::vector<IntCase> out = a;
+    for (const IntCase &cb : b) {
+        auto it = std::find_if(out.begin(), out.end(), [&](const IntCase &c) { return c.value == cb.value; });
+        if (it == out.end()) {
+            out.push_back(cb);
+            continue;
+        }
+        std::vector<LinExpr> common;
+        for (const LinExpr &g : it->guards) {
+            if (llvm::is_contained(cb.guards, g)) {
+                common.push_back(g);
+            }
+        }
+        it->guards = common;
+    }
+    std::sort(out.begin(), out.end(), [](const IntCase &x, const IntCase &y) { return x.value < y.value; });
+    return out;
+}
 const int kMaxHeadUpdates = 20;  // A-33：每个循环头至多更新 20 次
 const int kNarrowPasses = 2;     // 下降的遍数（SPEC-0017 §2.1）
 
@@ -450,7 +504,22 @@ State Join(const State &a, const State &b, const std::function<SymEnv(const std:
     }
     for (const auto &entry : a.locals) {
         auto it = b.locals.find(entry.first);
-        out.locals[entry.first] = it == b.locals.end() ? Value() : JoinValue(entry.second, it->second, &cmp);
+        if (it == b.locals.end()) {
+            out.locals[entry.first] = Value();
+            continue;
+        }
+        Value j = JoinValue(entry.second, it->second, &cmp);
+        // 两边是不同的常数（或已带情形）：记下各自路径上的守卫（SPEC-0025 §2.1）
+        std::vector<IntCase> ca;
+        std::vector<IntCase> cb;
+        if (!j.isPtr && j.i.kind == IntVal::Kind::Range && !entry.second.isPtr && !it->second.isPtr &&
+            CasesOf(entry.second.i, a.guards, ca) && CasesOf(it->second.i, b.guards, cb)) {
+            std::vector<IntCase> merged = MergeCases(ca, cb);
+            if (merged.size() <= kMaxCases) {
+                j.i.cases = merged;
+            }
+        }
+        out.locals[entry.first] = j;
     }
     for (const auto &entry : a.cells) {
         auto it = b.cells.find(entry.first);
@@ -747,6 +816,9 @@ private:
     Value HeapResult(const fir::Inst &inst, const std::string &size, int64_t effDepth, const State &s);
     void RecordReturn(const fir::Inst &inst, const State &s);
     std::vector<summary::Eff> Effects() const;
+    std::vector<summary::Eff> CondEffects() const;
+    IntVal CondResult(const fir::Inst &inst, const std::vector<summary::Eff> &effs, const State &s);
+    bool FilterCases(ExprId e, const IntVal &v, fir::CmpOp op, int64_t k, State &s);
     std::vector<State> FlowOut(size_t block, State s);
 
     // ---- 条件边与守卫（SPEC-0016）----
@@ -793,10 +865,11 @@ private:
     std::vector<summary::Call> calls;
     mutable std::map<std::string, summary::FieldInfo> fields;
     mutable std::map<std::string, std::string> globalTypes;  // 读到过的全局标量：g:名 → 类型（Env 用）
-    std::vector<Value> returns;  // 记录那一遍里每个 ret 的值（效果用，SPEC-0024）
-    std::vector<bool> heads;     // 循环头（回边的目标），按块下标
-    bool recording = false;      // 只有最后一遍记访问、调用点、账本（SPEC-0017 §2.1）
-    bool edgeFromHead = false;   // 当前 Assume 的边从循环头出发：收窄出来的上界标 loop
+    std::vector<std::pair<Value, std::vector<LinExpr>>>
+        returns;                // 记录那一遍里每个 ret 的值与当时的守卫（SPEC-0024、0025）
+    std::vector<bool> heads;    // 循环头（回边的目标），按块下标
+    bool recording = false;     // 只有最后一遍记访问、调用点、账本（SPEC-0017 §2.1）
+    bool edgeFromHead = false;  // 当前 Assume 的边从循环头出发：收窄出来的上界标 loop
 };
 
 IntVal Analyzer::Bin(const fir::Expr &x, const State &s)
@@ -1260,6 +1333,10 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                     for (const summary::Eff &e : callee->second.effs) {
                         if (e.kind == "ret_new" && e.size) {
                             result = HeapResult(inst, *e.size, e.effDepth.getValueOr(1), s);
+                            break;
+                        }
+                        if (e.kind == "ret_int" && !result.isPtr) {
+                            result.i = CondResult(inst, callee->second.effs, s);  // SPEC-0025 §2.3
                             break;
                         }
                     }
@@ -1808,6 +1885,15 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
     if (va.isPtr || vb.isPtr) {
         return true;  // 指针比较本步不产生信息
     }
+    // 带情形的值与常数比较：按情形筛选（SPEC-0025 §2.4）
+    static const fir::CmpOp swapped[] = {fir::CmpOp::Eq, fir::CmpOp::Ne, fir::CmpOp::Gt,
+                                         fir::CmpOp::Ge, fir::CmpOp::Lt, fir::CmpOp::Le};
+    if (!va.i.cases.empty() && vb.i.IsConst()) {
+        return FilterCases(a, va.i, op, vb.i.value.Constant(), s);
+    }
+    if (b != fir::kNone && !vb.i.cases.empty() && va.i.IsConst()) {
+        return FilterCases(b, vb.i, swapped[static_cast<int>(op)], va.i.value.Constant(), s);
+    }
     SymEnv env = Env(s);
     // "大的一边"：a < b、a <= b 的 b；a > b、a >= b 的 a（SPEC-0017 §2.4）
     bool aLarge = op == fir::CmpOp::Gt || op == fir::CmpOp::Ge;
@@ -2165,15 +2251,187 @@ Value Analyzer::HeapResult(const fir::Inst &inst, const std::string &size, int64
 void Analyzer::RecordReturn(const fir::Inst &inst, const State &s)
 {
     if (recording && inst.val != fir::kNone) {
-        returns.push_back(Eval(inst.val, s));
+        returns.push_back({Eval(inst.val, s), s.guards});
     }
+}
+
+// 每个返回值都是常数（或带情形）→ 按常数分组、组内守卫取交集：ret_cond；再加 ret_int 说明可能的返回值（D-24，SPEC-0025 §2.2）
+std::vector<summary::Eff> Analyzer::CondEffects() const
+{
+    std::map<int64_t, std::vector<LinExpr>> byValue;
+    auto add = [&](int64_t c, const std::vector<LinExpr> &guards) {
+        auto it = byValue.find(c);
+        if (it == byValue.end()) {
+            byValue[c] = guards;
+            return;
+        }
+        std::vector<LinExpr> common;
+        for (const LinExpr &g : it->second) {
+            if (llvm::is_contained(guards, g)) {
+                common.push_back(g);
+            }
+        }
+        it->second = common;
+    };
+    for (const auto &ret : returns) {
+        const Value &v = ret.first;
+        std::vector<IntCase> cases;
+        if (v.isPtr || !CasesOf(v.i, ret.second, cases)) {
+            return {};  // 有一条路径返回非常数：返回 c ⇒ 守卫 不成立
+        }
+        for (const IntCase &c : cases) {
+            add(c.value, c.guards);
+        }
+    }
+    if (byValue.size() < 2) {
+        return {};
+    }
+    std::vector<summary::Eff> out;
+    for (const auto &entry : byValue) {
+        if (entry.second.empty()) {
+            continue;
+        }
+        summary::Eff e;
+        e.kind = "ret_cond";
+        e.when = "ret == " + std::to_string(entry.first);
+        std::vector<std::string> then;
+        for (const LinExpr &g : entry.second) {
+            then.push_back(ShowLe0(g));
+        }
+        e.then = then;
+        out.push_back(e);
+    }
+    if (out.empty()) {
+        return {};
+    }
+    summary::Eff range;
+    range.kind = "ret_int";
+    range.range =
+        std::vector<std::string>{std::to_string(byValue.begin()->first), std::to_string(byValue.rbegin()->first)};
+    range.bound = std::string("const");
+    out.push_back(range);
+    return out;
+}
+
+// 调用点代入被调者的 ret_cond / ret_int（SPEC-0025 §2.3）：返回值是常数组成的区间，带情形；守卫里被调者的形参换成实参
+IntVal Analyzer::CondResult(const fir::Inst &inst, const std::vector<summary::Eff> &effs, const State &s)
+{
+    const summary::Eff *range = nullptr;
+    for (const summary::Eff &e : effs) {
+        if (e.kind == "ret_int" && e.range && e.range->size() == 2) {
+            range = &e;
+        }
+    }
+    int64_t lo = 0;
+    int64_t hi = 0;
+    if (range == nullptr || llvm::StringRef((*range->range)[0]).getAsInteger(10, lo) ||
+        llvm::StringRef((*range->range)[1]).getAsInteger(10, hi) || hi < lo) {
+        return IntVal::Top("call");
+    }
+    IntVal out = IntVal::Range(LinExpr::Const(lo), LinExpr::Const(hi), Tag::Const);
+    if (hi - lo + 1 > static_cast<int64_t>(kMaxCases)) {
+        return out;
+    }
+    // 实参：忠实的确切值才代换
+    SymEnv env = Env(s);
+    Substitution sub;
+    for (size_t k = 0; k < inst.args.size(); ++k) {
+        IntVal v = EvalInt(inst.args[k], s);
+        if (v.kind == IntVal::Kind::Exact && Faithful(inst.args[k], v, env)) {
+            sub.sym["p" + std::to_string(k)] = v.value;
+        }
+    }
+    for (int64_t c = lo; c <= hi; ++c) {
+        IntCase ic;
+        ic.value = c;
+        for (const summary::Eff &e : effs) {
+            if (e.kind != "ret_cond" || !e.when || !e.then || *e.when != "ret == " + std::to_string(c)) {
+                continue;
+            }
+            for (const std::string &cond : *e.then) {
+                std::vector<LinExpr> le0;
+                std::string error;
+                if (!ParseCond(cond, le0, error)) {
+                    continue;
+                }
+                for (const LinExpr &g : le0) {
+                    std::set<std::string> syms;
+                    CollectSyms(g, syms);
+                    bool mapped = llvm::all_of(syms, [&](const std::string &x) { return sub.sym.count(x) != 0; });
+                    if (mapped) {  // 换不了的原子丢掉（守卫变弱，仍然对）
+                        ic.guards.push_back(Substitute(g, sub));
+                    }
+                }
+            }
+        }
+        out.cases.push_back(ic);
+    }
+    return out;
+}
+
+// 条件边上带情形的值（SPEC-0025 §2.4）：留下满足 c op k 的情形；一个不剩 → 不可达；否则加它们守卫的交集，写回局部
+bool Analyzer::FilterCases(ExprId e, const IntVal &v, fir::CmpOp op, int64_t k, State &s)
+{
+    auto holds = [&](int64_t c) {
+        switch (op) {
+            case fir::CmpOp::Eq:
+                return c == k;
+            case fir::CmpOp::Ne:
+                return c != k;
+            case fir::CmpOp::Lt:
+                return c < k;
+            case fir::CmpOp::Le:
+                return c <= k;
+            case fir::CmpOp::Gt:
+                return c > k;
+            case fir::CmpOp::Ge:
+                return c >= k;
+        }
+        return true;
+    };
+    std::vector<IntCase> kept;
+    for (const IntCase &c : v.cases) {
+        if (holds(c.value)) {
+            kept.push_back(c);
+        }
+    }
+    if (kept.empty()) {
+        return false;
+    }
+    SymEnv env = Env(s);
+    for (const LinExpr &g : kept[0].guards) {
+        bool common = llvm::all_of(kept, [&](const IntCase &c) { return llvm::is_contained(c.guards, g); });
+        if (common && !EntailsLe0(g, s.guards, env)) {
+            AddGuard(s, g);
+        }
+    }
+    ExprId cur = e;
+    while (cur < f.exprs.size() && f.exprs[cur].op == ExprOp::Cast && EvalInt(f.exprs[cur].a, s) == v) {
+        cur = f.exprs[cur].a;
+    }
+    if (cur < f.exprs.size() && f.exprs[cur].op == ExprOp::Local) {
+        Value out;
+        if (kept.size() == 1) {
+            out.i = IntVal::Exact(LinExpr::Const(kept[0].value));
+        } else {
+            out.i = IntVal::Range(LinExpr::Const(kept.front().value), LinExpr::Const(kept.back().value), v.tag);
+            out.i.cases = kept;
+        }
+        s.locals[static_cast<uint32_t>(f.exprs[cur].value)] = out;
+    }
+    return true;
 }
 
 // 每条返回路径都是同一个堆对象（偏移 0、大小已知）或空指针常量 → ret_new（D-24）
 std::vector<summary::Eff> Analyzer::Effects() const
 {
+    std::vector<summary::Eff> conds = CondEffects();
+    if (!conds.empty()) {
+        return conds;
+    }
     const PtrVal *heap = nullptr;
-    for (const Value &v : returns) {
+    for (const auto &ret : returns) {
+        const Value &v = ret.first;
         bool null = (!v.isPtr && v.i.IsConst() && v.i.value.Constant() == 0) ||
                     (v.isPtr && v.p.kind == BaseKind::Unknown && v.p.why == "null");
         if (null) {
