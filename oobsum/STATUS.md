@@ -111,6 +111,8 @@
       lit `callee-writes.test` 守住"被调者改了字段 / 全局后不再用旧值证明安全"（做 mod-ref 之前的保守做法）。
 - [x] **S5b-1 `MaxBlocks`**（SPEC-0037）：CFG 块数超过 `MaxBlocks`（默认 5000）的函数不降级函数体（`cfg_too_large`），建不出 CFG 的（`no_cfg`，原来悄悄当成空函数）同样
       `skipped:…`；`partial:*` / `skipped:*` 的函数都在声明处报 SUSPECT `unanalyzed:<后缀>`。
+- [x] **出参式分配器写进结构体字段**（SPEC-0061）：`out_new` 的 `target` 可以是 `pK->字段`（`pstUe->pucRes = alloc(64)`）。**LV5-05 从"级别不同"变成通过**
+      （TP DEFINITE、TN SAFE）；`run.py csa`：通过 108、通过+S 21、级别不同 2（LV3-07、LV8-01：A-41，需要关系域）、超出预期 3。
 - [x] **S5b-2**（SPEC-0060）：访问因不支持的构造（`unk(<类名>)`、`cast:*` 等）进账本时原因记 `unsupported_construct`（内联汇编 `inline_asm`、结构体按值
       `struct_by_value`），原来笼统记 `untracked_pointer` / `type_range_only`。只换原因，记不记、报不报不变；`run.py csa` 与基线相同（用例里没有不支持的构造）。
 - [x] **S6a 线性式**（SPEC-0010）：`core/LinExpr`（规范形式、D-21 解析与打印、不透明项的常数求值、溢出 → 未知、`ParseCond` / `ShowLe0`、`Substitute`）；

@@ -143,3 +143,34 @@ TEST(Apply, SubstitutionAndDecisionBasics)
     call.args[0].expr = "p1";
     EXPECT_EQ(apply::Classify(req, call, caller, {}).outcome, "up");
 }
+
+TEST(Apply, OutNewTargets)
+{
+    // out_new 的 target：pK（SPEC-0053）与 pK->字段（SPEC-0061）；大小按实参代换
+    summary::Call call;
+    summary::ArgValue ptr;
+    ptr.kind = summary::ArgValue::Kind::Ptr;
+    ptr.ptr = std::make_shared<summary::PtrArg>();
+    ptr.ptr->obj = "local:st";
+    ptr.ptr->have = "12";
+    summary::ArgValue len;
+    len.kind = summary::ArgValue::Kind::Expr;
+    len.expr = "64";
+    call.args = {ptr, len};
+    summary::Eff eff;
+    eff.kind = "out_new";
+    eff.size = "p1";
+    eff.maybeNull = true;
+    eff.target = "p0";
+    llvm::Optional<summary::Apply> whole = apply::ApplyEff(eff, call);
+    ASSERT_TRUE(whole.hasValue());
+    EXPECT_EQ(whole->arg.getValueOr(-1), int64_t(0));
+    EXPECT_FALSE(whole->field.hasValue());
+    EXPECT_EQ(whole->size.getValueOr(""), "64");
+    eff.target = "p0->pucRes";
+    llvm::Optional<summary::Apply> field = apply::ApplyEff(eff, call);
+    ASSERT_TRUE(field.hasValue());
+    EXPECT_EQ(field->field.getValueOr(""), "pucRes");
+    eff.target = "p0->a.b";  // 两层字段以后（SPEC-0061 §9）
+    EXPECT_FALSE(apply::ApplyEff(eff, call).hasValue());
+}

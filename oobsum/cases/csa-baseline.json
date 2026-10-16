@@ -619,16 +619,16 @@
    "kind": "TP",
    "entry": "Ue_OnSetup_TP",
    "pa": "L1",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "级别不同"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV5-05",
    "kind": "TN",
    "entry": "Ue_OnSetup_TN",
    "pa": "-",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "actual": "SAFE:local_entailed(未报出:safe)",
+   "verdict": "通过"
   },
   {
    "case": "LV5-06",
@@ -1811,20 +1811,11 @@
   },
   {
    "case": "LV5-05",
-   "site": "lv5/lv5_05_field_alloc_offset.c:45:0",
+   "site": "lv5/lv5_05_field_alloc_offset.c:52:0",
    "kind": "W",
    "fn": "F:Ue_OnSetup_TP",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv5/lv5_05_field_alloc_offset.c:41"
-  },
-  {
-   "case": "LV5-05",
-   "site": "lv5/lv5_05_field_alloc_offset.c:55:0",
-   "kind": "W",
-   "fn": "F:Ue_OnSetup_TN",
-   "label": "suspect",
-   "reason": "entry_unproven",
+   "label": "definite",
+   "reason": "",
    "access": "lv5/lv5_05_field_alloc_offset.c:41"
   },
   {

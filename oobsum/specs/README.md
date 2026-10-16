@@ -92,4 +92,5 @@
 | [SPEC-0058](SPEC-0058-local-fptr.md) | S9.1：局部函数指针当直接调用；多个目标时只判 POSSIBLE | 已实现 |
 | [SPEC-0059](SPEC-0059-header-fn-hash.md) | 头文件里的内部链接函数：键加 `#<FIR 哈希前 8 位>`，跨 TU 不再用错函数体 | 已实现 |
 | [SPEC-0060](SPEC-0060-unsupported-construct.md) | S5b-2：访问因不支持的构造进账本时，原因记 `unsupported_construct` 等 | 已实现 |
+| [SPEC-0061](SPEC-0061-out-new-field.md) | 出参式分配器写进结构体字段：`out_new` 的 `target` 可以是 `pK->字段` | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

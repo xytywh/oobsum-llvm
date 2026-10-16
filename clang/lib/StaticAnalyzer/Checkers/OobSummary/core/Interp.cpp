@@ -1039,8 +1039,8 @@ private:
     mutable std::map<std::string, std::string> globalTypes;  // 读到过的全局标量：g:名 → 类型（Env 用）
     std::vector<std::pair<Value, std::vector<LinExpr>>>
         returns;  // 记录那一遍里每个 ret 的值与当时的守卫（SPEC-0024、0025）
-    std::vector<std::map<int, Value>>
-        outs;  // 每个 ret 时指针形参 K 所指的格 (PK, 0, 指针字节数) 里的值（出参，SPEC-0053）
+    std::vector<std::map<std::pair<int, int64_t>, Value>>
+        outs;  // 每个 ret 时指针形参 K 所指对象里偏移 off 的指针格的值（出参，SPEC-0053 / 0061）
     std::vector<bool> heads;    // 循环头（回边的目标），按块下标
     bool recording = false;     // 只有最后一遍记访问、调用点、账本（SPEC-0017 §2.1）
     bool edgeFromHead = false;  // 当前 Assume 的边从循环头出发：收窄出来的上界标 loop
@@ -1835,6 +1835,17 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                 // 出参写回的新对象：实参所指的格强更新成 heap@调用点（SPEC-0053）
                 for (const summary::Eff &e : calleeSummary->effs) {
                     llvm::StringRef target = e.target ? llvm::StringRef(*e.target) : llvm::StringRef();
+                    // pK 或 pK->f（字段的偏移从被调者的 fields 表取，SPEC-0061 §2.2）
+                    int64_t fieldOff = 0;
+                    if (target.contains("->")) {
+                        auto info = calleeSummary->fields ? calleeSummary->fields->find(target.str())
+                                                          : std::map<std::string, summary::FieldInfo>::const_iterator();
+                        if (!calleeSummary->fields || info == calleeSummary->fields->end()) {
+                            continue;
+                        }
+                        fieldOff = info->second.off;
+                        target = target.split("->").first;
+                    }
                     unsigned k = 0;
                     if (e.kind != "out_new" || !e.size || !target.consume_front("p") || target.getAsInteger(10, k) ||
                         k >= inst.args.size()) {
@@ -1845,7 +1856,7 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                         !arg.p.off.IsConst()) {
                         continue;
                     }
-                    s.cells[CellKey(arg.p.id, arg.p.off.value.Constant(), m.target.ptr)] =
+                    s.cells[CellKey(arg.p.id, arg.p.off.value.Constant() + fieldOff, m.target.ptr)] =
                         HeapResult(inst, *e.size, e.effDepth.getValueOr(1), s);
                 }
             } else if (kind != models::Kind::Pure && kind != models::Kind::Free) {
@@ -2221,8 +2232,8 @@ FunctionFacts Analyzer::Run()
         facts.safe.push_back(ToReq(safe[i], i + 1));
     }
     facts.calls = calls;
+    facts.effs = Effects();  // 先算效果：出参字段要写进 fields 表（SPEC-0061）
     facts.fields = fields;
-    facts.effs = Effects();
     facts.opens = opens;
     facts.mods = mods;  // SPEC-0045
     return facts;
@@ -3044,15 +3055,17 @@ void Analyzer::RecordReturn(const fir::Inst &inst, const State &s)
     if (inst.val != fir::kNone) {
         returns.push_back({Eval(inst.val, s), s.guards});
     }
-    // 出参：指针形参所指位置偏移 0 的指针格（*ppucBuf = …，SPEC-0053）
-    std::map<int, Value> out;
+    // 出参：指针形参所指对象里的指针格（*ppucBuf = …，SPEC-0053；pstUe->pucRes = …，SPEC-0061）
+    std::map<std::pair<int, int64_t>, Value> out;
     for (const fir::Local &l : f.locals) {
         if (l.param < 0 || !IsPtrLocal(l.id)) {
             continue;
         }
-        auto it = s.cells.find(CellKey("P" + std::to_string(l.param), 0, m.target.ptr));
-        if (it != s.cells.end()) {
-            out[l.param] = it->second;
+        std::string id = "P" + std::to_string(l.param);
+        for (const auto &cell : s.cells) {
+            if (std::get<0>(cell.first) == id && std::get<2>(cell.first) == m.target.ptr) {
+                out[{l.param, std::get<1>(cell.first)}] = cell.second;
+            }
         }
     }
     outs.push_back(std::move(out));
@@ -3348,14 +3361,12 @@ std::vector<summary::Eff> Analyzer::Effects() const
             out.push_back(*range);  // 返回值范围（取值 / 截断函数，SPEC-0054）
         }
     }
-    // 出参写回的新对象：每条返回路径都写了 *pK（SPEC-0053）；有一条没写就不记
-    for (const fir::Local &l : f.locals) {
-        if (l.param < 0 || !IsPtrLocal(l.id) || outs.empty()) {
-            continue;
-        }
+    // 出参写回的新对象：每条返回路径都写了 *pK 或 pK->f（SPEC-0053 / 0061）；有一条没写就不记
+    for (const auto &first : outs.empty() ? std::map<std::pair<int, int64_t>, Value>() : outs[0]) {
+        std::pair<int, int64_t> at = first.first;
         std::vector<const Value *> values;
         for (const auto &o : outs) {
-            auto it = o.find(l.param);
+            auto it = o.find(at);
             if (it == o.end()) {
                 values.clear();
                 break;
@@ -3366,10 +3377,35 @@ std::vector<summary::Eff> Analyzer::Effects() const
         if (!values.empty()) {
             hit = SameNewObject(values);
         }
+        std::string target = "p" + std::to_string(at.first);
+        if (hit && at.second != 0) {
+            // 字段：形参所指记录里偏移 off、指针大小的字段；写进 fields 表，调用点按它找偏移（SPEC-0061 §2.1）
+            llvm::Optional<uint32_t> rec = PointeeRecord(at.first);
+            const fir::Record *r = rec ? m.FindRecord(*rec) : nullptr;
+            std::string name;
+            for (const fir::Field &field : r != nullptr ? r->fields : std::vector<fir::Field>()) {
+                int64_t size = 0;
+                if (field.off == at.second && field.type < m.types.size() &&
+                    m.types[field.type].kind == fir::TypeKind::Ptr && TypeSize(m, field.type, size) &&
+                    size == m.target.ptr) {
+                    name = field.name;
+                    summary::FieldInfo info;
+                    info.off = field.off;
+                    info.size = size;
+                    info.type = fir::TypeText(m, field.type);
+                    fields[target + "->" + name] = info;
+                    break;
+                }
+            }
+            if (name.empty()) {
+                continue;  // 经类型转换写的：不记（调用方照旧未知，可靠）
+            }
+            target += "->" + name;
+        }
         if (hit) {
             summary::Eff e;
             e.kind = "out_new";
-            e.target = "p" + std::to_string(l.param);
+            e.target = target;
             e.size = (hit->first->size - LinExpr::Const(hit->second)).Show();
             e.maybeNull = true;
             e.effDepth = hit->first->effDepth + 1;

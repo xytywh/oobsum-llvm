@@ -1,0 +1,16 @@
+# 出参式分配器写进结构体字段：out_new 的 target 是 pK->字段（oobsum/specs/SPEC-0061；06- D-24，SPEC-0053）。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Res_(Alloc|Maybe)$' \
+# RUN:   %S/Inputs/outnew/field.c 2>&1 | FileCheck %s
+# 对照：只有一条路径写字段 → 没有 out_new
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Res_Maybe$' \
+# RUN:   %S/Inputs/outnew/field.c 2>&1 | grep '"fn":"Res_Maybe"' | not grep out_new
+
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{{.*}}{"eff_depth":1,"kind":"out_new","maybe_null":true,"size":"64","target":"p0->pucRes"}]{{.*}}"fields":{"p0->pucRes":{"off":4,"size":4,"type":"u8*"}},"fn":"Res_Alloc"
+CHECK-DAG: field.c:12:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 2-level call chain: up to byte 65 of heap object allocated at {{.*}}field.c:12 (64 bytes
+CHECK-DAG: field.c:13:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 64 of heap object allocated at {{.*}}field.c:13 (64 bytes)
+# 对照：调用方读到的 pucRes 不是新对象 → 照旧记账
+CHECK-DAG: field.c:17:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 2-level call chain stays within '?' (size ext(p0->pucRes))
