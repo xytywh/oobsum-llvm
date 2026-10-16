@@ -163,6 +163,8 @@ struct Call {
     llvm::Optional<std::map<std::string, Local>> locals;
     llvm::Optional<std::vector<CallGuard>> guards;
     std::vector<Result> results;
+    bool alt = false;  // 函数指针有多个可能的目标、这是其中一个：判定时末端下界当 0（SPEC-0058）
+    bool ind = false;  // 由间接调用解析出来的（只给调试与量尺看，不影响判定，SPEC-0058）
 };
 
 // D-26

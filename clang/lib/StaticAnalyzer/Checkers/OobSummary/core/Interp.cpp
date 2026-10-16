@@ -975,7 +975,20 @@ private:
     State Entry() const;
     std::vector<summary::Req> Merge() const;
     summary::Req ToReq(const RawAccess &a, size_t number) const;
-    void RecordCall(const fir::Inst &inst, const State &s);
+    void RecordCall(const fir::Inst &inst, const State &s, bool alt = false);
+    // 没有摘要可用的被调者：保守失效（清格、指针实参整块、可能写全局，SPEC-0026 / 0041 / 0045）
+    void Clobber(const fir::Inst &inst, models::Kind kind, llvm::StringRef name, State &s);
+    // 局部函数指针（S9.1，06- A-60 ①，SPEC-0058）：只被赋过函数地址常量的局部 → 可能指向的函数
+    void ResolveFnLocals();
+    std::vector<std::string> TargetsOf(ExprId e) const;
+    bool AltCall(const fir::Inst &inst, const std::vector<std::string> &targets, State &s);
+    ExprId StripCasts(ExprId e) const
+    {
+        while (e < f.exprs.size() && f.exprs[e].op == ExprOp::Cast) {
+            e = f.exprs[e].a;
+        }
+        return e;
+    }
     std::map<std::string, summary::ArgValue> ArgFields(const PtrVal &p, const State &s) const;
     std::string ShowState(const fir::Block &b, const State &s) const;
 
@@ -993,6 +1006,7 @@ private:
     std::vector<summary::Open> opens;
     std::set<std::string> mods;  // 可能写的位置（记录那一遍，SPEC-0045）
     std::vector<summary::Call> calls;
+    std::map<uint32_t, std::set<std::string>> fnTargets;  // 局部函数指针可能指向的函数键（SPEC-0058）
     mutable std::map<std::string, summary::FieldInfo> fields;
     mutable std::map<std::string, std::string> globalTypes;  // 读到过的全局标量：g:名 → 类型（Env 用）
     std::vector<std::pair<Value, std::vector<LinExpr>>>
@@ -1002,6 +1016,7 @@ private:
     std::vector<bool> heads;    // 循环头（回边的目标），按块下标
     bool recording = false;     // 只有最后一遍记访问、调用点、账本（SPEC-0017 §2.1）
     bool edgeFromHead = false;  // 当前 Assume 的边从循环头出发：收窄出来的上界标 loop
+    bool resolving = false;  // 正在把解析出的间接调用当直接调用（调用点记录标 ind，SPEC-0058）
 };
 
 IntVal Analyzer::Bin(const fir::Expr &x, const State &s)
@@ -1737,6 +1752,21 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             return;
         }
         case fir::InstOp::Call: {
+            if (inst.calleeExpr != fir::kNone) {
+                std::vector<std::string> targets = TargetsOf(inst.calleeExpr);
+                if (targets.size() == 1) {
+                    fir::Inst direct = inst;  // 只可能是这一个函数：当直接调用（SPEC-0058 §2.2）
+                    direct.callee = targets[0];
+                    direct.calleeExpr = fir::kNone;
+                    resolving = true;
+                    Step(direct, s);
+                    resolving = false;
+                    return;
+                }
+                if (targets.size() > 1 && AltCall(inst, targets, s)) {
+                    return;
+                }
+            }
             RecordCall(inst, s);
             llvm::StringRef name = KeyName(inst.callee);
             models::Kind kind = inst.calleeExpr == fir::kNone ? models.KindOf(name) : models::Kind::None;
@@ -1790,35 +1820,7 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                         HeapResult(inst, *e.size, e.effDepth.getValueOr(1), s);
                 }
             } else if (kind != models::Kind::Pure && kind != models::Kind::Free) {
-                if (kind == models::Kind::None) {
-                    s.called = true;  // 被调者可能写全局：之后读全局标量不再是入口值（SPEC-0041）
-                    AddModText("g:*");  // 没有摘要：往上传时也按"可能写任何全局"（SPEC-0045 §2.3）
-                }
-                s.cells.clear();  // 被调者可能经指针 / 全局写内存（效果在 S7d-3）；纯函数、释放函数不改被跟踪的内存
-                // 交给被调者的指针所指的对象可能被改（SPEC-0026）；访问类模型只写目的一侧
-                std::set<size_t> writtenArgs;
-                if (kind == models::Kind::Access) {
-                    for (const models::AccessCond &c : models.Access(name)->conds) {
-                        if (c.kind == "W") {
-                            writtenArgs.insert(static_cast<size_t>(c.base));
-                        }
-                    }
-                }
-                for (size_t k = 0; k < inst.args.size(); ++k) {
-                    if (kind == models::Kind::Access && writtenArgs.count(k) == 0) {
-                        continue;
-                    }
-                    Value v = Eval(inst.args[k], s);
-                    if (!v.isPtr) {
-                        continue;
-                    }
-                    if (v.p.kind == BaseKind::Unknown) {
-                        s.clobbered = true;
-                    } else {
-                        MarkWritten(s, v.p.id);
-                    }
-                    AddMod(v.p, llvm::None);  // 交给了不知道写哪里的被调者 / 访问类模型的目的：整块（SPEC-0045）
-                }
+                Clobber(inst, kind, name, s);
             }
             if (inst.dst != fir::kNone) {
                 SetLocal(s, inst.dst, result);
@@ -1976,6 +1978,7 @@ FunctionFacts Analyzer::Run()
             return facts;
         }
     }
+    ResolveFnLocals();  // SPEC-0058
     // DFS：后序；指向栈上块的边是回边，它的目标是循环头。后继倒着走，逆后序里后继 0（条件为真 / 循环体）排在前面：
     // 先把循环算稳再传给出口，Dump=state 也按源码顺序
     std::vector<int> mark(n, 0);  // 0 未访问、1 在栈上、2 完成
@@ -2198,7 +2201,164 @@ FunctionFacts Analyzer::Run()
 
 // 调用点记录（D-25，SPEC-0015 §2.1）：整数实参写表达式（区间写成局部名 + locals）；指针实参写 {obj, have, alias?}；
 // 纯函数模型的指针实参为 null；不知道的值写成不是接口符号的名字（_unknown<k>），以后在调用点只会走向 entry_unproven
-void Analyzer::RecordCall(const fir::Inst &inst, const State &s)
+void Analyzer::Clobber(const fir::Inst &inst, models::Kind kind, llvm::StringRef name, State &s)
+{
+    if (kind == models::Kind::None) {
+        s.called = true;    // 被调者可能写全局：之后读全局标量不再是入口值（SPEC-0041）
+        AddModText("g:*");  // 没有摘要：往上传时也按"可能写任何全局"（SPEC-0045 §2.3）
+    }
+    s.cells.clear();  // 被调者可能经指针 / 全局写内存（效果在 S7d-3）；纯函数、释放函数不改被跟踪的内存
+    // 交给被调者的指针所指的对象可能被改（SPEC-0026）；访问类模型只写目的一侧
+    std::set<size_t> writtenArgs;
+    if (kind == models::Kind::Access) {
+        for (const models::AccessCond &c : models.Access(name)->conds) {
+            if (c.kind == "W") {
+                writtenArgs.insert(static_cast<size_t>(c.base));
+            }
+        }
+    }
+    for (size_t k = 0; k < inst.args.size(); ++k) {
+        if (kind == models::Kind::Access && writtenArgs.count(k) == 0) {
+            continue;
+        }
+        Value v = Eval(inst.args[k], s);
+        if (!v.isPtr) {
+            continue;
+        }
+        if (v.p.kind == BaseKind::Unknown) {
+            s.clobbered = true;
+        } else {
+            MarkWritten(s, v.p.id);
+        }
+        AddMod(v.p, llvm::None);  // 交给了不知道写哪里的被调者 / 访问类模型的目的：整块（SPEC-0045）
+    }
+}
+
+void Analyzer::ResolveFnLocals()
+{
+    // 局部的全部赋值（set）都是函数地址常量、空指针或已解析的局部（可隔着类型转换）才解析（流不敏感，可靠）；
+    // 形参、内存对象、被 load / call / havoc 赋过的不解析
+    std::set<uint32_t> bad;
+    for (const fir::Local &l : f.locals) {
+        if (l.param >= 0 || l.obj) {
+            bad.insert(l.id);
+        }
+    }
+    std::vector<std::pair<uint32_t, ExprId>> defs;
+    for (const fir::Block &b : f.blocks) {
+        for (const fir::Inst &inst : b.insts) {
+            if (inst.dst == fir::kNone) {
+                continue;
+            }
+            if (inst.op == fir::InstOp::Set) {
+                defs.emplace_back(inst.dst, inst.val);
+            } else {
+                bad.insert(inst.dst);
+            }
+        }
+    }
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (const auto &d : defs) {
+            if (bad.count(d.first) != 0) {
+                continue;
+            }
+            ExprId e = StripCasts(d.second);
+            if (e >= f.exprs.size()) {
+                bad.insert(d.first);
+                changed = true;
+                continue;
+            }
+            const fir::Expr &x = f.exprs[e];
+            std::set<std::string> &out = fnTargets[d.first];
+            size_t before = out.size();
+            if (x.op == ExprOp::FAddr) {
+                out.insert(x.text);
+            } else if (x.op == ExprOp::Const && x.value == 0) {
+                // 空指针：经它调用是未定义行为，不算目标
+            } else if (x.op == ExprOp::Local && bad.count(static_cast<uint32_t>(x.value)) == 0) {
+                auto from = fnTargets.find(static_cast<uint32_t>(x.value));
+                if (from != fnTargets.end() && from->first != d.first) {
+                    out.insert(from->second.begin(), from->second.end());
+                }
+            } else {
+                bad.insert(d.first);
+                changed = true;
+                continue;
+            }
+            changed = changed || out.size() != before;
+        }
+    }
+    for (uint32_t l : bad) {
+        fnTargets.erase(l);
+    }
+}
+
+std::vector<std::string> Analyzer::TargetsOf(ExprId e) const
+{
+    e = StripCasts(e);
+    if (e >= f.exprs.size()) {
+        return {};
+    }
+    const fir::Expr &x = f.exprs[e];
+    if (x.op == ExprOp::FAddr) {
+        return {x.text};
+    }
+    if (x.op != ExprOp::Local) {
+        return {};
+    }
+    auto it = fnTargets.find(static_cast<uint32_t>(x.value));
+    if (it == fnTargets.end()) {
+        return {};
+    }
+    return std::vector<std::string>(it->second.begin(), it->second.end());
+}
+
+bool Analyzer::AltCall(const fir::Inst &inst, const std::vector<std::string> &targets, State &s)
+{
+    // 多个可能的目标（SPEC-0058 §2.2）：每个目标一条 alt 调用点记录；状态只按各目标的 mods 失效，不应用返回值 / 出参效果
+    std::vector<const summary::Summary *> sums;
+    for (const std::string &t : targets) {
+        if (models.KindOf(KeyName(t)) != models::Kind::None) {
+            return false;  // 目标里有模型函数：照旧按解析不出处理（fptr）
+        }
+        const summary::Summary *sum = nullptr;
+        if (callees != nullptr) {
+            auto it = callees->find(t);
+            if (it == callees->end()) {
+                it = callees->find(KeyName(t).str());
+            }
+            if (it != callees->end()) {
+                sum = &it->second;
+            }
+        }
+        sums.push_back(sum);
+    }
+    for (const std::string &t : targets) {
+        fir::Inst one = inst;
+        one.callee = t;
+        one.calleeExpr = fir::kNone;
+        RecordCall(one, s, true);
+    }
+    if (llvm::is_contained(sums, nullptr)) {
+        Clobber(inst, models::Kind::None, "", s);
+    } else {
+        for (const summary::Summary *sum : sums) {
+            ApplyMods(inst, sum->mods, s);
+        }
+    }
+    if (inst.dst != fir::kNone) {
+        Value result;  // 不知道执行的是哪个：返回值未知
+        result.isPtr = IsPtrLocal(inst.dst);
+        result.p = UnknownPtr("call");
+        result.i = IntVal::Top("call");
+        SetLocal(s, inst.dst, result);
+    }
+    return true;
+}
+
+void Analyzer::RecordCall(const fir::Inst &inst, const State &s, bool alt)
 {
     if (!recording) {
         return;
@@ -2218,6 +2378,8 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s)
     call.site = SiteOf(m, inst.loc);
     call.callee = KeyName(inst.callee).str();
     call.calleeKey = inst.callee;  // SPEC-0027
+    call.alt = alt;                // SPEC-0058
+    call.ind = alt || resolving;
     // 模型表优先（I-44，SPEC-0018 §2.1）
     models::Kind kind = models.KindOf(call.callee);
     bool pure = kind == models::Kind::Pure;

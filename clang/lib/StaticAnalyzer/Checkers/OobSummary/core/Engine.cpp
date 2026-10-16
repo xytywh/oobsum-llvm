@@ -157,6 +157,16 @@ static std::vector<std::pair<size_t, size_t>> BottomUp(const std::vector<const f
                 }
             }
         }
+        // 取了地址的函数也先算（局部函数指针解析成的被调者，SPEC-0058）
+        for (const fir::Expr &x : f.exprs) {
+            if (x.op != fir::ExprOp::FAddr) {
+                continue;
+            }
+            auto it = byKey.find(x.text);
+            if (it != byKey.end() && visited.count(x.text) == 0) {
+                visit(it->second);
+            }
+        }
         order.push_back(at);
     };
     for (const auto &at : all) {

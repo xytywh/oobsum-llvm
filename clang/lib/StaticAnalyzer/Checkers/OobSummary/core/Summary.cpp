@@ -432,7 +432,15 @@ bool Reader::ReadResult(const Value &v, Result &r)
 
 bool Reader::ReadCall(const Value &v, Call &c)
 {
-    const Object *o = Obj(v, {"site", "callee", "args", "results"}, {"model", "locals", "guards", "callee_key"});
+    const Object *o =
+        Obj(v, {"site", "callee", "args", "results"}, {"model", "locals", "guards", "callee_key", "alt", "ind"});
+    llvm::Optional<bool> alt;  // SPEC-0058
+    llvm::Optional<bool> ind;
+    if (o != nullptr && (!OptKey(*o, "alt", alt, OOBSUM_M(Bool)) || !OptKey(*o, "ind", ind, OOBSUM_M(Bool)))) {
+        return false;
+    }
+    c.alt = alt.getValueOr(false);
+    c.ind = ind.getValueOr(false);
     auto locals = [&](const Value &x, std::map<std::string, Local> &y) {
         const Object *lo = x.getAsObject();
         if (lo == nullptr) {
@@ -771,6 +779,12 @@ Value SummaryToJson(const Summary &s)
         Object o{{"site", c.site}, {"callee", c.callee}, {"args", std::move(args)}, {"results", std::move(results)}};
         Put(o, "model", c.model);
         Put(o, "callee_key", c.calleeKey);
+        if (c.alt) {
+            o["alt"] = true;  // SPEC-0058
+        }
+        if (c.ind) {
+            o["ind"] = true;
+        }
         if (c.locals) {
             Object l;
             for (const auto &entry : *c.locals) {

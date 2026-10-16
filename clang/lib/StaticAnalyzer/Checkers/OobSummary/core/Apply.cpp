@@ -377,6 +377,10 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
     o.hasBase = true;
     o.end2Hi = hi.out;
     o.end2Lo = lo.out;
+    if (call.alt) {
+        o.end2Lo =
+            LinExpr::Const(0);  // 函数指针的多个目标之一：这次不一定执行，访问可能不发生（只判 L2，SPEC-0058 §2.3）
+    }
     if (hi.tags.empty()) {
         o.bound = req.bound.empty() ? "exact" : req.bound;
     } else {

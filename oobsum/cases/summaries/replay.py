@@ -587,7 +587,8 @@ def obj_name(obj, params=()):
 
 BOUND_PHRASE = {'loop': 'a loop condition', 'check': 'a check', 'guard': 'a guard condition', 'mask': 'a bit mask',
                 'branch': 'a branch constant', 'ret': 'a return value range', 'const': 'a constant',
-                'model': 'a size argument of a library function'}
+                'model': 'a size argument of a library function',
+                'exact': 'the call arguments'}  # exact 的 L2：函数指针的多个目标之一（SPEC-0058）
 
 
 def alert_msg(rep, params=()):
@@ -828,6 +829,8 @@ def classify(req, call, caller, callee, env_guards):
     # ② 局部换成区间
     ehi2, tags_hi, ne = eliminate_locals(ehi, locs, True)
     elo2, _, _ = eliminate_locals(elo, locs, False)
+    if call.get('alt'):
+        elo2 = P('0')  # 函数指针的多个目标之一：这次不一定执行（只判 L2，SPEC-0058 §2.3）
     bound = (tags_hi.pop() if tags_hi else req.get('bound', 'exact'))
     for g in live + ne:
         env.add_guard(g, 'guard')

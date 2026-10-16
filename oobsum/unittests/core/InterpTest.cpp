@@ -1096,3 +1096,42 @@ TEST(Interp, AliasFieldWritten)
     (void)u;
     (void)v;
 }
+
+TEST(Interp, LocalFnPtrResolved)
+{
+    // S9.1（SPEC-0058）：只被赋过函数地址常量的局部函数指针。两个目标 → 各一条 alt 调用点记录；一个目标（另有空指针初值、
+    // 隔着类型转换）→ 当直接调用；来自形参 / load 的 → 解析不出，记账 fptr
+    Builder b;
+    TypeId ptr = b.m.Intern(Type::Ptr(b.u8));
+    uint32_t p = b.Param("p", ptr);
+    uint32_t cb = b.Param("pfnCb", ptr);
+    uint32_t sel = b.LocalVar("pfnSel", ptr);
+    uint32_t tmp = b.LocalVar("t0", ptr);
+    uint32_t one = b.LocalVar("pfnOne", ptr);
+    uint32_t loaded = b.LocalVar("pfnLoaded", ptr);
+    auto ind = [&](ExprId callee, unsigned line) {
+        Inst i = CallOf("", {b.L(p), b.C(16)}, line);
+        i.calleeExpr = callee;
+        return i;
+    };
+    b.Straight({b.Set(tmp, b.f.Add(Expr::FAddr("F@abc:Nr"))), b.Set(tmp, b.f.Add(Expr::FAddr("F@abc:Lte"))),
+                b.Set(sel, b.L(tmp)), ind(b.L(sel), 10), b.Set(one, b.C(0)),
+                b.Set(one, b.f.Add(Expr::Cast(32, false, b.f.Add(Expr::FAddr("F@abc:Ok"))))), ind(b.L(one), 11),
+                ind(b.L(cb), 12), b.Load(loaded, b.L(p), 4, 13), ind(b.L(loaded), 14)});
+    interp::FunctionFacts facts = b.Run();
+    ASSERT_TRUE(facts.calls.size() == 3);
+    EXPECT_EQ(facts.calls[0].callee, "Lte");
+    EXPECT_EQ(facts.calls[1].callee, "Nr");
+    for (int k : {0, 1}) {
+        EXPECT_EQ(facts.calls[k].site, "t.c:10");
+        EXPECT_TRUE(facts.calls[k].alt);
+        EXPECT_TRUE(facts.calls[k].ind);
+    }
+    EXPECT_EQ(facts.calls[2].site, "t.c:11");
+    EXPECT_EQ(facts.calls[2].callee, "Ok");
+    EXPECT_FALSE(facts.calls[2].alt);
+    EXPECT_TRUE(facts.calls[2].ind);
+    ASSERT_TRUE(facts.opens.size() == 2);
+    EXPECT_EQ(facts.opens[0].reason + "@" + facts.opens[0].at, "fptr@t.c:12");
+    EXPECT_EQ(facts.opens[1].reason + "@" + facts.opens[1].at, "fptr@t.c:14");
+}

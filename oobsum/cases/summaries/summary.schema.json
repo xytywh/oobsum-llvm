@@ -165,6 +165,8 @@
         "site": { "$ref": "#/definitions/site" },
         "callee": { "type": "string" },
         "callee_key": { "type": "string", "description": "被调者的函数键（D-07；引擎写，有它时按它找被调者，SPEC-0027）" },
+        "alt": { "type": "boolean", "description": "函数指针有多个可能的目标、这是其中一个：判定时末端下界当 0（SPEC-0058）" },
+        "ind": { "type": "boolean", "description": "由间接调用解析出来的（只给调试与量尺看，不影响判定，SPEC-0058）" },
         "model": { "enum": ["access", "alloc", "pure", "unknown", "free"] },
         "args": { "type": "array", "items": { "$ref": "#/definitions/arg" } },
         "locals": { "type": "object", "description": "实参里用到的本函数局部在调用点的区间",

@@ -907,15 +907,15 @@
    "kind": "TP",
    "entry": "Ue_OnCap_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "POSSIBLE",
+   "verdict": "通过"
   },
   {
    "case": "LV9-01",
    "kind": "TN",
    "entry": "Ue_OnCap_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -2108,30 +2108,12 @@
   },
   {
    "case": "LV9-01",
-   "site": "lv9/lv9_01_local_fptr_select.c:30:0",
+   "site": "lv9/lv9_01_local_fptr_select.c:45:0",
    "kind": "W",
-   "fn": "F@e8b1b35f0bb01914:Nr_SaveCap",
-   "label": "suspect",
-   "reason": "entry_unproven",
+   "fn": "F:Ue_OnCap_TP",
+   "label": "possible",
+   "reason": "",
    "access": "lv9/lv9_01_local_fptr_select.c:30"
-  },
-  {
-   "case": "LV9-01",
-   "site": "lv9/lv9_01_local_fptr_select.c:31:0",
-   "kind": "W",
-   "fn": "F@e8b1b35f0bb01914:Lte_SaveCap",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv9/lv9_01_local_fptr_select.c:31"
-  },
-  {
-   "case": "LV9-01",
-   "site": "lv9/lv9_01_local_fptr_select.c:36:0",
-   "kind": "",
-   "fn": "F@e8b1b35f0bb01914:Cap_Dispatch",
-   "label": "suspect",
-   "reason": "fptr",
-   "access": "lv9/lv9_01_local_fptr_select.c:36"
   },
   {
    "case": "LV9-02",
