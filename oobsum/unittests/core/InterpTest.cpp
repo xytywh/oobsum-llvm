@@ -639,7 +639,8 @@ TEST(Interp, LoopIndexBound)
     for (const std::string &line : trace) {
         if (line.rfind("b4:", 0) == 0) {
             head = true;
-            EXPECT_EQ(line, "b4: p=*p0+0 n=p1 i=[0, +inf]:loop (head)");
+            // 汇合 0 与 [1, p1]：p1 >= 0（无符号）→ 上界取 p1（SPEC-0023）
+            EXPECT_EQ(line, "b4: p=*p0+0 n=p1 i=[0, p1]:loop (head)");
         }
         if (line.rfind("b3:", 0) == 0) {
             EXPECT_EQ(line, "b3: p=*p0+0 n=p1 i=[0, p1 - 1]:loop guards: p1 >= 1");
@@ -844,4 +845,33 @@ TEST(Interp, LibcAndAlloc)
     EXPECT_EQ(facts.calls[1].model.getValueOr("-"), "alloc");
     EXPECT_FALSE(facts.calls[2].model.hasValue());  // 未知被调者在链接时判（S8c）
     EXPECT_TRUE(facts.calls[2].args[1].kind == summary::ArgValue::Kind::Null);
+}
+
+TEST(Interp, LoopExitEquality)
+{
+    // LV3-05 Name_Pad：for (i = 0; i < n; i++) p[i] = ' '; p[i] = 0;——循环头 [0, p1]，出口 i >= p1 → i == p1，循环后的写末端 p1 + 1（SPEC-0023）
+    Builder b;
+    uint32_t p = b.Param("pszName", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("ulLen", b.u32);
+    uint32_t i = b.LocalVar("i", b.u32);
+    Loop l;
+    l.entry.insts = {b.Set(i, b.C(0))};
+    l.body.insts = {b.Store(b.PAdd(b.L(p), b.L(i)), 1, b.C(32), 28)};
+    l.latch.insts = {b.Set(i, b.Wrap(BinOp::Add, b.L(i), b.C(1)))};
+    l.exit.insts = {b.Store(b.PAdd(b.L(p), b.L(i)), 1, b.C(0), 30)};
+    l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(i), b.L(n), false)),
+              b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(i), b.L(n), false)));
+    std::vector<std::string> trace;
+    interp::FunctionFacts facts = interp::AnalyzeFunction(b.m, b.f, &trace);
+    EXPECT_EQ(Reqs(facts),
+              "W have=ext(p0) obj=*p0 end=[1, p1] bound=loop at=t.c:28 guard=p1 >= 1 | "
+              "W have=ext(p0) obj=*p0 end=[p1 + 1, p1 + 1] bound=exact at=t.c:30");
+    bool exitSeen = false;
+    for (const std::string &line : trace) {
+        if (line.rfind("b0:", 0) == 0) {
+            exitSeen = true;
+            EXPECT_EQ(line, "b0: pszName=*p0+0 ulLen=p1 i=p1");
+        }
+    }
+    EXPECT_TRUE(exitSeen);
 }

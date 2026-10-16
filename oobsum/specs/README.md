@@ -54,4 +54,5 @@
 | [SPEC-0019](SPEC-0019-typed-field.md) | F-02 的字段访问照生成、入口记 `typed_field`；形参带 `size`；金标准补齐漏写的访问、`golden_regen.py` | 已实现 |
 | [SPEC-0020](SPEC-0020-securec-second-range.md) | F-03 destMax 回绕的第二段；模型给出的守卫总挂在这次访问上 | 已实现 |
 | [SPEC-0021](SPEC-0021-inline-engine.md) | 引擎接进 checker（`Phase=inline`）：单个 TU 内推到判定、带标签报出、全部进判定日志；`Dump=apply` | 已实现（S8c-1） |
+| [SPEC-0023](SPEC-0023-symbolic-join.md) | 汇合、收窄时用类型范围与守卫比较符号界（循环后 `i == ulLen`，LV3-05）；尺子认"改报在汇合点" | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

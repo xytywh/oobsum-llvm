@@ -13,7 +13,7 @@ void Fill(UINT8 *pucBuf, UINT32 ulNum)
         pucBuf[i] = 0;
     }
 }
-// CHECK: [oobsum:state] fn Fill b{{[0-9]+}}: pucBuf=*p0+0 ulNum=p1 i=[0, +inf]:loop (head)
+// CHECK: [oobsum:state] fn Fill b{{[0-9]+}}: pucBuf=*p0+0 ulNum=p1 i=[0, p1]:loop (head)
 // CHECK: [oobsum:state] fn Fill b{{[0-9]+}}: pucBuf=*p0+0 ulNum=p1 i=[0, p1 - 1]:loop guards: p1 >= 1
 // CHECK: [oobsum:summary] {"calls":[],"effs":[],"fn":"Fill",
 // CHECK-SAME: "bound":"loop"
@@ -58,3 +58,16 @@ void Copy(UINT8 *pucOut, const UINT8 *pucIn, UINT32 ulCnt)
 // CHECK: [oobsum:summary] {"calls":[],"effs":[],"fn":"Copy",
 // CHECK-SAME: "opens":[{"at":"loops.c:55","reason":"pointer_stepping"}]
 // CHECK-SAME: "reqs":[]
+
+// 循环后的那次访问（LV3-05）：出口 i >= ulLen 与循环头的 [0, ulLen] → i == ulLen（SPEC-0023）
+void Pad(UINT8 *pszName, UINT32 ulLen)
+{
+    UINT32 i;
+    for (i = 0; i < ulLen; i++) {
+        pszName[i] = ' ';
+    }
+    pszName[i] = 0;
+}
+// CHECK: [oobsum:summary] {"calls":[],"effs":[],"fn":"Pad",
+// CHECK-SAME: "end":["1","p1"],"guard":["p1 >= 1"]
+// CHECK-SAME: "end":["p1 + 1","p1 + 1"],"guard":[]

@@ -347,8 +347,8 @@
    "kind": "TP",
    "entry": "Cell_SetDefaultName_TP",
    "pa": "L1",
-   "actual": "SAFE:within(未报出:safe)",
-   "verdict": "漏报"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV3-05",
@@ -1498,11 +1498,11 @@
   },
   {
    "case": "LV3-05",
-   "site": "lv3/lv3_05_pad_then_terminate.c:30:0",
-   "kind": "",
-   "fn": "F@caf02c43fa889209:Name_Pad",
-   "label": "suspect",
-   "reason": "type_range_only"
+   "site": "lv3/lv3_05_pad_then_terminate.c:39:0",
+   "kind": "W",
+   "fn": "F:Cell_SetDefaultName_TP",
+   "label": "definite",
+   "reason": ""
   },
   {
    "case": "LV3-06",

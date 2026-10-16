@@ -310,6 +310,12 @@ def _read_logs(wd, srcs, root):
             if os.path.isabs(path):
                 path = os.path.relpath(path, root)
             d['site'] = '%s:%s:%s' % (path, line, col)
+            # 调用链终点（访问点）的 文件:行（SPEC-0002 §2.4 的修订：同一次访问改报在汇合点也算仍报出）
+            if d.get('chain'):
+                apath, aline = d['chain'][-1].split('@', 1)[1].rsplit(':', 1)
+                if os.path.isabs(apath):
+                    apath = os.path.relpath(apath, root)
+                d['access_site'] = '%s:%s' % (apath, aline)
             decs.append(d)
     return decs, [s for s in srcs if os.path.normpath(s) not in seen]
 
@@ -328,6 +334,7 @@ def cmd_csa(a):
 
     entries, emitted, others, errors = [], [], [], []
     safe_sites, ran, ntu = set(), set(), 0
+    reported_accesses = set()  # (用例, 访问点 文件:行)：报出的判定的调用链终点
     for lv, name, srcs, head in units(root):
         m = parse(head)
         cid = m.get('id', name)
@@ -368,6 +375,8 @@ def cmd_csa(a):
             key = (cid, d['site'], d['kind'])
             if d['label'] == 'safe':
                 safe_sites.add(key)
+            if d.get('emitted') and d.get('access_site'):
+                reported_accesses.add((cid, d['access_site']))
             if d.get('emitted'):
                 rec = {'case': cid, 'site': d['site'], 'kind': d['kind'], 'fn': d['fn'], 'label': d['label'],
                        'reason': d.get('reason', '')}
@@ -393,7 +402,8 @@ def cmd_csa(a):
     for msg in errors:
         print('✗ 运行错误：' + msg)
 
-    # 召回不回退（SPEC-0002 §2.4）：基线里报出的，这次同一处要么仍报出，要么有 SAFE
+    # 召回不回退（SPEC-0002 §2.4）：基线里报出的，这次同一处要么仍报出，要么有 SAFE；
+    # 或者这处访问是某条报出的判定的调用链终点（同一次访问改报在了汇合点，SPEC-0023 修订）
     regress = []
     if os.path.exists(baseline):
         base = json.load(open(baseline, encoding='utf-8'))
@@ -402,7 +412,8 @@ def cmd_csa(a):
         have = {(r['case'], r['site'], r['kind']) for r in emitted}
         for r in base.get('emitted', []):
             k = (r['case'], r['site'], r['kind'])
-            if r['case'] in ran and k not in have and k not in safe_sites:
+            moved = (r['case'], r['site'].rsplit(':', 1)[0]) in reported_accesses
+            if r['case'] in ran and k not in have and k not in safe_sites and not moved:
                 regress.append(r)
         old = {(e['case'], e['kind'], e['entry']): e for e in base.get('entries', [])}
         for e in entries:

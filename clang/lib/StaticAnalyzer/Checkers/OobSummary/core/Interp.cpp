@@ -300,32 +300,59 @@ IntVal AndConst(const IntVal &a, int64_t m)
     return IntVal::Range(LinExpr::Const(0), LinExpr::Const(m), Tag::Mask);
 }
 
+// 比较符号界的环境（SPEC-0023）：类型范围与守卫；没有就只认常数差
+struct Comparer {
+    const SymEnv *env = nullptr;
+    const std::vector<LinExpr> *guards = nullptr;
+};
+
+// x <= y 恒成立：差是常数，或在类型范围与守卫下可证
+bool ProvablyLe(const LinExpr &x, const LinExpr &y, const Comparer *cmp)
+{
+    LinExpr d = x - y;
+    if (d.IsUnknown()) {
+        return false;
+    }
+    if (d.IsConst()) {
+        return d.Constant() <= 0;
+    }
+    static const std::vector<LinExpr> none;
+    return cmp != nullptr && cmp->env != nullptr &&
+           EntailsLe0(d, cmp->guards != nullptr ? *cmp->guards : none, *cmp->env);
+}
+
 // 两个值合并（A-15 的子集）
-llvm::Optional<LinExpr> MinOpt(const llvm::Optional<LinExpr> &a, const llvm::Optional<LinExpr> &b)
+llvm::Optional<LinExpr> MinOpt(const llvm::Optional<LinExpr> &a, const llvm::Optional<LinExpr> &b,
+                               const Comparer *cmp = nullptr)
 {
     if (!a || !b) {
         return llvm::None;
     }
-    LinExpr d = *a - *b;
-    if (!d.IsConst()) {
-        return llvm::None;
+    if (ProvablyLe(*a, *b, cmp)) {
+        return *a;
     }
-    return d.Constant() <= 0 ? *a : *b;
+    if (ProvablyLe(*b, *a, cmp)) {
+        return *b;
+    }
+    return llvm::None;
 }
 
-llvm::Optional<LinExpr> MaxOpt(const llvm::Optional<LinExpr> &a, const llvm::Optional<LinExpr> &b)
+llvm::Optional<LinExpr> MaxOpt(const llvm::Optional<LinExpr> &a, const llvm::Optional<LinExpr> &b,
+                               const Comparer *cmp = nullptr)
 {
     if (!a || !b) {
         return llvm::None;
     }
-    LinExpr d = *a - *b;
-    if (!d.IsConst()) {
-        return llvm::None;
+    if (ProvablyLe(*b, *a, cmp)) {
+        return *a;
     }
-    return d.Constant() >= 0 ? *a : *b;
+    if (ProvablyLe(*a, *b, cmp)) {
+        return *b;
+    }
+    return llvm::None;
 }
 
-IntVal JoinInt(const IntVal &a, const IntVal &b)
+IntVal JoinInt(const IntVal &a, const IntVal &b, const Comparer *cmp = nullptr)
 {
     if (a == b) {
         return a;
@@ -333,8 +360,8 @@ IntVal JoinInt(const IntVal &a, const IntVal &b)
     if (a.kind == IntVal::Kind::Top || b.kind == IntVal::Kind::Top) {
         return IntVal::Top("imprecise_join");
     }
-    llvm::Optional<LinExpr> lo = MinOpt(a.Lower(), b.Lower());
-    llvm::Optional<LinExpr> hi = MaxOpt(a.Upper(), b.Upper());
+    llvm::Optional<LinExpr> lo = MinOpt(a.Lower(), b.Lower(), cmp);
+    llvm::Optional<LinExpr> hi = MaxOpt(a.Upper(), b.Upper(), cmp);
     if (!lo && !hi) {
         return IntVal::Top("imprecise_join");
     }
@@ -353,7 +380,7 @@ PtrVal UnknownPtr(llvm::StringRef why)
     return p;
 }
 
-Value JoinValue(const Value &a, const Value &b)
+Value JoinValue(const Value &a, const Value &b, const Comparer *cmp = nullptr)
 {
     if (a == b) {
         return a;
@@ -367,7 +394,7 @@ Value JoinValue(const Value &a, const Value &b)
     }
     out.isPtr = a.isPtr;
     if (!a.isPtr) {
-        out.i = JoinInt(a.i, b.i);
+        out.i = JoinInt(a.i, b.i, cmp);
         return out;
     }
     if (a.p.kind == BaseKind::Unknown || b.p.kind == BaseKind::Unknown || a.p.id != b.p.id) {
@@ -375,7 +402,7 @@ Value JoinValue(const Value &a, const Value &b)
         return out;
     }
     out.p = a.p;
-    out.p.off = JoinInt(a.p.off, b.p.off);
+    out.p.off = JoinInt(a.p.off, b.p.off, cmp);
     return out;
 }
 
@@ -398,7 +425,8 @@ bool operator==(const State &a, const State &b)
     return a.reached == b.reached && a.locals == b.locals && a.cells == b.cells && a.guards == b.guards;
 }
 
-State Join(const State &a, const State &b)
+// envOf：给定汇合后成立的守卫（两边的交集），建比较符号界的环境（SPEC-0023）；空 = 只认常数差
+State Join(const State &a, const State &b, const std::function<SymEnv(const std::vector<LinExpr> &)> &envOf = nullptr)
 {
     if (!a.reached) {
         return b;
@@ -408,19 +436,26 @@ State Join(const State &a, const State &b)
     }
     State out;
     out.reached = true;
+    for (const LinExpr &g : a.guards) {
+        if (llvm::is_contained(b.guards, g)) {
+            out.guards.push_back(g);  // A-15：守卫取交集
+        }
+    }
+    SymEnv env;
+    Comparer cmp;
+    if (envOf) {
+        env = envOf(out.guards);
+        cmp.env = &env;
+        cmp.guards = &out.guards;
+    }
     for (const auto &entry : a.locals) {
         auto it = b.locals.find(entry.first);
-        out.locals[entry.first] = it == b.locals.end() ? Value() : JoinValue(entry.second, it->second);
+        out.locals[entry.first] = it == b.locals.end() ? Value() : JoinValue(entry.second, it->second, &cmp);
     }
     for (const auto &entry : a.cells) {
         auto it = b.cells.find(entry.first);
         if (it != b.cells.end() && it->second == entry.second) {
             out.cells.insert(entry);  // 两边都有且相同才保留
-        }
-    }
-    for (const LinExpr &g : a.guards) {
-        if (llvm::is_contained(b.guards, g)) {
-            out.guards.push_back(g);  // A-15：守卫取交集
         }
     }
     return out;
@@ -1413,6 +1448,13 @@ FunctionFacts Analyzer::Run()
         }
     }
 
+    // 汇合时比较符号界的环境：类型范围 + 两边都成立的守卫（SPEC-0023）
+    auto envOf = [&](const std::vector<LinExpr> &guards) {
+        State t;
+        t.reached = true;
+        t.guards = guards;
+        return Env(t);
+    };
     // 上升：工作表按逆后序编号
     std::vector<State> in(n);
     in[entry->second] = Entry();
@@ -1431,7 +1473,7 @@ FunctionFacts Analyzer::Run()
             if (!o.reached) {
                 continue;
             }
-            State next = Join(in[t], o);
+            State next = Join(in[t], o, envOf);
             if (heads[t] && in[t].reached) {
                 next = WidenState(in[t], next);
             }
@@ -1461,7 +1503,7 @@ FunctionFacts Analyzer::Run()
         for (size_t b : rpo) {
             State s = b == entry->second ? Entry() : State();
             for (size_t e : incoming[b]) {
-                s = Join(s, contrib[e]);
+                s = Join(s, contrib[e], envOf);
             }
             in[b] = s;
             std::vector<State> out = s.reached ? FlowOut(b, s) : std::vector<State>(f.blocks[b].succ.size());
@@ -1621,13 +1663,15 @@ bool FaithfulAs(const IntVal &v, const IntType &type, const SymEnv &env)
     IntVal range = TypeRange(t->width, t->isSigned, Tag::Type);
     int64_t tmin = range.lo.Constant();
     int64_t tmax = range.hi.Constant();
-    auto within = [&](const LinExpr &x) {
+    // inner：确切值要求 div / mod 的内层也不回绕；区间的界是收窄时按忠实 / 可当上界的规则造出来的可靠界，只查落在类型范围内（SPEC-0023 §2）
+    auto within = [&](const LinExpr &x, bool inner) {
         Limit lo = env.RangeOf(x, false);
         Limit hi = env.RangeOf(x, true);
-        return lo.known && hi.known && lo.value >= tmin && hi.value <= tmax && InnerFaithful(x, tmin, tmax, env);
+        return lo.known && hi.known && lo.value >= tmin && hi.value <= tmax &&
+               (!inner || InnerFaithful(x, tmin, tmax, env));
     };
     if (v.kind == IntVal::Kind::Exact) {
-        return within(v.value);
+        return within(v.value, true);
     }
     if (v.kind != IntVal::Kind::Range) {
         return false;
@@ -1639,8 +1683,8 @@ bool FaithfulAs(const IntVal &v, const IntType &type, const SymEnv &env)
     if (coversLo && coversHi) {
         return true;
     }
-    bool loOk = v.hasLo ? within(v.lo) : t->isSigned;
-    bool hiOk = v.hasHi ? within(v.hi) : t->isSigned;
+    bool loOk = v.hasLo ? within(v.lo, false) : t->isSigned;
+    bool hiOk = v.hasHi ? within(v.hi, false) : t->isSigned;
     return loOk && hiOk;
 }
 
@@ -1872,19 +1916,20 @@ bool Analyzer::Narrow(ExprId e, fir::CmpOp op, const LinExpr &c, State &s)
     if (!newLo && !newHi) {
         return true;
     }
-    // 与原来的界取更紧的；两者不可比时留原来的（都是对的界）
-    auto tighter = [](const llvm::Optional<LinExpr> &old, const llvm::Optional<LinExpr> &cand, bool upper) {
+    // 与原来的界取更紧的：差不是常数时用这条边上的状态（类型范围与守卫）比（SPEC-0023）；比不出留原来的（都是对的界）
+    SymEnv env = Env(s);
+    Comparer cmp{&env, &s.guards};
+    auto tighter = [&](const llvm::Optional<LinExpr> &old, const llvm::Optional<LinExpr> &cand, bool upper) {
         if (!cand || cand->IsUnknown()) {
             return old;
         }
         if (!old) {
             return cand;
         }
-        LinExpr d = *cand - *old;
-        if (!d.IsConst()) {
-            return old;
+        if (upper ? ProvablyLe(*cand, *old, &cmp) : ProvablyLe(*old, *cand, &cmp)) {
+            return cand;
         }
-        return (upper ? d.Constant() < 0 : d.Constant() > 0) ? cand : old;
+        return old;
     };
     llvm::Optional<LinExpr> l = tighter(lo, newLo, false);
     llvm::Optional<LinExpr> h = tighter(hi, newHi, true);
