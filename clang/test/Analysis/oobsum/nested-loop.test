@@ -1,0 +1,14 @@
+# 循环头只对本循环里被赋值的局部做 widening（oobsum/specs/SPEC-0046）：嵌套循环的外层下标在内层循环头不丢界（LV3-09）。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Grid_Clear|Grid_Skew)$' \
+# RUN:   %S/Inputs/nested/grid.c 2>&1 | FileCheck %s
+
+# 内层循环头：外层的 s 是外层循环体里的区间（原来是 [0, +inf]:widen）
+CHECK: [oobsum:state] fn Grid_Clear b4: p=*p0+0 rows=p1 s=[0, p1 - 1]:loop r=[0, 4]:loop guards: p1 >= 1 (head)
+# 对照：内层循环里改了 s → 照旧 widen
+CHECK: [oobsum:state] fn Grid_Skew b4: p=*p0+0 s=[0, +inf]:widen r=[0, 4]:loop (head)
+CHECK-DAG: grid.c:14:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 60 of 'a' (32 bytes) may be accessed; the bound comes from a loop condition
+CHECK-DAG: grid.c:15:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 28 of 'a' (32 bytes)
+CHECK-DAG: grid.c:23:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove this access is within bounds

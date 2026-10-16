@@ -411,15 +411,15 @@
    "kind": "TP",
    "entry": "Sched_InitGrid_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "POSSIBLE",
+   "verdict": "通过"
   },
   {
    "case": "LV3-09",
    "kind": "TN",
    "entry": "Sched_InitGrid_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -1640,21 +1640,12 @@
   },
   {
    "case": "LV3-09",
-   "site": "lv3/lv3_09_grid_row_col_swap.c:31:0",
-   "kind": "",
-   "fn": "F@59911fe69b7e89e5:Grid_Clear",
-   "label": "suspect",
-   "reason": "type_range_only",
+   "site": "lv3/lv3_09_grid_row_col_swap.c:54:0",
+   "kind": "W",
+   "fn": "F:Sched_InitGrid_TP",
+   "label": "possible",
+   "reason": "",
    "access": "lv3/lv3_09_grid_row_col_swap.c:31"
-  },
-  {
-   "case": "LV3-09",
-   "site": "lv3/lv3_09_grid_row_col_swap.c:41:0",
-   "kind": "",
-   "fn": "F@59911fe69b7e89e5:Grid_Clear_OK",
-   "label": "suspect",
-   "reason": "type_range_only",
-   "access": "lv3/lv3_09_grid_row_col_swap.c:41"
   },
   {
    "case": "LV3-10",

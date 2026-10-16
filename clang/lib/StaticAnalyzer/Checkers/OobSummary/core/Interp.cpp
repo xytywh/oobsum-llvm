@@ -690,10 +690,14 @@ Value WidenValue(const Value &a, const Value &b)
 }
 
 // 循环头的入口：next = old ⊔ 新的（格与守卫已经是交集，只会变少）；局部逐个 widening
-State WidenState(const State &old, const State &next)
+// only：这个循环头上要 widen 的局部（本循环里被赋值的，SPEC-0046）；空指针 = 全部
+State WidenState(const State &old, const State &next, const std::set<uint32_t> *only = nullptr)
 {
     State out = next;
     for (auto &entry : out.locals) {
+        if (only != nullptr && only->count(entry.first) == 0) {
+            continue;  // 本循环里不变：取汇合值，随外层收敛（外层循环头会 widen 它）
+        }
         auto it = old.locals.find(entry.first);
         if (it != old.locals.end()) {
             entry.second = WidenValue(it->second, entry.second);
@@ -1958,6 +1962,7 @@ FunctionFacts Analyzer::Run()
     std::vector<int> mark(n, 0);  // 0 未访问、1 在栈上、2 完成
     std::vector<size_t> post;
     heads.assign(n, false);
+    std::vector<std::pair<size_t, size_t>> backEdges;  // (起点, 循环头)
     std::function<void(size_t)> dfs = [&](size_t b) {
         mark[b] = 1;
         const std::vector<fir::Edge> &succ = f.blocks[b].succ;
@@ -1968,6 +1973,7 @@ FunctionFacts Analyzer::Run()
             }
             if (mark[it->second] == 1) {
                 heads[it->second] = true;
+                backEdges.emplace_back(b, it->second);
             } else if (mark[it->second] == 0) {
                 dfs(it->second);
             }
@@ -1997,6 +2003,44 @@ FunctionFacts Analyzer::Run()
                 incoming[it->second].push_back(edges.size());
                 outgoing[b].push_back(edges.size());
                 edges.push_back({b, i, it->second});
+            }
+        }
+    }
+
+    // 每个循环头：自然循环体（回边起点不经过头能反向走到的块）里被赋值的局部，只对它们 widen（SPEC-0046）
+    std::vector<std::vector<size_t>> preds(n);
+    for (size_t b = 0; b < n; ++b) {
+        for (const fir::Edge &e : f.blocks[b].succ) {
+            auto it = index.find(e.to);
+            if (it != index.end()) {
+                preds[it->second].push_back(b);
+            }
+        }
+    }
+    std::vector<std::set<uint32_t>> loopVars(n);
+    for (const auto &be : backEdges) {
+        std::vector<bool> inBody(n, false);
+        inBody[be.second] = true;
+        std::vector<size_t> stack{be.first};
+        while (!stack.empty()) {
+            size_t x = stack.back();
+            stack.pop_back();
+            if (inBody[x]) {
+                continue;
+            }
+            inBody[x] = true;
+            for (size_t p : preds[x]) {
+                stack.push_back(p);
+            }
+        }
+        for (size_t x = 0; x < n; ++x) {
+            if (!inBody[x]) {
+                continue;
+            }
+            for (const fir::Inst &inst : f.blocks[x].insts) {
+                if (inst.dst != fir::kNone) {
+                    loopVars[be.second].insert(inst.dst);
+                }
             }
         }
     }
@@ -2033,7 +2077,7 @@ FunctionFacts Analyzer::Run()
             }
             State next = Join(in[t], o, envOf, selfOf);
             if (heads[t] && in[t].reached) {
-                next = WidenState(in[t], next);
+                next = WidenState(in[t], next, &loopVars[t]);
             }
             if (next == in[t]) {
                 continue;
