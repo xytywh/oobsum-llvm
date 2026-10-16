@@ -97,4 +97,5 @@
 | [SPEC-0063](SPEC-0063-unmapped-callee-symbols.md) | 调用点代换：没映射的被调者符号不再变成调用方的符号（错误的 SAFE） | 已实现 |
 | [SPEC-0064](SPEC-0064-global-at-call.md) | 调用前改过的全局：调用点记录带 `gvals`，被调者的 `g:K` 不再当成入口值（错误的 SAFE） | 已实现 |
 | [SPEC-0065](SPEC-0065-libc-strncpy-snprintf.md) | 内置模型补上 libc 的 `strncpy` / `snprintf` / `vsnprintf` | 已实现 |
+| [SPEC-0066](SPEC-0066-recursion-ledger.md) | 递归调用点记账 `recursion`：经递归传上来的条件不再悄悄丢掉（错误的 SAFE） | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

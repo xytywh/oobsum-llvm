@@ -2198,6 +2198,24 @@
   },
   {
    "case": "LV9-05",
+   "site": "lv9/lv9_05_recursion_depth.c:34:0",
+   "kind": "",
+   "fn": "F@449bda4ba428333b:Tree_Walk",
+   "label": "suspect",
+   "reason": "recursion",
+   "access": "lv9/lv9_05_recursion_depth.c:34"
+  },
+  {
+   "case": "LV9-05",
+   "site": "lv9/lv9_05_recursion_depth.c:43:0",
+   "kind": "",
+   "fn": "F@449bda4ba428333b:Tree_Walk_OK",
+   "label": "suspect",
+   "reason": "recursion",
+   "access": "lv9/lv9_05_recursion_depth.c:43"
+  },
+  {
+   "case": "LV9-05",
    "site": "lv9/lv9_05_recursion_depth.c:51:0",
    "kind": "R",
    "fn": "F:Cfg_DumpTree_TP",

@@ -127,6 +127,8 @@ std::string LedgerMessage(const std::string &reason, const std::string &callee)
         phrase = "the offset is bounded only by its type";
     } else if (reason == "pointer_stepping") {
         phrase = "the pointer is advanced in a loop";
+    } else if (reason == "recursion") {
+        phrase = "the call is part of a recursion; accesses deeper in the recursion are not checked";  // SPEC-0066
     } else if (reason == "unsupported_construct") {
         phrase = "the address or size comes from a construct the engine does not support";  // SPEC-0060
     } else if (reason == "struct_by_value") {
@@ -196,6 +198,72 @@ static std::vector<std::pair<size_t, size_t>> BottomUp(const std::vector<const f
     return order;
 }
 
+// 递归调用点记账（D-27 recursion，SPEC-0066）：按摘要的调用点记录建调用图，强连通分量内的每条调用边（含自己调自己）
+// 在调用方的账本里记一条——环上不求不动点，经递归传上来的条件会丢，不能让剩下的部分被一条 SAFE 盖住
+static void RecursionLedger(InlineResult &out)
+{
+    std::map<std::string, std::vector<std::string>> succ;
+    for (const auto &entry : out.summaries) {
+        std::vector<std::string> &to = succ[entry.first];
+        for (const summary::Call &c : entry.second.calls) {
+            const std::string &callee = apply::CalleeOf(c, out.summaries);
+            if (out.summaries.count(callee) != 0) {
+                to.push_back(callee);
+            }
+        }
+    }
+    std::map<std::string, int> order;
+    std::map<std::string, int> low;
+    std::map<std::string, int> sccOf;
+    std::set<std::string> onStack;
+    std::vector<std::string> stack;
+    int counter = 0;
+    int sccs = 0;
+    std::function<void(const std::string &)> visit = [&](const std::string &v) {
+        order[v] = low[v] = counter++;
+        stack.push_back(v);
+        onStack.insert(v);
+        for (const std::string &w : succ[v]) {
+            if (order.count(w) == 0) {
+                visit(w);
+                low[v] = std::min(low[v], low[w]);
+            } else if (onStack.count(w) != 0) {
+                low[v] = std::min(low[v], order[w]);
+            }
+        }
+        if (low[v] == order[v]) {
+            std::string w;
+            do {
+                w = stack.back();
+                stack.pop_back();
+                onStack.erase(w);
+                sccOf[w] = sccs;
+            } while (w != v);
+            ++sccs;
+        }
+    };
+    for (const auto &entry : out.summaries) {
+        if (order.count(entry.first) == 0) {
+            visit(entry.first);
+        }
+    }
+    for (auto &entry : out.summaries) {
+        for (const summary::Call &c : entry.second.calls) {
+            const std::string &callee = apply::CalleeOf(c, out.summaries);
+            if (out.summaries.count(callee) == 0 || sccOf[callee] != sccOf[entry.first]) {
+                continue;
+            }
+            std::vector<summary::Open> &opens = entry.second.opens;
+            bool seen = std::any_of(opens.begin(), opens.end(),
+                                    [&](const summary::Open &o) { return o.reason == "recursion" && o.at == c.site; });
+            if (!seen) {
+                opens.push_back({"recursion", c.site, llvm::None});
+                out.facts[entry.first].opens.push_back({"recursion", c.site, llvm::None});
+            }
+        }
+    }
+}
+
 InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
                        const std::function<bool(const std::string &)> &traceFilter)
 {
@@ -239,6 +307,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             out.traces[f.name] = std::move(trace);
         }
     }
+    RecursionLedger(out);  // SPEC-0066
     // ② 推到底
     out.propagate = solver::Propagate(out.summaries);
     std::vector<SiteMap> siteMaps;

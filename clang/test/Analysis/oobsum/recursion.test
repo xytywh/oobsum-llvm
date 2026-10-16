@@ -1,0 +1,18 @@
+# 递归调用点记账 recursion（oobsum/specs/SPEC-0066；06- D-27）：环上不求不动点，经递归传上来的条件会丢，不能被一条 SAFE 盖住。
+# 原来 Mut_TP（下标涨到 20）、Walk_TP（写到第 32 字节）都判成 SAFE。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary \
+# RUN:   -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Rec$' %S/Inputs/recursion/r.c 2>&1 | FileCheck %s
+# 不递归的 Leaf 不记
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/recursion/r.c 2>&1 | not grep 'r.c:1[45]:1: warning: \[OOB-SUSPECT:recursion'
+
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Rec"{{.*}}"opens":[{"at":"r.c:4","reason":"recursion"}]
+# 自递归、互相递归（A、B 各一条）、带深度参数的递归
+CHECK-DAG: r.c:4:1: warning: [OOB-SUSPECT:recursion] Cannot prove this access is within bounds: the call is part of a recursion; accesses deeper in the recursion are not checked
+CHECK-DAG: r.c:8:1: warning: [OOB-SUSPECT:recursion]
+CHECK-DAG: r.c:9:1: warning: [OOB-SUSPECT:recursion]
+CHECK-DAG: r.c:11:1: warning: [OOB-SUSPECT:recursion]
+# 第一层能判的照旧
+CHECK-DAG: r.c:5:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 17 of 'a' (16 bytes) is accessed

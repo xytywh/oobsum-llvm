@@ -111,6 +111,8 @@
       lit `callee-writes.test` 守住"被调者改了字段 / 全局后不再用旧值证明安全"（做 mod-ref 之前的保守做法）。
 - [x] **S5b-1 `MaxBlocks`**（SPEC-0037）：CFG 块数超过 `MaxBlocks`（默认 5000）的函数不降级函数体（`cfg_too_large`），建不出 CFG 的（`no_cfg`，原来悄悄当成空函数）同样
       `skipped:…`；`partial:*` / `skipped:*` 的函数都在声明处报 SUSPECT `unanalyzed:<后缀>`。
+- [x] **递归调用点记账 `recursion`**（SPEC-0066）：环上不求不动点，经递归传上来的条件会丢——探针里互相递归（下标涨到 20）、带深度参数的自递归（写到第 32 字节）
+      **都判成了 SAFE（错误）**。现在调用图的强连通分量内每个调用点记一条 SUSPECT `recursion`；第一层能判的照旧（`Rec(a, 16)` 仍 DEFINITE）。`run.py csa` 回退 0。
 - [x] **libc `strncpy` / `snprintf` / `vsnprintf` 模型**（SPEC-0065）：原来只记 `not_in_tu`；现在 `strncpy` 的 `n` 超界判 DEFINITE、`snprintf` 判 POSSIBLE，界内判 SAFE。
       `strcpy` / `strcat` / `sprintf` 取决于源串长度，照旧记账。
 - [x] **调用前改过的全局**（SPEC-0064）：被调者 Req 里的 `g:K` 原来代成调用方**入口**的值——探针里先 `g_ulLen = 100`（或经 `SetLen(100)`）再调 `Fill(a)`，

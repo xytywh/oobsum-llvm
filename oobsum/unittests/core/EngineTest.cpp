@@ -229,3 +229,40 @@ TEST(Engine, SkippedFunctionsAreSuspect)
         EXPECT_TRUE(found);
     }
 }
+
+// D-27 recursion（SPEC-0066）：强连通分量内的调用边（这里是自己调自己）在调用方记一条账本；别的函数不记
+TEST(Engine, RecursionLedger)
+{
+    fir::Module m;
+    std::string error;
+    ASSERT_TRUE(fir::ReadModuleFile(OOBSUM_TEST_DATA_DIR "/engine-fir.json", m, error));
+    ASSERT_TRUE(!m.funcs.empty() && !m.funcs[0].blocks.empty());
+    fir::Function &f = m.funcs[0];
+    fir::Block *entry = nullptr;
+    for (fir::Block &b : f.blocks) {
+        if (b.id == f.entry) {
+            entry = &b;
+        }
+    }
+    ASSERT_TRUE(entry != nullptr);
+    fir::Inst self;
+    self.op = fir::InstOp::Call;
+    self.callee = f.key;
+    self.loc = f.loc;
+    self.loc.line += 1;
+    entry->insts.push_back(self);
+    engine::InlineResult r = engine::RunInline(m);
+    int mine = 0;
+    int others = 0;
+    for (const Decision &d : r.decisions) {
+        if (d.reason == "recursion") {
+            (d.fn == f.key ? mine : others) += 1;
+        }
+    }
+    EXPECT_EQ(mine, 1);
+    EXPECT_EQ(others, 0);
+    ASSERT_TRUE(r.summaries.count(f.key) == 1);
+    const std::vector<summary::Open> &opens = r.summaries.at(f.key).opens;
+    EXPECT_TRUE(
+        std::any_of(opens.begin(), opens.end(), [](const summary::Open &o) { return o.reason == "recursion"; }));
+}
