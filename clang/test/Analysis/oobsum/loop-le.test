@@ -1,0 +1,14 @@
+# 无符号区间下界盖住 0 时可信（oobsum/specs/SPEC-0056）：i <= n 的循环不再把上界多估 2（原来 n = 15 也报 POSSIBLE，误报）。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Fill_Le$' \
+# RUN:   %S/Inputs/loople/le.c 2>&1 | FileCheck %s
+
+# 循环体（原来 [0, p1 + 2]）
+CHECK: [oobsum:state] fn Fill_Le b2: p=*p0+0 n=p1 i=[0, p1]:loop
+CHECK-DAG: le.c:5:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 17 of 'a' (16 bytes) may be accessed
+CHECK-DAG: le.c:6:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+CHECK-DAG: le.c:8:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+# 对照：i + 8 <= n 照旧不收窄
+CHECK-DAG: le.c:10:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove this access is within bounds

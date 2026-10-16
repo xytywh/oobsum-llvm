@@ -2357,6 +2357,10 @@ bool FaithfulAs(const IntVal &v, const IntType &type, const SymEnv &env)
     if (coversLo && coversHi) {
         return true;
     }
+    // 无符号、下界盖住 0：回绕后的真实值在 [0, 数学值 − k·2^W] 里，仍在区间内（SPEC-0056：i <= n 的循环不再多估）
+    if (coversLo && !t->isSigned) {
+        return true;
+    }
     bool loOk = v.hasLo ? within(v.lo, false) : t->isSigned;
     bool hiOk = v.hasHi ? within(v.hi, false) : t->isSigned;
     return loOk && hiOk;
