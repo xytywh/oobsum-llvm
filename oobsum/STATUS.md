@@ -184,6 +184,9 @@
   骨架的 3 条 + 引擎的三层链 `Tc_Engine_TP` 一条 DEFINITE；`Dump=stats` 应为 `decisions=7 emitted=4`）。
 * 公司（可选）：引擎已在默认的 `Phase=inline` 下跑。拿 bxen 跑一个业务子目录，
   带回各标签 / 原因的条数与耗时（`tools/decisions.py` 汇总，只要数字），用来定 `SuspectReasons` 的默认值（`not_in_tu`、`typed_field` 预计很多）。
+* **决定：嵌套子对象的越界要不要先报 SUSPECT**（探针发现）：二维数组行内越界（`a[0][5]`，`UINT8 a[2][4]`）、结构体数组元素里的成员越界但仍在下一个元素里
+  （`astEnt[0].aucName[8]`），现在只按整个对象 / 外层成员查，判 SAFE（只进日志、不报）。06- §1.3 把它列为 P1（不在年内承诺）。
+  选项：① 维持（P1 再做行级的界）；② 年内先把"下标跨出内层子对象"记 SUSPECT（多报，覆盖这类写法；二维数组访问多的模块会多出不少 SUSPECT）。我倾向 ①。
 * **确认 securec 的 `strcpy_s` 族出错时写多少**（SPEC-0034）：我按 libboundscheck 的实现理解为"最多写实际长度 + 1，出错只写 `dest[0] = '\0'`"，
   所以 destMax 超过目的大小报 **POSSIBLE**；用例 LV7-05 的注释写的是"出错路径会按 destMax 清零"（`later=L1`）。公司的 securec 版本若真按 destMax 清零，
   告诉我改成 DEFINITE（内置表去掉 `upto`；在模型文件里覆盖也行，不用改代码）。确认前不改 LV7-05 的 `@expect`。
