@@ -88,6 +88,8 @@ python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py status --workdir /usr1/oobs
 
 **待确认**：bxen 跑多个文件的写法（`-cc_json` 给目录还是文件、`-analysis_folder` 与过滤后的 cdb 怎么配合）——模板是按本节上面的命令猜的，
 不对就告诉我正确的写法改 `oobsum_run.py` 的 `bxen_cmd`。
+业务的分配器、拷贝封装、纯函数（07- 输入 I5 / I8 / I9）写进模型文件：复制 `oobsum/config/oob_models.example.yaml` 改，`-extra_args` 里加
+`-analyzer-config rb.enhance.ipa.OobSummary:ModelFile=<路径>`；`Dump=models` 看实际生效的表（SPEC-0033）。模型文件留在公司，不带回。
 定位问题时加 `-analyzer-config rb.enhance.ipa.OobSummary:Dump=summary+apply -analyzer-config rb.enhance.ipa.OobSummary:DumpFilter=<函数名正则>`。
 
 ## 5. 更新与撤掉

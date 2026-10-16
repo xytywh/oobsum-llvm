@@ -102,7 +102,9 @@
       统计 **70 / 13 / 12**，告警不变；LV2-03 仍一致。
 - [x] **修：经形参访问成员数组只查成员**（SPEC-0022）：外层对象（`*pK`、`ext(pK)`）的边界也查——否则"按结构体访问更短的缓冲区"（LV7-03）会被证明成安全。
       由引擎接进 checker 时 `run.py csa` 的对照发现。
-- [ ] **S7d-2**：`ModelFile`（YAML，I-40）、`strcpy_s` 等其余 securec 函数（I8）。
+- [x] **S7d-2a `ModelFile`**（SPEC-0033）：YAML 模型表合并进内置表（同名替换、`defaults: false` 清空）；坏条目跳过并提示一行，读不了 / YAML 错是选项错误；
+      `Dump=models` 列出实际生效的表；示例 `oobsum/config/oob_models.example.yaml`（= 内置表）。
+- [ ] **S7d-2b**：`strcpy_s` 等其余 securec 函数的目的一侧（destMax 规则）加进内置表。
 - [x] **S7d-3 `ret_new` 效果**（SPEC-0024）：每条返回路径都是同一个堆对象或空指针 → `ret_new`（`eff_depth` 逐层加 1）；调用方拿到 `heap@<调用点>`、
       实参写 `eff_depth`；`RunInline` 按 FIR 调用图自底向上解释，`Dump=summary` / `state` 取同一份结果。**LV4-01 端到端一致（16 个金标准用例 9 个）**；
       `run.py csa`：LV4-01 TP POSSIBLE、LV4-02 TP DEFINITE、LV7-01（柔性数组）TP DEFINITE / TN SAFE——**通过 72、漏报 14**，回退 0（尺子：账本判定同一处有 SAFE 就算证明）。
@@ -154,6 +156,9 @@
   骨架的 3 条 + 引擎的三层链 `Tc_Engine_TP` 一条 DEFINITE；`Dump=stats` 应为 `decisions=7 emitted=4`）。
 * 公司（可选）：引擎已在默认的 `Phase=inline` 下跑。拿 bxen 跑一个业务子目录，
   带回各标签 / 原因的条数与耗时（`tools/decisions.py` 汇总，只要数字），用来定 `SuspectReasons` 的默认值（`not_in_tu`、`typed_field` 预计很多）。
+* **I5 / I8 / I9 现在写进模型文件即可，不用改代码**（SPEC-0033）：复制 `oobsum/config/oob_models.example.yaml`，改 `VOS_MemAlloc` 的 `size`（I5）、
+  加内部封装的拷贝 / 分配函数（I8）、纯函数清单（I9），bxen 命令加 `-analyzer-config rb.enhance.ipa.OobSummary:ModelFile=<路径>`，用 `Dump=models` 确认生效。
+  文件留在公司；只带回"哪几类、各多少条"即可（如果想让我把某些通用的放进内置表，告诉我函数原型）。
 * 其余输入见 `HANDOFF.md` §6。
 
 ## 已知问题与注意

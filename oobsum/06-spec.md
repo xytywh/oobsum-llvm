@@ -277,7 +277,7 @@ bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/report_cdb/compile_commands.js
 
 ### 4.4 配置
 
-**I-40 模型表 `oob_models.yaml`**〔由 SPEC-0018 修订〕（`llvm::yaml` 读取；默认随代码放 `OobSummary/config/oob_models.yaml`）：
+**I-40 模型表 `oob_models.yaml`**〔由 SPEC-0018、SPEC-0033 修订：默认表编进代码，`ModelFile` 合并进来，示例 `oobsum/config/oob_models.example.yaml`〕（`llvm::yaml` 读取；默认随代码放 `OobSummary/config/oob_models.yaml`）：
 
 ```yaml
 allocators:                     # 底层分配器：只配最底层几个，封装函数由摘要推出（01- §3.7.1）

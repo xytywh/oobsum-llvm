@@ -17,8 +17,8 @@ namespace oobsum {
 
 const std::set<std::string> &DumpSink::KnownKinds()
 {
-    static const std::set<std::string> known = {"options", "callgraph", "keys",      "fir",  "state",
-                                                "summary", "apply",     "decisions", "stats"};
+    static const std::set<std::string> known = {"options", "callgraph", "keys",      "fir",   "state",
+                                                "summary", "apply",     "decisions", "stats", "models"};
     return known;
 }
 

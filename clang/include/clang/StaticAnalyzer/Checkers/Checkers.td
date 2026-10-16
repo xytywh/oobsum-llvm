@@ -1736,11 +1736,15 @@ def OobSummaryChecker : Checker<"OobSummary">,
                   "Reasons that produce suspect reports, separated by '+' (empty: all reasons)",
                   "", Released>,
     CmdLineOption<String, "Dump",
-                  "Debug output to stderr and WorkDir/dump, kinds separated by '+': options, callgraph, keys, fir, "
-                  "state, summary, apply, decisions, stats, or all",
+                  "Debug output to stderr and WorkDir/dump, kinds separated by '+': options, models, callgraph, keys, "
+                  "fir, state, summary, apply, decisions, stats, or all",
                   "", Released>,
     CmdLineOption<String, "DumpFilter",
                   "Only dump functions whose name matches this regex",
+                  "", Released>,
+    CmdLineOption<String, "ModelFile",
+                  "YAML model table merged into the built-in one (allocators, access functions, pure functions, "
+                  "frees; empty: built-in table only)",
                   "", Released>
   ]>,
   Documentation<NotDocumented>;

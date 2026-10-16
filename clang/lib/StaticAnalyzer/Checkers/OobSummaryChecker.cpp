@@ -49,6 +49,7 @@
 #include "OobSummary/core/Engine.h"
 #include "OobSummary/core/FirText.h"
 #include "OobSummary/core/Interp.h"
+#include "OobSummary/core/Models.h"
 #include "OobSummary/core/Policy.h"
 #include "OobSummary/core/Summary.h"
 #include "OobSummary/debug/DumpSink.h"
@@ -133,6 +134,8 @@ public:
     std::string dumpKinds;
     std::string dumpFilter;
     std::string optionsText;  // Dump=options 打印用
+    std::string modelFile;
+    oobsum::models::ModelTable models = oobsum::models::ModelTable::Default();  // 内置表 + ModelFile（SPEC-0033）
     oobsum::DumpSink dump;
 
     void checkASTDecl(const TranslationUnitDecl *tu, AnalysisManager &mgr, BugReporter &br) const;
@@ -229,7 +232,7 @@ void OobSummaryChecker::solveAll() const
     for (const auto &m : modules) {
         mods.push_back(m.get());
     }
-    oobsum::engine::InlineResult result = oobsum::engine::RunSolve(mods);
+    oobsum::engine::InlineResult result = oobsum::engine::RunSolve(mods, models);
     // Dump=summary：全局求解后的每个函数的摘要（SPEC-0032；engine_check.py 的跨 TU 用例用它）
     for (const auto &entry : result.summaries) {
         if (dump.Wants("summary", entry.second.fn)) {
@@ -418,6 +421,12 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
     if (dump.On("options")) {
         dump.Line("options", optionsText);
     }
+    if (dump.On("models")) {
+        dump.Line("models", "source default" + (modelFile.empty() ? std::string() : "+" + modelFile));
+        for (const std::string &line : oobsum::models::DescribeModels(models)) {
+            dump.Line("models", line);
+        }
+    }
     if (dump.On("keys")) {
         dumpKeys(tu, tuId, keys);
     }
@@ -450,9 +459,8 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
             }
         }
         bool wantState = dump.On("state");
-        oobsum::engine::InlineResult result =
-            oobsum::engine::RunInline(module, oobsum::models::ModelTable::Default(),
-                                      [&](const std::string &fn) { return wantState && dump.Wants("state", fn); });
+        oobsum::engine::InlineResult result = oobsum::engine::RunInline(
+            module, models, [&](const std::string &fn) { return wantState && dump.Wants("state", fn); });
         if (dump.On("summary") || dump.On("state")) {
             dumpSummaries(module, tuId, result);
         }
@@ -537,16 +545,35 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
     std::string unknownKind;
     if (!chk->dump.Configure(chk->dumpKinds, chk->dumpFilter, chk->workDir, unknownKind)) {
         mgr.reportInvalidCheckerOptionValue(chk, "Dump",
-                                            "kinds separated by '+' from options, callgraph, keys, fir, state, "
-                                            "summary, apply, decisions, stats, all (and a valid DumpFilter regex); "
+                                            "kinds separated by '+' from options, models, callgraph, keys, fir, "
+                                            "state, summary, apply, decisions, stats, all (and a valid DumpFilter "
+                                            "regex); "
                                             "got '" +
                                                 unknownKind + "'");
+    }
+    // ModelFile（SPEC-0033 §2.1）：读不了、YAML 错 → 选项错误；坏条目跳过并提示
+    chk->modelFile = opts.getCheckerStringOption(chk, "ModelFile").str();
+    if (!chk->modelFile.empty()) {
+        auto buffer = llvm::MemoryBuffer::getFile(chk->modelFile);
+        std::vector<std::string> warnings;
+        std::string error;
+        if (!buffer) {
+            mgr.reportInvalidCheckerOptionValue(
+                chk, "ModelFile",
+                "a readable YAML file ('" + chk->modelFile + "': " + buffer.getError().message() + ")");
+        } else if (!oobsum::models::MergeModelYaml((*buffer)->getBuffer(), chk->models, warnings, error)) {
+            mgr.reportInvalidCheckerOptionValue(chk, "ModelFile",
+                                                "a valid model table ('" + chk->modelFile + "':" + error + ")");
+        }
+        for (const std::string &w : warnings) {
+            llvm::errs() << "[oobsum] warning: ModelFile " << chk->modelFile << ": " << w << "\n";
+        }
     }
     chk->optionsText = "Phase=" + chk->phase + " WorkDir=\"" + chk->workDir + "\" Policy=" + policyName +
                        " InlineDepth=" + std::to_string(chk->policy.inlineDepth) +
                        " ReportSafe=" + (chk->policy.reportSafe ? "true" : "false") + " SuspectReasons=\"" +
                        opts.getCheckerStringOption(chk, "SuspectReasons").str() + "\" Dump=\"" + chk->dumpKinds +
-                       "\" DumpFilter=\"" + chk->dumpFilter + "\"";
+                       "\" DumpFilter=\"" + chk->dumpFilter + "\" ModelFile=\"" + chk->modelFile + "\"";
 }
 
 bool ento::shouldRegisterOobSummaryChecker(const CheckerManager &mgr)

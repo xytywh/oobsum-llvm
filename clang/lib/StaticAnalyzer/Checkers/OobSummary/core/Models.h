@@ -1,7 +1,7 @@
 //===-- Models.h - Model table for library functions ------------*- C++ -*-===//
 //
 // 模型表（SPEC-0018；06- §4.4 I-40…I-44）：访问类函数（securec / libc 的内存函数）、分配器、纯函数、释放函数。
-// 本步是内置的默认表（06- I-40 的默认值）；ModelFile（YAML）在 S7d-2。不依赖 Clang。
+// 内置的默认表（06- I-40 的默认值）；ModelFile（YAML，SPEC-0033）合并进来。不依赖 Clang。
 //
 //===----------------------------------------------------------------------===//
 
@@ -55,6 +55,14 @@ public:
 
 // 摘要里 model 字段的写法：access / alloc / pure / free；None → 空
 llvm::StringRef KindName(Kind kind);
+
+// ModelFile（SPEC-0033 §2.2）：YAML 文本合并进 table——同名条目替换（不论原来在哪一类），新名字追加；defaults: false 时先清空
+// （保留调试内建函数的模式）。坏条目跳过并写一条 warning（table 里原有的同名条目保留）。
+// YAML 语法 / 结构错：返回 false、error 写原因，table 不变。
+bool MergeModelYaml(llvm::StringRef text, ModelTable &table, std::vector<std::string> &warnings, std::string &error);
+
+// Dump=models（SPEC-0033 §2.3）：每条模型一行
+std::vector<std::string> DescribeModels(const ModelTable &table);
 
 }  // namespace models
 }  // namespace oobsum

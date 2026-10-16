@@ -64,4 +64,5 @@
 | [SPEC-0030](SPEC-0030-phase-report.md) | `Phase=report`：各 TU 按求解结果报出，写判定日志 | 已实现（S9-4） |
 | [SPEC-0031](SPEC-0031-driver.md) | 跨 TU 的驱动 `oobsum_run.py`：本地跑三阶段、生成 bxen 命令、`status` | 已实现（S9-5） |
 | [SPEC-0032](SPEC-0032-global-size-table.md) | 全局大小表：`extern` 不完整数组在 solve 时取定义所在 TU 的大小；engine_check 走 export + solve | 已实现（S7e） |
+| [SPEC-0033](SPEC-0033-model-file.md) | `ModelFile`：YAML 模型表合并进内置表；`Dump=models` | 已实现（S7d-2a） |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

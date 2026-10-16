@@ -1,0 +1,27 @@
+# OobSummary 的模型表示例（oobsum/specs/SPEC-0033；06- §4.4 I-40、I-41）。
+# 用法：复制一份按业务改，-analyzer-config rb.enhance.ipa.OobSummary:ModelFile=<路径>；Dump=models 看实际生效的表。
+# 文件里的条目合并进内置表：同名替换（一个名字只属于一类），新名字追加；defaults: false 先清空内置表。
+# 下面写的就是内置表的内容（不配 ModelFile 时用的就是它）；坏条目跳过并在 stderr 提示一行。
+# 式子：实参写 p0、p1…；bytes / size 是线性式或乘积（"p0*p1"）；when 是比较（"p3 <= p1"）。
+
+defaults: true
+
+allocators:                     # 底层分配器：只配最底层几个，封装函数由摘要推出。只支持 result: ret（出参式以后，I-42）
+  - { name: VOS_MemAlloc, result: ret, size: "p2", maybe_null: true }   # 字节数是第几个形参：待确认（07- 输入 I5）
+  - { name: malloc,       result: ret, size: "p0", maybe_null: true }
+  - { name: calloc,       result: ret, size: "p0*p1", maybe_null: true }
+
+access:                         # 访问类函数：在第 base 个实参指向的对象上读 / 写 bytes 字节；dest_max：securec 的 destMax 规则（F-03）
+  - { name: memcpy_s,  dest_max: p1, conds: [ { base: p0, bytes: "p1", kind: W }, { base: p2, bytes: "p3", kind: R, when: "p3 <= p1" } ] }
+  - { name: memmove_s, dest_max: p1, conds: [ { base: p0, bytes: "p1", kind: W }, { base: p2, bytes: "p3", kind: R, when: "p3 <= p1" } ] }
+  - { name: memset_s,  dest_max: p1, conds: [ { base: p0, bytes: "p1", kind: W } ] }
+  - { name: memcpy,    conds: [ { base: p0, bytes: "p2", kind: W }, { base: p1, bytes: "p2", kind: R } ] }
+  - { name: memmove,   conds: [ { base: p0, bytes: "p2", kind: W }, { base: p1, bytes: "p2", kind: R } ] }
+  - { name: memset,    conds: [ { base: p0, bytes: "p2", kind: W } ] }
+  # 内部封装的拷贝 / 填充函数（07- 输入 I8）加在这里
+
+pure:                           # 不改任何被跟踪内存、返回值无约束的函数（日志、打点）。写错会漏掉它的副作用
+  names:    [ LOG_Print, VOS_Printf ]
+  patterns: [ "^LOG_", "^DIAG_", "_Trace$" ]           # 正则；清单待补（07- 输入 I9）
+
+frees: [ VOS_MemFree, free ]

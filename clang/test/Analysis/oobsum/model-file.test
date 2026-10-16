@@ -1,0 +1,44 @@
+# ModelFile（oobsum/specs/SPEC-0033）：YAML 模型表合并进内置表；坏条目跳过并提示；Dump=models；读不了 → 选项错误。
+#
+# RUN: rm -rf %t && mkdir -p %t
+# 配了 extra.yaml：Drv_Copy（访问）、Pool_Get（分配器）的越界报 DEFINITE，Stat_Inc（^Stat_ 纯函数）不记账
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:ModelFile=%S/Inputs/models/extra.yaml \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=models+stats %S/Inputs/models/use.c 2>&1 | FileCheck %s --check-prefix=FILE
+# 不配：三处都是 not_in_tu / 入口记账（SUSPECT）
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/models/use.c 2>&1 | FileCheck %s --check-prefix=NOFILE
+# 示例文件 = 内置表
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=models %S/Inputs/models/use.c 2>&1 | grep 'oobsum:models' | grep -v ' source ' > %t/builtin
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:ModelFile=%S/../../../../oobsum/config/oob_models.example.yaml \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=models %S/Inputs/models/use.c > %t/example.out 2>&1
+# RUN: grep 'oobsum:models' %t/example.out | grep -v ' source ' | diff %t/builtin -
+# RUN: not grep 'warning: ModelFile' %t/example.out
+# 读不了 → 选项错误
+# RUN: not %clang_analyze_cc1 -triple armebv7-linux-gnueabi -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:ModelFile=%t/missing.yaml %S/Inputs/models/use.c 2>&1 | FileCheck %s --check-prefix=MISSING
+# RUN: printf 'alocators: []\n' > %t/typo.yaml
+# RUN: not %clang_analyze_cc1 -triple armebv7-linux-gnueabi -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:ModelFile=%t/typo.yaml %S/Inputs/models/use.c 2>&1 | FileCheck %s --check-prefix=TYPO
+
+FILE: [oobsum] warning: ModelFile {{.*}}extra.yaml: access 'Drv_Fill': bytes 'n': 'n' is not an argument (p0, p1, ...), skipped
+FILE: [oobsum] warning: ModelFile {{.*}}extra.yaml: allocators 'Pool_GetOut': result 'p1' is not supported (only ret), skipped
+FILE: [oobsum:models] source default+{{.*}}extra.yaml
+FILE: [oobsum:models] access Drv_Copy W p0[p1] R p2[p1]
+FILE: [oobsum:models] alloc Pool_Get size=p0*4
+FILE: [oobsum:models] pure pattern ^Stat_
+FILE-NOT: Drv_Fill
+FILE: [oobsum:stats] tu={{[0-9a-f]+}} decisions=4 emitted=2
+FILE-DAG: use.c:18:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 32 of 'buf' (16 bytes) is accessed
+FILE-DAG: use.c:32:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 20 of heap object allocated at use.c:28 (16 bytes) is accessed
+FILE-NOT: OOB-SUSPECT
+
+NOFILE-DAG: use.c:12:1: warning: [OOB-SUSPECT:not_in_tu] Cannot prove this access is within bounds: a pointer is passed to 'Drv_Copy'
+NOFILE-DAG: use.c:32:1: warning: [OOB-SUSPECT:entry_unproven]
+NOFILE-DAG: use.c:37:1: warning: [OOB-SUSPECT:not_in_tu] Cannot prove this access is within bounds: a pointer is passed to 'Stat_Inc'
+
+MISSING: error: invalid input for checker option 'rb.enhance.ipa.OobSummary:ModelFile', that expects a readable YAML file
+TYPO: error: invalid input for checker option 'rb.enhance.ipa.OobSummary:ModelFile', that expects a valid model table ({{.*}}typo.yaml':1:1: unknown key 'alocators')

@@ -1,0 +1,9 @@
+# model-file.test 的模型文件（oobsum/specs/SPEC-0033）：业务里的拷贝封装、内存池、打点函数
+access:
+  - { name: Drv_Copy, conds: [ { base: p0, bytes: "p1", kind: W }, { base: p2, bytes: "p1", kind: R } ] }
+  - { name: Drv_Fill, conds: [ { base: p0, bytes: "n", kind: W } ] }      # 坏条目：n 不是实参
+allocators:
+  - { name: Pool_Get, result: ret, size: "p0*4", maybe_null: true }
+  - { name: Pool_GetOut, result: p1, size: "p0" }                       # 坏条目：出参式分配器以后
+pure:
+  patterns: [ "^Stat_" ]
