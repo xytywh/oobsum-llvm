@@ -1,0 +1,15 @@
+# 无符号局部 widening 后补上类型范围的界（oobsum/specs/SPEC-0050）：从 1 开始的循环在循环头不再变成 Top。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Fill_Cur|Fill_Forever)$' \
+# RUN:   %S/Inputs/widenu/loop1.c 2>&1 | FileCheck %s
+
+# 循环头（原来是 ?(imprecise_join)）
+CHECK: [oobsum:state] fn Fill_Cur b3: p=*p0+0 u=[1, 17]:loop (head)
+CHECK: [oobsum:state] fn Fill_Forever b3: p=*p0+0 u=[0, +inf]:widen (head)
+CHECK-DAG: loop1.c:8:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+CHECK-DAG: loop1.c:9:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 17 of 'a' (16 bytes) may be accessed; the bound comes from a loop condition
+CHECK-DAG: loop1.c:10:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 17 of 'a' (16 bytes) may be accessed; the bound comes from a loop condition
+# 对照：没有条件收住的循环 → 收窄后补上的界去掉，恢复成没有上界，照旧在本函数记账
+CHECK-DAG: loop1.c:13:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove this access is within bounds: the offset is bounded only by its type

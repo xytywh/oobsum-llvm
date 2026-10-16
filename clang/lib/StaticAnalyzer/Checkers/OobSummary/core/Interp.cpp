@@ -2078,6 +2078,24 @@ FunctionFacts Analyzer::Run()
             State next = Join(in[t], o, envOf, selfOf);
             if (heads[t] && in[t].reached) {
                 next = WidenState(in[t], next, &loopVars[t]);
+                // 无符号局部缺的界补成类型范围：真实值本来就在里面，补上后循环条件才收得住（从 1 开始的循环，SPEC-0050）
+                for (uint32_t id : loopVars[t]) {
+                    auto it = next.locals.find(id);
+                    const fir::Type *type = LocalType(id);
+                    if (it == next.locals.end() || it->second.isPtr || it->second.i.kind != IntVal::Kind::Range ||
+                        type == nullptr || type->kind != fir::TypeKind::Int || type->isSigned || type->width >= 63) {
+                        continue;
+                    }
+                    IntVal &v = it->second.i;
+                    if (!v.hasHi) {
+                        v.hasHi = true;
+                        v.hi = LinExpr::Const((int64_t(1) << type->width) - 1);
+                    }
+                    if (!v.hasLo) {
+                        v.hasLo = true;
+                        v.lo = LinExpr::Const(0);
+                    }
+                }
             }
             if (next == in[t]) {
                 continue;
@@ -2111,6 +2129,23 @@ FunctionFacts Analyzer::Run()
             std::vector<State> out = s.reached ? FlowOut(b, s) : std::vector<State>(f.blocks[b].succ.size());
             for (size_t e : outgoing[b]) {
                 contrib[e] = out[edges[e].succ];
+            }
+        }
+    }
+
+    // 收窄之后仍停在类型最大值（及以上）、来源还是 widen 的上界：补上的界没被循环条件收住，恢复成"没有上界"（记账方式同原来，SPEC-0050）
+    for (size_t b = 0; b < n; ++b) {
+        for (auto &entry : in[b].locals) {
+            const fir::Type *type = LocalType(entry.first);
+            IntVal &v = entry.second.i;
+            if (entry.second.isPtr || v.kind != IntVal::Kind::Range || !v.hasHi || v.tag != Tag::Widen ||
+                type == nullptr || type->kind != fir::TypeKind::Int || type->isSigned || type->width >= 63) {
+                continue;
+            }
+            Limit hi = Env(in[b]).RangeOf(v.hi, false);
+            if (hi.known && hi.value >= (int64_t(1) << type->width) - 1) {
+                v.hasHi = false;
+                v.hi = LinExpr();
             }
         }
     }
