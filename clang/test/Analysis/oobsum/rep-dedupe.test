@@ -1,0 +1,20 @@
+# 同一调用点同一次访问的判定只报一条（oobsum/specs/SPEC-0044）：成员数组越界时成员界与外层界各一条，主判定取对象名写得出来的那条。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/repdedupe/tbl.c 2>&1 | FileCheck %s
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/repdedupe/tbl.c 2>&1 | grep -c 'warning: \[OOB-DEFINITE' | FileCheck %s --check-prefix=COUNT
+# 日志里两条都在：成员那条 dup_of 指向报出的那条
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:Dump=decisions \
+# RUN:   %S/Inputs/repdedupe/tbl.c 2>&1 | grep 'tbl.c:11:0' | FileCheck %s --check-prefix=LOG
+
+CHECK-DAG: tbl.c:11:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 56 of 'st' (52 bytes) is accessed
+CHECK-DAG: tbl.c:16:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 53 of 'st' (52 bytes) is accessed
+CHECK-DAG: tbl.c:20:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 2-level call chain: up to byte 12 of 'st' (0 bytes) is accessed
+CHECK-DAG: tbl.c:24:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 5 of 'u' (4 bytes) is accessed
+CHECK-DAG: tbl.c:27:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 52 of 'a' (16 bytes) is accessed
+CHECK-NOT: of '?'
+COUNT: 5
+LOG-DAG: [oobsum:decisions] {{.*}}"dup_of":"{{[0-9a-f]+}}"{{.*}}"label":"definite"{{.*}}"not_emitted_because":"duplicate_access","obj":"?"
+LOG-DAG: [oobsum:decisions] {{.*}}"emitted":true{{.*}}"label":"definite"{{.*}}"obj":"local:st"

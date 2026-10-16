@@ -229,7 +229,17 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
     for (const std::string &fn : out.propagate.order) {
         const summary::Summary &s = out.summaries.at(fn);
         const solver::FunctionResult &result = out.propagate.fns.at(fn);
-        // 调用点判出的 L1 / L2
+        // 调用点判出的 L1 / L2。同一调用点同一次访问（同读写、同方向）只报主判定：DEFINITE 优先、对象名写得出来的优先，
+        // 其余记 dup_of（成员界与外层界各一条，SPEC-0044）
+        size_t firstRep = out.decisions.size();
+        std::map<std::string, size_t> primary;  // 分组键 → 主判定在 out.decisions 里的下标
+        std::vector<std::string> repKeys;       // 每条判定的分组键（与 out.decisions[firstRep…] 对齐）
+        auto better = [](const Decision &x, const Decision &y) {  // x 比 y 更适合当主判定
+            if (x.label != y.label) {
+                return x.label == Label::Definite;
+            }
+            return x.obj != "?" && y.obj == "?";
+        };
         for (const summary::Rep &rep : result.reps) {
             Decision d = base(rep.level == "L1" ? Label::Definite : Label::Possible, "", fn);
             d.site = sitesOf(fn).Of(rep.site);
@@ -245,7 +255,21 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.chain = allSites.Chain(rep.chain);
             d.msg = alert::AlertMessage(rep, s.params);
             d.fp = rep.fp;
+            std::string key = rep.site + "|" + rep.access.key + "@" + rep.access.at + "|" + rep.kind + "|" + rep.dir;
+            repKeys.push_back(key);
+            auto hit = primary.find(key);
+            if (hit == primary.end()) {
+                primary[key] = out.decisions.size();
+            } else if (better(d, out.decisions[hit->second])) {
+                hit->second = out.decisions.size();
+            }
             out.decisions.push_back(std::move(d));
+        }
+        for (size_t i = firstRep; i < out.decisions.size(); ++i) {
+            size_t p = primary.at(repKeys[i - firstRep]);
+            if (p != i) {
+                out.decisions[i].dupOf = out.decisions[p].fp;
+            }
         }
         // 调用点上判安全 / 记账的
         for (const solver::SiteOutcome &so : result.sites) {
