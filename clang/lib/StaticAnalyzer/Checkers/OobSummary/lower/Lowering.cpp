@@ -7,6 +7,7 @@
 #include "OobSummary/lower/Lowering.h"
 
 #include "OobSummary/core/Fingerprint.h"
+#include "OobSummary/core/HeaderKeys.h"
 #include "OobSummary/core/Key.h"
 #include "OobSummary/lower/TypeLayout.h"
 
@@ -1320,6 +1321,7 @@ fir::Module LowerTranslationUnit(const TranslationUnitDecl *tu, AnalysisManager 
     lowerer.maxBlocks = maxBlocks;
     ModuleCollector collector(module, keys, layout, files, lowerer);
     collector.TraverseDecl(const_cast<TranslationUnitDecl *>(tu));
+    fir::FinalizeHeaderKeys(module);  // 头文件函数的键加 #<FIR 哈希>（D-02，SPEC-0059）
     return module;
 }
 

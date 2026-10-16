@@ -1,0 +1,31 @@
+# 头文件里的内部链接函数的键加 #<FIR 哈希前 8 位>（oobsum/specs/SPEC-0059；06- D-02、D-08）：各 TU 宏展开不同的 static inline 不再共用一个键。
+# 原来 solve 按键只留一份 Buf_Put：留下 b.c 那份时 A_TP 的越界被判成 SAFE（漏报），留下 a.c 那份时 B_TN 误报。
+#
+# RUN: rm -rf %t && mkdir -p %t
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=export -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=fir -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Buf_Put$' \
+# RUN:   %S/Inputs/hdrkey/a.c 2>&1 | FileCheck %s --check-prefix=FIR
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=export -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t %S/Inputs/hdrkey/b.c
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=export -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t %S/Inputs/hdrkey/c.c
+# 三个 TU 两种函数体 → 两个键
+# RUN: cat %t/fir/*.json | grep -o '"key":"F@[0-9a-f]*:Buf_Put#[0-9a-f]*"' | sort -u | count 2
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=solve -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=stats %S/Inputs/solve/stub.c 2>&1 | FileCheck %s --check-prefix=STATS
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=report -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/hdrkey/a.c 2>&1 | FileCheck %s --check-prefix=REPA
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=report -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/hdrkey/b.c 2>&1 | FileCheck %s --check-prefix=REPB
+
+FIR: [oobsum:fir] fn F@{{[0-9a-f]+}}:Buf_Put#{{[0-9a-f]+}} -> void @buf.h:2:20
+# 5 个函数：A_TP、B_TN、C_TN 与两份 Buf_Put（b.c、c.c 的那份键相同，只算一次）
+STATS: [oobsum:stats] solve tus=3 functions=5
+REPA: a.c:4:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 32 of 'a' (16 bytes) may be accessed
+REPB: b.c:4:1: warning: [OOB-SAFE:guard_entailed] Proven within bounds

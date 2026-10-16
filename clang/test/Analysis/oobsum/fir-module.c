@@ -52,8 +52,8 @@ static void Mod_Nop(void) {}
 // CHECK-NEXT: [oobsum:fir] global G@[[TU]]:s_iCnt: i32 def @fir-module.c:21:12
 // CHECK-NEXT: [oobsum:fir] global S@F:Mod_Sum:s_calls: i32 def @fir-module.c:31:16
 // CHECK-NEXT: [oobsum:fir] global G:g_ext2: i32 decl @fir-module.c:32:16
-// 头文件 static inline 也导出（X-01）
-// CHECK-NEXT: [oobsum:fir] fn F@{{[0-9a-f]+}}:hdr_min -> i32 @keys.h:1:19
+// 头文件 static inline 也导出（X-01）；键带 #<FIR 哈希前 8 位>（D-02，SPEC-0059）
+// CHECK-NEXT: [oobsum:fir] fn F@{{[0-9a-f]+}}:hdr_min#{{[0-9a-f]+}} -> i32 @keys.h:1:19
 // CHECK-NEXT: [oobsum:fir]   local l0 a param0: i32
 // CHECK-NEXT: [oobsum:fir]   local l1 b param1: i32
 // CHECK: [oobsum:fir]   b5 entry:
