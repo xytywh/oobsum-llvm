@@ -65,6 +65,13 @@ struct PtrVal {
     LinExpr size;
     IntVal off = IntVal::Exact(LinExpr::Const(0));  // 字节偏移
     std::string why;                                // Unknown 的原因
+    // 形参所指结构体里的成员数组（ParamField）：外层对象（*pK、ext(pK)）与成员在其中的偏移。访问要同时满足成员边界与
+    // 外层对象边界（F-02、D-31；SPEC-0022）
+    bool hasParent = false;
+    std::string parentId;
+    std::string parentObj;
+    LinExpr parentSize;
+    int64_t parentOff = 0;
 
     bool operator==(const PtrVal &o) const;
 };

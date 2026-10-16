@@ -239,10 +239,11 @@ TEST(Interp, ParamFieldsAndMemberArray)
     uint32_t len = b.LocalVar("t0", b.u32);
     ExprId member = b.f.Add(Expr::Fld(b.L(p), 4, 8, "aucBuf"));
     b.Straight({b.Load(len, b.L(p), 4, 20), b.Store(b.PAdd(member, b.L(len)), 1, b.C(0), 21)});
+    // 成员数组的写同时查外层对象：4 + p0->ulLen + 1 <= ext(p0)（SPEC-0022；LV7-03 的"按结构体访问小缓冲区"靠它）
     EXPECT_EQ(Reqs(b.Run()),
-              "R have=ext(p0) obj=*p0 end=[4, 4] bound=exact at=t.c:20 | W have=8 obj=p0->aucBuf end=[p0->ulLen + 1, "
-              "p0->ulLen + 1] "
-              "bound=exact at=t.c:21");
+              "R have=ext(p0) obj=*p0 end=[4, 4] bound=exact at=t.c:20 | "
+              "W have=ext(p0) obj=*p0 end=[p0->ulLen + 5, p0->ulLen + 5] bound=exact at=t.c:21 | "
+              "W have=8 obj=p0->aucBuf end=[p0->ulLen + 1, p0->ulLen + 1] bound=exact at=t.c:21");
 }
 
 TEST(Interp, MaskDivAndNonlinear)

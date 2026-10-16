@@ -957,6 +957,11 @@ Value Analyzer::Eval(ExprId e, const State &s)
             if (p.kind == BaseKind::Param && p.off.IsConst() && p.off.value.Constant() == 0) {
                 std::string param = p.obj.substr(1);  // "*p0" → "p0"
                 v.p = Base(BaseKind::ParamField, p.id + "." + x.text, param + "->" + x.text, LinExpr::Const(x.size));
+                v.p.hasParent = true;  // 外层对象也要查（SPEC-0022）
+                v.p.parentId = p.id;
+                v.p.parentObj = p.obj;
+                v.p.parentSize = p.size;
+                v.p.parentOff = x.value;
                 return v;
             }
             if (p.kind != BaseKind::Unknown) {
@@ -1064,6 +1069,18 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
 {
     if (!recording) {
         return;
+    }
+    // 成员数组：外层对象的边界也要满足（off(f) + 下标 + 字节数 <= ext(pK)，F-02；SPEC-0022）——只查成员会把
+    // "按大结构体访问小缓冲区"（LV7-03）证明成安全
+    if (addr.hasParent) {
+        PtrVal parent;
+        parent.kind = BaseKind::Param;
+        parent.id = addr.parentId;
+        parent.obj = addr.parentObj;
+        parent.hasSize = true;
+        parent.size = addr.parentSize;
+        parent.off = AddVals(IntVal::Exact(LinExpr::Const(addr.parentOff)), addr.off);
+        Access(kind, parent, fir::kNone, bytes, loc, s, forced);
     }
     std::string at = SiteOf(m, loc);
     auto open = [&](const char *reason) {
