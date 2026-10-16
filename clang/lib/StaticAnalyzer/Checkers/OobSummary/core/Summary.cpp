@@ -296,15 +296,16 @@ bool Reader::ReadReq(const Value &v, Req &r)
 
 bool Reader::ReadEff(const Value &v, Eff &e)
 {
-    const Object *o =
-        Obj(v, {"kind"}, {"size", "maybe_null", "range", "when", "then", "target", "value", "eff_depth", "bound"});
+    const Object *o = Obj(
+        v, {"kind"}, {"size", "maybe_null", "range", "when", "then", "target", "value", "eff_depth", "bound", "may"});
     auto strings = [&](const Value &x, std::vector<std::string> &y) { return List(x, y, OOBSUM_M(Expr)); };
     auto conds = [&](const Value &x, std::vector<std::string> &y) { return List(x, y, OOBSUM_M(Cond)); };
     return o != nullptr && Key(*o, "kind", e.kind, OOBSUM_M(Str)) && OptKey(*o, "size", e.size, OOBSUM_M(Expr)) &&
            OptKey(*o, "maybe_null", e.maybeNull, OOBSUM_M(Bool)) && OptKey(*o, "range", e.range, strings) &&
            OptKey(*o, "when", e.when, OOBSUM_M(Cond)) && OptKey(*o, "then", e.then, conds) &&
            OptKey(*o, "target", e.target, OOBSUM_M(Str)) && OptKey(*o, "value", e.value, OOBSUM_M(Expr)) &&
-           OptKey(*o, "eff_depth", e.effDepth, OOBSUM_M(Int)) && OptKey(*o, "bound", e.bound, OOBSUM_M(TagName));
+           OptKey(*o, "eff_depth", e.effDepth, OOBSUM_M(Int)) && OptKey(*o, "bound", e.bound, OOBSUM_M(TagName)) &&
+           OptKey(*o, "may", e.may, OOBSUM_M(Bool));
 }
 
 bool Reader::ReadPtr(const Value &v, PtrArg &p)
@@ -781,6 +782,7 @@ Value SummaryToJson(const Summary &s)
         Put(o, "value", e.value);
         Put(o, "eff_depth", e.effDepth);
         Put(o, "bound", e.bound);
+        Put(o, "may", e.may);
         effs.push_back(std::move(o));
     }
     Array calls;

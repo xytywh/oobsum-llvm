@@ -10,7 +10,7 @@ CHECK-DAG: s.c:5:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through 
 CHECK-DAG: s.c:6:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
 # 调用方把自己的形参原样传下去：上传成调用方的 p1->_0，上一层判
 CHECK-DAG: s.c:9:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 2-level call chain: up to byte 17 of 'a' (16 bytes) may be accessed
-# 调用前被改过 → 记账（文本写成 pLen[0]）
-CHECK-DAG: s.c:12:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within 'a' (16 bytes): up to byte pLen[0] may be accessed
+# 调用前被 Set 写成 20：写效应 *pn := 20（SPEC-0073）→ POSSIBLE（SPEC-0071 时还不知道值，记账）
+CHECK-DAG: s.c:12:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 20 of 'a' (16 bytes) may be accessed
 # 同类型的两个整数指针形参：经 pulOut 写过之后 pulLen 不当入口值
 CHECK-DAG: s.c:14:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within '*p' (size ext(p0)): up to byte an unknown value may be accessed

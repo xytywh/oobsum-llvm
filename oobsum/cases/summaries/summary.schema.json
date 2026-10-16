@@ -99,6 +99,7 @@
         "value": { "$ref": "#/definitions/expr" },
         "eff_depth": { "type": "integer", "minimum": 0 },
         "bound": { "$ref": "#/definitions/tag" },
+        "may": { "type": "boolean", "description": "field：有的返回路径没写，调用方取旧值与新值的并（SPEC-0073）" },
         "doc": { "$ref": "#/definitions/doc" }
       }
     },

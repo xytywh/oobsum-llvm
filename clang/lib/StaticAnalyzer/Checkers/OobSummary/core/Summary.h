@@ -85,6 +85,7 @@ struct Eff {
     llvm::Optional<std::string> value;
     llvm::Optional<int64_t> effDepth;
     llvm::Optional<std::string> bound;
+    llvm::Optional<bool> may;  // field：有的返回路径没写（调用方取旧值与新值的并，SPEC-0073）
 };
 
 struct PtrArg;

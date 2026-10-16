@@ -20,5 +20,6 @@ CHECK-DAG: mods.c:11:1: warning: [OOB-DEFINITE] Definite out-of-bound write thro
 CHECK-DAG: mods.c:18:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 2-level call chain: up to byte 32 of 'a' (16 bytes) may be accessed
 CHECK-DAG: mods.c:24:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 2-level call chain: up to byte 32 of 'a' (16 bytes) is accessed
 # 对照：经两层写到了的仍失效
-CHECK-DAG: mods.c:30:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 2-level call chain stays within 'a' (16 bytes)
+# ulLen 的写效应经两层传上来（SPEC-0073）：知道改成了 100 → DEFINITE（原来记账）
+CHECK-DAG: mods.c:30:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 2-level call chain: up to byte 100 of 'a' (16 bytes) is accessed
 CHECK-DAG: mods.c:34:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 2-level call chain stays within 'a' (16 bytes)

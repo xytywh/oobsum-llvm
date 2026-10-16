@@ -1315,3 +1315,48 @@ TEST(Interp, ScalarPointee)
     EXPECT_EQ(facts2.fields.count("p2->_0"), size_t(0));  // 可能就是 *pOut：不是入口值
     EXPECT_EQ(Reqs(facts2).find("p2->_0"), std::string::npos);
 }
+
+TEST(Interp, FieldEffect)
+{
+    // SPEC-0073：两条路径——一条写 *pLen = 32 后返回，一条没碰就返回 → field p0->_0 := 32（may）；
+    // 再加一条写不同值的路径 → 不记
+    auto build = [](bool third) {
+        Builder b;
+        uint32_t len = b.Param("pLen", b.m.Intern(Type::Ptr(b.u32)));
+        uint32_t n = b.Param("n", b.u32);
+        Inst ret;
+        ret.op = InstOp::Ret;
+        Block entry;
+        entry.id = 3;
+        entry.succ = {{2, b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(n), b.C(0), false))},
+                      {1, b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(n), b.C(0), false))}};
+        Block w;
+        w.id = 2;
+        w.insts = {b.Store(b.L(len), 4, b.C(32), 3), ret};
+        w.succ = {{0, kNone}};
+        Block keep;
+        keep.id = 1;
+        keep.insts = {ret};
+        if (third) {
+            keep.insts = {b.Store(b.L(len), 4, b.C(8), 4), ret};
+        }
+        keep.succ = {{0, kNone}};
+        Block exit;
+        exit.id = 0;
+        b.f.blocks = {entry, w, keep, exit};
+        b.f.entry = 3;
+        b.f.exit = 0;
+        return b.Run();
+    };
+    interp::FunctionFacts facts = build(false);
+    auto field =
+        std::find_if(facts.effs.begin(), facts.effs.end(), [](const summary::Eff &e) { return e.kind == "field"; });
+    ASSERT_TRUE(field != facts.effs.end());
+    EXPECT_EQ(field->target.getValueOr(""), "p0->_0");
+    EXPECT_EQ(field->value.getValueOr(""), "32");
+    EXPECT_TRUE(field->may.getValueOr(false));
+    ASSERT_TRUE(facts.fields.count("p0->_0") == 1);
+    interp::FunctionFacts two = build(true);
+    EXPECT_TRUE(
+        std::none_of(two.effs.begin(), two.effs.end(), [](const summary::Eff &e) { return e.kind == "field"; }));
+}

@@ -9,7 +9,8 @@
 # RUN:   %S/Inputs/modref/modref.c 2>&1 | not grep -E "OOB-SAFE.*of 'auc'|pointer_stepping"
 
 # Buf_SetLen(&st) 把 ulLen 改成 100：调用后 st.ulLen 只剩类型范围（上界来自 data → type_range_only，原来误记 pointer_stepping）
-CHECK-DAG: modref.c:16:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'auc' (16 bytes)
+# 写效应 st.ulLen := 100（SPEC-0073）：DEFINITE（原来记账）
+CHECK-DAG: modref.c:16:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 100 of 'auc' (16 bytes) is accessed
 # 被调者不在本 TU：调用点记 not_in_tu，之后同样不用旧值
 CHECK-DAG: modref.c:25:1: warning: [OOB-SUSPECT:not_in_tu] Cannot prove this access is within bounds: a pointer is passed to 'Ext_SetLen'
 CHECK-DAG: modref.c:26:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'auc' (16 bytes)

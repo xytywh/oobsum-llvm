@@ -993,6 +993,9 @@ private:
     // 返回实参指针（或它所指结构体的指针字段在入口时的值）加同一个偏移（SPEC-0070）
     llvm::Optional<summary::Eff> ReturnPointer() const;
     Value RetPtrResult(const fir::Inst &inst, const summary::Eff &e, const summary::Summary &callee, const State &s);
+    // 写效应 field 在调用点要写的格与新值（调用前的状态，SPEC-0073 §2.2）
+    std::vector<std::pair<CellKey, Value>> FieldWrites(const fir::Inst &inst, const summary::Summary &callee,
+                                                       const State &s);
     // 被调者的式子换成调用方的：形参换成可信的确切实参，全局按调用点的 gvals；换不了 → None（SPEC-0054 / 0064 / 0070）
     // 字段符号 p<k>->f 按被调者 fields 表从第 k 个实参所指对象读调用前的值；没换掉的被调者接口符号算换不了（SPEC-0072）
     llvm::Optional<LinExpr> CallerExpr(const fir::Inst &inst, const LinExpr &calleeExpr, const State &s,
@@ -1075,6 +1078,20 @@ private:
         returns;  // 记录那一遍里每个 ret 的值与当时的守卫（SPEC-0024、0025）
     std::vector<std::map<std::pair<int, int64_t>, Value>>
         outs;  // 每个 ret 时指针形参 K 所指对象里偏移 off 的指针格的值（出参，SPEC-0053 / 0061）
+    // 写效应 field（SPEC-0073）：每个 ret 时形参所指对象各整数字段的状态
+    struct FieldAt {
+        enum Kind { Written, Unchanged, Unknown } kind = Unknown;
+        LinExpr value;
+    };
+    struct FieldSlot {
+        std::string name;  // pK->f（伪字段 pK->_0）
+        int param = 0;
+        int64_t off = 0;
+        int64_t size = 0;
+        fir::TypeId type = fir::kNone;
+    };
+    std::vector<FieldSlot> FieldSlots() const;
+    std::vector<std::map<std::string, FieldAt>> fieldOuts;
     std::vector<bool> heads;    // 循环头（回边的目标），按块下标
     bool recording = false;     // 只有最后一遍记访问、调用点、账本（SPEC-0017 §2.1）
     bool edgeFromHead = false;  // 当前 Assume 的边从循环头出发：收窄出来的上界标 loop
@@ -1899,8 +1916,16 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                     }
                 }
             }
+            // 写效应 field：按调用前的状态算新值（SPEC-0073 §2.2），失效之后再写进格
+            std::vector<std::pair<CellKey, Value>> fieldWrites;
+            if (calleeSummary != nullptr) {
+                fieldWrites = FieldWrites(inst, *calleeSummary, s);
+            }
             if (calleeSummary != nullptr) {
                 ApplyMods(inst, calleeSummary->mods, s);  // 只让被调者可能写的位置失效（mod-ref，SPEC-0045）
+                for (const auto &w : fieldWrites) {
+                    s.cells[w.first] = w.second;
+                }
                 // 出参写回的新对象：实参所指的格强更新成 heap@调用点（SPEC-0053）
                 for (const summary::Eff &e : calleeSummary->effs) {
                     llvm::StringRef target = e.target ? llvm::StringRef(*e.target) : llvm::StringRef();
@@ -2293,6 +2318,15 @@ FunctionFacts Analyzer::Run()
         State s = in[b];
         for (const fir::Inst &inst : f.blocks[b].insts) {
             Step(inst, s);
+        }
+        // 走到函数末尾自然返回（没有 ret 指令）：出参与写效应也要按这条路径记（SPEC-0073）
+        const fir::Block &block = f.blocks[b];
+        bool toExit = llvm::any_of(block.succ, [&](const fir::Edge &e) { return e.to == f.exit; });
+        bool hasRet = llvm::any_of(block.insts, [](const fir::Inst &i) { return i.op == fir::InstOp::Ret; });
+        if (toExit && !hasRet && block.id != f.exit && s.reached) {
+            fir::Inst implicit;
+            implicit.op = fir::InstOp::Ret;  // 没有返回值
+            RecordReturn(implicit, s);
         }
     }
     recording = false;
@@ -3176,6 +3210,53 @@ void Analyzer::RecordReturn(const fir::Inst &inst, const State &s)
         }
     }
     outs.push_back(std::move(out));
+    // 写效应 field：形参所指对象的整数字段在这条路径上写了 / 没碰 / 不知道（SPEC-0073）
+    std::map<std::string, FieldAt> fieldsHere;
+    for (const FieldSlot &slot : FieldSlots()) {
+        std::string id = "P" + std::to_string(slot.param);
+        FieldAt at;
+        auto cell = s.cells.find(CellKey(id, slot.off, slot.size));
+        if (cell != s.cells.end()) {
+            if (!cell->second.isPtr && cell->second.i.kind == IntVal::Kind::Exact &&
+                !cell->second.i.value.IsUnknown()) {
+                at.kind = FieldAt::Written;
+                at.value = cell->second.i.value;
+            }
+        } else if (!Changed(s, id, slot.off, slot.size)) {
+            at.kind = FieldAt::Unchanged;
+        }
+        fieldsHere[slot.name] = at;
+    }
+    fieldOuts.push_back(std::move(fieldsHere));
+}
+
+std::vector<Analyzer::FieldSlot> Analyzer::FieldSlots() const
+{
+    std::vector<FieldSlot> out;
+    for (const fir::Local &l : f.locals) {
+        if (l.param < 0 || l.type >= m.types.size() || m.types[l.type].kind != fir::TypeKind::Ptr) {
+            continue;
+        }
+        fir::TypeId pointee = m.types[l.type].to;
+        if (pointee >= m.types.size()) {
+            continue;
+        }
+        std::string p = "p" + std::to_string(l.param);
+        const fir::Type &t = m.types[pointee];
+        int64_t size = 0;
+        if (t.kind == fir::TypeKind::Int && t.width > 8 && TypeSize(m, pointee, size)) {
+            out.push_back({p + "->_0", l.param, 0, size, pointee});  // *pK（SPEC-0071）
+        } else if (t.kind == fir::TypeKind::Rec) {
+            const fir::Record *r = m.FindRecord(t.record);
+            for (const fir::Field &field : r != nullptr ? r->fields : std::vector<fir::Field>()) {
+                if (field.type < m.types.size() && m.types[field.type].kind == fir::TypeKind::Int &&
+                    TypeSize(m, field.type, size)) {
+                    out.push_back({p + "->" + field.name, l.param, field.off, size, field.type});
+                }
+            }
+        }
+    }
+    return out;
 }
 
 // 每个返回值都是常数（或带情形）→ 按常数分组、组内守卫取交集：ret_cond；再加 ret_int 说明可能的返回值（D-24，SPEC-0025 §2.2）
@@ -3366,6 +3447,51 @@ Value Analyzer::RetPtrResult(const fir::Inst &inst, const summary::Eff &e, const
     llvm::Optional<LinExpr> mine = ParseLin(*e.value, off, error) ? CallerExpr(inst, off, s, &callee) : llvm::None;
     base.off = AddVals(base.off, mine ? IntVal::Exact(*mine) : IntVal::Top("call"));
     out.p = base;
+    return out;
+}
+
+std::vector<std::pair<CellKey, Value>> Analyzer::FieldWrites(const fir::Inst &inst, const summary::Summary &callee,
+                                                             const State &s)
+{
+    std::vector<std::pair<CellKey, Value>> out;
+    for (const summary::Eff &e : callee.effs) {
+        if (e.kind != "field" || !e.target || !e.value || !callee.fields) {
+            continue;
+        }
+        auto info = callee.fields->find(*e.target);
+        llvm::StringRef param = llvm::StringRef(*e.target).split("->").first;
+        unsigned k = 0;
+        if (info == callee.fields->end() || !param.consume_front("p") || param.getAsInteger(10, k) ||
+            k >= inst.args.size()) {
+            continue;
+        }
+        Value arg = Eval(inst.args[k], s);
+        if (!arg.isPtr || arg.p.kind == BaseKind::Unknown || arg.p.kind == BaseKind::Func || !arg.p.off.IsConst()) {
+            continue;
+        }
+        LinExpr calleeValue;
+        std::string error;
+        llvm::Optional<LinExpr> mine =
+            ParseLin(*e.value, calleeValue, error) ? CallerExpr(inst, calleeValue, s, &callee) : llvm::None;
+        if (!mine) {
+            continue;  // 换不了：格照旧被 mods 清掉（不知道）
+        }
+        Value v;
+        v.i = IntVal::Exact(*mine);
+        PtrVal addr = arg.p;
+        addr.off = AddVals(addr.off, IntVal::Exact(LinExpr::Const(info->second.off)));
+        if (e.may.getValueOr(false)) {
+            // 有的路径没写：与调用前的值汇合
+            Value old = LoadValue(addr, info->second.size, fir::kNone, s);
+            v = JoinValue(old, v);
+            llvm::Optional<LinExpr> lo = v.i.Lower();
+            llvm::Optional<LinExpr> hi = v.i.Upper();
+            if (v.isPtr || v.i.kind == IntVal::Kind::Top || !lo || !hi || lo->IsUnknown() || hi->IsUnknown()) {
+                continue;
+            }
+        }
+        out.push_back({CellKey(arg.p.id, arg.p.off.value.Constant() + info->second.off, info->second.size), v});
+    }
     return out;
 }
 
@@ -3635,12 +3761,50 @@ std::vector<summary::Eff> Analyzer::Effects() const
         if (hit) {
             summary::Eff e;
             e.kind = "out_new";
-            e.target = target;
+            e.target = target;  // SPEC-0053 / 0061
             e.size = (hit->first->size - LinExpr::Const(hit->second)).Show();
             e.maybeNull = true;
             e.effDepth = hit->first->effDepth + 1;
             out.push_back(e);
         }
+    }
+    // 写效应 field：每条路径要么写了同一个确切值、要么没碰；至少一条写了（SPEC-0073）
+    for (const FieldSlot &slot : fieldOuts.empty() ? std::vector<FieldSlot>() : FieldSlots()) {
+        llvm::Optional<LinExpr> value;
+        bool may = false;
+        bool ok = true;
+        for (const auto &path : fieldOuts) {
+            auto it = path.find(slot.name);
+            if (it == path.end() || it->second.kind == FieldAt::Unknown) {
+                ok = false;
+                break;
+            }
+            if (it->second.kind == FieldAt::Unchanged) {
+                may = true;
+                continue;
+            }
+            if (value && !(*value == it->second.value)) {
+                ok = false;
+                break;
+            }
+            value = it->second.value;
+        }
+        if (!ok || !value) {
+            continue;
+        }
+        summary::Eff e;
+        e.kind = "field";
+        e.target = slot.name;
+        e.value = value->Show();
+        if (may) {
+            e.may = true;
+        }
+        summary::FieldInfo info;
+        info.off = slot.off;
+        info.size = slot.size;
+        info.type = fir::TypeText(m, slot.type);
+        fields[slot.name] = info;
+        out.push_back(e);
     }
     return out;
 }

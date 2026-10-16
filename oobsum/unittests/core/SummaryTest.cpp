@@ -237,3 +237,25 @@ TEST(Summary, GvalsRoundTrip)
     out.getAsObject()->getArray("calls")->front().getAsObject()->getObject("gvals")->insert({"g:bad", "p0 +"});
     EXPECT_FALSE(ReadSummary(out, back, error));
 }
+
+TEST(Summary, FieldMayRoundTrip)
+{
+    // 写效应 field 的 may（SPEC-0073）：读写往返
+    Summary s;
+    s.fn = "Get";
+    s.key = "F:Get";
+    s.loc = "t.c:1";
+    Eff e;
+    e.kind = "field";
+    e.target = "p0->_0";
+    e.value = "32";
+    e.may = true;
+    s.effs.push_back(e);
+    llvm::json::Value out = SummaryToJson(s);
+    Summary back;
+    std::string error;
+    ASSERT_TRUE(ReadSummary(out, back, error));
+    ASSERT_TRUE(back.effs.size() == 1);
+    EXPECT_TRUE(back.effs[0].may.getValueOr(false));
+    EXPECT_EQ(Print(SummaryToJson(back)), Print(out));
+}

@@ -1,0 +1,24 @@
+# 写效应 field：被调者写形参所指对象的整数字段（含 *pulLen 的伪字段 _0）（oobsum/specs/SPEC-0073；06- D-24）。
+# 原来调用方只知道"被改过、值不知道"，只能记账。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Cfg_Init|Cfg_Set|Get_Len|Two|Ext)$' \
+# RUN:   %S/Inputs/fieldeff/f.c 2>&1 | FileCheck %s
+
+# 函数末尾自然返回的路径也算（没有 ret 指令）
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"field","target":"p0->ulLen","value":"64"}],{{.*}}"fn":"Cfg_Init"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"field","target":"p0->ulLen","value":"p1"}],{{.*}}"fn":"Cfg_Set"
+# 出错路径没写：may
+CHECK-DAG: [oobsum:summary] {{.*}}{"kind":"field","may":true,"target":"p0->_0","value":"32"}],{{.*}}"fn":"Get_Len"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[],{{.*}}"fn":"Two"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[],{{.*}}"fn":"Ext"
+CHECK-DAG: f.c:8:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 64 of 'a' (16 bytes) may be accessed
+CHECK-DAG: f.c:10:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 20 of 'a' (16 bytes) may be accessed
+CHECK-DAG: f.c:11:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+# n = 0 初值与 32 的并 [0, 32]
+CHECK-DAG: f.c:14:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 32 of 'a' (16 bytes) may be accessed
+CHECK-DAG: f.c:15:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 32 of 'a' (32 bytes)
+# 对照：照旧记账
+CHECK-DAG: f.c:18:1: warning: [OOB-SUSPECT:entry_unproven]
+CHECK-DAG: f.c:21:1: warning: [OOB-SUSPECT:entry_unproven]
