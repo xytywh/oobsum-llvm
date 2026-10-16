@@ -1015,3 +1015,84 @@ TEST(Interp, RetCondAtCaller)
                c.f.Add(Expr::Cmp(CmpOp::Ne, c.L(r2), c.C(2), false)));
     EXPECT_EQ(Reqs(interp::AnalyzeFunction(c.m, c.f, nullptr, models::ModelTable::Default(), &callees)), "");
 }
+
+TEST(Interp, ArgFields)
+{
+    // 局部结构体存了两个字段再传 &st：调用点实参带 fields（指针字段 {obj, have}、整数字段表达式，SPEC-0026）；
+    // 连续给字段赋值不会互相清掉；第一次调用之后格已清，第二次调用没有 fields
+    Builder b;
+    Record r;
+    r.id = 0;
+    r.name = "CTX_S";
+    r.size = 8;
+    r.fields = {{"pucBuf", 0, b.m.Intern(Type::Ptr(b.u8))}, {"ulLen", 4, b.u32}};
+    b.m.records.push_back(r);
+    uint32_t st = b.LocalVar("stCtx", b.m.Intern(Type::Rec(0)), true);
+    uint32_t buf = b.LocalVar("aucBuf", b.m.Intern(Type::Arr(b.u8, 64)), true);
+    ExprId addr = b.f.Add(Expr::LAddr(st));
+    b.Straight({b.Store(addr, 4, b.f.Add(Expr::LAddr(buf)), 3), b.Store(b.PAdd(addr, b.C(4)), 4, b.C(128), 4),
+                CallOf("F@abc:Enc", {addr}, 5), CallOf("F@abc:Enc", {addr}, 6)});
+    interp::FunctionFacts facts = b.Run();
+    ASSERT_TRUE(facts.calls.size() == 2);
+    const summary::ArgValue &a = facts.calls[0].args[0];
+    ASSERT_TRUE(a.kind == summary::ArgValue::Kind::Ptr && a.ptr->fields.hasValue());
+    EXPECT_EQ(a.ptr->fields->size(), 2u);
+    EXPECT_EQ(a.ptr->fields->at("pucBuf").ptr->obj, "local:aucBuf");
+    EXPECT_EQ(a.ptr->fields->at("pucBuf").ptr->have, "64");
+    EXPECT_EQ(a.ptr->fields->at("ulLen").expr, "128");
+    EXPECT_FALSE(facts.calls[1].args[0].ptr->fields.hasValue());
+}
+
+TEST(Interp, AliasFieldWritten)
+{
+    // 把自己的形参 p 原样传下去：没改过的字段不写（按别名代换成入口值）；改过的写当前值；不知道当前值写成未知；
+    // 把 p 交给一个被调者之后，所有字段都可能被改（SPEC-0026，LV5-04）
+    Builder b;
+    Record r;
+    r.id = 0;
+    r.name = "CTX_S";
+    r.size = 8;
+    r.fields = {{"pucBuf", 0, b.m.Intern(Type::Ptr(b.u8))}, {"ulLen", 4, b.u32}};
+    b.m.records.push_back(r);
+    uint32_t p = b.Param("pstCtx", b.m.Intern(Type::Ptr(b.m.Intern(Type::Rec(0)))));
+    uint32_t t = b.LocalVar("t0", b.u32);
+    uint32_t u = b.LocalVar("t1", b.u32);
+    ExprId len = b.PAdd(b.L(p), b.C(4));
+    b.Straight({b.Load(t, len, 4, 4), b.Store(len, 4, b.Math(BinOp::Add, b.L(t), b.C(16)), 4),
+                CallOf("F@abc:Put", {b.L(p)}, 5), CallOf("F@abc:Put", {b.L(p)}, 7)});
+    interp::FunctionFacts facts = b.Run();
+    ASSERT_TRUE(facts.calls.size() == 2);
+    auto fields = [&](size_t i) {
+        std::string out;
+        const summary::ArgValue &a = facts.calls[i].args[0];
+        if (!a.ptr->fields) {
+            return std::string("-");
+        }
+        for (const auto &f : *a.ptr->fields) {
+            out += f.first + "=" +
+                   (f.second.kind == summary::ArgValue::Kind::Ptr ? f.second.ptr->have : f.second.expr) + " ";
+        }
+        return out;
+    };
+    EXPECT_EQ(fields(0), "ulLen=p0->ulLen + 16 ");                         // 改了 ulLen，pucBuf 没改
+    EXPECT_EQ(fields(1), "pucBuf=_unknown_pucBuf ulLen=_unknown_ulLen ");  // 前一次调用拿到了 p：都可能被改
+    EXPECT_EQ(facts.calls[0].args[0].ptr->alias.getValueOr("-"), "p0");
+    // 什么都没改：不写 fields；写了不确切的值：未知
+    Builder c;
+    c.m.records.push_back(r);
+    uint32_t q = c.Param("pstCtx", c.m.Intern(Type::Ptr(c.m.Intern(Type::Rec(0)))));
+    uint32_t v = c.LocalVar("t0", c.u32);
+    c.Straight({CallOf("F@abc:Put", {c.L(q)}, 3), CallOf("F@abc:Get", {}, 4)});
+    EXPECT_FALSE(c.Run().calls[0].args[0].ptr->fields.hasValue());
+    Builder d;
+    d.m.records.push_back(r);
+    uint32_t q2 = d.Param("pstCtx", d.m.Intern(Type::Ptr(d.m.Intern(Type::Rec(0)))));
+    uint32_t v2 = d.LocalVar("t0", d.u32);
+    d.Straight({d.Load(v2, d.f.Add(Expr::Unknown("float")), 4, 3), d.Store(d.PAdd(d.L(q2), d.C(4)), 4, d.L(v2), 3),
+                CallOf("F@abc:Put", {d.L(q2)}, 4)});
+    interp::FunctionFacts facts3 = d.Run();
+    ASSERT_TRUE(facts3.calls[0].args[0].ptr->fields.hasValue());
+    EXPECT_EQ(facts3.calls[0].args[0].ptr->fields->at("ulLen").expr, "_unknown_ulLen");  // 读自未知内存，不是确切值
+    (void)u;
+    (void)v;
+}

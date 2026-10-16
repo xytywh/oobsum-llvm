@@ -555,16 +555,16 @@
    "kind": "TP",
    "entry": "Rrc_EncodeMsg_TP",
    "pa": "L1",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "级别不同"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV5-01",
    "kind": "TN",
    "entry": "Rrc_EncodeMsg_TN",
    "pa": "-",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "actual": "SAFE:local_entailed(未报出:safe)",
+   "verdict": "通过"
   },
   {
    "case": "LV5-02",
@@ -603,16 +603,16 @@
    "kind": "TP",
    "entry": "Rrc_EncodeExt_TP",
    "pa": "L1",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "级别不同"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV5-04",
    "kind": "TN",
    "entry": "Rrc_EncodeExt_TN",
    "pa": "-",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "actual": "SAFE:local_entailed(未报出:safe)",
+   "verdict": "通过"
   },
   {
    "case": "LV5-05",
@@ -1820,20 +1820,11 @@
   },
   {
    "case": "LV5-01",
-   "site": "lv5/lv5_01_ctx_filled_at_top.c:43:0",
+   "site": "lv5/lv5_01_ctx_filled_at_top.c:51:0",
    "kind": "W",
    "fn": "F:Rrc_EncodeMsg_TP",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv5/lv5_01_ctx_filled_at_top.c:36"
-  },
-  {
-   "case": "LV5-01",
-   "site": "lv5/lv5_01_ctx_filled_at_top.c:54:0",
-   "kind": "W",
-   "fn": "F:Rrc_EncodeMsg_TN",
-   "label": "suspect",
-   "reason": "entry_unproven",
+   "label": "definite",
+   "reason": "",
    "access": "lv5/lv5_01_ctx_filled_at_top.c:36"
   },
   {
@@ -1892,20 +1883,11 @@
   },
   {
    "case": "LV5-04",
-   "site": "lv5/lv5_04_field_changed_midway.c:44:0",
+   "site": "lv5/lv5_04_field_changed_midway.c:49:0",
    "kind": "W",
    "fn": "F:Rrc_EncodeExt_TP",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv5/lv5_04_field_changed_midway.c:33"
-  },
-  {
-   "case": "LV5-04",
-   "site": "lv5/lv5_04_field_changed_midway.c:52:0",
-   "kind": "W",
-   "fn": "F:Rrc_EncodeExt_TN",
-   "label": "suspect",
-   "reason": "entry_unproven",
+   "label": "definite",
+   "reason": "",
    "access": "lv5/lv5_04_field_changed_midway.c:33"
   },
   {

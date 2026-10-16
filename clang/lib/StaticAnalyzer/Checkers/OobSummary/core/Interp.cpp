@@ -424,6 +424,10 @@ struct State {
     std::map<uint32_t, Value> locals;
     std::map<CellKey, Value> cells;
     std::vector<LinExpr> guards;  // A-14：只含接口符号的 L ≤ 0，至多 8 个，先进先出（SPEC-0016）
+    // 本函数写过哪些内存（SPEC-0026：别名实参的字段改过没有）
+    std::set<CellKey> written;         // 常数偏移写过的 (基址, 偏移, 大小)
+    std::set<std::string> writtenAll;  // 偏移不定写过、或把指针交给了被调者的基址
+    bool clobbered = false;  // 经未知指针写过 / 把未知指针交给了被调者：任何基址都可能被改
 };
 
 const size_t kMaxGuards = 8;
@@ -476,7 +480,8 @@ const int kNarrowPasses = 2;     // 下降的遍数（SPEC-0017 §2.1）
 
 bool operator==(const State &a, const State &b)
 {
-    return a.reached == b.reached && a.locals == b.locals && a.cells == b.cells && a.guards == b.guards;
+    return a.reached == b.reached && a.locals == b.locals && a.cells == b.cells && a.guards == b.guards &&
+           a.written == b.written && a.writtenAll == b.writtenAll && a.clobbered == b.clobbered;
 }
 
 // envOf：给定汇合后成立的守卫（两边的交集），建比较符号界的环境（SPEC-0023）；空 = 只认常数差
@@ -495,6 +500,11 @@ State Join(const State &a, const State &b, const std::function<SymEnv(const std:
             out.guards.push_back(g);  // A-15：守卫取交集
         }
     }
+    out.written = a.written;  // 写过的：取并集
+    out.written.insert(b.written.begin(), b.written.end());
+    out.writtenAll = a.writtenAll;
+    out.writtenAll.insert(b.writtenAll.begin(), b.writtenAll.end());
+    out.clobbered = a.clobbered || b.clobbered;
     SymEnv env;
     Comparer cmp;
     if (envOf) {
@@ -849,6 +859,7 @@ private:
     std::vector<summary::Req> Merge() const;
     summary::Req ToReq(const RawAccess &a, size_t number) const;
     void RecordCall(const fir::Inst &inst, const State &s);
+    std::map<std::string, summary::ArgValue> ArgFields(const PtrVal &p, const State &s) const;
     std::string ShowState(const fir::Block &b, const State &s) const;
 
 public:
@@ -1302,11 +1313,23 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             Access("W", addr, inst.addr, IntVal::Exact(LinExpr::Const(inst.size)), inst.loc, s);
             if (addr.kind == BaseKind::Unknown) {
                 s.cells.clear();  // A-12：经未知基址的写
+                s.clobbered = true;
                 return;
             }
-            // 失效同一基址上的格，常数偏移时再强更新
+            if (addr.off.IsConst()) {
+                s.written.insert(CellKey(addr.id, addr.off.value.Constant(), inst.size));
+            } else {
+                s.writtenAll.insert(addr.id);
+            }
+            // 失效同一基址上的格：常数偏移时只失效与 [off, off + size) 重叠的（SPEC-0026），再强更新；偏移不定时整个基址
+            bool exact = addr.off.IsConst();
+            int64_t off = exact ? addr.off.value.Constant() : 0;
             for (auto it = s.cells.begin(); it != s.cells.end();) {
-                it = std::get<0>(it->first) == addr.id ? s.cells.erase(it) : std::next(it);
+                bool same = std::get<0>(it->first) == addr.id;
+                int64_t o = std::get<1>(it->first);
+                int64_t sz = std::get<2>(it->first);
+                bool overlap = !exact || (o < off + inst.size && off < o + sz);
+                it = same && overlap ? s.cells.erase(it) : std::next(it);
             }
             if (addr.off.IsConst() && inst.val != fir::kNone) {
                 s.cells[CellKey(addr.id, addr.off.value.Constant(), inst.size)] = Eval(inst.val, s);
@@ -1344,6 +1367,29 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             }
             if (kind != models::Kind::Pure && kind != models::Kind::Free) {
                 s.cells.clear();  // 被调者可能经指针 / 全局写内存（效果在 S7d-3）；纯函数、释放函数不改被跟踪的内存
+                // 交给被调者的指针所指的对象可能被改（SPEC-0026）；访问类模型只写目的一侧
+                std::set<size_t> writtenArgs;
+                if (kind == models::Kind::Access) {
+                    for (const models::AccessCond &c : models.Access(name)->conds) {
+                        if (c.kind == "W") {
+                            writtenArgs.insert(static_cast<size_t>(c.base));
+                        }
+                    }
+                }
+                for (size_t k = 0; k < inst.args.size(); ++k) {
+                    if (kind == models::Kind::Access && writtenArgs.count(k) == 0) {
+                        continue;
+                    }
+                    Value v = Eval(inst.args[k], s);
+                    if (!v.isPtr) {
+                        continue;
+                    }
+                    if (v.p.kind == BaseKind::Unknown) {
+                        s.clobbered = true;
+                    } else {
+                        s.writtenAll.insert(v.p.id);
+                    }
+                }
             }
             if (inst.dst != fir::kNone) {
                 SetLocal(s, inst.dst, result);
@@ -1668,6 +1714,10 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s)
                     }
                     if (v.p.kind == BaseKind::Heap && v.p.effDepth > 0) {
                         arg.ptr->effDepth = v.p.effDepth;  // 经几层 ret_new 得到的对象（D-25，SPEC-0024 §2.2）
+                    }
+                    std::map<std::string, summary::ArgValue> fieldValues = ArgFields(v.p, s);
+                    if (!fieldValues.empty()) {
+                        arg.ptr->fields = fieldValues;  // 局部 / 全局结构体里存进去的字段值（SPEC-0026）
                     }
                 } else {
                     arg.ptr->obj = "local:" + unknown;
@@ -2453,6 +2503,106 @@ std::vector<summary::Eff> Analyzer::Effects() const
     e.maybeNull = true;
     e.effDepth = heap->effDepth + 1;
     return {e};
+}
+
+// 指针实参指向局部 / 全局结构体变量（偏移 0）：内存格里有值的标量 / 指针字段（SPEC-0026）
+std::map<std::string, summary::ArgValue> Analyzer::ArgFields(const PtrVal &p, const State &s) const
+{
+    std::map<std::string, summary::ArgValue> out;
+    if (!p.off.IsConst() || p.off.value.Constant() != 0 || p.id.size() < 2) {
+        return out;
+    }
+    fir::TypeId type = fir::kNone;
+    bool alias = false;  // 自己的形参所指的结构体（实参写 alias pK）：只写本函数改过的字段（SPEC-0026）
+    if (p.kind == BaseKind::Param && p.id[0] == 'P') {
+        int k = static_cast<int>(std::strtol(p.id.c_str() + 1, nullptr, 10));
+        for (const fir::Local &l : f.locals) {
+            if (l.param == k && l.type < m.types.size() && m.types[l.type].kind == fir::TypeKind::Ptr) {
+                type = m.types[l.type].to;
+            }
+        }
+        alias = true;
+    } else if (p.kind == BaseKind::Local && p.id[0] == 'L') {
+        const fir::Local *l = f.FindLocal(static_cast<uint32_t>(std::strtoul(p.id.c_str() + 1, nullptr, 10)));
+        type = l != nullptr ? l->type : fir::kNone;
+    } else if (p.kind == BaseKind::Global && p.id[0] == 'G') {
+        for (const fir::Global &g : m.globals) {
+            if (g.key == p.id.substr(1)) {
+                type = g.type;
+            }
+        }
+    }
+    if (type >= m.types.size() || m.types[type].kind != fir::TypeKind::Rec) {
+        return out;
+    }
+    const fir::Record *r = m.FindRecord(m.types[type].record);
+    for (const fir::Field &field : r != nullptr ? r->fields : std::vector<fir::Field>()) {
+        int64_t size = 0;
+        if (field.type >= m.types.size() || !TypeSize(m, field.type, size)) {
+            continue;
+        }
+        fir::TypeKind kind = m.types[field.type].kind;
+        if (kind != fir::TypeKind::Int && kind != fir::TypeKind::Ptr) {
+            continue;  // 数组、嵌套结构体不写
+        }
+        // 别名：没改过的字段照旧按别名代换成入口值；改过的写当前值，不知道当前值就写成未知
+        bool changed = s.clobbered || s.writtenAll.count(p.id) != 0 || llvm::any_of(s.written, [&](const CellKey &w) {
+                           return std::get<0>(w) == p.id && std::get<1>(w) < field.off + size &&
+                                  field.off < std::get<1>(w) + std::get<2>(w);
+                       });
+        if (alias && !changed) {
+            continue;
+        }
+        std::string unknown = "_unknown_" + field.name;
+        auto unknownArg = [&]() {
+            summary::ArgValue u;
+            if (kind == fir::TypeKind::Ptr) {
+                u.kind = summary::ArgValue::Kind::Ptr;
+                u.ptr = std::make_shared<summary::PtrArg>();
+                u.ptr->obj = "local:" + unknown;
+                u.ptr->have = unknown;
+            } else {
+                u.kind = summary::ArgValue::Kind::Expr;
+                u.expr = unknown;
+            }
+            return u;
+        };
+        auto cell = s.cells.find(CellKey(p.id, field.off, size));
+        if (cell == s.cells.end()) {
+            if (alias) {
+                out[field.name] = unknownArg();
+            }
+            continue;
+        }
+        const Value &v = cell->second;
+        summary::ArgValue a;
+        if (v.isPtr) {
+            llvm::Optional<LinExpr> hi = v.p.off.Upper();
+            if (v.p.kind == BaseKind::Unknown || v.p.kind == BaseKind::Func || !v.p.hasSize || !hi) {
+                if (alias) {
+                    out[field.name] = unknownArg();
+                }
+                continue;
+            }
+            a.kind = summary::ArgValue::Kind::Ptr;
+            a.ptr = std::make_shared<summary::PtrArg>();
+            a.ptr->obj = v.p.obj;
+            a.ptr->have = (v.p.size - *hi).Show();
+            if (v.p.kind == BaseKind::Heap && v.p.effDepth > 0) {
+                a.ptr->effDepth = v.p.effDepth;
+            }
+        } else if (v.i.kind == IntVal::Kind::Exact) {
+            a.kind = summary::ArgValue::Kind::Expr;
+            a.expr = v.i.value.Show();
+        } else {
+            if (alias) {
+                out[field.name] = unknownArg();
+            }
+            continue;
+        }
+        out[field.name] = a;
+    }
+    return out;
 }
 
 std::string Analyzer::ShowState(const fir::Block &b, const State &s) const
