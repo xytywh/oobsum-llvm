@@ -41,6 +41,8 @@
 
 #include "OobSummary/core/Decision.h"
 #include "OobSummary/core/DecisionLog.h"
+
+#include <memory>
 #include "OobSummary/core/Fingerprint.h"
 #include "OobSummary/core/FirJson.h"
 #include "OobSummary/core/Engine.h"
@@ -145,6 +147,7 @@ private:
     void dumpKeys(const TranslationUnitDecl *tu, const std::string &tuId, oobsum::KeyMaker &keys) const;
     void dumpFir(const oobsum::fir::Module &module, const std::string &tuId) const;
     std::string writeFir(const oobsum::fir::Module &module, const std::string &tuId) const;
+    void solveAll() const;
     void dumpSummaries(const oobsum::fir::Module &module, const std::string &tuId,
                        const oobsum::engine::InlineResult &result) const;
 };
@@ -190,6 +193,85 @@ void OobSummaryChecker::dumpKeys(const TranslationUnitDecl *tu, const std::strin
         content += line + "\n";
     }
     dump.File(tuId + "/keys/keys.txt", content);
+}
+
+// Phase=solve（SPEC-0029 §2.2）：读 WorkDir/fir/*.json（读不了的跳过）→ RunSolve → 判定按汇合点函数所在的 TU 分组，
+// 写 WorkDir/solved/<tu-id>.json（没有判定的 TU 也写空列表）
+void OobSummaryChecker::solveAll() const
+{
+    if (workDir.empty()) {
+        llvm::errs() << "[oobsum] warning: Phase=solve needs WorkDir; nothing solved\n";
+        return;
+    }
+    llvm::SmallString<256> firDir(workDir);
+    llvm::sys::path::append(firDir, "fir");
+    std::vector<std::string> paths;
+    std::error_code ec;
+    for (llvm::sys::fs::directory_iterator it(firDir, ec), end; it != end && !ec; it.increment(ec)) {
+        if (llvm::sys::path::extension(it->path()) == ".json") {
+            paths.push_back(it->path());
+        }
+    }
+    std::sort(paths.begin(), paths.end());
+    std::vector<std::unique_ptr<oobsum::fir::Module>> modules;
+    for (const std::string &path : paths) {
+        auto m = std::make_unique<oobsum::fir::Module>();
+        std::string error;
+        if (!oobsum::fir::ReadModuleFile(path, *m, error)) {
+            llvm::errs() << "[oobsum] warning: skip " << path << ": " << error << "\n";  // X-03：坏文件跳过并记日志
+            continue;
+        }
+        modules.push_back(std::move(m));
+    }
+    std::vector<const oobsum::fir::Module *> mods;
+    for (const auto &m : modules) {
+        mods.push_back(m.get());
+    }
+    oobsum::engine::InlineResult result = oobsum::engine::RunSolve(mods);
+    for (const std::string &line : result.applyLines) {
+        if (dump.Wants("apply", line.substr(0, line.find(' ')))) {
+            dump.Line("apply", line);
+        }
+    }
+    std::vector<llvm::json::Array> byModule(mods.size());
+    for (const oobsum::Decision &d : result.decisions) {
+        auto it = result.moduleOf.find(d.fn);
+        if (it == result.moduleOf.end()) {
+            continue;
+        }
+        llvm::json::Object o = oobsum::DecisionToJson(d, oobsum::Disposition());
+        o.erase("emitted");  // "报没报"由 report 阶段的策略定
+        o.erase("not_emitted_because");
+        byModule[it->second].push_back(std::move(o));
+    }
+    llvm::SmallString<256> outDir(workDir);
+    llvm::sys::path::append(outDir, "solved");
+    llvm::sys::fs::create_directories(outDir);
+    for (size_t i = 0; i < mods.size(); ++i) {
+        llvm::SmallString<256> path(outDir);
+        llvm::sys::path::append(path, mods[i]->tu + ".json");
+        std::string tmp = path.str().str() + ".tmp";
+        std::error_code wec;
+        llvm::raw_fd_ostream os(tmp, wec, llvm::sys::fs::OF_Text);
+        if (wec) {
+            llvm::errs() << "[oobsum] warning: cannot write " << tmp << ": " << wec.message() << "\n";
+            continue;
+        }
+        os << llvm::json::Value(llvm::json::Object{{"schema", "oobsum-solved/1"},
+                                                   {"tu", mods[i]->tu},
+                                                   {"file", mods[i]->file},
+                                                   {"decisions", std::move(byModule[i])}})
+           << "\n";
+        os.close();
+        if (std::error_code rec = llvm::sys::fs::rename(tmp, path)) {
+            llvm::errs() << "[oobsum] warning: cannot rename " << tmp << ": " << rec.message() << "\n";
+        }
+    }
+    if (dump.On("stats")) {
+        dump.Line("stats", "solve tus=" + std::to_string(mods.size()) +
+                               " functions=" + std::to_string(result.summaries.size()) +
+                               " decisions=" + std::to_string(result.decisions.size()));
+    }
 }
 
 // WorkDir/fir/<tu-id>.json（06- X-01，SPEC-0028）：紧凑 JSON，先写 .tmp 再改名；返回路径（没写成为空）
@@ -301,6 +383,10 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
         dumpCallGraph(tu, keys);
     }
     // Phase=inline：单个 TU 内 降级 → 函数内解释 → 摘要 → 推到底 → 判定（SPEC-0021）；降级只做一次，Dump=fir/summary/state 共用
+    if (phase == "solve") {
+        solveAll();  // 桩 TU：读全部 FIR、跨 TU 求解（X-03 / X-04，SPEC-0029）；本 TU 不报
+        return;
+    }
     bool engine = phase == "inline";
     bool exporting = phase == "export";
     bool keepFir = exporting || (engine && !workDir.empty());  // X-01 / X-06（SPEC-0028）

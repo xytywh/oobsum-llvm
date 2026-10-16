@@ -1,0 +1,27 @@
+# Phase=solve（oobsum/specs/SPEC-0029）：两个 TU 先 export，再由桩 TU 读全部 FIR、跨 TU 求解，判定按 TU 写 solved/<tu>.json。
+# a.c 调 b.c 里定义的 Fill（跨文件的调用链）；两个文件各有一个同名 static Init（按函数键各算各的）；b.c 的 Send 哪里都没有定义。
+#
+# RUN: rm -rf %t && mkdir -p %t
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=export -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t %S/Inputs/solve/a.c
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=export -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t %S/Inputs/solve/b.c
+# 坏文件跳过并提示（X-03）
+# RUN: echo '{' > %t/fir/broken.json
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=solve -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=stats %S/Inputs/solve/stub.c 2>&1 | FileCheck %s --check-prefix=STATS
+# RUN: ls %t/solved/*.json | count 2
+# RUN: cat %t/solved/*.json | FileCheck %s
+
+STATS: [oobsum] warning: skip {{.*}}broken.json
+STATS: [oobsum:stats] solve tus=2 functions=5 decisions=4
+
+# 判定的键按字母排（chain、fn 在 label 前面）
+# a.c 的 TU：跨文件调用 Fill → POSSIBLE，调用链到 b.c
+CHECK-DAG: "chain":["Top_A@{{.*}}a.c:16","Fill@{{.*}}b.c:16"]{{.*}}"label":"possible"
+# b.c 的 TU：同名 static Init 写到第 101 字节 → DEFINITE；Send 没有定义 → unknown_callee
+CHECK-DAG: "fn":"F:Top_B"{{.*}}"label":"definite"
+# 调用点上的 SAFE：调用链写函数名
+CHECK-DAG: "chain":["Top_A@{{.*}}a.c:15","Init@{{.*}}a.c:9"]{{.*}}"label":"safe"
+CHECK-DAG: "label":"suspect"{{.*}}"reason":"unknown_callee"

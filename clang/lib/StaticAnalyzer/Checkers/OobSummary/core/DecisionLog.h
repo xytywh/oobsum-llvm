@@ -22,6 +22,8 @@
 namespace oobsum {
 
 llvm::json::Object DecisionToJson(const Decision &decision, const Disposition &disposition);
+// 读回 DecisionToJson 写的判定（"报没报"不读；SPEC-0029 §2.3，solve → report）
+bool DecisionFromJson(const llvm::json::Value &value, Decision &out, std::string &error);
 
 // 写整个 TU 的判定日志；workDir 为空则不写。返回写出的路径（失败返回空串，错误信息放 error）
 std::string WriteDecisionLog(const std::string &workDir, const std::string &tuId, const std::string &mainFile,

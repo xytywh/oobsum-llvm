@@ -7,6 +7,7 @@
 
 #include "Test.h"
 
+#include "OobSummary/core/DecisionLog.h"
 #include "OobSummary/core/Engine.h"
 #include "OobSummary/core/FirJson.h"
 #include "OobSummary/core/Label.h"
@@ -123,4 +124,77 @@ TEST(Engine, Messages)
               "Cannot prove this access is within bounds: the pointer is advanced in a loop");
     EXPECT_EQ(engine::LedgerMessage("unanalyzed:iter_limit"),
               "Cannot prove this access is within bounds: the function was not fully analyzed (iter_limit)");
+}
+
+TEST(Engine, SolveAcrossModules)
+{
+    // 两个 TU 一起求解（SPEC-0029）：A 调 B 里定义的 Fill（写 17 字节到 16 字节的数组）→ 跨模块的 L1；两个同名 static Init 各算各的；
+    // B 里的 Send 哪里都没有定义 → unknown_callee（inline 时是 not_in_tu）
+    fir::Module a;
+    fir::Module b;
+    std::string error;
+    ASSERT_TRUE(fir::ReadModuleFile(OOBSUM_TEST_DATA_DIR "/solve-a-fir.json", a, error));
+    ASSERT_TRUE(fir::ReadModuleFile(OOBSUM_TEST_DATA_DIR "/solve-b-fir.json", b, error));
+    engine::InlineResult r = engine::RunSolve({&a, &b});
+    std::vector<std::string> got = Decisions(r);
+    std::vector<std::string> want = {
+        // B 的 static Init 写 pucBuf[100]、64 字节的数组 → L1；A 的同名 Init 写 pucBuf[0] → 安全（按函数键各算各的）
+        "definite Top_B solve_b.c:24 | Definite out-of-bound write through a 1-level call chain: up to byte 101 of "
+        "'aucBuf' (64 bytes) is accessed",
+        // A 调 B 的 Fill：循环写 17 字节到 16 字节的数组 → L2（前 16 次安全），调用链跨文件
+        "possible Top_A solve_a.c:16 | Possible out-of-bound write through a 1-level call chain: up to byte 17 of "
+        "'aucBuf' (16 bytes) may be accessed; the bound comes from a loop condition [Top_A (solve_a.c:16) -> Fill "
+        "(solve_b.c:16)]",
+        "safe:within Top_A solve_a.c:15 | Proven within bounds: up to byte 1 of 'aucBuf' (16 bytes)",
+        "suspect:unknown_callee Fill solve_b.c:18 | Cannot prove this access is within bounds: a pointer is passed to "
+        "'Send', which is not defined in any analyzed translation unit",
+    };
+    EXPECT_EQ(got.size(), want.size());
+    for (size_t i = 0; i < std::min(got.size(), want.size()); ++i) {
+        EXPECT_EQ(got[i], want[i]);
+    }
+    // 判定所在的模块：Top_A 在 A（下标 0）、Fill 在 B（下标 1）
+    for (const auto &entry : r.summaries) {
+        if (entry.second.fn == "Top_A") {
+            EXPECT_EQ(r.moduleOf.at(entry.first), 0u);
+        }
+        if (entry.second.fn == "Fill") {
+            EXPECT_EQ(r.moduleOf.at(entry.first), 1u);
+        }
+    }
+    // 同样的 B 单独 inline：Send 是 not_in_tu
+    engine::InlineResult alone = engine::RunInline(b);
+    bool notInTu = false;
+    for (const Decision &d : alone.decisions) {
+        notInTu = notInTu || d.reason == "not_in_tu";
+    }
+    EXPECT_TRUE(notInTu);
+}
+
+TEST(Engine, DecisionJsonRoundTrip)
+{
+    // solve 写、report 读（SPEC-0029 §2.3）：判定写成 JSON 再读回，字段相同
+    fir::Module m;
+    std::string error;
+    ASSERT_TRUE(fir::ReadModuleFile(OOBSUM_TEST_DATA_DIR "/engine-fir.json", m, error));
+    engine::InlineResult r = engine::RunInline(m);
+    ASSERT_TRUE(!r.decisions.empty());
+    for (const Decision &d : r.decisions) {
+        Decision back;
+        ASSERT_TRUE(DecisionFromJson(llvm::json::Value(DecisionToJson(d, Disposition())), back, error));
+        EXPECT_TRUE(back.label == d.label);
+        EXPECT_EQ(back.reason, d.reason);
+        EXPECT_EQ(back.site.file + ":" + std::to_string(back.site.line),
+                  d.site.file + ":" + std::to_string(d.site.line));
+        EXPECT_EQ(back.fn, d.fn);
+        EXPECT_EQ(back.endHi, d.endHi);
+        EXPECT_EQ(back.msg, d.msg);
+        EXPECT_EQ(back.fp, d.fp);
+        EXPECT_EQ(back.depth, d.depth);
+        ASSERT_TRUE(back.chain.size() == d.chain.size());
+        for (size_t i = 0; i < d.chain.size(); ++i) {
+            EXPECT_EQ(back.chain[i].fn, d.chain[i].fn);
+            EXPECT_EQ(back.chain[i].site.line, d.chain[i].site.line);
+        }
+    }
 }

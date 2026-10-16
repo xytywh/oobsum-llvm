@@ -13,6 +13,7 @@
 #include "llvm/Support/Path.h"
 
 #include <functional>
+#include <set>
 
 namespace oobsum {
 namespace engine {
@@ -22,11 +23,13 @@ namespace {
 // 摘要里的位置是 文件名:行（D-23）；判定要完整路径（Reporter 按它找 FileEntry），按本 TU 的文件表换回
 class SiteMap {
 public:
-    explicit SiteMap(const fir::Module &m)
+    explicit SiteMap(const std::vector<const fir::Module *> &mods)
     {
-        for (const std::string &file : m.files) {
-            std::string base = llvm::sys::path::filename(file, llvm::sys::path::Style::posix).str();
-            paths.emplace(base, file);  // 同名取第一个
+        for (const fir::Module *m : mods) {
+            for (const std::string &file : m->files) {
+                std::string base = llvm::sys::path::filename(file, llvm::sys::path::Style::posix).str();
+                paths.emplace(base, file);  // 同名取第一个
+            }
         }
     }
     Site Of(const std::string &site) const
@@ -103,6 +106,8 @@ std::string LedgerMessage(const std::string &reason, const std::string &callee)
         phrase = "the pointer is advanced in a loop";
     } else if (reason == "not_in_tu") {
         phrase = "a pointer is passed to '" + callee + "', whose body is not in this translation unit";
+    } else if (reason == "unknown_callee") {
+        phrase = "a pointer is passed to '" + callee + "', which is not defined in any analyzed translation unit";
     } else if (reason.compare(0, 11, "unanalyzed:") == 0) {
         phrase = "the function was not fully analyzed (" + reason.substr(11) + ")";
     } else {
@@ -111,34 +116,40 @@ std::string LedgerMessage(const std::string &reason, const std::string &callee)
     return "Cannot prove this access is within bounds: " + phrase;
 }
 
-// FIR 的直接调用图上 DFS 后序：被调者先（递归成环的按任意顺序，SPEC-0024 §2.3）
-static std::vector<size_t> BottomUp(const fir::Module &m)
+// 所有模块的函数按函数键去重（头文件里的 static inline 各 TU 一份，取第一份，D-08）；全局直接调用图上 DFS 后序：被调者先
+// （递归成环的按任意顺序，SPEC-0024 §2.3、SPEC-0029 §2.1）
+static std::vector<std::pair<size_t, size_t>> BottomUp(const std::vector<const fir::Module *> &mods)
 {
-    std::map<std::string, size_t> byKey;
-    for (size_t i = 0; i < m.funcs.size(); ++i) {
-        byKey[m.funcs[i].key] = i;
+    std::map<std::string, std::pair<size_t, size_t>> byKey;
+    std::vector<std::pair<size_t, size_t>> all;
+    for (size_t mi = 0; mi < mods.size(); ++mi) {
+        for (size_t fi = 0; fi < mods[mi]->funcs.size(); ++fi) {
+            if (byKey.emplace(mods[mi]->funcs[fi].key, std::make_pair(mi, fi)).second) {
+                all.push_back({mi, fi});
+            }
+        }
     }
-    std::vector<int> mark(m.funcs.size(), 0);
-    std::vector<size_t> order;
-    std::function<void(size_t)> visit = [&](size_t i) {
-        mark[i] = 1;
-        for (const fir::Block &b : m.funcs[i].blocks) {
+    std::set<std::string> visited;
+    std::vector<std::pair<size_t, size_t>> order;
+    std::function<void(std::pair<size_t, size_t>)> visit = [&](std::pair<size_t, size_t> at) {
+        const fir::Function &f = mods[at.first]->funcs[at.second];
+        visited.insert(f.key);
+        for (const fir::Block &b : f.blocks) {
             for (const fir::Inst &inst : b.insts) {
                 if (inst.op != fir::InstOp::Call || inst.calleeExpr != fir::kNone) {
                     continue;
                 }
                 auto it = byKey.find(inst.callee);
-                if (it != byKey.end() && mark[it->second] == 0) {
+                if (it != byKey.end() && visited.count(inst.callee) == 0) {
                     visit(it->second);
                 }
             }
         }
-        mark[i] = 2;
-        order.push_back(i);
+        order.push_back(at);
     };
-    for (size_t i = 0; i < m.funcs.size(); ++i) {
-        if (mark[i] == 0) {
-            visit(i);
+    for (const auto &at : all) {
+        if (visited.count(mods[at.first]->funcs[at.second].key) == 0) {
+            visit(at);
         }
     }
     return order;
@@ -147,23 +158,42 @@ static std::vector<size_t> BottomUp(const fir::Module &m)
 InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
                        const std::function<bool(const std::string &)> &traceFilter)
 {
+    return RunProgram({&m}, models, traceFilter, false);
+}
+
+InlineResult RunSolve(const std::vector<const fir::Module *> &mods, const models::ModelTable &models)
+{
+    return RunProgram(mods, models, nullptr, true);
+}
+
+InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const models::ModelTable &models,
+                        const std::function<bool(const std::string &)> &traceFilter, bool linked)
+{
     InlineResult out;
-    // ① 自底向上：函数内解释（代入已算出的被调者的效果）→ 摘要（只有局部事实）
-    for (size_t i : BottomUp(m)) {
-        const fir::Function &f = m.funcs[i];
+    // ① 自底向上：函数内解释（代入已算出的被调者的效果，被调者可以在别的模块里）→ 摘要（只有局部事实）
+    for (const auto &at : BottomUp(mods)) {
+        const fir::Module &m = *mods[at.first];
+        const fir::Function &f = m.funcs[at.second];
         std::vector<std::string> trace;
         bool traced = traceFilter && traceFilter(f.name);
         interp::FunctionFacts facts = interp::AnalyzeFunction(m, f, traced ? &trace : nullptr, models, &out.summaries);
         out.summaries[f.key] = interp::BuildSummary(m, f, facts);  // 按函数键（SPEC-0027）
         out.facts[f.key] = std::move(facts);
         out.order.push_back(f.key);
+        out.moduleOf[f.key] = at.first;
         if (traced) {
             out.traces[f.name] = std::move(trace);
         }
     }
     // ② 推到底
     out.propagate = solver::Propagate(out.summaries);
-    SiteMap sites(m);
+    std::vector<SiteMap> siteMaps;
+    for (const fir::Module *mod : mods) {
+        siteMaps.emplace_back(std::vector<const fir::Module *>{mod});
+    }
+    SiteMap allSites(mods);  // 调用链上的各跳可能在别的模块里
+    // 位置的文件名按函数所在模块的文件表换回完整路径（SPEC-0029 §2.1）
+    auto sitesOf = [&](const std::string &fn) -> const SiteMap & { return siteMaps[out.moduleOf.at(fn)]; };
     auto base = [&](Label label, const std::string &reason, const std::string &fn) {
         Decision d;
         d.label = label;
@@ -179,7 +209,7 @@ InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
         // 调用点判出的 L1 / L2
         for (const summary::Rep &rep : result.reps) {
             Decision d = base(rep.level == "L1" ? Label::Definite : Label::Possible, "", fn);
-            d.site = sites.Of(rep.site);
+            d.site = sitesOf(fn).Of(rep.site);
             d.kind = rep.kind;
             d.obj = rep.obj;
             d.have = rep.have;
@@ -188,7 +218,7 @@ InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
             d.bound = rep.bound;
             d.depth = static_cast<unsigned>(rep.depth);
             d.effDepth = static_cast<unsigned>(rep.effDepth);
-            d.chain = sites.Chain(rep.chain);
+            d.chain = allSites.Chain(rep.chain);
             d.msg = alert::AlertMessage(rep, s.params);
             d.fp = rep.fp;
             out.decisions.push_back(std::move(d));
@@ -209,7 +239,7 @@ InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
             }
             bool safe = mine.outcome == "safe";
             Decision d = base(safe ? Label::Safe : Label::Suspect, mine.reason, fn);
-            d.site = sites.Of(so.site);
+            d.site = sitesOf(fn).Of(so.site);
             d.kind = so.req.kind;
             d.obj = mine.obj;
             d.have = mine.have.Show();
@@ -218,9 +248,9 @@ InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
             d.bound = mine.hasBase ? mine.bound : so.req.bound;
             d.depth = static_cast<unsigned>(mine.hasBase ? mine.depth : so.req.depth + 1);
             d.effDepth = static_cast<unsigned>(mine.hasBase ? mine.effDepth : so.req.effDepth);
-            std::vector<std::string> path{fn + "@" + so.site};
+            std::vector<std::string> path{s.fn + "@" + so.site};  // 函数名（fn 是函数键，SPEC-0027）
             path.insert(path.end(), so.req.path.begin(), so.req.path.end());
-            d.chain = sites.Chain(path);
+            d.chain = allSites.Chain(path);
             // 对象代换不过来（成员的 Req 落到调用方的局部数组上）：用被调者的形参名写成员
             std::string object = d.obj == "?" && out.summaries.count(so.callee) != 0
                                      ? alert::ObjName(so.req.obj, out.summaries.at(so.callee).params)
@@ -236,7 +266,7 @@ InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
                 const solver::DerivedReq &r = result.reqs[i];
                 Decision d =
                     base(Label::Suspect, i < result.entryOpens.size() ? result.entryOpens[i] : "entry_unproven", fn);
-                d.site = sites.Of(r.depth == 0 ? r.access.at : s.loc);
+                d.site = sitesOf(fn).Of(r.depth == 0 ? r.access.at : s.loc);
                 d.kind = r.kind;
                 d.obj = r.obj;
                 d.have = r.have.Show();
@@ -245,7 +275,7 @@ InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
                 d.bound = r.bound;
                 d.depth = static_cast<unsigned>(r.depth);
                 d.effDepth = static_cast<unsigned>(r.effDepth);
-                d.chain = sites.Chain(r.path);
+                d.chain = allSites.Chain(r.path);
                 d.msg = SuspectMessage(d.kind, d.depth, alert::ObjName(d.obj, s.params), d.have, d.endHi);
                 d.fp = DecisionFingerprint(LabelName(d.label), s.key, r.access.key, d.kind, r.access.end, d.obj);
                 out.decisions.push_back(std::move(d));
@@ -259,14 +289,14 @@ InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
         // 本函数当场证明安全的访问
         for (const summary::Req &r : facts.safe) {
             Decision d = base(Label::Safe, "local_entailed", fn);
-            d.site = sites.Of(r.access.at);
+            d.site = sitesOf(fn).Of(r.access.at);
             d.kind = r.kind;
             d.obj = r.obj;
             d.have = r.have;
             d.endLo = r.endLo;
             d.endHi = r.endHi;
             d.bound = r.bound;
-            d.chain = sites.Chain(r.path);
+            d.chain = allSites.Chain(r.path);
             d.msg = SafeMessage(alert::ObjName(d.obj, s.params), d.have, d.endHi);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, r.access.key, d.kind, r.access.end, d.obj);
             out.decisions.push_back(std::move(d));
@@ -274,8 +304,8 @@ InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
         // 本函数的账本
         for (const summary::Open &o : facts.opens) {
             Decision d = base(Label::Suspect, o.reason, fn);
-            d.site = sites.Of(o.at);
-            d.chain = {sites.HopOf(fn + "@" + o.at)};
+            d.site = sitesOf(fn).Of(o.at);
+            d.chain = {allSites.HopOf(s.fn + "@" + o.at)};
             d.msg = LedgerMessage(o.reason);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, o.at, "", "", o.reason);
             out.decisions.push_back(std::move(d));
@@ -284,7 +314,7 @@ InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
         if (s.status.compare(0, 8, "partial:") == 0) {
             std::string reason = "unanalyzed:" + s.status.substr(8);
             Decision d = base(Label::Suspect, reason, fn);
-            d.site = sites.Of(s.loc);
+            d.site = sitesOf(fn).Of(s.loc);
             d.msg = LedgerMessage(reason);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, s.loc, "", "", reason);
             out.decisions.push_back(std::move(d));
@@ -302,11 +332,13 @@ InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
             if (!pointer) {
                 continue;
             }
-            Decision d = base(Label::Suspect, "not_in_tu", fn);
-            d.site = sites.Of(c.site);
-            d.chain = {sites.HopOf(fn + "@" + c.site)};
-            d.msg = LedgerMessage("not_in_tu", c.callee);
-            d.fp = DecisionFingerprint(LabelName(d.label), s.key, c.site, "", "", "not_in_tu:" + c.callee);
+            // 所有模块都没有它的函数体：linked（solve）时是 unknown_callee，inline 时判不了是不是跨 TU（SPEC-0029 §2.1）
+            std::string reason = linked ? "unknown_callee" : "not_in_tu";
+            Decision d = base(Label::Suspect, reason, fn);
+            d.site = sitesOf(fn).Of(c.site);
+            d.chain = {allSites.HopOf(s.fn + "@" + c.site)};
+            d.msg = LedgerMessage(reason, c.callee);
+            d.fp = DecisionFingerprint(LabelName(d.label), s.key, c.site, "", "", reason + ":" + c.callee);
             out.decisions.push_back(std::move(d));
         }
     }

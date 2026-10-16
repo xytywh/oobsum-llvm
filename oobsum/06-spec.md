@@ -664,7 +664,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 |---|---|---|
 | **X-01** | export | 每个 TU 导出主文件与头文件里所有有函数体的函数、所有全局声明 / 定义（带类型与大小）、用到的记录类型、目标信息；写 `fir/<tu>.json`（紧凑 JSON，先写 `.tmp` 再改名）。重跑覆盖，幂等 |
 | **X-02** | export | 不做任何求解，不发告警；只挂 `ASTDecl<TranslationUnitDecl>`（D11），因此**不触发 ExprEngine** |
-| **X-03** | solve | 读 `fir/` 下全部文件（单进程）；按 §6.8 求解；写 `summaries/`、`decisions/`、`reports.json`、`ledger.jsonl`、`stats.json`。缺文件 / 坏文件跳过并记日志 |
+| **X-03** | solve | 读 `fir/` 下全部文件（单进程）；按 §6.8 求解；写 `summaries/`、`decisions/`、`reports.json`、`ledger.jsonl`、`stats.json`。缺文件 / 坏文件跳过并记日志 〔由 SPEC-0029 修订：本步写 `solved/<tu>.json`，判定日志在 report 阶段写〕 |
 | **X-04** | solve 的宿主 | **默认**：驱动生成一个桩 TU（`solve_stub/stub.c` 与只含它的 `compile_commands.json`），用 bxen 跑 `Phase=solve`，checker 在桩 TU 的回调里完成求解——**不需要在 BXPlugin 里新增可执行目标**。**可选**：独立命令 `oobsum-solve`（只链接 LLVM Support 与 `core/`），需要在 BXPlugin 的 CMake 里加一个可执行目标（`07-` 输入 I1） |
 | **X-05** | report | 驱动从原 cdb 里**原样复制**出 `decisions/` 里出现的 TU 的条目，组成 `report_cdb/compile_commands.json`，bxen 全量模式跑 `Phase=report`。原样复制保证两个阶段算出的 TU id 一致（同一 bxen、同样的 `directory` / `file`） |
 | **X-06** | inline | 默认模式：本 TU 内 export → solve → report 一次做完，不读写 `WorkDir`（设置了 `WorkDir` 时额外写一份 `fir/`，方便对照） |

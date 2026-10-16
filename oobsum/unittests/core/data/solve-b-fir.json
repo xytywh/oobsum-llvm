@@ -1,0 +1,415 @@
+{
+ "file": "/x/solve_b.c",
+ "files": [
+  "/x/solve_b.c"
+ ],
+ "funcs": [
+  {
+   "blocks": [
+    {
+     "id": 2,
+     "insts": [],
+     "succ": [
+      {
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "addr": [
+        "padd",
+        [
+         "l",
+         0
+        ],
+        [
+         "c",
+         100
+        ]
+       ],
+       "loc": [
+        0,
+        9,
+        5
+       ],
+       "op": "store",
+       "size": 1,
+       "sub": true,
+       "val": [
+        "c",
+        0
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 2,
+   "exit": 0,
+   "ext": false,
+   "key": "F@6deee4b2c710211f:Init",
+   "loc": [
+    0,
+    7,
+    13
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "pucBuf",
+     "param": 0,
+     "t": {
+      "k": "ptr",
+      "to": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      }
+     }
+    }
+   ],
+   "name": "Init",
+   "ret": {
+    "k": "void"
+   }
+  },
+  {
+   "blocks": [
+    {
+     "id": 6,
+     "insts": [],
+     "succ": [
+      {
+       "to": 5
+      }
+     ]
+    },
+    {
+     "id": 5,
+     "insts": [
+      {
+       "dst": 2,
+       "loc": [
+        0,
+        15,
+        10
+       ],
+       "op": "set",
+       "val": [
+        "c",
+        0
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "to": 4
+      }
+     ]
+    },
+    {
+     "id": 4,
+     "insts": [],
+     "succ": [
+      {
+       "assume": [
+        "cmp",
+        "lt",
+        [
+         "l",
+         2
+        ],
+        [
+         "l",
+         1
+        ],
+        false
+       ],
+       "to": 3
+      },
+      {
+       "assume": [
+        "cmp",
+        "ge",
+        [
+         "l",
+         2
+        ],
+        [
+         "l",
+         1
+        ],
+        false
+       ],
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 3,
+     "insts": [
+      {
+       "addr": [
+        "padd",
+        [
+         "l",
+         0
+        ],
+        [
+         "l",
+         2
+        ]
+       ],
+       "loc": [
+        0,
+        16,
+        9
+       ],
+       "op": "store",
+       "size": 1,
+       "sub": true,
+       "val": [
+        "c",
+        0
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "to": 2
+      }
+     ]
+    },
+    {
+     "id": 2,
+     "insts": [
+      {
+       "dst": 3,
+       "loc": [
+        0,
+        15,
+        28
+       ],
+       "op": "set",
+       "val": [
+        "l",
+        2
+       ]
+      },
+      {
+       "dst": 2,
+       "loc": [
+        0,
+        15,
+        28
+       ],
+       "op": "set",
+       "val": [
+        "bin",
+        "add",
+        [
+         "l",
+         3
+        ],
+        [
+         "c",
+         1
+        ],
+        32,
+        false
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "to": 4
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "args": [
+        [
+         "l",
+         0
+        ]
+       ],
+       "callee": "F:Send",
+       "loc": [
+        0,
+        18,
+        5
+       ],
+       "op": "call",
+       "ord": 0
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 6,
+   "exit": 0,
+   "ext": true,
+   "key": "F:Fill",
+   "loc": [
+    0,
+    12,
+    6
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "pucBuf",
+     "param": 0,
+     "t": {
+      "k": "ptr",
+      "to": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      }
+     }
+    },
+    {
+     "id": 1,
+     "name": "ulLen",
+     "param": 1,
+     "t": {
+      "k": "int",
+      "s": false,
+      "w": 32
+     }
+    },
+    {
+     "id": 2,
+     "name": "i",
+     "t": {
+      "k": "int",
+      "s": false,
+      "w": 32
+     }
+    },
+    {
+     "id": 3,
+     "name": "t0",
+     "t": {
+      "k": "int",
+      "s": false,
+      "w": 32
+     },
+     "tmp": true
+    }
+   ],
+   "name": "Fill",
+   "ret": {
+    "k": "void"
+   }
+  },
+  {
+   "blocks": [
+    {
+     "id": 2,
+     "insts": [],
+     "succ": [
+      {
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "args": [
+        [
+         "laddr",
+         0
+        ]
+       ],
+       "callee": "F@6deee4b2c710211f:Init",
+       "loc": [
+        0,
+        24,
+        5
+       ],
+       "op": "call",
+       "ord": 0
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 2,
+   "exit": 0,
+   "ext": true,
+   "key": "F:Top_B",
+   "loc": [
+    0,
+    21,
+    6
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "aucBuf",
+     "obj": true,
+     "t": {
+      "elem": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      },
+      "k": "arr",
+      "n": 64
+     }
+    }
+   ],
+   "name": "Top_B",
+   "ret": {
+    "k": "void"
+   }
+  }
+ ],
+ "globals": [],
+ "records": [],
+ "schema": "oobsum-fir/1",
+ "target": {
+  "big_endian": true,
+  "long": 4,
+  "ptr": 4,
+  "triple": "armebv7-unknown-linux-gnueabi"
+ },
+ "tu": "6deee4b2c710211f"
+}

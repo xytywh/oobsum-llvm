@@ -1,0 +1,185 @@
+{
+ "file": "/x/solve_a.c",
+ "files": [
+  "/x/solve_a.c"
+ ],
+ "funcs": [
+  {
+   "blocks": [
+    {
+     "id": 2,
+     "insts": [],
+     "succ": [
+      {
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "addr": [
+        "l",
+        0
+       ],
+       "loc": [
+        0,
+        9,
+        5
+       ],
+       "op": "store",
+       "size": 1,
+       "sub": true,
+       "val": [
+        "c",
+        0
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 2,
+   "exit": 0,
+   "ext": false,
+   "key": "F@1473b793c3fcfc5f:Init",
+   "loc": [
+    0,
+    7,
+    13
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "pucBuf",
+     "param": 0,
+     "t": {
+      "k": "ptr",
+      "to": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      }
+     }
+    }
+   ],
+   "name": "Init",
+   "ret": {
+    "k": "void"
+   }
+  },
+  {
+   "blocks": [
+    {
+     "id": 2,
+     "insts": [],
+     "succ": [
+      {
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "args": [
+        [
+         "laddr",
+         0
+        ]
+       ],
+       "callee": "F@1473b793c3fcfc5f:Init",
+       "loc": [
+        0,
+        15,
+        5
+       ],
+       "op": "call",
+       "ord": 0
+      },
+      {
+       "args": [
+        [
+         "laddr",
+         0
+        ],
+        [
+         "c",
+         17
+        ]
+       ],
+       "callee": "F:Fill",
+       "loc": [
+        0,
+        16,
+        5
+       ],
+       "op": "call",
+       "ord": 1
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 2,
+   "exit": 0,
+   "ext": true,
+   "key": "F:Top_A",
+   "loc": [
+    0,
+    12,
+    6
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "aucBuf",
+     "obj": true,
+     "t": {
+      "elem": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      },
+      "k": "arr",
+      "n": 16
+     }
+    }
+   ],
+   "name": "Top_A",
+   "ret": {
+    "k": "void"
+   }
+  }
+ ],
+ "globals": [],
+ "records": [],
+ "schema": "oobsum-fir/1",
+ "target": {
+  "big_endian": true,
+  "long": 4,
+  "ptr": 4,
+  "triple": "armebv7-unknown-linux-gnueabi"
+ },
+ "tu": "1473b793c3fcfc5f"
+}

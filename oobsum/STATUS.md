@@ -128,8 +128,9 @@
 - [x] **S9-1 调用点记被调者的函数键**（SPEC-0027）：`callee_key`；引擎的摘要表、`Propagate`、`TopoOrder`、效果代入、`not_in_tu` 按键找被调者（金标准没有
       `callee_key` 时照旧按名字）；调用链仍写函数名。
 - [x] **S9-2 `Phase=export`**（SPEC-0028）：写 `WorkDir/fir/<tu>.json`，不求解、不报、不写判定日志；inline + `WorkDir` 另写一份 `fir/`（X-06）。
-- [ ] **S9 跨 TU（06- §7 方案 B）**：
-      S9-3 `Phase=solve` 读全部 FIR、自底向上解释与求解、写 `decisions/` 与 `reports.json`；S9-4 `Phase=report` 按求解结果报出；S9-5 驱动脚本（bxen 命令、桩 TU）。
+- [x] **S9-3 `Phase=solve`**（SPEC-0029）：桩 TU 读 `WorkDir/fir/*.json`（坏文件跳过并提示），所有 TU 的函数按键去重、全局自底向上解释、一次推到底；
+      被调者哪里都没有定义 → `unknown_callee`；判定按汇合点函数所在的 TU 写 `WorkDir/solved/<tu>.json`。`DecisionFromJson` 供 report 读回。
+- [ ] **S9 跨 TU（06- §7 方案 B）**：S9-4 `Phase=report` 按求解结果报出；S9-5 驱动脚本（bxen 命令、桩 TU）。
 - [ ] **S8c-2**：`field` 效果（被调者改调用方结构体的字段，LV5-02）、mod-ref（被调者不改的字段在调用后仍可用）；
       偏移与长度的抵消（A-41，LV3-07、LV8-01：需要局部的符号形与关系，且 `ulOff + len <= max` 这类检查的回绕问题要一起定）；
       告警 note 按 F-33 的三种写法；`unknown_callee` / 跨 TU（`export` / `solve` / `report`）。
