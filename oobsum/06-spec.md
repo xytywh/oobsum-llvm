@@ -158,7 +158,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 * **F-30 位置**〔由 SPEC-0044 修订：同一调用点同一次访问（同读写、同方向）的 L1 / L2 只报主判定——DEFINITE 优先、对象名写得出来的优先，其余只写日志〕：汇合点函数里**那次调用的调用表达式**（被判定的条件从这里进入）。`depth = 0`（只在 F-21 / F-22 时才会报）报在访问点本身。
 * **F-31 BugType**（英文，`csa-checker-dev` 约定；category 只用于展示）：
   `"Out-of-bound access via call chain (definite)"`、`"Out-of-bound access via call chain (possible)"`，category `"Memory error"`。
-* **F-32 消息**〔由 SPEC-0021 修订：加 SUSPECT / SAFE 的模板〕（英文模板，`{}` 为占位）：
+* **F-32 消息**〔由 SPEC-0021 修订：加 SUSPECT / SAFE 的模板；SPEC-0067：调用点上不知道的被调者符号按被调者的形参名写〕（英文模板，`{}` 为占位）：
 
   ```
   L1: Definite out-of-bound {write|read} through a {N}-level call chain: up to byte {need} of {object} ({size} bytes) is accessed

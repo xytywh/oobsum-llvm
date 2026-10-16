@@ -201,6 +201,7 @@
 - [x] **局部结构体的字段值带进调用点**（SPEC-0026）：实参 `fields`；常数偏移的写只失效重叠的内存格；**修了别名实参的旧值问题**——形参所指结构体的字段
       在本函数里改过（或指针交给过被调者）时，别名代换会用入口时的旧值，链顶代入字段值后能把越界证明成安全（LV5-04 TP 一度变成 SAFE，已修、单测守住）。
       **LV5-01 端到端一致（金标准 11 个）**；`run.py csa`：LV5-01、LV5-04 TP → DEFINITE——**通过 78、漏报 14**，回退 0。
+- [x] **告警文本里的被调者符号**（SPEC-0067）：调用点上不知道的被调者符号按被调者的形参名写（"c->ulLen"，原来 "p1->ulLen" 像是调用方自己的形参）。只改文本。
 - [x] **三阶段规模压测**（2026-10-16，无代码改动）：`compiler-rt/lib/builtins`、`compiler-rt/lib/profile`、`llvm/lib/Support/reg*.c` 里 cc1 能编的 177 个 C 文件当一个整程序，
       `oobsum_run.py local`（x86_64）：solve `tus=177 functions=342 decisions=1493`，**无崩溃**，三阶段合计约 4 秒。报出的全是 SUSPECT：`untracked_pointer` 153
       （125 条在 `regengine.inc`，超过两层的字段指针，按 D-27 不跟踪）、`type_range_only` 53、`unknown_callee` 43、`entry_unproven` 33、`typed_field` 22、`pointer_stepping` 17、

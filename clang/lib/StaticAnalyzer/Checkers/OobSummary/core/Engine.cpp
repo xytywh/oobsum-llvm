@@ -13,6 +13,8 @@
 #include "llvm/Support/Path.h"
 
 #include <algorithm>
+#include <cctype>
+#include <cstring>
 #include <functional>
 #include <set>
 
@@ -84,11 +86,26 @@ std::string SizeText(const std::string &have)
 
 }  // namespace
 
-// 调用点上不知道的符号（SPEC-0063 / 0064）显示时去掉内部前缀
-std::string Readable(std::string text)
+// 调用点上不知道的符号（SPEC-0063 / 0064）显示时去掉内部前缀；给了被调者的形参表时 p<k> 写成被调者的形参名（SPEC-0067）
+std::string Readable(std::string text, const std::vector<summary::Param> *callee = nullptr)
 {
     for (size_t at = text.find("_unmapped:"); at != std::string::npos; at = text.find("_unmapped:", at)) {
         text.erase(at, 10);
+        size_t p = at;
+        for (const char *wrap : {"ext(", "bext("}) {
+            if (text.compare(at, std::strlen(wrap), wrap) == 0) {
+                p = at + std::strlen(wrap);
+            }
+        }
+        size_t digits = p + 1;
+        while (digits < text.size() && std::isdigit(static_cast<unsigned char>(text[digits]))) {
+            ++digits;
+        }
+        unsigned k = 0;
+        if (callee != nullptr && p < text.size() && text[p] == 'p' && digits > p + 1 &&
+            !llvm::StringRef(text).substr(p + 1, digits - p - 1).getAsInteger(10, k) && k < callee->size()) {
+            text.replace(p, digits - p, (*callee)[k].name);
+        }
     }
     return text;
 }
@@ -404,8 +421,11 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             std::string object = d.obj == "?" && out.summaries.count(so.callee) != 0
                                      ? alert::ObjName(so.req.obj, out.summaries.at(so.callee).params)
                                      : alert::ObjName(d.obj, s.params);
+            // 调用点上不知道的被调者符号按被调者的形参名写（SPEC-0067）
+            std::string shownEnd =
+                calleeSummary != out.summaries.end() ? Readable(d.endHi, &calleeSummary->second.params) : d.endHi;
             d.msg = safe ? SafeMessage(object, d.have, d.endHi, d.dir)
-                         : SuspectMessage(d.kind, d.depth, object, d.have, d.endHi, d.dir);
+                         : SuspectMessage(d.kind, d.depth, object, d.have, shownEnd, d.dir);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, so.req.access.key, d.kind, so.req.access.end,
                                        apply::FingerprintObj(d.obj, d.dir));
             out.decisions.push_back(std::move(d));

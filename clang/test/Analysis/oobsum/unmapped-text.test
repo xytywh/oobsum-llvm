@@ -1,0 +1,8 @@
+# 告警文本：调用点上不知道的被调者符号按被调者的形参名写（oobsum/specs/SPEC-0067）。原来写成 "p1->ulLen"，像是调用方自己的形参。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/unmappedtext/t.c 2>&1 | FileCheck %s
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/unmappedtext/t.c 2>&1 | not grep 'p1->ulLen'
+
+CHECK: t.c:6:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within 'a' (16 bytes): up to byte c->ulLen may be accessed
