@@ -114,5 +114,6 @@
 | [SPEC-0080](SPEC-0080-range-perf.md) | 性能：区间一遍求上下界、不透明项嵌套 ≤ 4 层、全局查表 | 已实现 |
 | [SPEC-0081](SPEC-0081-pointer-compare.md) | 同一对象的两个指针比较按偏移收窄（`while (p < pEnd)`） | 已实现 |
 | [SPEC-0082](SPEC-0082-ne-loop-threshold.md) | 循环头 widening 的符号阈值：`!=` 结束的循环（`i != n`、`q != p + n`） | 已实现 |
-| [SPEC-0083](SPEC-0083-wide-ptr-compare.md) | 元素宽于 1 字节的指针比较：收窄出的上界不当代码给出的界（修 SPEC-0081 的 POSSIBLE 误报） | 已实现 |
+| [SPEC-0083](SPEC-0083-wide-ptr-compare.md) | 元素宽于 1 字节的指针比较：收窄出的上界不当代码给出的界（修 SPEC-0081 的 POSSIBLE 误报） | 部分被 SPEC-0084 取代 |
+| [SPEC-0084](SPEC-0084-congruence.md) | 区间带同余（值 ≡ 锚点 mod 步长）：宽元素指针循环、步长大于 1 的整数循环判准 | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

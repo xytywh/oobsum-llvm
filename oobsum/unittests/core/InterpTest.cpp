@@ -1486,7 +1486,24 @@ TEST(Interp, PointerCompareNarrows)
 
 TEST(Interp, WidePointerCompareIsCoarse)
 {
-    // SPEC-0083：UINT32 *p; e = p + n; while (p < e) { *p = 0; p++; } → 按字节收窄到 4·p1 − 1，上界标 widen（不是代码给出的界）
+    // SPEC-0083：UINT32 *q 按 1 字节走（q = (UINT32 *)((UINT8 *)q + 1)，没有同余）→ 按字节收窄到 4·p1 − 1，上界标 widen
+    Builder b;
+    TypeId pu32 = b.m.Intern(Type::Ptr(b.u32));
+    uint32_t p = b.Param("p", pu32);
+    uint32_t n = b.Param("n", b.u32);
+    uint32_t e = b.LocalVar("e", pu32);
+    Loop l;
+    l.entry.insts = {b.Set(e, b.PAdd(b.L(p), b.f.Add(Expr::Bin(BinOp::Mul, b.L(n), b.C(4)))))};
+    l.body.insts = {b.Store(b.L(p), 4, b.C(0), 7)};
+    l.latch.insts = {b.Set(p, b.PAdd(b.L(p), b.C(1)))};
+    l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(p), b.L(e), false)),
+              b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(p), b.L(e), false)));
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[4, 4*p1 + 3] bound=widen at=t.c:7");
+}
+
+TEST(Interp, CongruencePointerLoop)
+{
+    // SPEC-0084：UINT32 *p; e = p + n; while (p < e) { *p = 0; p++; } → p.off ≡ 0 mod 4，上界取整到 4·p1 − 4，末端 4·p1（loop）
     Builder b;
     TypeId pu32 = b.m.Intern(Type::Ptr(b.u32));
     uint32_t p = b.Param("p", pu32);
@@ -1498,7 +1515,77 @@ TEST(Interp, WidePointerCompareIsCoarse)
     l.latch.insts = {b.Set(p, b.PAdd(b.L(p), b.C(4)))};
     l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(p), b.L(e), false)),
               b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(p), b.L(e), false)));
-    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[4, 4*p1 + 3] bound=widen at=t.c:7");
+    std::vector<std::string> trace;
+    EXPECT_EQ(Reqs(interp::AnalyzeFunction(b.m, b.f, &trace)),
+              "W have=ext(p0) obj=*p0 end=[4, 4*p1] bound=loop at=t.c:7");
+    bool body = false;
+    for (const std::string &line : trace) {
+        if (line.rfind("b3:", 0) == 0) {
+            body = true;
+            EXPECT_EQ(line, "b3: p=*p0+[0, 4*p1 - 4]:loop%4 n=p1 e=*p0+4*p1");
+        }
+    }
+    EXPECT_TRUE(body);
+}
+
+TEST(Interp, CongruenceStepLoop)
+{
+    // SPEC-0084：for (i = 0; i < n; i += 4) → i ≡ 0 mod 4，上界取整成 4·div(p1 − 1, 4)（向下取整）
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("n", b.u32);
+    uint32_t i = b.LocalVar("i", b.u32);
+    Loop l;
+    l.entry.insts = {b.Set(i, b.C(0))};
+    l.body.insts = {b.Store(b.PAdd(b.L(p), b.L(i)), 4, b.C(0), 7)};
+    l.latch.insts = {b.Set(i, b.Wrap(BinOp::Add, b.L(i), b.C(4)))};
+    l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(i), b.L(n), false)),
+              b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(i), b.L(n), false)));
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[4, 4*div(p1 - 1, 4) + 4] bound=loop at=t.c:7 guard=p1 >= 1");
+}
+
+TEST(Interp, CongruenceBranchJoin)
+{
+    // SPEC-0084：x = c ? 0 : 8 → 汇合成 [0, 8]%8（两个常数之差 8）；x < 5 之后只剩 0（这里由情形筛出，SPEC-0025）
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t c = b.Param("c", b.u32);
+    uint32_t x = b.LocalVar("x", b.u32);
+    Block entry, left, right, join, use, exit;
+    entry.id = 6;
+    left.id = 5;
+    right.id = 4;
+    join.id = 3;
+    use.id = 2;
+    exit.id = 0;
+    entry.succ = {{5, b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(c), b.C(0), false))},
+                  {4, b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(c), b.C(0), false))}};
+    left.insts = {b.Set(x, b.C(0))};
+    left.succ = {{3, kNone}};
+    right.insts = {b.Set(x, b.C(8))};
+    right.succ = {{3, kNone}};
+    join.succ = {{2, b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(x), b.C(5), false))}, {0, kNone}};
+    use.insts = {b.Store(b.PAdd(b.L(p), b.L(x)), 1, b.C(0), 7)};
+    use.succ = {{0, kNone}};
+    b.f.blocks = {entry, left, right, join, use, exit};
+    b.f.entry = 6;
+    b.f.exit = 0;
+    std::vector<std::string> trace;
+    interp::AnalyzeFunction(b.m, b.f, &trace);
+    bool seenJoin = false;
+    bool seenUse = false;
+    for (const std::string &line : trace) {
+        if (line.rfind("b3:", 0) == 0) {
+            seenJoin = true;
+            EXPECT_EQ(line, "b3: p=*p0+0 c=p1 x=[0, 8]:branch%8{0: p1 >= 1; 8: p1 <= 0}");
+        }
+        if (line.rfind("b2:", 0) == 0) {
+            seenUse = true;
+            EXPECT_EQ(line, "b2: p=*p0+0 c=p1 x=0 guards: p1 >= 1");
+        }
+    }
+    EXPECT_TRUE(seenJoin);
+    EXPECT_TRUE(seenUse);
 }
 
 TEST(Interp, NeLoopThreshold)

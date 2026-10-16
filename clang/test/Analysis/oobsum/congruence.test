@@ -1,0 +1,20 @@
+# 区间带同余（值 ≡ 锚点 mod 步长，oobsum/specs/SPEC-0084）：条件边收窄时把上界取整到同余类里。
+# 原来：结构体指针循环 SUSPECT（SPEC-0083）、i += 4 循环的界内访问误报 POSSIBLE。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(E1|I4|B1|W4)$' \
+# RUN:   %S/Inputs/cong/c.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:state] fn E1 b2: p=*p0+0 n=p1 q=*p0+[0, 16*p1 - 16]:loop%16
+CHECK-DAG: [oobsum:state] fn I4 b2: p=*p0+0 n=p1 i=[0, 4*div(p1 - 1, 4)]:loop%4 guards: p1 >= 1
+CHECK-DAG: [oobsum:state] fn B1 b2: buf=*p0+0 len=p1 q=*p0+[0, 16*div(p1 - 1, 16)]:loop%16 e=*p0+p1
+CHECK-DAG: [oobsum:state] fn W4 b2: p=*p0+0 n=p1 q=*p0+[0, 4*p1 - 4]:loop%4
+CHECK-DAG: c.c:7:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 80 of 'a' (64 bytes) may be accessed; the bound comes from a loop condition
+CHECK-DAG: c.c:8:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 64 of 'a' (64 bytes)
+CHECK-DAG: c.c:11:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 20 of 'a' (16 bytes) may be accessed; the bound comes from a loop condition
+CHECK-DAG: c.c:12:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+CHECK-DAG: c.c:22:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 48 of 'a' (40 bytes) may be accessed; the bound comes from a loop condition
+CHECK-DAG: c.c:23:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 48 of 'a' (48 bytes)
+CHECK-DAG: c.c:26:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 20 of 'a' (16 bytes) may be accessed; the bound comes from a loop condition
+CHECK-DAG: c.c:27:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)

@@ -96,7 +96,7 @@ bool IntVal::operator==(const IntVal &o) const
             return value == o.value;
         case Kind::Range:
             return hasLo == o.hasLo && hasHi == o.hasHi && (!hasLo || lo == o.lo) && (!hasHi || hi == o.hi) &&
-                   tag == o.tag && cases == o.cases;
+                   tag == o.tag && cases == o.cases && stride == o.stride && (stride < 2 || anchor == o.anchor);
         case Kind::Top:
             return why == o.why;
     }
@@ -112,6 +112,10 @@ std::string IntVal::Show() const
             std::string out = "[" + (hasLo ? lo.Show() : std::string("-inf")) + ", " +
                               (hasHi ? hi.Show() : std::string("+inf")) + "]" +
                               (tag == Tag::None ? "" : ":" + TagName(tag).str());
+            if (stride >= 2) {  // SPEC-0084
+                out += "%" + std::to_string(stride) +
+                       (anchor.IsConst() && anchor.Constant() == 0 ? std::string() : "~" + anchor.Show());
+            }
             for (size_t i = 0; i < cases.size(); ++i) {  // {0: p0 >= 17; 1: p0 <= 16}
                 out += (i == 0 ? "{" : "; ") + std::to_string(cases[i].value) + ":";
                 for (size_t k = 0; k < cases[i].guards.size(); ++k) {
@@ -226,6 +230,127 @@ llvm::Optional<LinExpr> SumOpt(const llvm::Optional<LinExpr> &a, const llvm::Opt
     return s.IsUnknown() ? llvm::Optional<LinExpr>() : s;
 }
 
+// ---- 同余（SPEC-0084）----
+
+const int64_t kMaxStride = int64_t(1) << 30;
+
+int64_t Gcd(int64_t a, int64_t b)
+{
+    if (a == INT64_MIN || b == INT64_MIN) {
+        return 1;
+    }
+    a = a < 0 ? -a : a;
+    b = b < 0 ? -b : b;
+    while (b != 0) {
+        int64_t t = a % b;
+        a = b;
+        b = t;
+    }
+    return a;
+}
+
+int64_t PosMod(int64_t a, int64_t s)
+{
+    int64_t r = a % s;
+    return r < 0 ? r + s : r;
+}
+
+// 锚点规范化：系数与常数都按步长取正余数（x 是整数，c·x ≡ (c mod s)·x），同余类相同的写法相同
+LinExpr NormAnchor(const LinExpr &a, int64_t s)
+{
+    LinExpr out = LinExpr::Const(PosMod(a.Constant(), s));
+    for (const auto &term : a.Terms()) {
+        int64_t c = PosMod(term.second, s);
+        if (c != 0) {
+            out = out + LinExpr::OfAtom(term.first).Scale(c);
+        }
+    }
+    return out;
+}
+
+// v 的同余：确切值 → 锚点 = 值、步长 0（与任何步长相容）；区间 → 记着的；其余没有
+bool CongOf(const IntVal &v, LinExpr &anchor, int64_t &stride)
+{
+    if (v.kind == IntVal::Kind::Exact && !v.value.IsUnknown()) {
+        anchor = v.value;
+        stride = 0;
+        return true;
+    }
+    if (v.kind == IntVal::Kind::Range && v.stride >= 2) {
+        anchor = v.anchor;
+        stride = v.stride;
+        return true;
+    }
+    return false;
+}
+
+// 只给区间记；步长小于 2、太大或锚点不知道 → 清掉
+void SetCong(IntVal &v, const LinExpr &anchor, int64_t stride)
+{
+    if (v.kind != IntVal::Kind::Range || stride < 2 || stride > kMaxStride || anchor.IsUnknown()) {
+        v.stride = 0;
+        v.anchor = LinExpr();
+        return;
+    }
+    v.stride = stride;
+    v.anchor = NormAnchor(anchor, stride);
+}
+
+// 差 d 的常数与各系数的 gcd 并进 g
+int64_t GcdWith(int64_t g, const LinExpr &d)
+{
+    g = Gcd(g, d.Constant());
+    for (const auto &term : d.Terms()) {
+        g = Gcd(g, term.second);
+    }
+    return g;
+}
+
+// a ⊔ b 的同余写进 out：步长 = gcd(sa, sb, 锚点之差的常数与各系数)
+void JoinCong(const IntVal &a, const IntVal &b, IntVal &out)
+{
+    LinExpr ra;
+    LinExpr rb;
+    int64_t sa = 0;
+    int64_t sb = 0;
+    if (!CongOf(a, ra, sa) || !CongOf(b, rb, sb)) {
+        SetCong(out, LinExpr(), 0);
+        return;
+    }
+    LinExpr d = ra - rb;
+    SetCong(out, ra, d.IsUnknown() ? 0 : GcdWith(Gcd(sa, sb), d));
+}
+
+// 上界取到同余类里（向下）：anchor + s·div(h − anchor, s)；差的各系数都能被 s 整除时直接减常数余数
+llvm::Optional<LinExpr> RoundDown(const LinExpr &h, const LinExpr &anchor, int64_t s)
+{
+    LinExpr d = h - anchor;
+    if (d.IsUnknown()) {
+        return llvm::None;
+    }
+    if (llvm::all_of(d.Terms(), [&](const std::pair<const Atom, int64_t> &t) { return t.second % s == 0; })) {
+        return h - LinExpr::Const(PosMod(d.Constant(), s));
+    }
+    LinExpr q = LinExpr::Div(d, s);
+    if (q.IsUnknown()) {
+        return llvm::None;
+    }
+    LinExpr out = anchor + q.Scale(s);
+    return out.IsUnknown() ? llvm::Optional<LinExpr>() : out;
+}
+
+// 下界取到同余类里（向上）：只做差的各系数都能被 s 整除的情形
+llvm::Optional<LinExpr> RoundUp(const LinExpr &l, const LinExpr &anchor, int64_t s)
+{
+    LinExpr d = l - anchor;
+    if (d.IsUnknown() ||
+        !llvm::all_of(d.Terms(), [&](const std::pair<const Atom, int64_t> &t) { return t.second % s == 0; })) {
+        return llvm::None;
+    }
+    int64_t r = PosMod(d.Constant(), s);
+    return r == 0 ? l : l + LinExpr::Const(s - r);
+}
+
 IntVal AddVals(const IntVal &a, const IntVal &b)
 {
     if (a.kind == IntVal::Kind::Exact && b.kind == IntVal::Kind::Exact) {
@@ -234,7 +359,16 @@ IntVal AddVals(const IntVal &a, const IntVal &b)
     if (a.kind == IntVal::Kind::Top || b.kind == IntVal::Kind::Top) {
         return IntVal::Top(a.kind == IntVal::Kind::Top ? a.why : b.why);
     }
-    return IntVal::Range(SumOpt(a.Lower(), b.Lower()), SumOpt(a.Upper(), b.Upper()), WorseTag(TagOf(a), TagOf(b)));
+    IntVal r = IntVal::Range(SumOpt(a.Lower(), b.Lower()), SumOpt(a.Upper(), b.Upper()), WorseTag(TagOf(a), TagOf(b)));
+    // 同余：步长 gcd(sa, sb)，锚点相加（SPEC-0084）
+    LinExpr ra;
+    LinExpr rb;
+    int64_t sa = 0;
+    int64_t sb = 0;
+    if (CongOf(a, ra, sa) && CongOf(b, rb, sb)) {
+        SetCong(r, ra + rb, Gcd(sa, sb));
+    }
+    return r;
 }
 
 IntVal ScaleVal(const IntVal &a, int64_t c)
@@ -250,7 +384,19 @@ IntVal ScaleVal(const IntVal &a, int64_t c)
     auto scale = [&](const llvm::Optional<LinExpr> &x) {
         return x ? llvm::Optional<LinExpr>(x->Scale(c)) : llvm::Optional<LinExpr>();
     };
-    return c >= 0 ? IntVal::Range(scale(lo), scale(hi), a.tag) : IntVal::Range(scale(hi), scale(lo), a.tag);
+    IntVal r = c >= 0 ? IntVal::Range(scale(lo), scale(hi), a.tag) : IntVal::Range(scale(hi), scale(lo), a.tag);
+    // 同余：有 → 步长 × |c|、锚点 × c；没有 → 步长 |c|、锚点 0（SPEC-0084）
+    int64_t mag = c < 0 ? -c : c;
+    LinExpr ra;
+    int64_t sa = 0;
+    if (c != INT64_MIN && mag <= kMaxStride) {
+        if (CongOf(a, ra, sa) && sa >= 2) {
+            SetCong(r, ra.Scale(c), sa <= kMaxStride / (mag == 0 ? 1 : mag) ? sa * mag : 0);
+        } else {
+            SetCong(r, LinExpr::Const(0), mag);
+        }
+    }
+    return r;
 }
 
 IntVal NegVal(const IntVal &a)
@@ -460,7 +606,9 @@ IntVal JoinInt(const IntVal &a, const IntVal &b, const Comparer *cmp = nullptr)
     // 两条路上的确切值合成区间，来源是分支（D-22 的 branch）
     Tag tag = WorseTag(a.kind == IntVal::Kind::Exact ? Tag::Branch : a.tag,
                        b.kind == IntVal::Kind::Exact ? Tag::Branch : b.tag);
-    return IntVal::Range(lo, hi, sideTag ? *sideTag : tag);
+    IntVal out = IntVal::Range(lo, hi, sideTag ? *sideTag : tag);
+    JoinCong(a, b, out);  // SPEC-0084
+    return out;
 }
 
 // 未知值的原因 → 账本原因（A-08、D-27，SPEC-0060）：引擎不认识的构造；认识、只是值不知道的返回空
@@ -708,7 +856,9 @@ IntVal WidenInt(const IntVal &a, const IntVal &b)
     Tag ta = a.kind == IntVal::Kind::Exact ? Tag::Branch : a.tag;
     Tag tb = b.kind == IntVal::Kind::Exact ? Tag::Branch : b.tag;
     Tag tag = keepHi ? WorseTag(ta, tb) : Tag::Widen;
-    return IntVal::Range(keepLo ? al : llvm::None, keepHi ? ah : llvm::None, tag);
+    IntVal out = IntVal::Range(keepLo ? al : llvm::None, keepHi ? ah : llvm::None, tag);
+    JoinCong(a, b, out);  // SPEC-0084
+    return out;
 }
 
 Value WidenValue(const Value &a, const Value &b)
@@ -1240,7 +1390,13 @@ IntVal Analyzer::Bin(const fir::Expr &x, const State &s)
         int64_t tmax = (int64_t(1) << x.width) - 1;
         Limit hi = r.hasHi ? Env(s).RangeOf(r.hi, true) : Limit();
         if (!hi.known || hi.value > tmax) {
+            int64_t stride = r.stride;
+            LinExpr anchor = r.anchor;
             r = IntVal::Range(LinExpr::Const(0), r.Upper(), r.tag);
+            // 回绕减 2^W：步长是 2 的幂且不超过 2^W 时余数不变（SPEC-0084）
+            if (stride >= 2 && (stride & (stride - 1)) == 0 && stride <= tmax) {
+                SetCong(r, anchor, stride);
+            }
         }
     }
     return r;
@@ -3257,6 +3413,21 @@ bool Analyzer::NarrowRange(const IntVal &v, fir::CmpOp op, const LinExpr &c, con
     if (!newLo && !newHi) {
         return true;
     }
+    // 同余（SPEC-0084）：候选的界先取到同余类里（上界向下、下界向上）；上界取整成功 → 界就是同余类里最大的值，不必 coarse
+    LinExpr anchor;
+    int64_t stride = 0;
+    bool cong = v.kind == IntVal::Kind::Range && CongOf(v, anchor, stride) && stride >= 2;
+    if (cong && newHi && !newHi->IsUnknown()) {
+        if (llvm::Optional<LinExpr> r = RoundDown(*newHi, anchor, stride)) {
+            newHi = r;
+            coarse = false;
+        }
+    }
+    if (cong && newLo && !newLo->IsUnknown()) {
+        if (llvm::Optional<LinExpr> r = RoundUp(*newLo, anchor, stride)) {
+            newLo = r;
+        }
+    }
     // 与原来的界取更紧的：差不是常数时用这条边上的状态（类型范围与守卫）比（SPEC-0023）；比不出留原来的（都是对的界）
     SymEnv env = Env(s);
     Comparer cmp{&env, &s.guards};
@@ -3290,6 +3461,9 @@ bool Analyzer::NarrowRange(const IntVal &v, fir::CmpOp op, const LinExpr &c, con
         Tag by = coarse ? Tag::Widen : edgeFromHead ? Tag::Loop : Tag::Check;
         Tag tag = !hiNarrowed ? v.tag : coarse ? by : (IsCodeTag(v.tag) ? WorseTag(v.tag, by) : by);
         out = IntVal::Range(l, h, tag);
+        if (cong) {
+            SetCong(out, anchor, stride);  // 收窄不改同余（SPEC-0084）
+        }
     }
     return true;
 }

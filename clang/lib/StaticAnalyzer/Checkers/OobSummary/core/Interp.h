@@ -65,6 +65,9 @@ struct IntVal {
     Tag tag = Tag::None;
     std::string why;             // Top
     std::vector<IntCase> cases;  // 区间的值只取这几个常数时：各自成立的守卫（SPEC-0025；空 = 没有）
+    // 同余（SPEC-0084）：stride >= 2 时区间里的值都 ≡ anchor（mod stride，anchor 已规范化）；0 = 不知道
+    int64_t stride = 0;
+    LinExpr anchor;
 
     static IntVal Exact(const LinExpr &e);
     static IntVal Range(const llvm::Optional<LinExpr> &lo, const llvm::Optional<LinExpr> &hi, Tag tag);

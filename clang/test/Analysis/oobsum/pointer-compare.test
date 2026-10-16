@@ -1,17 +1,19 @@
 # 同一对象的两个指针比较：按偏移收窄（oobsum/specs/SPEC-0081）。原来指针比较不产生信息，while (p < e) 只能记 pointer_stepping。
-# 被收窄的指针指向宽于 1 字节的类型：收窄出的上界标 widen，不当代码给出的界（SPEC-0083）。
+# 被收窄的指针指向宽于 1 字节的类型：按同余把上界取整（SPEC-0084）；没有同余时上界标 widen，不当代码给出的界（SPEC-0083）。
 #
 # RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(P1|W1)$' \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(P1|W1|W2)$' \
 # RUN:   %S/Inputs/ptrcmp/p.c 2>&1 | FileCheck %s
 
 CHECK-DAG: [oobsum:state] fn P1 b3: p=*p0+[0, p1]:loop n=p1 e=*p0+p1 (head)
 CHECK-DAG: [oobsum:state] fn P1 b2: p=*p0+[0, p1 - 1]:loop n=p1 e=*p0+p1
-CHECK-DAG: [oobsum:state] fn W1 b2: p=*p0+[0, 4*p1 - 1]:widen n=p1 e=*p0+4*p1
+CHECK-DAG: [oobsum:state] fn W1 b2: p=*p0+[0, 4*p1 - 4]:loop%4 n=p1 e=*p0+4*p1
+CHECK-DAG: [oobsum:state] fn W2 b2: p=*p0+[0, 4*p1 - 1]:widen n=p1 e=*p0+4*p1
 CHECK-DAG: p.c:5:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 17 of 'a' (16 bytes) may be accessed; the bound comes from a loop condition
 CHECK-DAG: p.c:6:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
 CHECK-DAG: p.c:8:1: warning: [OOB-SUSPECT:pointer_stepping] Cannot prove this access is within bounds: the pointer is advanced in a loop
-CHECK-DAG: p.c:12:1: warning: [OOB-SUSPECT:pointer_stepping] Cannot prove the write through a 1-level call chain stays within 'a' (16 bytes): up to byte 23 may be accessed
-CHECK-DAG: p.c:13:1: warning: [OOB-SUSPECT:pointer_stepping] Cannot prove the write through a 1-level call chain stays within 'a' (16 bytes): up to byte 19 may be accessed
-CHECK-DAG: p.c:14:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 15 of 'a' (16 bytes)
+CHECK-DAG: p.c:12:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 20 of 'a' (16 bytes) may be accessed; the bound comes from a loop condition
+CHECK-DAG: p.c:13:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+CHECK-DAG: p.c:14:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 12 of 'a' (16 bytes)
+CHECK-DAG: p.c:17:1: warning: [OOB-SUSPECT:pointer_stepping] Cannot prove the write through a 1-level call chain stays within 'a' (16 bytes): up to byte 19 may be accessed

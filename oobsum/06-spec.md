@@ -555,7 +555,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 
 ### 6.2 抽象域（`core/`，不依赖 Clang）
 
-* **A-10 整数值** `AbsInt = [lo, hi]`，`lo` / `hi` 是 **界**：`LE`（接口符号的线性式 + 不透明项）、`min(c, LE)` / `max(c, LE)`、`±∞`。
+* **A-10 整数值**〔SPEC-0084：区间可带同余 `≡ anchor mod stride`，条件收窄时上界按同余取整〕 `AbsInt = [lo, hi]`，`lo` / `hi` 是 **界**：`LE`（接口符号的线性式 + 不透明项）、`min(c, LE)` / `max(c, LE)`、`±∞`。
   每个界带**来源标签**集合 `src ⊆ {const, check, mask, branch, loop, ret, guard, type, widen, data, unknown}`（F-12 用）；另带 `via`（经效果传了几层，饱和于 255）。
 * **A-11 指针值** `PtrVal = (base, off: AbsInt 字节, maybeNull, via)`。`base` 种类：`Param(i)`、`ParamField(i, path)`、`Global(K)`、`GlobalPtr(K)`、`Local(id)`、
   `Sub(父, 偏移, 大小, 名字)`（数组成员子对象）、`Alloc(调用点, size: LE)`、`Str(len)`、`Ret(调用点)`（大小未知）、`Func(K)`、`Unknown(原因)`。
