@@ -1380,3 +1380,20 @@ TEST(Interp, DependentNarrowing)
               b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(t), b.C(0), false)));
     EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=branch at=t.c:7");
 }
+
+TEST(Interp, SignedBoundFaithful)
+{
+    // SPEC-0076：for (i = n − 1; i >= 0; i--) p[i] = 0;（INT32）——循环体 i ∈ [0, p1 − 1]，末端 [1, p1]，没有负偏移的 Req
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("n", b.i32);
+    uint32_t i = b.LocalVar("i", b.i32);
+    uint32_t t = b.LocalVar("t0", b.i32);
+    Loop l;
+    l.entry.insts = {b.Set(i, b.Wrap(BinOp::Sub, b.L(n), b.C(1), 32, true))};
+    l.body.insts = {b.Store(b.PAdd(b.L(p), b.L(i)), 1, b.C(0), 7)};
+    l.latch.insts = {b.Set(t, b.L(i)), b.Set(i, b.Wrap(BinOp::Sub, b.L(t), b.C(1), 32, true))};
+    l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(i), b.C(0), true)),
+              b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(i), b.C(0), true)));
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=branch at=t.c:7 guard=p1 >= 1");
+}

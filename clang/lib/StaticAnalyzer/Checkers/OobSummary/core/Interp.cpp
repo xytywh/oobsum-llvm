@@ -2771,8 +2771,11 @@ bool FaithfulAs(const IntVal &v, const IntType &type, const SymEnv &env)
     if (coversLo && !t->isSigned) {
         return true;
     }
-    bool loOk = v.hasLo ? within(v.lo, false) : t->isSigned;
-    bool hiOk = v.hasHi ? within(v.hi, false) : t->isSigned;
+    // 有符号：符号界只可能因有符号算术溢出而超出类型（不保值的转换都落到类型范围，A-27），溢出是未定义行为、不考虑
+    // （06- A-21、SPEC-0014）；常数界照旧查（SPEC-0076）
+    // 盖住类型最小 / 最大值的界照样可信（汇合时可能按类型范围放宽成比 INT_MIN 还小的常数）
+    bool loOk = v.hasLo ? coversLo || (t->isSigned && !v.lo.IsConst()) || within(v.lo, false) : t->isSigned;
+    bool hiOk = v.hasHi ? coversHi || (t->isSigned && !v.hi.IsConst()) || within(v.hi, false) : t->isSigned;
     return loOk && hiOk;
 }
 

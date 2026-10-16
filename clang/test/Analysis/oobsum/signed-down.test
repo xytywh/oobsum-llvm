@@ -1,0 +1,15 @@
+# 有符号区间的符号界按"溢出是未定义行为"认作可信（oobsum/specs/SPEC-0076；06- A-21）：for (i = n − 1; i >= 0; i--) 收得住。
+# 原来上界 p1 − 1 在 p1 = INT_MIN 时"会溢出"→ 区间不可信 → 条件 i >= 0 不收窄 → 被调者里记账。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^D3$' \
+# RUN:   %S/Inputs/signeddown/s.c 2>&1 | FileCheck %s
+# 循环下界收成 0：不再有负偏移的报告
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/signeddown/s.c 2>&1 | not grep 's.c:[56]:1: warning: .*bytes before'
+
+CHECK-DAG: [oobsum:state] fn D3 b2: p=*p0+0 n=p1 i=[0, p1 - 1]:branch guards: p1 >= 1
+CHECK-DAG: s.c:5:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 17 of 'a' (16 bytes) may be accessed
+CHECK-DAG: s.c:6:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+CHECK-DAG: s.c:9:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'a' (0 bytes before the pointer)
