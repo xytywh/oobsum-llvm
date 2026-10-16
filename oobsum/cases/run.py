@@ -362,32 +362,49 @@ def cmd_csa(a):
         os.makedirs(wd)
         edges = {}  # 函数键 → 被调者的键（Dump=summary 的 calls，SPEC-0047）
         names_of = {}  # 函数键 → 函数名
+        xtu = len(srcs) > 1 and not any(kv.startswith('Phase=') for kv in a.config)  # 多文件：三阶段（SPEC-0055）
+        want_dump = not any(kv.startswith('Dump=') for kv in a.config)
+
+        def cc1(src, extra, err):
+            args = [clang, '-cc1', '-triple', a.triple, '-analyze', '-resource-dir', res,
+                    '-internal-isystem', os.path.join(res, 'include'), '-analyzer-checker=' + CHECKER,
+                    '-analyzer-config', '%s:WorkDir=%s' % (CHECKER, wd)]
+            if a.triple.startswith(('arm', 'thumb', 'aarch64')):
+                args.append('-fno-signed-char')  # driver 对 ARM / AArch64 会加；直接跑 cc1 要自己加（SPEC-0007 §2.1）
+            for kv in a.config + extra:
+                args += ['-analyzer-config', '%s:%s' % (CHECKER, kv)]
+            args += a.cc1_arg + [src]
+            r = subprocess.run(args, capture_output=True, text=True)
+            err.write('== %s\n%s%s' % (' '.join(args), r.stdout, r.stderr))
+            if r.returncode != 0:
+                errors.append('%s：cc1 退出码 %d（见 %s）' % (os.path.relpath(src, root), r.returncode,
+                                                           os.path.join(wd, 'stderr.txt')))
+            for line in r.stderr.splitlines():
+                if line.startswith('[oobsum:summary] '):
+                    try:
+                        sm = json.loads(line[len('[oobsum:summary] '):])
+                    except ValueError:
+                        continue
+                    names_of[sm['key']] = sm['fn']
+                    edges.setdefault(sm['key'], set()).update(c.get('callee_key', '') for c in sm.get('calls', []))
+
+        dump = ['Dump=summary'] if want_dump else []  # 取调用图（SPEC-0047），不影响结果
         with open(os.path.join(wd, 'stderr.txt'), 'w', encoding='utf-8') as err:
-            for s in srcs:
-                ntu += 1
-                args = [clang, '-cc1', '-triple', a.triple, '-analyze', '-resource-dir', res,
-                        '-internal-isystem', os.path.join(res, 'include'), '-analyzer-checker=' + CHECKER,
-                        '-analyzer-config', '%s:WorkDir=%s' % (CHECKER, wd)]
-                if a.triple.startswith(('arm', 'thumb', 'aarch64')):
-                    args.append('-fno-signed-char')  # driver 对 ARM / AArch64 会加；直接跑 cc1 要自己加（SPEC-0007 §2.1）
-                for kv in a.config:
-                    args += ['-analyzer-config', '%s:%s' % (CHECKER, kv)]
-                if not any(kv.startswith('Dump=') for kv in a.config):
-                    args += ['-analyzer-config', '%s:Dump=summary' % CHECKER]  # 取调用图（SPEC-0047），不影响结果
-                args += a.cc1_arg + [s]
-                r = subprocess.run(args, capture_output=True, text=True)
-                err.write('== %s\n%s%s' % (' '.join(args), r.stdout, r.stderr))
-                for line in r.stderr.splitlines():
-                    if line.startswith('[oobsum:summary] '):
-                        try:
-                            sm = json.loads(line[len('[oobsum:summary] '):])
-                        except ValueError:
-                            continue
-                        names_of[sm['key']] = sm['fn']
-                        edges.setdefault(sm['key'], set()).update(c.get('callee_key', '') for c in sm.get('calls', []))
-                if r.returncode != 0:
-                    errors.append('%s：cc1 退出码 %d（见 %s）' % (os.path.relpath(s, root), r.returncode,
-                                                               os.path.join(wd, 'stderr.txt')))
+            if xtu:
+                for s in srcs:
+                    ntu += 1
+                    cc1(s, ['Phase=export'], err)
+                stub_dir = os.path.join(wd, 'solve_stub')
+                os.makedirs(stub_dir, exist_ok=True)
+                stub = os.path.join(stub_dir, 'stub.c')
+                open(stub, 'w', encoding='utf-8').write('void oobsum_solve_stub(void) {}\n')
+                cc1(stub, ['Phase=solve'] + dump, err)
+                for s in srcs:
+                    cc1(s, ['Phase=report'], err)
+            else:
+                for s in srcs:
+                    ntu += 1
+                    cc1(s, dump, err)
         decs, missing = _read_logs(wd, srcs, root)
         for s in missing:
             errors.append('%s：没有写出判定日志（checker 没跑？）' % os.path.relpath(s, root))
@@ -414,7 +431,7 @@ def cmd_csa(a):
                     actual = '%s@%s' % (_tag(sus[0]), names_of.get(sus[0]['fn'], _fn_name(sus[0]['fn']))) + \
                         ('×%d' % len(sus) if len(sus) > 1 else '')
             entries.append({'case': cid, 'kind': e['kind'], 'entry': e['entry'], 'pa': pa, 'actual': actual,
-                            'verdict': _verdict(e['kind'], pa, rep, len(srcs) > 1)})
+                            'verdict': _verdict(e['kind'], pa, rep, len(srcs) > 1 and not xtu)})
         for d in decs:
             key = (cid, d['site'], d['kind'])
             if d['label'] == 'safe':

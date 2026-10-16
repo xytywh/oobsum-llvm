@@ -52,4 +52,4 @@ oobsum_run.py status --workdir W
 
 ## 9. 待定 / 以后
 
-* `run.py csa` 的跨 TU 用例（"需跨TU" 两个入口）改走 `local`。
+* `run.py csa` 的跨 TU 用例（"需跨TU" 两个入口）改走三阶段：SPEC-0055（已做）。

@@ -107,15 +107,15 @@
    "kind": "TP",
    "entry": "Alm_ReportAll_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "需跨TU"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV1-07",
    "kind": "TN",
    "entry": "Alm_ReportAll_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -651,15 +651,15 @@
    "kind": "TP",
    "entry": "Port_OnLinkDown_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "需跨TU"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV6-01",
    "kind": "TN",
    "entry": "Port_OnLinkDown_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -1163,11 +1163,11 @@
   },
   {
    "case": "LV1-07",
-   "site": "lv1/lv1_07_cross_tu/alm_low.c:10:0",
+   "site": "lv1/lv1_07_cross_tu/alm_top.c:22:0",
    "kind": "W",
-   "fn": "F:Alm_RaiseOne",
-   "label": "suspect",
-   "reason": "type_range_only",
+   "fn": "F:Alm_ReportAll_TP",
+   "label": "definite",
+   "reason": "",
    "access": "lv1/lv1_07_cross_tu/alm_low.c:7"
   },
   {
@@ -1838,11 +1838,11 @@
   },
   {
    "case": "LV6-01",
-   "site": "lv6/lv6_01_extern_tbl/port_stat_use.c:26:0",
-   "kind": "",
-   "fn": "F@52b88a2f35dd3950:Stat_PortInc",
-   "label": "suspect",
-   "reason": "alloc_size_unknown",
+   "site": "lv6/lv6_01_extern_tbl/port_stat_use.c:30:0",
+   "kind": "W",
+   "fn": "F:Port_OnLinkDown_TP",
+   "label": "definite",
+   "reason": "",
    "access": "lv6/lv6_01_extern_tbl/port_stat_use.c:26"
   },
   {
