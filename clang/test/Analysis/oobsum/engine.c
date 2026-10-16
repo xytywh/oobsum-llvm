@@ -52,12 +52,13 @@ void Entry(UINT8 *pucIn)
 
 // 判定 3 条（DEFINITE、SAFE、SUSPECT），报出 2 条（stats 先于告警打印）
 // CHECK: [oobsum:stats] tu={{[0-9a-f]+}} decisions=3 emitted=2
-// 汇合点（Top_TP 里那次调用）报 DEFINITE；链上每一跳一条 note；TN 不报
+// 汇合点（Top_TP 里那次调用）报 DEFINITE；总链 note + 链上每一跳一条 note（F-33，SPEC-0078）；TN 不报
 // CHECK: engine.c:34:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 3-level call chain: up to byte 17 of 'aucBuf' (16 bytes) is accessed
-// CHECK: engine.c:34:1: note: call chain: Top_TP
-// CHECK: engine.c:28:1: note: call chain: Up
-// CHECK: engine.c:23:1: note: call chain: Mid
-// CHECK: engine.c:18:1: note: call chain: Leaf
+// CHECK: engine.c:34:1: note: Call chain: Top_TP (engine.c:34) -> Up (engine.c:28) -> Mid (engine.c:23) -> Leaf (engine.c:18)
+// CHECK: engine.c:34:1: note: Top_TP calls Up here
+// CHECK: engine.c:28:1: note: Up calls Mid here
+// CHECK: engine.c:23:1: note: Mid calls Leaf here
+// CHECK: engine.c:18:1: note: Leaf accesses the object here
 // CHECK-NOT: engine.c:40:{{.*}}warning
 // 指针流进本 TU 没有函数体的被调者（D-27 not_in_tu）
 // CHECK: engine.c:45:1: warning: [OOB-SUSPECT:not_in_tu] Cannot prove this access is within bounds: a pointer is passed to 'Ext_Send', whose body is not in this translation unit

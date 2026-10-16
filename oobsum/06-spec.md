@@ -171,7 +171,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
   `{source}` = `bound` 的短语（`a loop condition`、`a check`、`a guard condition`、`a bit mask`、`a branch constant`、`a return value range`、`a constant`）。
   调用链跨了文件时，消息末尾附整条链 `[A (a.c:22) -> B (b.c:6) -> …]`（F-33 ③）。`{size}`、`{need}` 可以是符号式（LV2-04：`4*ulNum+4` 对 `4*ulNum`）。
   （v3.13 样例里 L2 写的 "a loop bound **in Ue_InitTbl**" 是手写的：界在哪个函数给出，机器字段里没有。要的话 P1 给 Req 加 `bound_at`，见 §12。）
-* **F-33 trace（note）**：
+* **F-33 trace（note）**〔SPEC-0078：② 的文本定为 `<函数> calls <下一个> here` / `<函数> accesses the object here` / `the object is allocated here`；一跳的调用链不加 note〕：
   ① 一条**总链 note**，锚在告警位置：`Call chain: Ue_Setup (ue_init.c:80) -> Ue_InitTbl (ue_init.c:60) -> Ue_InitOne (ue_tbl.c:40)`（由 `chain` 生成；
   访问的字节数和偏移式看访问点那条 note 指着的源码行）；
   ② 链上每一跳、访问点、大小来源（分配点）里**位于本 TU 可见文件**的，各一条 note 指向那一行；

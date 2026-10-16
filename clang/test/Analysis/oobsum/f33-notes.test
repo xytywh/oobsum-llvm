@@ -1,0 +1,14 @@
+# 告警 note 按 F-33（oobsum/specs/SPEC-0078）：① 总链 note；② 本 TU 可见的每一跳、访问点、分配点；一跳的不加。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/notes/n.c 2>&1 | FileCheck %s
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/notes/n.c 2>&1 | not grep 'n.c:13:1: note: Call chain'
+
+CHECK: n.c:10:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 2-level call chain: up to byte 17 of heap object allocated at n.c:9 (16 bytes) is accessed
+CHECK: n.c:10:1: note: Call chain: Top_TP (n.c:10) -> Mid (n.c:6) -> Leaf (n.c:5)
+CHECK: n.c:10:1: note: Top_TP calls Mid here
+CHECK: n.c:6:1: note: Mid calls Leaf here
+CHECK: n.c:5:1: note: Leaf accesses the object here
+CHECK: n.c:9:1: note: the object is allocated here
+CHECK: n.c:13:1: warning: [OOB-SUSPECT:entry_unproven]

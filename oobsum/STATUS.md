@@ -204,6 +204,7 @@
 - [x] **局部结构体的字段值带进调用点**（SPEC-0026）：实参 `fields`；常数偏移的写只失效重叠的内存格；**修了别名实参的旧值问题**——形参所指结构体的字段
       在本函数里改过（或指针交给过被调者）时，别名代换会用入口时的旧值，链顶代入字段值后能把越界证明成安全（LV5-04 TP 一度变成 SAFE，已修、单测守住）。
       **LV5-01 端到端一致（金标准 11 个）**；`run.py csa`：LV5-01、LV5-04 TP → DEFINITE——**通过 78、漏报 14**，回退 0。
+- [x] **告警 note 按 F-33**（SPEC-0078）：总链 note（"Call chain: A (a.c:72) -> B (b.c:63) -> …"）、每一跳说清做了什么、访问点、分配点；一跳的账本不加 note。
 - [x] **写效应 `global`**（SPEC-0077）：被调者写整数全局（`SetLen(100)`、`g_ulIdx += 8`）的新值传给调用方；调用点上区间值的全局经 `locals` 带下去。
       原来记 `global_value` / `type_range_only` 的几处对照现在判出 DEFINITE 100 / POSSIBLE。`run.py csa` 与基线相同。
 - [x] **有符号递减循环**（SPEC-0076）：`for (i = n − 1; i >= 0; i--)` 原来因"上界 `p1 − 1` 可能溢出"不收窄；按 06- A-21（有符号溢出是未定义行为）有符号区间的符号界认作可信，
@@ -238,7 +239,7 @@
       **本地 export → solve → report 端到端跑通**（lit `phase-solve.test`）。
 - [x] **S9-5 驱动**（SPEC-0031，`oobsum/tools/oobsum_run.py`）：`local` 按源文件列表跑三阶段（cc1，同 run.py csa）；`bxen` 生成桩 TU 的 cdb、report 的 cdb
       （原样复制有判定的 TU）并打印 / 执行三段 bxen 命令；`status`。每条命令先打印再执行、输出存 `logs/<阶段>.log`、失败即停并提示单独重跑。
-- [ ] **S8c-2**：只在某个返回值下成立的写效应（`ret == OK ⇒ pst->ulLen := …`，LV5-02，2027H1）；告警 note 按 F-33 的三种写法。
+- [ ] **S8c-2**：只在某个返回值下成立的写效应（`ret == OK ⇒ pst->ulLen := …`，LV5-02，2027H1）。告警 note 按 F-33 已做（SPEC-0078）。
       已做：`field` / `global` 写效应（SPEC-0073 / 0074 / 0077）、mod-ref（SPEC-0045）、`unknown_callee` 与跨 TU 三阶段（SPEC-0028…0031）；A-41 见 S7d-4。
 - [ ] S9 之后：WP5 安全函数族模型 → WP7 循环与守卫 → WP8 效果与分配器 → WP9 大小模型 → WP10 驱动 → WP11 真实代码子集（公司）→ WP12 全量与性能 → WP13 冻结。
 

@@ -45,6 +45,8 @@ public:
 private:
     const clang::ento::BugType *TypeOf(Label label) const;
     clang::SourceLocation Locate(const Site &site, const clang::SourceManager &sm) const;
+    // 只有文件名的位置（heap@<文件名>:<行>）：在本 TU 已打开的文件里按文件名找（SPEC-0078）
+    clang::SourceLocation LocateBase(llvm::StringRef site, const clang::SourceManager &sm) const;
 
     BugTypes bugTypes;
     PolicyOptions policy;

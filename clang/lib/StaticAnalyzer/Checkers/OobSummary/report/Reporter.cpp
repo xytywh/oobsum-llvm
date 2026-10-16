@@ -9,6 +9,8 @@
 #include "clang/Analysis/PathDiagnostic.h"
 #include "clang/Basic/FileManager.h"
 
+#include "llvm/Support/Path.h"
+
 #include <algorithm>
 #include <tuple>
 
@@ -60,6 +62,23 @@ SourceLocation Reporter::Locate(const Site &site, const SourceManager &sm) const
     return sm.translateFileLineCol(*file, site.line, site.col == 0 ? 1 : site.col);
 }
 
+// 只有文件名的位置（heap@<文件名>:<行>）：在本 TU 已打开的文件里按文件名找（SPEC-0078）
+SourceLocation Reporter::LocateBase(llvm::StringRef site, const SourceManager &sm) const
+{
+    std::pair<llvm::StringRef, llvm::StringRef> parts = site.rsplit(':');
+    unsigned line = 0;
+    if (parts.second.getAsInteger(10, line) || line == 0) {
+        return SourceLocation();
+    }
+    for (auto it = sm.fileinfo_begin(); it != sm.fileinfo_end(); ++it) {
+        const FileEntry *entry = it->getFirst();
+        if (entry != nullptr && llvm::sys::path::filename(entry->getName()) == parts.first) {
+            return sm.translateFileLineCol(entry, line, 1);
+        }
+    }
+    return SourceLocation();
+}
+
 std::vector<std::pair<Decision, Disposition>> Reporter::Flush(BugReporter &br, const SourceManager &sm)
 {
     // F-35：按（文件、行、列、指纹）排序，输出稳定
@@ -81,10 +100,31 @@ std::vector<std::pair<Decision, Disposition>> Reporter::Flush(BugReporter &br, c
             }
             auto report = std::make_unique<BasicBugReport>(*TypeOf(decision.label), FullMessage(decision),
                                                            PathDiagnosticLocation(loc, sm));
-            for (const Hop &hop : decision.chain) {
-                SourceLocation hopLoc = Locate(hop.site, sm);
-                if (hopLoc.isValid()) {
-                    report->addNote("call chain: " + hop.fn, PathDiagnosticLocation(hopLoc, sm));
+            // F-33（SPEC-0078）：① 总链 note；② 本 TU 可见的每一跳、访问点、分配点；一跳的不加（与告警位置重复）
+            const std::vector<Hop> &chain = decision.chain;
+            if (chain.size() >= 2) {
+                std::string text = "Call chain: ";
+                for (size_t i = 0; i < chain.size(); ++i) {
+                    text += (i == 0 ? "" : " -> ") + chain[i].fn + " (" +
+                            llvm::sys::path::filename(chain[i].site.file).str() + ":" +
+                            std::to_string(chain[i].site.line) + ")";
+                }
+                report->addNote(text, PathDiagnosticLocation(loc, sm));
+                for (size_t i = 0; i < chain.size(); ++i) {
+                    SourceLocation hopLoc = Locate(chain[i].site, sm);
+                    if (hopLoc.isInvalid()) {
+                        continue;
+                    }
+                    std::string what = i + 1 < chain.size() ? chain[i].fn + " calls " + chain[i + 1].fn + " here"
+                                                            : chain[i].fn + " accesses the object here";
+                    report->addNote(what, PathDiagnosticLocation(hopLoc, sm));
+                }
+                llvm::StringRef obj = decision.obj;
+                if (obj.consume_front("heap@")) {
+                    SourceLocation allocLoc = LocateBase(obj, sm);
+                    if (allocLoc.isValid()) {
+                        report->addNote("the object is allocated here", PathDiagnosticLocation(allocLoc, sm));
+                    }
                 }
             }
             br.emitReport(std::move(report));
