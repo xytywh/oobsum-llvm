@@ -108,4 +108,5 @@
 | [SPEC-0074](SPEC-0074-field-effect-range.md) | 写效应 `field` 的值是几个常数之一时记区间 | 已实现 |
 | [SPEC-0075](SPEC-0075-dependent-narrowing.md) | 条件边收窄后重算同一块里依赖它的局部：`while (n--)` 不再丢界 | 已实现 |
 | [SPEC-0076](SPEC-0076-signed-bound-faithful.md) | 有符号区间的符号界按"溢出是未定义行为"认作可信：有符号递减循环收得住 | 已实现 |
+| [SPEC-0077](SPEC-0077-global-effect.md) | 写效应 `global`：被调者写整数全局标量，调用方知道新值 | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

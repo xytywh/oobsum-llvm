@@ -9,7 +9,8 @@
 # RUN:   %S/Inputs/globalcur/gcur.c 2>&1 | not grep "gcur.c:13:1: warning: \[OOB-SAFE.*'g_aucTbl'"
 
 # Idx_Inc() 之后读 g_ulIdx：不再被调用方的检查"证明"安全
-CHECK-DAG: gcur.c:13:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'g_aucTbl' (16 bytes)
+# 写效应 global g_ulIdx := g_ulIdx + 8（SPEC-0077）：守卫 < 16 加 8 → 末端 24 → POSSIBLE（原来记账）
+CHECK-DAG: gcur.c:13:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 24 of 'g_aucTbl' (16 bytes) may be accessed; the bound comes from a check
 # 对照：调用之前读的、只调用纯函数 / 访问类模型之后读的 → 调用方的守卫证明安全
 CHECK-DAG: gcur.c:17:1: warning: [OOB-SAFE:guard_entailed] Proven within bounds: up to byte g:g_ulIdx + 1 of 'g_aucTbl' (16 bytes)
 CHECK-DAG: gcur.c:19:1: warning: [OOB-SAFE:guard_entailed] Proven within bounds: up to byte g:g_ulIdx + 1 of 'g_aucTbl' (16 bytes)

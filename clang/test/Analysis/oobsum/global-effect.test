@@ -1,0 +1,16 @@
+# 写效应 global：被调者写整数全局标量，调用方知道新值（oobsum/specs/SPEC-0077；06- D-24）。原来调用方只知道"改过"，记 global_value。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Set_' \
+# RUN:   %S/Inputs/globaleff/g.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"global","target":"g:g_ulMax","value":"32"}],{{.*}}"fn":"Set_Const"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"global","target":"g:g_ulMax","value":"p0"}],{{.*}}"fn":"Set_Arg"
+CHECK-DAG: [oobsum:summary] {{.*}}{"kind":"global","may":true,"target":"g:g_ulMax","value":"p0"}],{{.*}}"fn":"Set_Maybe"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[],{{.*}}"fn":"Set_Then_Call"
+CHECK-DAG: g.c:11:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 32 of 'a' (16 bytes) may be accessed
+CHECK-DAG: g.c:12:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+# 出错路径没写：调用前的 0 与 20 的并
+CHECK-DAG: g.c:13:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 20 of 'a' (16 bytes) may be accessed
+CHECK-DAG: g.c:15:1: warning: [OOB-SUSPECT:global_value] Cannot prove the write through a 1-level call chain stays within 'a' (16 bytes): up to byte g:g_ulMax may be accessed

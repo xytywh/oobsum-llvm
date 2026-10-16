@@ -3,12 +3,15 @@
 #
 # RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Write_TP|Callee_TP|Guard_TN)$' \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Write_TP|Callee_TP|Guard_TN|Unknown_TP)$' \
 # RUN:   %S/Inputs/gatcall/g.c 2>&1 | FileCheck %s
 
 # 写过确切值 / 调用过写全局的函数（SetLen 的 mods 有 g:g_ulLen）/ 没改过
 CHECK-DAG: [oobsum:summary] {"calls":[{"args":{{.*}}"callee":"Fill",{{.*}}"gvals":{"g:g_ulLen":"100"},{{.*}}"fn":"Write_TP"
-CHECK-DAG: [oobsum:summary] {"calls":[{{.*}}"callee":"Fill",{{.*}}"gvals":{"g:g_ulLen":"?"},{{.*}}"fn":"Callee_TP"
+# SetLen(100) 的写效应 global（SPEC-0077）：调用 Fill 时 g_ulLen 是 100；SetExt 写了不知道的值 → "?"
+CHECK-DAG: [oobsum:summary] {"calls":[{{.*}}"callee":"Fill",{{.*}}"gvals":{"g:g_ulLen":"100"},{{.*}}"fn":"Callee_TP"
+CHECK-DAG: [oobsum:summary] {"calls":[{{.*}}"callee":"Fill",{{.*}}"gvals":{"g:*":"?","g:g_ulLen":"?"},{{.*}}"fn":"Unknown_TP"
 CHECK-DAG: g.c:7:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 100 of 'a' (16 bytes) may be accessed; the bound comes from a loop condition
 CHECK-DAG: g.c:8:1: warning: [OOB-SAFE:guard_entailed] Proven within bounds: up to byte g:g_ulLen of 'a' (16 bytes)
-CHECK-DAG: g.c:10:1: warning: [OOB-SUSPECT:global_value] Cannot prove the write through a 1-level call chain stays within 'a' (16 bytes): up to byte g:g_ulLen may be accessed
+CHECK-DAG: g.c:10:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 100 of 'a' (16 bytes) may be accessed
+CHECK-DAG: g.c:13:1: warning: [OOB-SUSPECT:global_value] Cannot prove the write through a 1-level call chain stays within 'a' (16 bytes): up to byte g:g_ulLen may be accessed

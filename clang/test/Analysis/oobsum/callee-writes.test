@@ -15,4 +15,5 @@ CHECK-DAG: modref.c:16:1: warning: [OOB-DEFINITE] Definite out-of-bound write th
 CHECK-DAG: modref.c:25:1: warning: [OOB-SUSPECT:not_in_tu] Cannot prove this access is within bounds: a pointer is passed to 'Ext_SetLen'
 CHECK-DAG: modref.c:26:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'auc' (16 bytes)
 # G_Set() 之后读的全局不是入口值（SPEC-0041）：在本函数的调用点记 type_range_only（原来是入口符号 g:g_ulLen 上传到入口）
-CHECK-DAG: modref.c:36:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'auc' (16 bytes)
+# 写效应 global g_ulLen := 100（SPEC-0077）：DEFINITE（原来记账）
+CHECK-DAG: modref.c:36:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 100 of 'auc' (16 bytes) is accessed

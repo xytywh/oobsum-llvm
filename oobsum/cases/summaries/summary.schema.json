@@ -95,7 +95,7 @@
         "range": { "type": "array", "items": { "$ref": "#/definitions/expr" }, "minItems": 2, "maxItems": 2 },
         "when": { "$ref": "#/definitions/cond" },
         "then": { "type": "array", "items": { "$ref": "#/definitions/cond" } },
-        "target": { "type": "string", "pattern": "^p\\d+(->\\w+)?$", "description": "field：pK->字段；out_new：pK（出参，SPEC-0053）" },
+        "target": { "type": "string", "pattern": "^(p\\d+(->\\w+)?|g:\\w+)$", "description": "field：pK->字段；out_new：pK（出参，SPEC-0053）；global：g:名字（SPEC-0077）" },
         "value": { "$ref": "#/definitions/expr" },
         "eff_depth": { "type": "integer", "minimum": 0 },
         "bound": { "$ref": "#/definitions/tag" },

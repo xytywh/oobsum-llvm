@@ -8,3 +8,6 @@ void Write_TP(void) { UINT8 a[16]; if (g_ulLen > 16) { return; } g_ulLen = 100; 
 void Guard_TN(void) { UINT8 a[16]; if (g_ulLen > 16) { return; } Fill(a); }
 static void SetLen(UINT32 n) { g_ulLen = n; }
 void Callee_TP(void) { UINT8 a[16]; if (g_ulLen > 16) { return; } SetLen(100); Fill(a); }
+UINT32 Ext_Get(void);
+static void SetExt(void) { g_ulLen = Ext_Get(); }
+void Unknown_TP(void) { UINT8 a[16]; if (g_ulLen > 16) { return; } SetExt(); Fill(a); }

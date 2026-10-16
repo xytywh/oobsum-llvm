@@ -1397,3 +1397,33 @@ TEST(Interp, SignedBoundFaithful)
               b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(i), b.C(0), true)));
     EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=branch at=t.c:7 guard=p1 >= 1");
 }
+
+TEST(Interp, GlobalEffect)
+{
+    // SPEC-0077：写整数全局 g_ulMax = 32 → global g:g_ulMax := 32；写完又调用了没有摘要的函数 → 不记
+    auto build = [](bool callAfter) {
+        Builder b;
+        Global g;
+        g.key = "G:g_ulMax";
+        g.name = "g_ulMax";
+        g.def = true;
+        g.type = b.u32;
+        b.m.globals.push_back(g);
+        std::vector<Inst> insts = {b.Store(b.f.Add(Expr::GAddr("G:g_ulMax")), 4, b.C(32), 3)};
+        if (callAfter) {
+            insts.push_back(CallOf("F:Ext_Get", {}, 4));
+        }
+        b.Straight(insts);
+        return b.Run();
+    };
+    interp::FunctionFacts facts = build(false);
+    auto global =
+        std::find_if(facts.effs.begin(), facts.effs.end(), [](const summary::Eff &e) { return e.kind == "global"; });
+    ASSERT_TRUE(global != facts.effs.end());
+    EXPECT_EQ(global->target.getValueOr(""), "g:g_ulMax");
+    EXPECT_EQ(global->value.getValueOr(""), "32");
+    EXPECT_FALSE(global->may.hasValue());
+    interp::FunctionFacts after = build(true);
+    EXPECT_TRUE(
+        std::none_of(after.effs.begin(), after.effs.end(), [](const summary::Eff &e) { return e.kind == "global"; }));
+}

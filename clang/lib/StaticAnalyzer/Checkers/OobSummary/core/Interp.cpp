@@ -1051,7 +1051,9 @@ private:
     summary::Req ToReq(const RawAccess &a, size_t number) const;
     void RecordCall(const fir::Inst &inst, const State &s, bool alt = false);
     // 调用点上已经不是入口值的整数全局（调用点记录的 gvals，SPEC-0064）
-    std::map<std::string, std::string> GlobalsAt(const State &s) const;
+    // locals 非空时：代码给出的区间值写成调用点局部 _gv_<名字>，区间写进 locals（SPEC-0077）；否则区间写 "?"
+    std::map<std::string, std::string> GlobalsAt(const State &s,
+                                                 std::map<std::string, summary::Local> *locals = nullptr) const;
     // 没有摘要可用的被调者：保守失效（清格、指针实参整块、可能写全局，SPEC-0026 / 0041 / 0045）
     void Clobber(const fir::Inst &inst, models::Kind kind, llvm::StringRef name, State &s);
     // 局部函数指针（S9.1，06- A-60 ①，SPEC-0058）：只被赋过函数地址常量的局部 → 可能指向的函数
@@ -1097,8 +1099,9 @@ private:
         LinExpr value;
     };
     struct FieldSlot {
-        std::string name;  // pK->f（伪字段 pK->_0）
-        int param = 0;
+        std::string name;  // pK->f（伪字段 pK->_0）；全局：g:名字（SPEC-0077）
+        std::string id;    // 格的基址：P<k> / G<键>
+        int param = 0;     // 全局：-1
         int64_t off = 0;
         int64_t size = 0;
         fir::TypeId type = fir::kNone;
@@ -2433,7 +2436,8 @@ void Analyzer::Clobber(const fir::Inst &inst, models::Kind kind, llvm::StringRef
     }
 }
 
-std::map<std::string, std::string> Analyzer::GlobalsAt(const State &s) const
+std::map<std::string, std::string> Analyzer::GlobalsAt(const State &s,
+                                                       std::map<std::string, summary::Local> *locals) const
 {
     std::map<std::string, std::string> out;
     if (s.called || s.clobbered) {
@@ -2447,11 +2451,16 @@ std::map<std::string, std::string> Analyzer::GlobalsAt(const State &s) const
         std::string id = "G" + g.key;
         std::string name = "g:" + g.name;
         auto cell = s.cells.find(CellKey(id, 0, size));
-        if (cell != s.cells.end() && !cell->second.isPtr && cell->second.i.kind == IntVal::Kind::Exact &&
-            !cell->second.i.value.IsUnknown()) {
-            if (cell->second.i.value.Show() != name) {
-                out[name] = cell->second.i.value.Show();  // 本函数写过的确切值
+        const IntVal *iv = cell != s.cells.end() && !cell->second.isPtr ? &cell->second.i : nullptr;
+        if (iv != nullptr && iv->kind == IntVal::Kind::Exact && !iv->value.IsUnknown()) {
+            if (iv->value.Show() != name) {
+                out[name] = iv->value.Show();  // 本函数写过的确切值
             }
+        } else if (locals != nullptr && iv != nullptr && iv->kind == IntVal::Kind::Range && IsCodeTag(iv->tag) &&
+                   iv->Lower() && iv->Upper() && !iv->Lower()->IsUnknown() && !iv->Upper()->IsUnknown()) {
+            std::string local = "_gv_" + g.name;  // 代码给出的区间：调用点局部（SPEC-0077）
+            (*locals)[local] = {iv->Lower()->Show(), iv->Upper()->Show(), TagName(iv->tag).str()};
+            out[name] = local;
         } else if (Changed(s, id, 0, size)) {
             out[name] = "?";
         }
@@ -2611,9 +2620,16 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s, bool alt)
     if (kind != models::Kind::None) {
         call.model = models::KindName(kind).str();
     } else {
-        std::map<std::string, std::string> globals = GlobalsAt(s);  // 调用前改过的全局（SPEC-0064）
+        std::map<std::string, summary::Local> ranges;
+        std::map<std::string, std::string> globals = GlobalsAt(s, &ranges);  // 调用前改过的全局（SPEC-0064 / 0077）
         if (!globals.empty()) {
             call.gvals = std::move(globals);
+        }
+        if (!ranges.empty()) {
+            if (!call.locals) {
+                call.locals = std::map<std::string, summary::Local>();
+            }
+            call.locals->insert(ranges.begin(), ranges.end());
         }
     }
     for (size_t k = 0; k < inst.args.size(); ++k) {
@@ -3272,7 +3288,7 @@ void Analyzer::RecordReturn(const fir::Inst &inst, const State &s)
     // 写效应 field：形参所指对象的整数字段在这条路径上写了 / 没碰 / 不知道（SPEC-0073）
     std::map<std::string, FieldAt> fieldsHere;
     for (const FieldSlot &slot : FieldSlots()) {
-        std::string id = "P" + std::to_string(slot.param);
+        const std::string &id = slot.id;
         FieldAt at;
         auto cell = s.cells.find(CellKey(id, slot.off, slot.size));
         if (cell != s.cells.end()) {
@@ -3281,8 +3297,8 @@ void Analyzer::RecordReturn(const fir::Inst &inst, const State &s)
                 at.kind = FieldAt::Written;
                 at.value = cell->second.i.value;
             }
-        } else if (!Changed(s, id, slot.off, slot.size)) {
-            at.kind = FieldAt::Unchanged;
+        } else if (!Changed(s, id, slot.off, slot.size) && (slot.param >= 0 || !s.called)) {
+            at.kind = FieldAt::Unchanged;  // 全局另要求没调用过可能写任意全局的函数（SPEC-0077）
         }
         fieldsHere[slot.name] = at;
     }
@@ -3303,16 +3319,24 @@ std::vector<Analyzer::FieldSlot> Analyzer::FieldSlots() const
         std::string p = "p" + std::to_string(l.param);
         const fir::Type &t = m.types[pointee];
         int64_t size = 0;
+        std::string id = "P" + std::to_string(l.param);
         if (t.kind == fir::TypeKind::Int && t.width > 8 && TypeSize(m, pointee, size)) {
-            out.push_back({p + "->_0", l.param, 0, size, pointee});  // *pK（SPEC-0071）
+            out.push_back({p + "->_0", id, l.param, 0, size, pointee});  // *pK（SPEC-0071）
         } else if (t.kind == fir::TypeKind::Rec) {
             const fir::Record *r = m.FindRecord(t.record);
             for (const fir::Field &field : r != nullptr ? r->fields : std::vector<fir::Field>()) {
                 if (field.type < m.types.size() && m.types[field.type].kind == fir::TypeKind::Int &&
                     TypeSize(m, field.type, size)) {
-                    out.push_back({p + "->" + field.name, l.param, field.off, size, field.type});
+                    out.push_back({p + "->" + field.name, id, l.param, field.off, size, field.type});
                 }
             }
+        }
+    }
+    // 整数全局标量（写效应 global，SPEC-0077）
+    for (const fir::Global &g : m.globals) {
+        int64_t size = 0;
+        if (g.type < m.types.size() && m.types[g.type].kind == fir::TypeKind::Int && TypeSize(m, g.type, size)) {
+            out.push_back({"g:" + g.name, "G" + g.key, -1, 0, size, g.type});
         }
     }
     return out;
@@ -3424,6 +3448,17 @@ llvm::Optional<LinExpr> Analyzer::CallerExpr(const fir::Inst &inst, const LinExp
     LinExpr out = Substitute(calleeExpr, sub);
     std::set<std::string> syms;
     CollectSyms(out, syms);
+    // 结果里的全局符号登记类型（Env 给类型范围；原来只在直接读全局时登记，SPEC-0077）
+    for (const std::string &x : syms) {
+        if (!llvm::StringRef(x).startswith("g:") || globalTypes.count(x) != 0) {
+            continue;
+        }
+        for (const fir::Global &g : m.globals) {
+            if ("g:" + g.name == x && g.type < m.types.size() && m.types[g.type].kind == fir::TypeKind::Int) {
+                globalTypes[x] = fir::TypeText(m, g.type);
+            }
+        }
+    }
     bool leaked = llvm::any_of(
         syms, [](const std::string &x) { return ParamIndexOf(x) >= 0 || llvm::StringRef(x).startswith("_unmapped:"); });
     if (out.IsUnknown() || leaked) {
@@ -3515,19 +3550,42 @@ std::vector<std::pair<CellKey, Value>> Analyzer::FieldWrites(const fir::Inst &in
     std::vector<std::pair<CellKey, Value>> out;
     for (const summary::Eff &e : callee.effs) {
         bool ranged = !e.value && e.range && e.range->size() == 2;  // 几个常数之一（SPEC-0074）
-        if (e.kind != "field" || !e.target || (!e.value && !ranged) || !callee.fields) {
+        if ((e.kind != "field" && e.kind != "global") || !e.target || (!e.value && !ranged)) {
             continue;
         }
-        auto info = callee.fields->find(*e.target);
-        llvm::StringRef param = llvm::StringRef(*e.target).split("->").first;
-        unsigned k = 0;
-        if (info == callee.fields->end() || !param.consume_front("p") || param.getAsInteger(10, k) ||
-            k >= inst.args.size()) {
-            continue;
-        }
-        Value arg = Eval(inst.args[k], s);
-        if (!arg.isPtr || arg.p.kind == BaseKind::Unknown || arg.p.kind == BaseKind::Func || !arg.p.off.IsConst()) {
-            continue;
+        // 要写的格：field → 第 K 个实参所指对象里的字段；global → 本 TU 全局表里同名的整数全局（SPEC-0077）
+        PtrVal addr;
+        int64_t size = 0;
+        if (e.kind == "global") {
+            const fir::Global *global = nullptr;
+            for (const fir::Global &g : m.globals) {
+                if ("g:" + g.name == *e.target && g.type < m.types.size() &&
+                    m.types[g.type].kind == fir::TypeKind::Int && TypeSize(m, g.type, size)) {
+                    global = &g;
+                }
+            }
+            if (global == nullptr) {
+                continue;
+            }
+            addr = Base(BaseKind::Global, "G" + global->key, *e.target, LinExpr::Const(size));
+        } else {
+            if (!callee.fields) {
+                continue;
+            }
+            auto info = callee.fields->find(*e.target);
+            llvm::StringRef param = llvm::StringRef(*e.target).split("->").first;
+            unsigned k = 0;
+            if (info == callee.fields->end() || !param.consume_front("p") || param.getAsInteger(10, k) ||
+                k >= inst.args.size()) {
+                continue;
+            }
+            Value arg = Eval(inst.args[k], s);
+            if (!arg.isPtr || arg.p.kind == BaseKind::Unknown || arg.p.kind == BaseKind::Func || !arg.p.off.IsConst()) {
+                continue;
+            }
+            addr = arg.p;
+            addr.off = AddVals(addr.off, IntVal::Exact(LinExpr::Const(info->second.off)));
+            size = info->second.size;
         }
         Value v;
         if (ranged) {
@@ -3548,11 +3606,9 @@ std::vector<std::pair<CellKey, Value>> Analyzer::FieldWrites(const fir::Inst &in
             }
             v.i = IntVal::Exact(*mine);
         }
-        PtrVal addr = arg.p;
-        addr.off = AddVals(addr.off, IntVal::Exact(LinExpr::Const(info->second.off)));
         if (e.may.getValueOr(false)) {
             // 有的路径没写：与调用前的值汇合
-            Value old = LoadValue(addr, info->second.size, fir::kNone, s);
+            Value old = LoadValue(addr, size, fir::kNone, s);
             v = JoinValue(old, v);
             llvm::Optional<LinExpr> lo = v.i.Lower();
             llvm::Optional<LinExpr> hi = v.i.Upper();
@@ -3560,7 +3616,7 @@ std::vector<std::pair<CellKey, Value>> Analyzer::FieldWrites(const fir::Inst &in
                 continue;
             }
         }
-        out.push_back({CellKey(arg.p.id, arg.p.off.value.Constant() + info->second.off, info->second.size), v});
+        out.push_back({CellKey(addr.id, addr.off.value.Constant(), size), v});
     }
     return out;
 }
@@ -3871,7 +3927,7 @@ std::vector<summary::Eff> Analyzer::Effects() const
             continue;
         }
         summary::Eff e;
-        e.kind = "field";
+        e.kind = slot.param >= 0 ? "field" : "global";  // SPEC-0073 / 0077
         e.target = slot.name;
         if (same) {
             e.value = value->Show();
@@ -3881,11 +3937,13 @@ std::vector<summary::Eff> Analyzer::Effects() const
         if (may) {
             e.may = true;
         }
-        summary::FieldInfo info;
-        info.off = slot.off;
-        info.size = slot.size;
-        info.type = fir::TypeText(m, slot.type);
-        fields[slot.name] = info;
+        if (slot.param >= 0) {
+            summary::FieldInfo info;
+            info.off = slot.off;
+            info.size = slot.size;
+            info.type = fir::TypeText(m, slot.type);
+            fields[slot.name] = info;
+        }
         out.push_back(e);
     }
     return out;
