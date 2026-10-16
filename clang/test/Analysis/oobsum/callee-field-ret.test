@@ -1,0 +1,10 @@
+# Interp 代入被调者的式子：字段符号按实参所指对象的当前值换，换不了算未知（oobsum/specs/SPEC-0072）。
+# 原来 GetLen(&st) 的结果被当成调用方 pstMine->ulLen，守卫 <= 10 一蕴含就判 SAFE（错误的 SAFE，实际 st.ulLen = 100）。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/calleefield/r.c 2>&1 | FileCheck %s
+
+CHECK-DAG: r.c:7:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 101 of 'a' (16 bytes) is accessed
+# 对照：传的就是调用方自己的形参（别名），守卫照样用得上
+CHECK-DAG: r.c:8:1: warning: [OOB-SAFE:guard_entailed] Proven within bounds: up to byte p0->ulLen + 1 of 'a' (16 bytes)

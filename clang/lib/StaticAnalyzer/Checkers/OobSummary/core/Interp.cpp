@@ -992,9 +992,12 @@ private:
     llvm::Optional<summary::Eff> ReturnPointer() const;
     Value RetPtrResult(const fir::Inst &inst, const summary::Eff &e, const summary::Summary &callee, const State &s);
     // 被调者的式子换成调用方的：形参换成可信的确切实参，全局按调用点的 gvals；换不了 → None（SPEC-0054 / 0064 / 0070）
-    llvm::Optional<LinExpr> CallerExpr(const fir::Inst &inst, const LinExpr &calleeExpr, const State &s);
+    // 字段符号 p<k>->f 按被调者 fields 表从第 k 个实参所指对象读调用前的值；没换掉的被调者接口符号算换不了（SPEC-0072）
+    llvm::Optional<LinExpr> CallerExpr(const fir::Inst &inst, const LinExpr &calleeExpr, const State &s,
+                                       const summary::Summary *callee);
     std::vector<summary::Eff> CondEffects() const;
-    IntVal CondResult(const fir::Inst &inst, const std::vector<summary::Eff> &effs, const State &s);
+    IntVal CondResult(const fir::Inst &inst, const std::vector<summary::Eff> &effs, const State &s,
+                      const summary::Summary *callee = nullptr);
     bool FilterCases(ExprId e, const IntVal &v, fir::CmpOp op, int64_t k, State &s);
     std::vector<State> FlowOut(size_t block, State s);
 
@@ -1853,7 +1856,7 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                             break;
                         }
                         if (e.kind == "ret_int" && !result.isPtr) {
-                            result.i = CondResult(inst, callee->second.effs, s);  // SPEC-0025 §2.3
+                            result.i = CondResult(inst, callee->second.effs, s, &callee->second);  // SPEC-0025 §2.3
                             break;
                         }
                         if (e.kind == "ret_ptr" && result.isPtr && e.target && e.value) {
@@ -3201,10 +3204,32 @@ std::vector<summary::Eff> Analyzer::CondEffects() const
 }
 
 // 调用点代入被调者的 ret_cond / ret_int（SPEC-0025 §2.3）：返回值是常数组成的区间，带情形；守卫里被调者的形参换成实参
-llvm::Optional<LinExpr> Analyzer::CallerExpr(const fir::Inst &inst, const LinExpr &calleeExpr, const State &s)
+llvm::Optional<LinExpr> Analyzer::CallerExpr(const fir::Inst &inst, const LinExpr &calleeExpr, const State &s,
+                                             const summary::Summary *callee)
 {
     SymEnv env = Env(s);
     Substitution sub;
+    sub.poison = true;  // 没换掉的被调者符号（含字段）不能当成调用方的同名符号（SPEC-0063 / 0072）
+    if (callee != nullptr && callee->fields) {
+        for (const auto &entry : *callee->fields) {
+            llvm::StringRef name = entry.first;
+            unsigned k = 0;
+            if (!name.consume_front("p") || name.consumeInteger(10, k) || !name.startswith("->") ||
+                k >= inst.args.size()) {
+                continue;
+            }
+            Value arg = Eval(inst.args[k], s);
+            if (!arg.isPtr || arg.p.kind == BaseKind::Unknown || arg.p.kind == BaseKind::Func) {
+                continue;
+            }
+            PtrVal addr = arg.p;
+            addr.off = AddVals(addr.off, IntVal::Exact(LinExpr::Const(entry.second.off)));
+            Value v = LoadValue(addr, entry.second.size, fir::kNone, s);
+            if (!v.isPtr && v.i.kind == IntVal::Kind::Exact && !v.i.value.IsUnknown()) {
+                sub.sym[entry.first] = v.i.value;  // 调用前的当前值（实参是调用方自己的形参时就是它的 pJ->f）
+            }
+        }
+    }
     for (size_t k = 0; k < inst.args.size(); ++k) {
         IntVal v = EvalInt(inst.args[k], s);
         if (v.kind == IntVal::Kind::Exact && Faithful(inst.args[k], v, env)) {
@@ -3305,13 +3330,14 @@ Value Analyzer::RetPtrResult(const fir::Inst &inst, const summary::Eff &e, const
     }
     LinExpr off;
     std::string error;
-    llvm::Optional<LinExpr> mine = ParseLin(*e.value, off, error) ? CallerExpr(inst, off, s) : llvm::None;
+    llvm::Optional<LinExpr> mine = ParseLin(*e.value, off, error) ? CallerExpr(inst, off, s, &callee) : llvm::None;
     base.off = AddVals(base.off, mine ? IntVal::Exact(*mine) : IntVal::Top("call"));
     out.p = base;
     return out;
 }
 
-IntVal Analyzer::CondResult(const fir::Inst &inst, const std::vector<summary::Eff> &effs, const State &s)
+IntVal Analyzer::CondResult(const fir::Inst &inst, const std::vector<summary::Eff> &effs, const State &s,
+                            const summary::Summary *callee)
 {
     const summary::Eff *range = nullptr;
     for (const summary::Eff &e : effs) {
@@ -3333,8 +3359,8 @@ IntVal Analyzer::CondResult(const fir::Inst &inst, const std::vector<summary::Ef
         if (!ParseLin((*range->range)[0], el, error) || !ParseLin((*range->range)[1], eh, error)) {
             return IntVal::Top("call");
         }
-        llvm::Optional<LinExpr> a = CallerExpr(inst, el, s);
-        llvm::Optional<LinExpr> b = CallerExpr(inst, eh, s);
+        llvm::Optional<LinExpr> a = CallerExpr(inst, el, s, callee);
+        llvm::Optional<LinExpr> b = CallerExpr(inst, eh, s, callee);
         if (!a || !b) {
             return IntVal::Top("call");
         }

@@ -1249,3 +1249,41 @@ TEST(Interp, RetPtrEffect)
     EXPECT_TRUE(std::none_of(facts2.effs.begin(), facts2.effs.end(),
                              [](const summary::Eff &e) { return e.kind == "ret_ptr"; }));
 }
+
+TEST(Interp, CalleeFieldResult)
+{
+    // SPEC-0072：被调者 ret_int [p0->ulLen, p0->ulLen]；调用方 st.ulLen = 100 后 GetLen(&st) → 100（原来被当成调用方自己的 p0->ulLen）
+    Builder b;
+    Record r;
+    r.id = 0;
+    r.name = "CTX_S";
+    r.size = 4;
+    r.fields = {{"ulLen", 0, b.u32}};
+    b.m.records.push_back(r);
+    uint32_t mine = b.Param("pstMine", b.m.Intern(Type::Ptr(b.m.Intern(Type::Rec(0)))));
+    uint32_t a = b.LocalVar("a", b.m.Intern(Type::Arr(b.u8, 16)), true);
+    uint32_t st = b.LocalVar("st", b.m.Intern(Type::Rec(0)), true);
+    uint32_t t = b.LocalVar("t0", b.u32);
+    b.Straight({b.Store(b.f.Add(Expr::LAddr(st)), 4, b.C(100), 3),
+                CallOf("F@abc:GetLen", {b.f.Add(Expr::LAddr(st))}, 4, t),
+                b.Store(b.PAdd(b.f.Add(Expr::LAddr(a)), b.L(t)), 1, b.C(0), 5)});
+    summary::Summary callee;
+    callee.fn = "GetLen";
+    callee.key = "F@abc:GetLen";
+    summary::Eff e;
+    e.kind = "ret_int";
+    e.range = std::vector<std::string>{"p0->ulLen", "p0->ulLen"};
+    e.bound = "exact";
+    callee.effs.push_back(e);
+    summary::FieldInfo info;
+    info.off = 0;
+    info.size = 4;
+    info.type = std::string("u32");
+    callee.fields = std::map<std::string, summary::FieldInfo>{{"p0->ulLen", info}};
+    std::map<std::string, summary::Summary> callees{{callee.key, callee}};
+    interp::FunctionFacts facts =
+        interp::AnalyzeFunction(b.m, b.f, nullptr, models::ModelTable::Default(), &callees, nullptr);
+    // a[100] 在本函数里就判出来（末端 101 > 16），没有出现 p0->ulLen
+    EXPECT_EQ(Reqs(facts), "W have=16 obj=local:a end=[101, 101] bound=exact at=t.c:5");
+    (void)mine;
+}
