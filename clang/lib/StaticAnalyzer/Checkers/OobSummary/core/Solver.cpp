@@ -194,30 +194,33 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns)
             apply::EnvGuards envGuards = apply::EnvGuardsOf(call);
             for (const DerivedReq &r : calleeIt->second.reqs) {
                 summary::Req rj = AsReq(r);
-                apply::Outcome mine = apply::Classify(rj, call, s, envGuards);
                 std::vector<std::string> path{s.fn + "@" + call.site};  // 写函数名（表的索引可能是函数键，SPEC-0027）
                 path.insert(path.end(), r.path.begin(), r.path.end());
-                if (mine.outcome == "up") {
-                    DerivedReq d;
-                    d.have = mine.have;
-                    d.obj = mine.obj;
-                    d.lo = mine.end2Lo;
-                    d.hi = mine.end2Hi;
-                    d.guards = mine.guards2;
-                    d.gkey = GuardKey(mine.guards2);
-                    d.depth = mine.depth;
-                    d.effDepth = mine.effDepth;
-                    d.bound = mine.bound;
-                    d.path = path;
-                    d.access = r.access;
-                    d.kind = r.kind;
-                    cand.push_back(std::move(d));
-                    ++out.up;
-                } else if (mine.outcome == "L1" || mine.outcome == "L2") {
-                    result.reps.push_back(apply::RepOf(mine, call, s.fn, s, rj));
-                    ++out.rep;
+                // 成员数组实参：外层对象也查，可能有两条结局（SPEC-0035 §2.2）
+                for (const apply::SiteClass &sc : apply::ClassifyAll(rj, call, s, envGuards)) {
+                    const apply::Outcome &mine = sc.mine;
+                    if (mine.outcome == "up") {
+                        DerivedReq d;
+                        d.have = mine.have;
+                        d.obj = mine.obj;
+                        d.lo = mine.end2Lo;
+                        d.hi = mine.end2Hi;
+                        d.guards = mine.guards2;
+                        d.gkey = GuardKey(mine.guards2);
+                        d.depth = mine.depth;
+                        d.effDepth = mine.effDepth;
+                        d.bound = mine.bound;
+                        d.path = path;
+                        d.access = r.access;
+                        d.kind = r.kind;
+                        cand.push_back(std::move(d));
+                        ++out.up;
+                    } else if (mine.outcome == "L1" || mine.outcome == "L2") {
+                        result.reps.push_back(apply::RepOf(mine, sc.call, s.fn, s, rj));
+                        ++out.rep;
+                    }
+                    result.sites.push_back({call.site, callee, mine, r});
                 }
-                result.sites.push_back({call.site, callee, mine, r});
             }
         }
         result.reqs = Absorb(cand);

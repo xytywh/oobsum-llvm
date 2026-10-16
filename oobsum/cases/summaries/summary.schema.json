@@ -109,6 +109,9 @@
         "eff_depth": { "type": "integer", "minimum": 0 },
         "fields": { "type": "object", "description": "调用方栈帧里记着的、实参所指结构体的字段值：指针字段是 ptr，整数字段是 expr",
                     "additionalProperties": { "oneOf": [ { "$ref": "#/definitions/expr" }, { "$ref": "#/definitions/ptr" } ] } },
+        "parent": { "type": "object", "additionalProperties": false, "required": ["obj", "have"],
+                    "description": "实参是形参所指结构体里的成员数组时：外层对象与从这个指针起外层还剩多少字节（SPEC-0035）",
+                    "properties": { "obj": { "$ref": "#/definitions/obj" }, "have": { "$ref": "#/definitions/expr" } } },
         "doc": { "$ref": "#/definitions/doc" }
       }
     },
@@ -131,16 +134,16 @@
       }
     },
     "result": {
-      "description": "被调者每条 Req / Eff 在本调用点的结论；或模型函数的作用",
+      "description": "被调者每条 Req / Eff 在本调用点的结论（parent: 成员数组实参的外层对象那一条，SPEC-0035）；或模型函数的作用",
       "oneOf": [
         { "type": "object", "additionalProperties": false, "required": ["req", "outcome", "as"],
-          "properties": { "req": { "type": "string" }, "outcome": { "const": "up" }, "as": { "type": "string" } } },
+          "properties": { "req": { "type": "string" }, "parent": { "const": true }, "outcome": { "const": "up" }, "as": { "type": "string" } } },
         { "type": "object", "additionalProperties": false, "required": ["req", "outcome"],
-          "properties": { "req": { "type": "string" }, "outcome": { "const": "safe" } } },
+          "properties": { "req": { "type": "string" }, "parent": { "const": true }, "outcome": { "const": "safe" } } },
         { "type": "object", "additionalProperties": false, "required": ["req", "outcome", "report"],
-          "properties": { "req": { "type": "string" }, "outcome": { "enum": ["L1", "L2"] }, "report": { "type": "string" } } },
+          "properties": { "req": { "type": "string" }, "parent": { "const": true }, "outcome": { "enum": ["L1", "L2"] }, "report": { "type": "string" } } },
         { "type": "object", "additionalProperties": false, "required": ["req", "outcome", "reason"],
-          "properties": { "req": { "type": "string" }, "outcome": { "const": "open" }, "reason": { "$ref": "#/definitions/reason" } } },
+          "properties": { "req": { "type": "string" }, "parent": { "const": true }, "outcome": { "const": "open" }, "reason": { "$ref": "#/definitions/reason" } } },
         { "type": "object", "additionalProperties": false, "required": ["eff", "apply"],
           "properties": { "eff": { "type": "integer", "minimum": 0 }, "apply": { "$ref": "#/definitions/apply" } } },
         { "type": "object", "additionalProperties": false, "required": ["gen"],

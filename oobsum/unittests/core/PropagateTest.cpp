@@ -134,10 +134,11 @@ TEST(Propagate, DerivedFactsMatchJson)
             }
         }
     }
-    // replay.py：推出上传 Req 70 条、判定 13 条、入口账本 12 条（SPEC-0019 补齐金标准之前是 58 / 13 / 8，SPEC-0020 的第二段 +4）
-    EXPECT_EQ(up, 70u);
+    // replay.py：推出上传 Req 72 条、判定 13 条、入口账本 14 条（SPEC-0019 补齐金标准之前是 58 / 13 / 8，SPEC-0020 的第二段 +4，
+    // SPEC-0035 成员数组实参的外层对象 +2 / +2）
+    EXPECT_EQ(up, 72u);
     EXPECT_EQ(rep, 13u);
-    EXPECT_EQ(entry, 12u);
+    EXPECT_EQ(entry, 14u);
 }
 
 TEST(Propagate, AlertsMatchAlertsJson)

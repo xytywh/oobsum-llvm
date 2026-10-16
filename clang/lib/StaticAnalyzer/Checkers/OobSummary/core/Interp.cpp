@@ -1725,6 +1725,13 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s)
                     if (v.p.kind == BaseKind::Param && v.p.off.IsConst() && v.p.off.value.Constant() == 0) {
                         arg.ptr->alias = v.p.obj.substr(1);  // *p0 → p0
                     }
+                    if (v.p.hasParent) {
+                        // 成员数组：外层对象也记下，代换时外层也查（SPEC-0035 §2.1）
+                        summary::OuterObj outer;
+                        outer.obj = v.p.parentObj;
+                        outer.have = (v.p.parentSize - (LinExpr::Const(v.p.parentOff) + *hi)).Show();
+                        arg.ptr->parent = outer;
+                    }
                     if (v.p.kind == BaseKind::Heap && v.p.effDepth > 0) {
                         arg.ptr->effDepth = v.p.effDepth;  // 经几层 ret_new 得到的对象（D-25，SPEC-0024 §2.2）
                     }

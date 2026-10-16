@@ -67,6 +67,16 @@ EnvGuards EnvGuardsOf(const summary::Call &call);
 
 Outcome Classify(const summary::Req &req, const summary::Call &call, const summary::Summary &caller,
                  const EnvGuards &envGuards);
+// 成员数组实参的外层对象（SPEC-0035）：req 的对象是 *pK、第 K 个实参带 parent → 把它换成外层对象的调用点；否则 None
+llvm::Optional<summary::Call> ParentCall(const summary::Req &req, const summary::Call &call);
+// 调用点判定的全部结局（SPEC-0035 §2.2）：(结局, 调用点（外层那一条是换过实参的）, 是不是外层对象那一条)
+struct SiteClass {
+    Outcome mine;
+    summary::Call call;
+    bool parent = false;
+};
+std::vector<SiteClass> ClassifyAll(const summary::Req &req, const summary::Call &call, const summary::Summary &caller,
+                                   const EnvGuards &envGuards);
 // 判出 L1 / L2 时的判定记录（与 JSON reps[] 同形，不含 id）
 summary::Rep RepOf(const Outcome &mine, const summary::Call &call, const std::string &fn,
                    const summary::Summary &caller, const summary::Req &calleeReq);

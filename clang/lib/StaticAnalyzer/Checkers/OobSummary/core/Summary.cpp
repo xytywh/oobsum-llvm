@@ -303,7 +303,11 @@ bool Reader::ReadEff(const Value &v, Eff &e)
 
 bool Reader::ReadPtr(const Value &v, PtrArg &p)
 {
-    const Object *o = Obj(v, {"obj", "have"}, {"alias", "eff_depth", "fields"});
+    const Object *o = Obj(v, {"obj", "have"}, {"alias", "eff_depth", "fields", "parent"});
+    auto outer = [&](const Value &x, OuterObj &y) {
+        const Object *po = Obj(x, {"obj", "have"}, {});
+        return po != nullptr && Key(*po, "obj", y.obj, OOBSUM_M(ObjName)) && Key(*po, "have", y.have, OOBSUM_M(Expr));
+    };
     auto fields = [&](const Value &x, std::map<std::string, ArgValue> &y) {
         const Object *fo = x.getAsObject();
         if (fo == nullptr) {
@@ -320,7 +324,7 @@ bool Reader::ReadPtr(const Value &v, PtrArg &p)
     };
     return o != nullptr && Key(*o, "obj", p.obj, OOBSUM_M(ObjName)) && Key(*o, "have", p.have, OOBSUM_M(Expr)) &&
            OptKey(*o, "alias", p.alias, OOBSUM_M(Str)) && OptKey(*o, "eff_depth", p.effDepth, OOBSUM_M(Int)) &&
-           OptKey(*o, "fields", p.fields, fields);
+           OptKey(*o, "fields", p.fields, fields) && OptKey(*o, "parent", p.parent, outer);
 }
 
 bool Reader::ReadArg(const Value &v, ArgValue &a, bool allowNull)
@@ -361,7 +365,12 @@ bool Reader::ReadResult(const Value &v, Result &r)
     }
     if (probe->get("req") != nullptr) {
         r.kind = Result::Kind::Req;
-        const Object *o = Obj(v, {"req", "outcome"}, {"as", "report", "reason"});
+        const Object *o = Obj(v, {"req", "outcome"}, {"as", "report", "reason", "parent"});
+        llvm::Optional<bool> parent;
+        if (o != nullptr && !OptKey(*o, "parent", parent, OOBSUM_M(Bool))) {
+            return false;
+        }
+        r.parent = parent.getValueOr(false);
         if (o == nullptr || !Key(*o, "req", r.req, OOBSUM_M(Str)) ||
             !Key(*o, "outcome", r.outcome, [&](const Value &x, std::string &y) {
                 return OneOf(x, y, {"up", "safe", "L1", "L2", "open"});
@@ -578,6 +587,9 @@ Value PtrJson(const PtrArg &p)
     Object o{{"obj", p.obj}, {"have", p.have}};
     Put(o, "alias", p.alias);
     Put(o, "eff_depth", p.effDepth);
+    if (p.parent) {
+        o["parent"] = Object{{"obj", p.parent->obj}, {"have", p.parent->have}};
+    }
     if (p.fields) {
         Object f;
         for (const auto &entry : *p.fields) {
@@ -620,6 +632,9 @@ Value ResultJson(const Result &r)
     switch (r.kind) {
         case Result::Kind::Req: {
             Object o{{"req", r.req}, {"outcome", r.outcome}};
+            if (r.parent) {
+                o["parent"] = true;
+            }
             if (r.outcome == "up") {
                 o["as"] = r.as;
             } else if (r.outcome == "L1" || r.outcome == "L2") {

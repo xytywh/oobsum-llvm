@@ -729,6 +729,36 @@ def eliminate_locals(l, locs, upper):
     return out, tags, ne
 
 
+def parent_call(req, call):
+    """成员数组实参的外层对象（SPEC-0035）：req 的对象是 *pK、第 K 个实参带 parent → 把它换成外层对象的调用点；否则 None。"""
+    m = re.match(r'^\*p([0-9]+)$', req['obj'])
+    if not m or int(m.group(1)) >= len(call['args']):
+        return None
+    k = int(m.group(1))
+    arg = call['args'][k]
+    if not isinstance(arg, dict) or 'parent' not in arg:
+        return None
+    outer = {'obj': arg['parent']['obj'], 'have': arg['parent']['have']}
+    if 'eff_depth' in arg:
+        outer['eff_depth'] = arg['eff_depth']
+    args = list(call['args'])
+    args[k] = outer
+    return dict(call, args=args)
+
+
+def classify_all(req, call, caller, callee, env_guards):
+    """调用点判定的全部结局 [(结论, 调用点, 是不是外层对象那一条)]（SPEC-0035 §2.2）：成员已经报 / 记账 → 只有它；
+    成员 safe → 外层不 safe 就换成外层的；成员 up → 外层不 safe 时两条都要。"""
+    mine = classify(req, call, caller, callee, env_guards)
+    outer = parent_call(req, call)
+    if outer is None or mine['outcome'] not in ('safe', 'up'):
+        return [(mine, call, False)]
+    o = classify(req, outer, caller, callee, env_guards)
+    if o['outcome'] == 'safe':
+        return [(mine, call, False)]
+    return ([] if mine['outcome'] == 'safe' else [(mine, call, False)]) + [(o, outer, True)]
+
+
 def classify(req, call, caller, callee, env_guards):
     m, effd = build_map(call, callee)
     have = subst(P(req['have']), m)
@@ -937,7 +967,11 @@ def replay(cid, verbose=False, out=None):
                 if r is None:
                     errors.append('%s %s: 被调者没有 %s' % (cid, call['callee'], res['req']))
                     continue
-                mine = classify(r, call, s, callee, env_guards)
+                used = parent_call(r, call) if res.get('parent') else call
+                if used is None:
+                    errors.append('%s %s: %s 的实参没有外层对象（parent）' % (cid, fn, call['site']))
+                    continue
+                mine = classify(r, used, s, callee, env_guards)
                 show_end = fmt_range(mine['end'])
                 if 'end2' in mine and (mine['end2'][0] != mine['end'][0] or mine['end2'][1] != mine['end'][1]):
                     show_end += ' → 局部换成区间 %s' % fmt_range(mine['end2'])
@@ -948,7 +982,8 @@ def replay(cid, verbose=False, out=None):
                     show_end += '，守卫 %s' % ' 且 '.join(show_atom_le0(g) for g in gs)
                 if any(g.const() is not None for g in mine.get('guards', [])):
                     show_end += '，守卫在此%s' % ('不成立' if any(g.const() > 0 for g in mine['guards'] if g.const() is not None) else '成立')
-                msg = '    · %s.%s：末端 %s，对象 %s（%s 字节）→ %s' % (call['callee'], r['id'], show_end, mine['obj'], show(mine['have']), mine['outcome'])
+                msg = '    · %s.%s%s：末端 %s，对象 %s（%s 字节）→ %s' % (call['callee'], r['id'], '（外层）' if res.get('parent') else '', show_end,
+                                                              mine['obj'], show(mine['have']), mine['outcome'])
                 if mine.get('why'):
                     msg += '（%s）' % mine['why']
                 ok = mine['outcome'] == res['outcome']
@@ -960,7 +995,7 @@ def replay(cid, verbose=False, out=None):
                         msg += ' ✗ ' + '；'.join(probs)
                 if ok and mine['outcome'] in ('L1', 'L2'):
                     rep = reps.get(res['report'])
-                    got = rep_of(mine, call, fn, s, r)
+                    got = rep_of(mine, used, fn, s, r)
                     reported = got['reported']
                     bad = diff_rep(rep, got) if rep else ['JSON 里没有 %s' % res['report']]
                     drep = next((x for x in fns_doc[fn]['reps'] if x['id'] == res['report']), {})
@@ -1069,17 +1104,17 @@ def derive(cid):
             for r in dreqs[call['callee']]:
                 rj = {'have': show(r['have']), 'obj': r['obj'], 'end': [show(r['lo']), show(r['hi'])],
                       'guard': [show_atom_le0(g) for g in r['guards']], 'depth': r['depth'], 'eff_depth': r['eff_depth'], 'bound': r['bound']}
-                mine = classify(rj, call, s, callee, env_guards)
                 path = ['%s@%s' % (fn, call['site'])] + r['path']
-                if mine['outcome'] == 'up':
-                    g = mine.get('guards2', [])
-                    cand.append({'have': mine['have'], 'obj': mine['obj'], 'lo': mine['end2'][0], 'hi': mine['end2'][1], 'guards': g,
-                                 'gkey': frozenset(show_atom_le0(x) for x in g), 'depth': mine['depth'], 'eff_depth': mine['eff_depth'],
-                                 'bound': mine['bound'], 'path': path, 'access': r['access'], 'kind': r['kind']})
-                    stat['up'] += 1
-                elif mine['outcome'] in ('L1', 'L2'):
-                    reps.append(rep_of(mine, call, fn, s, r))
-                    stat['rep'] += 1
+                for mine, used, _ in classify_all(rj, call, s, callee, env_guards):   # 成员数组实参：外层也查（SPEC-0035）
+                    if mine['outcome'] == 'up':
+                        g = mine.get('guards2', [])
+                        cand.append({'have': mine['have'], 'obj': mine['obj'], 'lo': mine['end2'][0], 'hi': mine['end2'][1], 'guards': g,
+                                     'gkey': frozenset(show_atom_le0(x) for x in g), 'depth': mine['depth'], 'eff_depth': mine['eff_depth'],
+                                     'bound': mine['bound'], 'path': path, 'access': r['access'], 'kind': r['kind']})
+                        stat['up'] += 1
+                    elif mine['outcome'] in ('L1', 'L2'):
+                        reps.append(rep_of(mine, used, fn, s, r))
+                        stat['rep'] += 1
         mine_reqs = absorb(cand)
         dreqs[fn] = mine_reqs
         got = sorted(req_key(r['have'], r['obj'], r['lo'], r['hi'], r['guards'], r['depth']) for r in mine_reqs)

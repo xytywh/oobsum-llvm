@@ -95,6 +95,31 @@
         "code": "pstMsg->usMsgLen",
         "note": "F-02：经形参指针读字段；入口上按声明类型（OM_MSG_S 1028 字节）记账 typed_field（SPEC-0019）"
       }
+    },
+    {
+      "id": "R4",
+      "kind": "R",
+      "have": "ext(p0) - 4",
+      "obj": "*p0",
+      "end": ["p0->usMsgLen", "p0->usMsgLen"],
+      "start": "0",
+      "bound": "exact",
+      "guard": [],
+      "access": {
+        "fn": "Cfg_Save",
+        "key": "F@lv10_04_unchecked_ext_len.c:Cfg_Save",
+        "at": "lv10_04_unchecked_ext_len.c:36",
+        "end": "p1"
+      },
+      "path": [
+        "Om_OnSaveCfg_TN@lv10_04_unchecked_ext_len.c:43",
+        "Om_SaveCfg@lv10_04_unchecked_ext_len.c:40",
+        "Cfg_Store@lv10_04_unchecked_ext_len.c:39",
+        "Cfg_Save@lv10_04_unchecked_ext_len.c:36"
+      ],
+      "depth": 3,
+      "eff_depth": 0,
+      "blind": false
     }
   ],
   "effs": [],
@@ -102,8 +127,20 @@
     {
       "site": "lv10_04_unchecked_ext_len.c:43",
       "callee": "Om_SaveCfg",
-      "args": [{"obj": "p0->aucBody", "have": "1024", "doc": "pstMsg->aucBody"}, "p0->usMsgLen"],
-      "results": [{"req": "R1", "outcome": "up", "as": "R1"}, {"req": "R2", "outcome": "up", "as": "R2"}],
+      "args": [
+        {
+          "obj": "p0->aucBody",
+          "have": "1024",
+          "parent": {"obj": "*p0", "have": "ext(p0) - 4"},
+          "doc": "pstMsg->aucBody"
+        },
+        "p0->usMsgLen"
+      ],
+      "results": [
+        {"req": "R1", "outcome": "up", "as": "R1"},
+        {"req": "R2", "outcome": "up", "as": "R2"},
+        {"req": "R2", "outcome": "up", "parent": true, "as": "R4"}
+      ],
       "doc": "aucBody 是成员数组，子对象 1024 字节；usMsgLen 只有 UINT16 的类型范围"
     }
   ],
@@ -121,6 +158,7 @@
       "at": "lv10_04_unchecked_ext_len.c:43",
       "req": "R2",
       "doc": "同上：最大读到 65535 > 1024"
-    }
+    },
+    {"reason": "entry_unproven", "at": "lv10_04_unchecked_ext_len.c:43", "req": "R4"}
   ]
 }

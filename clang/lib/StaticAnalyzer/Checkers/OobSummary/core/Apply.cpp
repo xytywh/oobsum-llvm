@@ -416,6 +416,48 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
     return o;
 }
 
+llvm::Optional<Call> ParentCall(const summary::Req &req, const Call &call)
+{
+    static llvm::Regex re("^\\*p([0-9]+)$");
+    llvm::SmallVector<llvm::StringRef, 2> groups;
+    unsigned long long k = 0;
+    if (!re.match(req.obj, &groups) || groups[1].getAsInteger(10, k) || k >= call.args.size()) {
+        return llvm::None;
+    }
+    const ArgValue &arg = call.args[k];
+    if (arg.kind != ArgValue::Kind::Ptr || !arg.ptr->parent) {
+        return llvm::None;
+    }
+    Call out = call;
+    auto outer = std::make_shared<summary::PtrArg>();
+    outer->obj = arg.ptr->parent->obj;
+    outer->have = arg.ptr->parent->have;
+    outer->effDepth = arg.ptr->effDepth;
+    out.args[k].ptr = outer;
+    return out;
+}
+
+// 同 replay.py 的 classify_all：成员已经报 / 记账 → 只有它；成员 safe → 外层不 safe 就换成外层的；成员 up → 外层不 safe 时两条都要
+std::vector<SiteClass> ClassifyAll(const summary::Req &req, const Call &call, const Summary &caller,
+                                   const EnvGuards &envGuards)
+{
+    std::vector<SiteClass> out{{Classify(req, call, caller, envGuards), call, false}};
+    llvm::Optional<Call> outer = ParentCall(req, call);
+    const std::string &first = out[0].mine.outcome;
+    if (!outer || (first != "safe" && first != "up")) {
+        return out;
+    }
+    SiteClass o{Classify(req, *outer, caller, envGuards), *outer, true};
+    if (o.mine.outcome == "safe") {
+        return out;
+    }
+    if (first == "safe") {
+        out.clear();
+    }
+    out.push_back(std::move(o));
+    return out;
+}
+
 summary::Rep RepOf(const Outcome &mine, const Call &call, const std::string &fn, const Summary &caller,
                    const summary::Req &calleeReq)
 {
@@ -762,7 +804,13 @@ CheckResult CheckCase(const std::string &caseId, const std::map<std::string, Sum
                     out.errors.push_back(caseId + " " + call.callee + ": 被调者没有 " + res.req);
                     continue;
                 }
-                Outcome mine = Classify(*r, call, s, envGuards);
+                llvm::Optional<Call> outer = res.parent ? ParentCall(*r, call) : llvm::None;
+                if (res.parent && !outer) {
+                    out.errors.push_back(caseId + " " + fn + ": " + call.site + " 的实参没有外层对象（parent）");
+                    continue;
+                }
+                const Call &used = outer ? *outer : call;
+                Outcome mine = Classify(*r, used, s, envGuards);
                 std::string showEnd = FmtRange(mine.endLo, mine.endHi);
                 if (mine.hasBase && (mine.end2Lo != mine.endLo || mine.end2Hi != mine.endHi)) {
                     showEnd += " → 局部换成区间 " + FmtRange(mine.end2Lo, mine.end2Hi);
@@ -794,8 +842,8 @@ CheckResult CheckCase(const std::string &caseId, const std::map<std::string, Sum
                 if (anyConst) {
                     showEnd += std::string("，守卫在此") + (anyFalse ? "不成立" : "成立");
                 }
-                std::string msg = "    · " + call.callee + "." + r->id + "：末端 " + showEnd + "，对象 " + mine.obj +
-                                  "（" + Show(mine.have) + " 字节）→ " + mine.outcome;
+                std::string msg = "    · " + call.callee + "." + r->id + (res.parent ? "（外层）" : "") + "：末端 " +
+                                  showEnd + "，对象 " + mine.obj + "（" + Show(mine.have) + " 字节）→ " + mine.outcome;
                 if (!mine.why.empty()) {
                     msg += "（" + mine.why + "）";
                 }
@@ -823,7 +871,7 @@ CheckResult CheckCase(const std::string &caseId, const std::map<std::string, Sum
                             rep = &x;
                         }
                     }
-                    summary::Rep got = RepOf(mine, call, fn, s, *r);
+                    summary::Rep got = RepOf(mine, used, fn, s, *r);
                     std::vector<std::string> bad =
                         rep != nullptr ? DiffRep(*rep, got) : std::vector<std::string>{"JSON 里没有 " + res.report};
                     if (!bad.empty()) {

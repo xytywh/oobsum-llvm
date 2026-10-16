@@ -67,7 +67,7 @@
    "kind": "TN",
    "entry": "Cell_Setup_TN",
    "pa": "-",
-   "actual": "SUSPECT:typed_field",
+   "actual": "SUSPECT:typed_field×2",
    "verdict": "通过+S"
   },
   {
@@ -1051,7 +1051,7 @@
    "kind": "TP",
    "entry": "Om_OnSaveCfg_TP",
    "pa": "记账",
-   "actual": "SUSPECT:typed_field×3",
+   "actual": "SUSPECT:typed_field×4",
    "verdict": "通过"
   },
   {
@@ -1059,7 +1059,7 @@
    "kind": "TN",
    "entry": "Om_OnSaveCfg_TN",
    "pa": "记账",
-   "actual": "SUSPECT:typed_field×3",
+   "actual": "SUSPECT:typed_field×4",
    "verdict": "通过+S"
   },
   {
@@ -1124,6 +1124,15 @@
    "label": "suspect",
    "reason": "typed_field",
    "access": "lv1/lv1_04_member_array_macro.c:59"
+  },
+  {
+   "case": "LV1-04",
+   "site": "lv1/lv1_04_member_array_macro.c:69:0",
+   "kind": "W",
+   "fn": "F:Cell_Setup_TN",
+   "label": "suspect",
+   "reason": "entry_unproven",
+   "access": "lv1/lv1_04_member_array_macro.c:47"
   },
   {
    "case": "LV1-04",
@@ -1257,6 +1266,15 @@
    "kind": "R",
    "fn": "F:Om_OnSaveCfg_TP",
    "label": "suspect",
+   "reason": "entry_unproven",
+   "access": "lv10/lv10_04_unchecked_ext_len.c:36"
+  },
+  {
+   "case": "LV10-04",
+   "site": "lv10/lv10_04_unchecked_ext_len.c:42:0",
+   "kind": "R",
+   "fn": "F:Om_OnSaveCfg_TP",
+   "label": "suspect",
    "reason": "type_range_only",
    "access": "lv10/lv10_04_unchecked_ext_len.c:36"
   },
@@ -1276,6 +1294,15 @@
    "fn": "F:Om_OnSaveCfg_TP",
    "label": "suspect",
    "reason": "type_range_only",
+   "access": "lv10/lv10_04_unchecked_ext_len.c:36"
+  },
+  {
+   "case": "LV10-04",
+   "site": "lv10/lv10_04_unchecked_ext_len.c:43:0",
+   "kind": "R",
+   "fn": "F:Om_OnSaveCfg_TN",
+   "label": "suspect",
+   "reason": "entry_unproven",
    "access": "lv10/lv10_04_unchecked_ext_len.c:36"
   },
   {

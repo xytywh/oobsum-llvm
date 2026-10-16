@@ -79,17 +79,18 @@ def regen(cid):
             env_guards = [(g, x.get('bound', 'guard')) for x in call.get('guards', []) for g in R.C(x['cond'])]
             m, _ = R.build_map(call, callee)
             for r in final[call['callee']]:
-                mine = R.classify(r, call, s, callee, env_guards)
-                c = None
-                if mine['outcome'] == 'up':
-                    g = mine.get('guards2', [])
-                    c = {'have': mine['have'], 'obj': mine['obj'], 'lo': mine['end2'][0], 'hi': mine['end2'][1], 'guards': g,
-                         'gkey': frozenset(R.show_atom_le0(x) for x in g), 'depth': mine['depth'], 'eff_depth': mine['eff_depth'],
-                         'bound': mine['bound'], 'path': ['%s@%s' % (fn, call['site'])] + r['path'], 'access': r['access'],
-                         'kind': r['kind'], 'src': 'up', 'blind': r['blind'],
-                         'start': R.subst(R.P(r['start']), m) if 'start' in r else None}
-                    cand.append(c)
-                pending.append((call, r, mine, c))
+                for mine, ucall, outer in R.classify_all(r, call, s, callee, env_guards):   # 外层对象那一条（SPEC-0035）
+                    c = None
+                    if mine['outcome'] == 'up':
+                        g = mine.get('guards2', [])
+                        mm = R.build_map(ucall, callee)[0]
+                        c = {'have': mine['have'], 'obj': mine['obj'], 'lo': mine['end2'][0], 'hi': mine['end2'][1], 'guards': g,
+                             'gkey': frozenset(R.show_atom_le0(x) for x in g), 'depth': mine['depth'], 'eff_depth': mine['eff_depth'],
+                             'bound': mine['bound'], 'path': ['%s@%s' % (fn, call['site'])] + r['path'], 'access': r['access'],
+                             'kind': r['kind'], 'src': 'up', 'blind': r['blind'],
+                             'start': R.subst(R.P(r['start']), mm) if 'start' in r else None}
+                        cand.append(c)
+                    pending.append((call, r, mine, c, ucall, outer))
         keep = R.absorb(cand)
         # 留下的 → JSON
         reqs = []
@@ -128,13 +129,15 @@ def regen(cid):
         # 调用点 results
         reps = {(x['site'], json.dumps(x['access'], sort_keys=True)): x for x in d['reps']}
         new_results = {}
-        for call, r, mine, c in pending:
+        for call, r, mine, c, ucall, outer in pending:
             res = {'req': r['id'], 'outcome': mine['outcome']}
+            if outer:
+                res['parent'] = True
             if mine['outcome'] == 'up':
                 k = dominated_by(c, keep)
                 res['as'] = json_of[id(k)]['id']
             elif mine['outcome'] in ('L1', 'L2'):
-                got = R.rep_of(mine, call, fn, s, r)
+                got = R.rep_of(mine, ucall, fn, s, r)
                 want = reps.get((got['site'], json.dumps(got['access'], sort_keys=True)))
                 bad = R.diff_rep(want, got) if want else ['JSON 里没有这条判定']
                 if bad:

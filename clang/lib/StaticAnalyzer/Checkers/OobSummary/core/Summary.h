@@ -96,9 +96,16 @@ struct ArgValue {
     std::shared_ptr<PtrArg> ptr;
 };
 
+// 成员数组实参的外层对象（SPEC-0035）
+struct OuterObj {
+    std::string obj;
+    std::string have;
+};
+
 struct PtrArg {
     std::string obj;
     std::string have;
+    llvm::Optional<OuterObj> parent;  // 实参是形参所指结构体里的成员数组时：外层对象（SPEC-0035）
     llvm::Optional<std::string> alias;
     llvm::Optional<int64_t> effDepth;
     llvm::Optional<std::map<std::string, ArgValue>> fields;  // 值是表达式或指针（不为 null）
@@ -126,6 +133,7 @@ struct Result {
     std::string as;       // up
     std::string report;   // L1 / L2
     std::string reason;   // open
+    bool parent = false;  // Req：外层对象那一条（SPEC-0035 §2.2）
     int64_t eff = 0;      // Eff
     Apply apply;          // Eff
     std::vector<std::string> gen;

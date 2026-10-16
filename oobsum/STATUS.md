@@ -104,6 +104,9 @@
       由引擎接进 checker 时 `run.py csa` 的对照发现。
 - [x] **S7d-2a `ModelFile`**（SPEC-0033）：YAML 模型表合并进内置表（同名替换、`defaults: false` 清空）；坏条目跳过并提示一行，读不了 / YAML 错是选项错误；
       `Dump=models` 列出实际生效的表；示例 `oobsum/config/oob_models.example.yaml`（= 内置表）。
+- [x] **成员数组当实参带外层对象**（SPEC-0035）：调用点记录的指针实参加 `parent`；代换时成员证明了安全还要按外层对象查、成员要上传时外层也上传
+      （修掉"64 字节缓冲区当成结构体、经一层调用写成员"的错误 SAFE）。C++（`apply::ClassifyAll`）与 replay.py（`classify_all`）同步；
+      金标准 LV10-04 补 `parent` 后用 golden_regen 重算（上传 70 → 72、入口账本 12 → 14）；基线已存（3 个入口多一条外层的 `typed_field`）。
 - [x] **S7d-2b `strcpy_s` 族**（SPEC-0034）：8 个 securec 字符串函数的目的一侧进内置表——访问条件 `upto`（`bytes` 只是上界，实际 1 … destMax 字节），
       新来源标签 `model`（代码给出的界）：destMax 超出 → POSSIBLE、偏移已越界 → DEFINITE、证明了 → SAFE。LV7-05 TP 从未判变成 POSSIBLE、TN 证明 SAFE。
       `run.py` 回退规则加一条：访问在调用链某层证明了 SAFE 且以它为终点的判定都是 SAFE 或报出了（SPEC-0002 §2.4 修订）；基线已存。
@@ -171,8 +174,8 @@
 * **入口函数自己的访问只在入口记账**：判定只在调用点定级（Apply），没有调用方的函数里、本函数内就越界的访问（`snprintf_s(buf8, 64, …)` 直接写在入口里）
   报 SUSPECT `entry_unproven`，不是 DEFINITE / POSSIBLE（照样报出，标签偏保守）。深度 0 的越界按 06- 交给现有规则；要不要在入口就地定级，以后另写 SPEC。
 
-* **成员指针当实参会丢外层对象**（SPEC-0022 §2）：`Om_SaveCfg(pstMsg->aucBody, …)` 的调用点记录只写 `{obj: p0->aucBody, have: 1024}`，
-  被调者的 Req 代换过来只查成员；外层对象的边界要在实参格式里加"外层对象"才能带上（摘要格式修订，待做）。
+* **入口账本同一次访问可能两条**（SPEC-0035 §3）：成员数组当实参时，成员与外层对象各一条 SUSPECT（LV1-04 TN、LV10-04 各多一条 `typed_field`）；
+  以后在入口按访问合并。
 
 * `-analyzer-config` 的列表值用 `+` 连接（逗号会被当成键值对分隔符）。
 * 上游 clang 14 不支持 aarch64 ILP32；本地布局近似用 `TRIPLE=armebv7-linux-gnueabi`。

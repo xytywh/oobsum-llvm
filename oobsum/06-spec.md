@@ -486,7 +486,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 `ret_cond`（`when: "ret == c"`、`then: [条件…]`，至多 4 条）、`out_new` / `out_int`、`field`（`target: "p0->ulUsed"`、`value`）、`global`、`invalidate`。
 `doc.via` 记效果是从哪个分配器 / 封装传上来的（只给人看）。
 
-**D-25 调用点记录**〔由 SPEC-0015、SPEC-0027 修订〕 `calls[]`：`site`、`callee`、`model`（`access` / `alloc` / `pure` / `unknown`，被调者是模型或未知时）、
+**D-25 调用点记录**〔由 SPEC-0015、SPEC-0027、SPEC-0035 修订：成员数组实参加 `parent: {obj, have}`，`results[]` 的外层对象那一条标 `parent: true`〕 `calls[]`：`site`、`callee`、`model`（`access` / `alloc` / `pure` / `unknown`，被调者是模型或未知时）、
 `args`（整数实参写表达式；指针实参写 `{obj, have, alias?, fields?, eff_depth?}`——指向哪个对象、从这个指针起还剩多少字节、
 就是调用方的哪个形参、栈帧里记着的字段值；与越界无关的写 `null`）、`locals`（`{名字: {range: [lo, hi], bound}}`）、
 `guards`（`[{cond, bound}]`）、`results`——被调者每条 Req / Eff 在这里的结局，全部结构化：
