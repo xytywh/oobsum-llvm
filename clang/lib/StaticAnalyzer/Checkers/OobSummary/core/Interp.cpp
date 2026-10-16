@@ -2993,6 +2993,7 @@ std::vector<summary::Eff> Analyzer::Effects() const
         return conds;
     }
     const PtrVal *heap = nullptr;
+    int64_t off = 0;  // 返回的是新对象 + 常数偏移（带管理头的分配器，SPEC-0052）；各条返回要一样
     for (const auto &ret : returns) {
         const Value &v = ret.first;
         bool null = (!v.isPtr && v.i.IsConst() && v.i.value.Constant() == 0) ||
@@ -3001,18 +3002,19 @@ std::vector<summary::Eff> Analyzer::Effects() const
             continue;
         }
         bool fresh =
-            v.isPtr && v.p.kind == BaseKind::Heap && v.p.hasSize && v.p.off.IsConst() && v.p.off.value.Constant() == 0;
-        if (!fresh || (heap != nullptr && heap->id != v.p.id)) {
+            v.isPtr && v.p.kind == BaseKind::Heap && v.p.hasSize && v.p.off.IsConst() && v.p.off.value.Constant() >= 0;
+        if (!fresh || (heap != nullptr && (heap->id != v.p.id || off != v.p.off.value.Constant()))) {
             return {};
         }
         heap = &v.p;
+        off = v.p.off.value.Constant();
     }
     if (heap == nullptr) {
         return {};
     }
     summary::Eff e;
     e.kind = "ret_new";
-    e.size = heap->size.Show();
+    e.size = (heap->size - LinExpr::Const(off)).Show();  // 从返回的指针起还剩的字节
     e.maybeNull = true;
     e.effDepth = heap->effDepth + 1;
     return {e};

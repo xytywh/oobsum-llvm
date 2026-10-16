@@ -1,0 +1,13 @@
+# ret_new 允许常数偏移（oobsum/specs/SPEC-0052）：带管理头的分配器返回 pucRaw + 16，ext(返回值) = 申请长度。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Buf_Alloc|Buf_Odd)$' \
+# RUN:   %S/Inputs/retoff/hdr.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"eff_depth":1,"kind":"ret_new","maybe_null":true,"size":"p0"}],"fn":"Buf_Alloc"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[],"fn":"Buf_Odd"
+CHECK-DAG: hdr.c:15:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 33 of heap object allocated at hdr.c:15 (32 bytes) is accessed
+CHECK-DAG: hdr.c:16:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 33 of heap object allocated at hdr.c:16 (33 bytes)
+# 对照：偏移不一样 → 没有效果，调用方是未知指针 → 记账
+CHECK-DAG: hdr.c:27:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within '_unknown0'

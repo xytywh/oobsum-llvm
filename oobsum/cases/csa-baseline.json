@@ -475,16 +475,16 @@
    "kind": "TP",
    "entry": "Msg_MakeText_TP",
    "pa": "L1",
-   "actual": "SUSPECT:entry_unproven×2",
-   "verdict": "级别不同"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV4-03",
    "kind": "TN",
    "entry": "Msg_MakeText_TN",
    "pa": "-",
-   "actual": "SUSPECT:entry_unproven×2",
-   "verdict": "通过+S"
+   "actual": "SAFE:within(未报出:safe)",
+   "verdict": "通过"
   },
   {
    "case": "LV4-04",
@@ -1697,36 +1697,9 @@
    "site": "lv4/lv4_03_hdr_pool_alloc.c:51:0",
    "kind": "W",
    "fn": "F:Msg_MakeText_TP",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv4/lv4_03_hdr_pool_alloc.c:42"
-  },
-  {
-   "case": "LV4-03",
-   "site": "lv4/lv4_03_hdr_pool_alloc.c:51:0",
-   "kind": "W",
-   "fn": "F:Msg_MakeText_TP",
-   "label": "suspect",
-   "reason": "entry_unproven",
+   "label": "definite",
+   "reason": "",
    "access": "lv4/lv4_03_hdr_pool_alloc.c:39"
-  },
-  {
-   "case": "LV4-03",
-   "site": "lv4/lv4_03_hdr_pool_alloc.c:61:0",
-   "kind": "W",
-   "fn": "F:Msg_MakeText_TN",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv4/lv4_03_hdr_pool_alloc.c:39"
-  },
-  {
-   "case": "LV4-03",
-   "site": "lv4/lv4_03_hdr_pool_alloc.c:61:0",
-   "kind": "W",
-   "fn": "F:Msg_MakeText_TN",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv4/lv4_03_hdr_pool_alloc.c:42"
   },
   {
    "case": "LV4-04",

@@ -83,4 +83,5 @@
 | [SPEC-0049](SPEC-0049-eliminate-in-opaque.md) | 调用点消去调用方局部时也进入不透明项（`div` / `mod` / `wrap`） | 已实现 |
 | [SPEC-0050](SPEC-0050-widen-unsigned-cap.md) | 无符号局部 widening 后补上类型范围的界（从 1 开始的循环不再丢界） | 已实现 |
 | [SPEC-0051](SPEC-0051-struct-copy-model.md) | 结构体整体赋值的内置访问模型 `__oobsum_copy`（规格有、模型表里漏了） | 已实现 |
+| [SPEC-0052](SPEC-0052-ret-new-offset.md) | `ret_new` 允许常数偏移：带管理头的分配器（返回 `pucRaw + 16`） | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |
