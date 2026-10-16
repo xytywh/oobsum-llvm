@@ -1,0 +1,18 @@
+# 效果 ret_ptr：被调者返回实参指针（或它所指结构体的指针字段）加偏移（oobsum/specs/SPEC-0070；06- D-24、A-63、A-70）。
+# 原来调用方拿到的是未知指针，只能记 untracked_pointer。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Msg_Body|Ctx_Tail|Wrap|Pick)$' \
+# RUN:   %S/Inputs/retptr/r.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"ret_ptr","target":"p0","value":"4"}],{{.*}}"fn":"Msg_Body"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"ret_ptr","target":"p0->pucBuf","value":"4"}],{{.*}}"fn":"Ctx_Tail"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"ret_ptr","target":"p0","value":"6"}],{{.*}}"fn":"Wrap"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[],{{.*}}"fn":"Pick"
+CHECK-DAG: r.c:7:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 13 of 'a' (12 bytes) is accessed
+CHECK-DAG: r.c:8:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 12 of 'a' (12 bytes)
+CHECK-DAG: r.c:10:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 13 of 'a' (12 bytes) is accessed
+CHECK-DAG: r.c:12:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 11 of 'a' (10 bytes) is accessed
+# 对照：偏移不同 → 照旧记账
+CHECK-DAG: r.c:15:1: warning: [OOB-SUSPECT:untracked_pointer]

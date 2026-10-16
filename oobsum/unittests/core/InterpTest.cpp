@@ -1203,3 +1203,49 @@ TEST(Interp, RangeFieldArg)
     const summary::Local &l = c.locals->at("_fld0_ulLen");
     EXPECT_EQ(l.lo + " " + l.hi + " " + l.bound, "5 100 branch");
 }
+
+TEST(Interp, RetPtrEffect)
+{
+    // SPEC-0070：每条返回都是 p + 4（或空指针）→ ret_ptr target p0 value 4；偏移不同 → 不记
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    b.f.ret = b.m.Intern(Type::Ptr(b.u8));
+    Inst ret;
+    ret.op = InstOp::Ret;
+    ret.val = b.PAdd(b.L(p), b.C(4));
+    b.Straight({ret});
+    interp::FunctionFacts facts = b.Run();
+    ASSERT_TRUE(facts.effs.size() == 1);
+    EXPECT_EQ(facts.effs[0].kind, "ret_ptr");
+    EXPECT_EQ(facts.effs[0].target.getValueOr(""), "p0");
+    EXPECT_EQ(facts.effs[0].value.getValueOr(""), "4");
+    Builder c;
+    uint32_t q = c.Param("p", c.m.Intern(Type::Ptr(c.u8)));
+    uint32_t n = c.Param("n", c.u32);
+    c.f.ret = c.m.Intern(Type::Ptr(c.u8));
+    Inst r1;
+    r1.op = InstOp::Ret;
+    r1.val = c.PAdd(c.L(q), c.C(2));
+    Inst r2 = r1;
+    r2.val = c.PAdd(c.L(q), c.C(6));
+    Block entry;
+    entry.id = 3;
+    entry.succ = {{2, c.f.Add(Expr::Cmp(CmpOp::Ne, c.L(n), c.C(0), false))},
+                  {1, c.f.Add(Expr::Cmp(CmpOp::Eq, c.L(n), c.C(0), false))}};
+    Block a;
+    a.id = 2;
+    a.insts = {r1};
+    a.succ = {{0, kNone}};
+    Block d;
+    d.id = 1;
+    d.insts = {r2};
+    d.succ = {{0, kNone}};
+    Block exit;
+    exit.id = 0;
+    c.f.blocks = {entry, a, d, exit};
+    c.f.entry = 3;
+    c.f.exit = 0;
+    interp::FunctionFacts facts2 = c.Run();
+    EXPECT_TRUE(std::none_of(facts2.effs.begin(), facts2.effs.end(),
+                             [](const summary::Eff &e) { return e.kind == "ret_ptr"; }));
+}

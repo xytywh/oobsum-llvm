@@ -988,6 +988,11 @@ private:
     void RecordReturn(const fir::Inst &inst, const State &s);
     std::vector<summary::Eff> Effects() const;
     llvm::Optional<summary::Eff> ReturnRange() const;
+    // 返回实参指针（或它所指结构体的指针字段在入口时的值）加同一个偏移（SPEC-0070）
+    llvm::Optional<summary::Eff> ReturnPointer() const;
+    Value RetPtrResult(const fir::Inst &inst, const summary::Eff &e, const summary::Summary &callee, const State &s);
+    // 被调者的式子换成调用方的：形参换成可信的确切实参，全局按调用点的 gvals；换不了 → None（SPEC-0054 / 0064 / 0070）
+    llvm::Optional<LinExpr> CallerExpr(const fir::Inst &inst, const LinExpr &calleeExpr, const State &s);
     std::vector<summary::Eff> CondEffects() const;
     IntVal CondResult(const fir::Inst &inst, const std::vector<summary::Eff> &effs, const State &s);
     bool FilterCases(ExprId e, const IntVal &v, fir::CmpOp op, int64_t k, State &s);
@@ -1849,6 +1854,10 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                         }
                         if (e.kind == "ret_int" && !result.isPtr) {
                             result.i = CondResult(inst, callee->second.effs, s);  // SPEC-0025 §2.3
+                            break;
+                        }
+                        if (e.kind == "ret_ptr" && result.isPtr && e.target && e.value) {
+                            result = RetPtrResult(inst, e, callee->second, s);  // 调用前的状态（SPEC-0070 §2.2）
                             break;
                         }
                     }
@@ -3192,6 +3201,116 @@ std::vector<summary::Eff> Analyzer::CondEffects() const
 }
 
 // 调用点代入被调者的 ret_cond / ret_int（SPEC-0025 §2.3）：返回值是常数组成的区间，带情形；守卫里被调者的形参换成实参
+llvm::Optional<LinExpr> Analyzer::CallerExpr(const fir::Inst &inst, const LinExpr &calleeExpr, const State &s)
+{
+    SymEnv env = Env(s);
+    Substitution sub;
+    for (size_t k = 0; k < inst.args.size(); ++k) {
+        IntVal v = EvalInt(inst.args[k], s);
+        if (v.kind == IntVal::Kind::Exact && Faithful(inst.args[k], v, env)) {
+            sub.sym["p" + std::to_string(k)] = v.value;
+        }
+    }
+    // 调用前改过的全局：确切值代进去，不知道的 → 换不了（SPEC-0064 §2.3）
+    for (const auto &entry : GlobalsAt(s)) {
+        if (entry.first == "g:*") {
+            sub.poisonGlobals = true;
+            continue;
+        }
+        LinExpr value;
+        std::string bad;
+        sub.sym[entry.first] = entry.second != "?" && ParseLin(entry.second, value, bad)
+                                   ? value
+                                   : LinExpr::Sym("_unmapped:" + entry.first);
+    }
+    LinExpr out = Substitute(calleeExpr, sub);
+    std::set<std::string> syms;
+    CollectSyms(out, syms);
+    bool leaked = llvm::any_of(
+        syms, [](const std::string &x) { return ParamIndexOf(x) >= 0 || llvm::StringRef(x).startswith("_unmapped:"); });
+    if (out.IsUnknown() || leaked) {
+        return llvm::None;
+    }
+    return out;
+}
+
+llvm::Optional<summary::Eff> Analyzer::ReturnPointer() const
+{
+    const PtrVal *base = nullptr;
+    bool maybeNull = false;
+    for (const auto &ret : returns) {
+        const Value &v = ret.first;
+        bool null = (!v.isPtr && v.i.IsConst() && v.i.value.Constant() == 0) ||
+                    (v.isPtr && v.p.kind == BaseKind::Unknown && v.p.why == "null");
+        if (null) {
+            maybeNull = true;
+            continue;
+        }
+        // 形参所指对象（*pK）或形参所指结构体的指针字段在入口时的值（*pK->f）；成员数组（ParamField）不记（成员界会丢）
+        if (!v.isPtr || (v.p.kind != BaseKind::Param && v.p.kind != BaseKind::ParamPtr) ||
+            v.p.off.kind != IntVal::Kind::Exact || v.p.off.value.IsUnknown() || v.p.obj.size() < 2 ||
+            v.p.obj[0] != '*') {
+            return llvm::None;
+        }
+        if (base != nullptr && (base->id != v.p.id || !(base->off.value == v.p.off.value))) {
+            return llvm::None;
+        }
+        base = &v.p;
+    }
+    if (base == nullptr) {
+        return llvm::None;
+    }
+    summary::Eff e;
+    e.kind = "ret_ptr";
+    e.target = base->obj.substr(1);  // *p0 → p0；*p0->pucBuf → p0->pucBuf
+    e.value = base->off.value.Show();
+    if (maybeNull) {
+        e.maybeNull = true;
+    }
+    return e;
+}
+
+Value Analyzer::RetPtrResult(const fir::Inst &inst, const summary::Eff &e, const summary::Summary &callee,
+                             const State &s)
+{
+    Value out;
+    out.isPtr = true;
+    out.p = UnknownPtr("call");
+    llvm::StringRef target = *e.target;
+    std::pair<llvm::StringRef, llvm::StringRef> parts = target.split("->");
+    llvm::StringRef param = parts.first;
+    unsigned k = 0;
+    if (!param.consume_front("p") || param.getAsInteger(10, k) || k >= inst.args.size()) {
+        return out;
+    }
+    Value arg = Eval(inst.args[k], s);
+    if (!arg.isPtr || arg.p.kind == BaseKind::Unknown || arg.p.kind == BaseKind::Func) {
+        return out;
+    }
+    PtrVal base = arg.p;
+    if (!parts.second.empty()) {
+        // pK->f：按被调者 fields 表里的偏移从实参所指对象读字段的指针值（同调用方自己读 pst->pucBuf）
+        auto info = callee.fields ? callee.fields->find(target.str())
+                                  : std::map<std::string, summary::FieldInfo>::const_iterator();
+        if (!callee.fields || info == callee.fields->end()) {
+            return out;
+        }
+        PtrVal addr = arg.p;
+        addr.off = AddVals(addr.off, IntVal::Exact(LinExpr::Const(info->second.off)));
+        Value loaded = LoadValue(addr, m.target.ptr, inst.dst, s);
+        if (!loaded.isPtr || loaded.p.kind == BaseKind::Unknown || loaded.p.kind == BaseKind::Func) {
+            return loaded.isPtr ? loaded : out;
+        }
+        base = loaded.p;
+    }
+    LinExpr off;
+    std::string error;
+    llvm::Optional<LinExpr> mine = ParseLin(*e.value, off, error) ? CallerExpr(inst, off, s) : llvm::None;
+    base.off = AddVals(base.off, mine ? IntVal::Exact(*mine) : IntVal::Top("call"));
+    out.p = base;
+    return out;
+}
+
 IntVal Analyzer::CondResult(const fir::Inst &inst, const std::vector<summary::Eff> &effs, const State &s)
 {
     const summary::Eff *range = nullptr;
@@ -3214,38 +3333,12 @@ IntVal Analyzer::CondResult(const fir::Inst &inst, const std::vector<summary::Ef
         if (!ParseLin((*range->range)[0], el, error) || !ParseLin((*range->range)[1], eh, error)) {
             return IntVal::Top("call");
         }
-        SymEnv env = Env(s);
-        Substitution sub;
-        for (size_t k = 0; k < inst.args.size(); ++k) {
-            IntVal v = EvalInt(inst.args[k], s);
-            if (v.kind == IntVal::Kind::Exact && Faithful(inst.args[k], v, env)) {
-                sub.sym["p" + std::to_string(k)] = v.value;
-            }
-        }
-        // 调用前改过的全局：确切值代进去，不知道的 → 返回值未知（SPEC-0064 §2.3）
-        for (const auto &entry : GlobalsAt(s)) {
-            if (entry.first == "g:*") {
-                sub.poisonGlobals = true;
-                continue;
-            }
-            LinExpr value;
-            std::string bad;
-            sub.sym[entry.first] = entry.second != "?" && ParseLin(entry.second, value, bad)
-                                       ? value
-                                       : LinExpr::Sym("_unmapped:" + entry.first);
-        }
-        LinExpr a = Substitute(el, sub);
-        LinExpr b = Substitute(eh, sub);
-        std::set<std::string> syms;
-        CollectSyms(a, syms);
-        CollectSyms(b, syms);
-        bool leaked = llvm::any_of(syms, [](const std::string &x) {
-            return ParamIndexOf(x) >= 0 || llvm::StringRef(x).startswith("_unmapped:");
-        });
-        if (a.IsUnknown() || b.IsUnknown() || leaked) {
+        llvm::Optional<LinExpr> a = CallerExpr(inst, el, s);
+        llvm::Optional<LinExpr> b = CallerExpr(inst, eh, s);
+        if (!a || !b) {
             return IntVal::Top("call");
         }
-        return a == b ? IntVal::Exact(a) : IntVal::Range(a, b, Tag::Branch);
+        return *a == *b ? IntVal::Exact(*a) : IntVal::Range(*a, *b, Tag::Branch);
     }
     llvm::Optional<Tag> bound = range->bound ? ParseTag(*range->bound) : llvm::None;
     IntVal out =
@@ -3433,6 +3526,8 @@ std::vector<summary::Eff> Analyzer::Effects() const
             e.maybeNull = true;
             e.effDepth = hit->first->effDepth + 1;
             out.push_back(e);
+        } else if (llvm::Optional<summary::Eff> ptr = ReturnPointer()) {
+            out.push_back(*ptr);  // 返回实参指针加偏移（取子缓冲区，SPEC-0070）
         } else if (llvm::Optional<summary::Eff> range = ReturnRange()) {
             out.push_back(*range);  // 返回值范围（取值 / 截断函数，SPEC-0054）
         }

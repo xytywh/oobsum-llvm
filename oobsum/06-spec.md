@@ -482,7 +482,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | `absorbed` | 被本条覆盖、不再单列的较弱访问 `[{kind, end, at}]`（A-44） |
 | `doc` | `{text, obj, bytes, code, note}`：用形参名渲染的一句话、对象名、访问字节数、源码原文、说明 |
 
-**D-24 效果**〔由 SPEC-0045 修订：另加摘要字段 `mods`（可能写的位置：`pK`、`pK+off:size`、`*pK->f`、`g:名字`、`g:*`、`*`），调用点按它只让写到的位置失效〕 `effs[].kind`：`ret_new`（`size`、`maybe_null`、`eff_depth`）、`ret_ptr`、`ret_int`（`range`、`bound`；〔SPEC-0054：不是常数的返回也推出——同一个确切式子取符号区间，否则各条返回在自己路径条件下的常数界取并〕）、
+**D-24 效果**〔由 SPEC-0045 修订：另加摘要字段 `mods`（可能写的位置：`pK`、`pK+off:size`、`*pK->f`、`g:名字`、`g:*`、`*`），调用点按它只让写到的位置失效〕 `effs[].kind`：`ret_new`（`size`、`maybe_null`、`eff_depth`）、`ret_ptr`〔SPEC-0070：`target: "pK" / "pK->f"`、`value`（偏移）、`maybe_null`；每条返回都是同一个形参基址、同一个偏移时记〕、`ret_int`（`range`、`bound`；〔SPEC-0054：不是常数的返回也推出——同一个确切式子取符号区间，否则各条返回在自己路径条件下的常数界取并〕）、
 `ret_cond`（`when: "ret == c"`、`then: [条件…]`，至多 4 条）、`out_new`〔SPEC-0053：`target: "pK"`、`size`、`maybe_null`、`eff_depth`，每条返回路径都把同一个新对象写进 `*pK` 时记；SPEC-0061：`target` 也可以是 `pK->f`（写进所指结构体的指针字段）〕 / `out_int`、`field`（`target: "p0->ulUsed"`、`value`）、`global`、`invalidate`。
 `doc.via` 记效果是从哪个分配器 / 封装传上来的（只给人看）。
 
