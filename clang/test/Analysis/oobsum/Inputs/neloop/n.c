@@ -13,3 +13,10 @@ void S2_TP(void) { UINT8 a[16]; S2(a, 18); }
 /* 对照：起点证明不了 <= n（i 会回绕）→ 照旧记账 */
 static void T1(UINT8 *p, UINT32 n) { UINT32 i; for (i = 5; i != n; i++) { p[i] = 0; } }
 void T1_TP(void) { UINT8 a[16]; T1(a, 3); }
+/* 退出测试不在循环头上（SPEC-0085）：候选从循环体里的比较取 */
+static void B1(UINT8 *p, UINT32 n) { UINT32 i = 0; while (1) { if (i == n) { break; } p[i] = 0; i++; } }
+void B1_TP(void) { UINT8 a[16]; B1(a, 17); }
+void B1_TN(void) { UINT8 a[16]; B1(a, 16); }
+/* 对照：do-while，n = 0 时真的会回绕 → 照旧记账 */
+static void D2(UINT8 *p, UINT32 n) { UINT32 i = 0; do { p[i] = 0; i++; } while (i != n); }
+void D2_TP(void) { UINT8 a[16]; D2(a, 17); }

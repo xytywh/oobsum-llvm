@@ -1621,3 +1621,29 @@ TEST(Interp, NeLoopThreshold)
     l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(q), end, false)), b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(q), end, false)));
     EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=loop at=t.c:7");
 }
+
+TEST(Interp, NeThresholdFromBody)
+{
+    // SPEC-0085：i = 0; while (1) { if (i == n) break; p[i] = 0; i++; } → 比较在循环体里，阈值照样取 p1，末端 [1, p1]
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("n", b.u32);
+    uint32_t i = b.LocalVar("i", b.u32);
+    Block entry, head, check, body, exit;
+    entry.id = 6;
+    head.id = 5;
+    check.id = 4;
+    body.id = 3;
+    exit.id = 0;
+    entry.insts = {b.Set(i, b.C(0))};
+    entry.succ = {{5, kNone}};
+    head.succ = {{4, kNone}};
+    check.succ = {{0, b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(i), b.L(n), false))},
+                  {3, b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(i), b.L(n), false))}};
+    body.insts = {b.Store(b.PAdd(b.L(p), b.L(i)), 1, b.C(0), 7), b.Set(i, b.Wrap(BinOp::Add, b.L(i), b.C(1)))};
+    body.succ = {{5, kNone}};
+    b.f.blocks = {entry, head, check, body, exit};
+    b.f.entry = 6;
+    b.f.exit = 0;
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=check at=t.c:7");
+}

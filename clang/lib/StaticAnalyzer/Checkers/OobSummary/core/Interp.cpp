@@ -2455,6 +2455,7 @@ FunctionFacts Analyzer::Run()
         }
     }
     std::vector<std::set<uint32_t>> loopVars(n);
+    std::vector<std::set<size_t>> loopBlocks(n);  // 每个循环头的自然循环体（含头，SPEC-0085）
     for (const auto &be : backEdges) {
         std::vector<bool> inBody(n, false);
         inBody[be.second] = true;
@@ -2474,6 +2475,7 @@ FunctionFacts Analyzer::Run()
             if (!inBody[x]) {
                 continue;
             }
+            loopBlocks[be.second].insert(x);
             for (const fir::Inst &inst : f.blocks[x].insts) {
                 if (inst.dst != fir::kNone) {
                     loopVars[be.second].insert(inst.dst);
@@ -2482,8 +2484,8 @@ FunctionFacts Analyzer::Run()
         }
     }
 
-    // 循环头上 x != c / x == c 的阈值候选（SPEC-0082）：x 是本循环里被赋值的局部（隔着类型转换也行），头块的指令不赋 x、
-    // 也不赋 c 里用到的局部
+    // 循环上 x != c / x == c 的阈值候选（SPEC-0082）：自然循环体里每一块（含头，SPEC-0085）出边上的比较；x 是本循环里被赋值的局部
+    // （隔着类型转换也行），那一块的指令不赋 x、也不赋 c 里用到的局部
     struct NeBound {
         uint32_t local;
         ExprId side;   // 比较里 x 那一边
@@ -2494,40 +2496,42 @@ FunctionFacts Analyzer::Run()
         if (!heads[t]) {
             continue;
         }
-        std::set<uint32_t> defined;
-        for (const fir::Inst &inst : f.blocks[t].insts) {
-            if (inst.dst != fir::kNone) {
-                defined.insert(inst.dst);
-            }
-        }
-        for (const fir::Edge &e : f.blocks[t].succ) {
-            ExprId c = e.assume;
-            while (c < f.exprs.size() && f.exprs[c].op == ExprOp::LNot) {
-                c = f.exprs[c].a;
-            }
-            if (c >= f.exprs.size() || f.exprs[c].op != ExprOp::Cmp) {
-                continue;
-            }
-            fir::CmpOp op = static_cast<fir::CmpOp>(f.exprs[c].sub);
-            if (op != fir::CmpOp::Ne && op != fir::CmpOp::Eq) {
-                continue;
-            }
-            for (int k = 0; k < 2; ++k) {
-                ExprId side = k == 0 ? f.exprs[c].a : f.exprs[c].b;
-                ExprId other = k == 0 ? f.exprs[c].b : f.exprs[c].a;
-                ExprId cur = side;
-                while (cur < f.exprs.size() && f.exprs[cur].op == ExprOp::Cast) {
-                    cur = f.exprs[cur].a;
+        for (size_t blk : loopBlocks[t]) {
+            std::set<uint32_t> defined;
+            for (const fir::Inst &inst : f.blocks[blk].insts) {
+                if (inst.dst != fir::kNone) {
+                    defined.insert(inst.dst);
                 }
-                if (other == fir::kNone || cur >= f.exprs.size() || f.exprs[cur].op != ExprOp::Local) {
+            }
+            for (const fir::Edge &e : f.blocks[blk].succ) {
+                ExprId c = e.assume;
+                while (c < f.exprs.size() && f.exprs[c].op == ExprOp::LNot) {
+                    c = f.exprs[c].a;
+                }
+                if (c >= f.exprs.size() || f.exprs[c].op != ExprOp::Cmp) {
                     continue;
                 }
-                uint32_t x = static_cast<uint32_t>(f.exprs[cur].value);
-                std::set<uint32_t> used;
-                CollectLocals(other, used);
-                if (loopVars[t].count(x) != 0 && defined.count(x) == 0 &&
-                    llvm::none_of(used, [&](uint32_t u) { return defined.count(u) != 0; })) {
-                    neBounds[t].push_back({x, side, other});
+                fir::CmpOp op = static_cast<fir::CmpOp>(f.exprs[c].sub);
+                if (op != fir::CmpOp::Ne && op != fir::CmpOp::Eq) {
+                    continue;
+                }
+                for (int k = 0; k < 2; ++k) {
+                    ExprId side = k == 0 ? f.exprs[c].a : f.exprs[c].b;
+                    ExprId other = k == 0 ? f.exprs[c].b : f.exprs[c].a;
+                    ExprId cur = side;
+                    while (cur < f.exprs.size() && f.exprs[cur].op == ExprOp::Cast) {
+                        cur = f.exprs[cur].a;
+                    }
+                    if (other == fir::kNone || cur >= f.exprs.size() || f.exprs[cur].op != ExprOp::Local) {
+                        continue;
+                    }
+                    uint32_t x = static_cast<uint32_t>(f.exprs[cur].value);
+                    std::set<uint32_t> used;
+                    CollectLocals(other, used);
+                    if (loopVars[t].count(x) != 0 && defined.count(x) == 0 &&
+                        llvm::none_of(used, [&](uint32_t u) { return defined.count(u) != 0; })) {
+                        neBounds[t].push_back({x, side, other});
+                    }
                 }
             }
         }
