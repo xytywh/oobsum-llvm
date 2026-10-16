@@ -10,7 +10,8 @@
 CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"field","target":"p0->ulLen","value":"64"}],{{.*}}"fn":"Cfg_Init"
 CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"field","target":"p0->ulLen","value":"p1"}],{{.*}}"fn":"Cfg_Set"
 # 出错路径没写：may
-CHECK-DAG: [oobsum:summary] {{.*}}{"kind":"field","may":true,"target":"p0->_0","value":"32"}],{{.*}}"fn":"Get_Len"
+# 另有只在返回 0 时成立的那一条（SPEC-0079）
+CHECK-DAG: [oobsum:summary] {{.*}}{"kind":"field","may":true,"target":"p0->_0","value":"32"},{"kind":"field","target":"p0->_0","value":"32","when":"ret == 0"}],{{.*}}"fn":"Get_Len"
 CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"field","range":["8","32"],"target":"p0->ulLen"}],{{.*}}"fn":"Two"
 CHECK-DAG: [oobsum:summary] {{.*}}"effs":[],{{.*}}"fn":"Ext"
 CHECK-DAG: f.c:8:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 64 of 'a' (16 bytes) may be accessed

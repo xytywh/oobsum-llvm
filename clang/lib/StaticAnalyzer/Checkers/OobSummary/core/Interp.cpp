@@ -579,6 +579,9 @@ std::vector<IntCase> MergeCases(const std::vector<IntCase> &a, const std::vector
             }
         }
         it->guards = common;
+        if (!(it->writes == cb.writes)) {
+            it->writes.clear();  // 两边写入不同：丢掉（变弱，仍可靠，SPEC-0079）
+        }
     }
     std::sort(out.begin(), out.end(), [](const IntCase &x, const IntCase &y) { return x.value < y.value; });
     return out;
@@ -994,8 +997,19 @@ private:
     llvm::Optional<summary::Eff> ReturnPointer() const;
     Value RetPtrResult(const fir::Inst &inst, const summary::Eff &e, const summary::Summary &callee, const State &s);
     // 写效应 field 在调用点要写的格与新值（调用前的状态，SPEC-0073 §2.2）
-    std::vector<std::pair<CellKey, Value>> FieldWrites(const fir::Inst &inst, const summary::Summary &callee,
-                                                       const State &s);
+    // conditional 非空时：带 when: ret == c 的写效应放进它（返回常数 c、格、值），SPEC-0079
+    std::vector<std::pair<CellKey, Value>> FieldWrites(
+        const fir::Inst &inst, const summary::Summary &callee, const State &s,
+        std::vector<std::pair<int64_t, std::pair<CellKey, Value>>> *conditional = nullptr);
+    // 调用刚结束时某一格的值（情形里的写回要求筛选时还相同，SPEC-0079）
+    static std::string CellText(const State &s, const CellKey &key)
+    {
+        auto it = s.cells.find(key);
+        if (it == s.cells.end()) {
+            return "";
+        }
+        return it->second.isPtr ? "ptr" : "int:" + it->second.i.Show();
+    }
     // 被调者的式子换成调用方的：形参换成可信的确切实参，全局按调用点的 gvals；换不了 → None（SPEC-0054 / 0064 / 0070）
     // 字段符号 p<k>->f 按被调者 fields 表从第 k 个实参所指对象读调用前的值；没换掉的被调者接口符号算换不了（SPEC-0072）
     llvm::Optional<LinExpr> CallerExpr(const fir::Inst &inst, const LinExpr &calleeExpr, const State &s,
@@ -1108,7 +1122,8 @@ private:
     };
     std::vector<FieldSlot> FieldSlots() const;
     std::vector<std::map<std::string, FieldAt>> fieldOuts;
-    std::vector<bool> heads;    // 循环头（回边的目标），按块下标
+    std::vector<llvm::Optional<int64_t>> outRets;  // 与 fieldOuts 对齐：这条路径返回的常数（SPEC-0079）
+    std::vector<bool> heads;                       // 循环头（回边的目标），按块下标
     bool recording = false;     // 只有最后一遍记访问、调用点、账本（SPEC-0017 §2.1）
     bool edgeFromHead = false;  // 当前 Assume 的边从循环头出发：收窄出来的上界标 loop
     bool resolving = false;  // 正在把解析出的间接调用当直接调用（调用点记录标 ind，SPEC-0058）
@@ -1934,13 +1949,30 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             }
             // 写效应 field：按调用前的状态算新值（SPEC-0073 §2.2），失效之后再写进格
             std::vector<std::pair<CellKey, Value>> fieldWrites;
+            std::vector<std::pair<int64_t, std::pair<CellKey, Value>>> caseWrites;
             if (calleeSummary != nullptr) {
-                fieldWrites = FieldWrites(inst, *calleeSummary, s);
+                fieldWrites = FieldWrites(inst, *calleeSummary, s, &caseWrites);
             }
             if (calleeSummary != nullptr) {
                 ApplyMods(inst, calleeSummary->mods, s);  // 只让被调者可能写的位置失效（mod-ref，SPEC-0045）
                 for (const auto &w : fieldWrites) {
                     s.cells[w.first] = w.second;
+                }
+                // 只在某个返回值下成立的写效应：挂到调用结果的情形上，筛出这个返回值时写回（SPEC-0079）
+                for (const auto &cw : caseWrites) {
+                    auto c = std::find_if(result.i.cases.begin(), result.i.cases.end(),
+                                          [&](const IntCase &x) { return x.value == cw.first; });
+                    if (result.isPtr || c == result.i.cases.end()) {
+                        continue;
+                    }
+                    const CellKey &key = cw.second.first;
+                    CaseWrite w;
+                    w.id = std::get<0>(key);
+                    w.off = std::get<1>(key);
+                    w.size = std::get<2>(key);
+                    w.value = cw.second.second.i.value;
+                    w.atCall = CellText(s, key);
+                    c->writes.push_back(w);
                 }
                 // 出参写回的新对象：实参所指的格强更新成 heap@调用点（SPEC-0053）
                 for (const summary::Eff &e : calleeSummary->effs) {
@@ -3303,6 +3335,14 @@ void Analyzer::RecordReturn(const fir::Inst &inst, const State &s)
         fieldsHere[slot.name] = at;
     }
     fieldOuts.push_back(std::move(fieldsHere));
+    llvm::Optional<int64_t> ret;
+    if (inst.val != fir::kNone) {
+        Value rv = Eval(inst.val, s);
+        if (!rv.isPtr && rv.i.IsConst()) {
+            ret = rv.i.value.Constant();
+        }
+    }
+    outRets.push_back(ret);
 }
 
 std::vector<Analyzer::FieldSlot> Analyzer::FieldSlots() const
@@ -3544,14 +3584,23 @@ Value Analyzer::RetPtrResult(const fir::Inst &inst, const summary::Eff &e, const
     return out;
 }
 
-std::vector<std::pair<CellKey, Value>> Analyzer::FieldWrites(const fir::Inst &inst, const summary::Summary &callee,
-                                                             const State &s)
+std::vector<std::pair<CellKey, Value>> Analyzer::FieldWrites(
+    const fir::Inst &inst, const summary::Summary &callee, const State &s,
+    std::vector<std::pair<int64_t, std::pair<CellKey, Value>>> *conditional)
 {
     std::vector<std::pair<CellKey, Value>> out;
     for (const summary::Eff &e : callee.effs) {
         bool ranged = !e.value && e.range && e.range->size() == 2;  // 几个常数之一（SPEC-0074）
         if ((e.kind != "field" && e.kind != "global") || !e.target || (!e.value && !ranged)) {
             continue;
+        }
+        // 只在某个返回值下成立（SPEC-0079）
+        int64_t when = 0;
+        if (e.when) {
+            llvm::StringRef w = *e.when;
+            if (conditional == nullptr || !w.consume_front("ret == ") || w.getAsInteger(10, when)) {
+                continue;
+            }
         }
         // 要写的格：field → 第 K 个实参所指对象里的字段；global → 本 TU 全局表里同名的整数全局（SPEC-0077）
         PtrVal addr;
@@ -3616,7 +3665,14 @@ std::vector<std::pair<CellKey, Value>> Analyzer::FieldWrites(const fir::Inst &in
                 continue;
             }
         }
-        out.push_back({CellKey(addr.id, addr.off.value.Constant(), size), v});
+        CellKey key(addr.id, addr.off.value.Constant(), size);
+        if (e.when) {
+            if (v.i.kind == IntVal::Kind::Exact) {
+                conditional->push_back({when, {key, v}});
+            }
+            continue;
+        }
+        out.push_back({key, v});
     }
     return out;
 }
@@ -3728,6 +3784,16 @@ bool Analyzer::FilterCases(ExprId e, const IntVal &v, fir::CmpOp op, int64_t k, 
         bool common = llvm::all_of(kept, [&](const IntCase &c) { return llvm::is_contained(c.guards, g); });
         if (common && !EntailsLe0(g, s.guards, env)) {
             AddGuard(s, g);
+        }
+    }
+    // 只在这些返回值下成立的写效应：剩下的情形都写了同一格同一个值、格从调用后没被改过 → 写回（SPEC-0079）
+    for (const CaseWrite &w : kept[0].writes) {
+        bool all = llvm::all_of(kept, [&](const IntCase &c) { return llvm::is_contained(c.writes, w); });
+        CellKey key(w.id, w.off, w.size);
+        if (all && CellText(s, key) == w.atCall) {
+            Value v;
+            v.i = IntVal::Exact(w.value);
+            s.cells[key] = v;
         }
     }
     ExprId cur = e;
@@ -3923,28 +3989,64 @@ std::vector<summary::Eff> Analyzer::Effects() const
             same = same && (!value || *value == v);
             value = v;
         }
-        if (!ok || !value || (!same && !consts)) {
+        bool emitted = false;
+        auto info = [&]() {
+            if (slot.param >= 0) {
+                summary::FieldInfo fi;
+                fi.off = slot.off;
+                fi.size = slot.size;
+                fi.type = fir::TypeText(m, slot.type);
+                fields[slot.name] = fi;
+            }
+        };
+        if (ok && value && (same || consts)) {
+            summary::Eff e;
+            e.kind = slot.param >= 0 ? "field" : "global";  // SPEC-0073 / 0077
+            e.target = slot.name;
+            if (same) {
+                e.value = value->Show();
+            } else {
+                e.range = std::vector<std::string>{std::to_string(lo), std::to_string(hi)};  // SPEC-0074
+            }
+            if (may) {
+                e.may = true;
+            }
+            info();
+            out.push_back(e);
+            emitted = same && !may;
+        }
+        // 无条件规则下没有确切值：按返回常数分组，返回 c 的每条路径都写了同一个确切值 → when: ret == c（SPEC-0079）
+        if (emitted || outRets.size() != fieldOuts.size() ||
+            !llvm::all_of(outRets, [](const llvm::Optional<int64_t> &r) { return r.hasValue(); })) {
             continue;
         }
-        summary::Eff e;
-        e.kind = slot.param >= 0 ? "field" : "global";  // SPEC-0073 / 0077
-        e.target = slot.name;
-        if (same) {
-            e.value = value->Show();
-        } else {
-            e.range = std::vector<std::string>{std::to_string(lo), std::to_string(hi)};  // SPEC-0074
+        std::map<int64_t, llvm::Optional<LinExpr>> groups;
+        std::set<int64_t> broken;
+        for (size_t i = 0; i < fieldOuts.size(); ++i) {
+            int64_t c = *outRets[i];
+            auto it = fieldOuts[i].find(slot.name);
+            if (it == fieldOuts[i].end() || it->second.kind != FieldAt::Written) {
+                broken.insert(c);
+                continue;
+            }
+            llvm::Optional<LinExpr> &g = groups[c];
+            if (g && !(*g == it->second.value)) {
+                broken.insert(c);
+            }
+            g = it->second.value;
         }
-        if (may) {
-            e.may = true;
+        for (const auto &g : groups) {
+            if (broken.count(g.first) != 0 || !g.second) {
+                continue;
+            }
+            summary::Eff e;
+            e.kind = slot.param >= 0 ? "field" : "global";
+            e.target = slot.name;
+            e.value = g.second->Show();
+            e.when = "ret == " + std::to_string(g.first);
+            info();
+            out.push_back(e);
         }
-        if (slot.param >= 0) {
-            summary::FieldInfo info;
-            info.off = slot.off;
-            info.size = slot.size;
-            info.type = fir::TypeText(m, slot.type);
-            fields[slot.name] = info;
-        }
-        out.push_back(e);
     }
     return out;
 }

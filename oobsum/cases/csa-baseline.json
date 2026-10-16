@@ -571,16 +571,16 @@
    "kind": "TP",
    "entry": "Rrc_EncodeSib_TP",
    "pa": "记账",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过"
+   "actual": "DEFINITE",
+   "verdict": "超出预期"
   },
   {
    "case": "LV5-02",
    "kind": "TN",
    "entry": "Rrc_EncodeSib_TN",
    "pa": "记账",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "actual": "SAFE:local_entailed(未报出:safe)",
+   "verdict": "通过"
   },
   {
    "case": "LV5-03",
@@ -1778,17 +1778,8 @@
    "site": "lv5/lv5_02_ctx_init_func.c:70:0",
    "kind": "W",
    "fn": "F:Rrc_EncodeSib_TP",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv5/lv5_02_ctx_init_func.c:57"
-  },
-  {
-   "case": "LV5-02",
-   "site": "lv5/lv5_02_ctx_init_func.c:80:0",
-   "kind": "W",
-   "fn": "F:Rrc_EncodeSib_TN",
-   "label": "suspect",
-   "reason": "entry_unproven",
+   "label": "definite",
+   "reason": "",
    "access": "lv5/lv5_02_ctx_init_func.c:57"
   },
   {

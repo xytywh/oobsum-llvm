@@ -29,13 +29,27 @@
 namespace oobsum {
 namespace interp {
 
+// 这个返回值下被调者写进调用方格里的值（只在某个返回值下成立的写效应，SPEC-0079）
+struct CaseWrite {
+    std::string id;  // 格的基址
+    int64_t off = 0;
+    int64_t size = 0;
+    LinExpr value;       // 写的确切值（调用方的说法）
+    std::string atCall;  // 调用刚结束时这一格的值（空 = 没有这一格）：筛选时还相同才写回
+    bool operator==(const CaseWrite &o) const
+    {
+        return id == o.id && off == o.off && size == o.size && value == o.value && atCall == o.atCall;
+    }
+};
+
 // 值取某个常数时成立的守卫（SPEC-0025 §2.1）
 struct IntCase {
     int64_t value = 0;
-    std::vector<LinExpr> guards;  // 各为 L ≤ 0
+    std::vector<LinExpr> guards;    // 各为 L ≤ 0
+    std::vector<CaseWrite> writes;  // SPEC-0079
     bool operator==(const IntCase &o) const
     {
-        return value == o.value && guards == o.guards;
+        return value == o.value && guards == o.guards && writes == o.writes;
     }
 };
 

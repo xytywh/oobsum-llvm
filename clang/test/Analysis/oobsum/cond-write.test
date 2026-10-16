@@ -1,0 +1,15 @@
+# 只在某个返回值下成立的写效应（oobsum/specs/SPEC-0079）：Init 成功才写长度，调用方在成功分支上按写的值判。
+# 原来只有 may 效应，未初始化结构体的旧值不知道，并出来也不知道 → 记账。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Init$' \
+# RUN:   %S/Inputs/condwrite/c.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}{"kind":"field","target":"p0->ulLen","value":"64","when":"ret == 0"}{{.*}}"fn":"Init"
+CHECK-DAG: c.c:7:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 64 of 'a' (16 bytes) may be accessed
+CHECK-DAG: c.c:8:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 64 of 'a' (64 bytes)
+# 对照：调用后先改了字段再判断 → 用改过的值（p0），不写回 64
+CHECK-DAG: c.c:10:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'a' (16 bytes): up to byte p0 may be accessed
+# 对照：不判断返回值 → 记账
+CHECK-DAG: c.c:12:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within 'a' (16 bytes): up to byte c->ulLen may be accessed

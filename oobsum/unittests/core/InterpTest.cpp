@@ -1427,3 +1427,42 @@ TEST(Interp, GlobalEffect)
     EXPECT_TRUE(
         std::none_of(after.effs.begin(), after.effs.end(), [](const summary::Eff &e) { return e.kind == "global"; }));
 }
+
+TEST(Interp, ConditionalWriteEffect)
+{
+    // SPEC-0079：返回 1 的路径没写、返回 0 的路径写 *pLen = 32 → may 的那条之外另有 field p0->_0 := 32 when ret == 0
+    Builder b;
+    uint32_t len = b.Param("pLen", b.m.Intern(Type::Ptr(b.u32)));
+    uint32_t n = b.Param("n", b.u32);
+    b.f.ret = b.u32;
+    Inst ret0;
+    ret0.op = InstOp::Ret;
+    ret0.val = b.C(0);
+    Inst ret1 = ret0;
+    ret1.val = b.C(1);
+    Block entry;
+    entry.id = 3;
+    entry.succ = {{2, b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(n), b.C(0), false))},
+                  {1, b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(n), b.C(0), false))}};
+    Block w;
+    w.id = 2;
+    w.insts = {b.Store(b.L(len), 4, b.C(32), 3), ret0};
+    w.succ = {{0, kNone}};
+    Block keep;
+    keep.id = 1;
+    keep.insts = {ret1};
+    keep.succ = {{0, kNone}};
+    Block exit;
+    exit.id = 0;
+    b.f.blocks = {entry, w, keep, exit};
+    b.f.entry = 3;
+    b.f.exit = 0;
+    interp::FunctionFacts facts = b.Run();
+    auto cond = std::find_if(facts.effs.begin(), facts.effs.end(),
+                             [](const summary::Eff &e) { return e.kind == "field" && e.when.hasValue(); });
+    ASSERT_TRUE(cond != facts.effs.end());
+    EXPECT_EQ(cond->target.getValueOr(""), "p0->_0");
+    EXPECT_EQ(cond->value.getValueOr(""), "32");
+    EXPECT_EQ(cond->when.getValueOr(""), "ret == 0");
+    EXPECT_FALSE(cond->may.hasValue());
+}
