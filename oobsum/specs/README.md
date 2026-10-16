@@ -111,4 +111,5 @@
 | [SPEC-0077](SPEC-0077-global-effect.md) | 写效应 `global`：被调者写整数全局标量，调用方知道新值 | 已实现 |
 | [SPEC-0078](SPEC-0078-f33-notes.md) | 告警 note 按 F-33：总链 note、每一跳说清做了什么、分配点 | 已实现 |
 | [SPEC-0079](SPEC-0079-conditional-write-effect.md) | 只在某个返回值下成立的写效应（`ret == OK ⇒ pst->ulLen := …`） | 已实现 |
+| [SPEC-0080](SPEC-0080-range-perf.md) | 性能：区间一遍求上下界、不透明项嵌套 ≤ 4 层、全局查表 | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

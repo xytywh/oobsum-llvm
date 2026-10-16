@@ -170,63 +170,95 @@ void SymEnv::AddGuard(const LinExpr &le0, Tag tag)
     }
 }
 
-Limit SymEnv::Bound(const Atom &atom, bool upper) const
+std::pair<Limit, Limit> SymEnv::BoundBoth(const Atom &atom) const
 {
     switch (atom.kind) {
         case Atom::Kind::Ext:
         case Atom::Kind::BExt:  // 字节数：不小于 0（SPEC-0039）
-            return upper ? Limit() : Limit::Of(0, Tag::Type);
+            return {Limit::Of(0, Tag::Type), Limit()};
         case Atom::Kind::Sym:
-            return upper ? Upper(atom.name) : Lower(atom.name);
+            return {Lower(atom.name), Upper(atom.name)};
         case Atom::Kind::Div: {
-            Limit inner = RangeOf(*atom.a, upper);
-            int64_t q = 0;
-            if (!inner.known || !FloorDiv(inner.value, atom.n, q)) {
-                return Limit();
-            }
-            return Limit::Of(q, inner.tag);
+            std::pair<Limit, Limit> inner = RangeBoth(*atom.a);
+            auto div = [&](const Limit &x) {
+                int64_t q = 0;
+                if (!x.known || !FloorDiv(x.value, atom.n, q)) {
+                    return Limit();
+                }
+                return Limit::Of(q, x.tag);
+            };
+            return {div(inner.first), div(inner.second)};
         }
         case Atom::Kind::Mod:
-            return upper ? Limit::Of(atom.n - 1, Tag::Mask) : Limit::Of(0, Tag::Mask);
+            return {Limit::Of(0, Tag::Mask), Limit::Of(atom.n - 1, Tag::Mask)};
         case Atom::Kind::Wrap: {
-            Limit l = RangeOf(*atom.a, false);
-            Limit h = RangeOf(*atom.a, true);
+            std::pair<Limit, Limit> inner = RangeBoth(*atom.a);
+            const Limit &l = inner.first;
+            const Limit &h = inner.second;
             int64_t top = (int64_t(1) << atom.n) - 1;
             if (l.known && l.value >= 0 && h.known && h.value <= top) {
-                return Limit::Of(upper ? h.value : l.value, h.tag);  // 标签都取上界的（同 replay.py）
+                return {Limit::Of(l.value, h.tag), Limit::Of(h.value, h.tag)};  // 标签都取上界的（同 replay.py）
             }
-            return upper ? Limit::Of(top, Tag::Type) : Limit::Of(0, Tag::Type);
+            return {Limit::Of(0, Tag::Type), Limit::Of(top, Tag::Type)};
         }
         case Atom::Kind::Mul: {
-            Limit x = RangeOf(*atom.a, upper);
-            Limit y = RangeOf(*atom.b, upper);
-            int64_t p = 0;
-            if (!x.known || !y.known || llvm::MulOverflow(x.value, y.value, p)) {
-                return Limit();
-            }
-            return Limit::Of(p, x.tag != Tag::None ? x.tag : y.tag);
+            std::pair<Limit, Limit> x = RangeBoth(*atom.a);
+            std::pair<Limit, Limit> y = RangeBoth(*atom.b);
+            auto mul = [](const Limit &a, const Limit &b) {
+                int64_t p = 0;
+                if (!a.known || !b.known || llvm::MulOverflow(a.value, b.value, p)) {
+                    return Limit();
+                }
+                return Limit::Of(p, a.tag != Tag::None ? a.tag : b.tag);
+            };
+            return {mul(x.first, y.first), mul(x.second, y.second)};
         }
     }
-    return Limit();
+    return {Limit(), Limit()};
+}
+
+Limit SymEnv::Bound(const Atom &atom, bool upper) const
+{
+    std::pair<Limit, Limit> both = BoundBoth(atom);
+    return upper ? both.second : both.first;
+}
+
+std::pair<Limit, Limit> SymEnv::RangeBoth(const LinExpr &l) const
+{
+    if (l.IsUnknown()) {
+        return {Limit(), Limit()};
+    }
+    int64_t lo = l.Constant();
+    int64_t hi = l.Constant();
+    bool loOk = true;
+    bool hiOk = true;
+    Tag loTag = Tag::None;
+    Tag hiTag = Tag::None;
+    auto add = [](int64_t c, const Limit &b, int64_t &acc, bool &ok, Tag &tag) {
+        int64_t product = 0;
+        if (!ok || !b.known || llvm::MulOverflow(c, b.value, product) || llvm::AddOverflow(acc, product, acc)) {
+            ok = false;
+            return;
+        }
+        tag = WorseTag(tag, b.tag);
+    };
+    for (const auto &term : l.Terms()) {
+        int64_t c = term.second;
+        std::pair<Limit, Limit> b = BoundBoth(term.first);
+        // 系数为正：下界用原子的下界、上界用上界；为负反过来（同原来的 RangeOf）
+        add(c, c > 0 ? b.first : b.second, lo, loOk, loTag);
+        add(c, c > 0 ? b.second : b.first, hi, hiOk, hiTag);
+        if (!loOk && !hiOk) {
+            break;
+        }
+    }
+    return {loOk ? Limit::Of(lo, loTag) : Limit(), hiOk ? Limit::Of(hi, hiTag) : Limit()};
 }
 
 Limit SymEnv::RangeOf(const LinExpr &l, bool upper) const
 {
-    if (l.IsUnknown()) {
-        return Limit();
-    }
-    int64_t v = l.Constant();
-    Tag tag = Tag::None;
-    for (const auto &term : l.Terms()) {
-        int64_t c = term.second;
-        Limit b = Bound(term.first, c > 0 ? upper : !upper);
-        int64_t product = 0;
-        if (!b.known || llvm::MulOverflow(c, b.value, product) || llvm::AddOverflow(v, product, v)) {
-            return Limit();
-        }
-        tag = WorseTag(tag, b.tag);
-    }
-    return Limit::Of(v, tag);
+    std::pair<Limit, Limit> both = RangeBoth(l);
+    return upper ? both.second : both.first;
 }
 
 bool EntailsLe0(const LinExpr &d, const std::vector<LinExpr> &guards, const SymEnv &env)

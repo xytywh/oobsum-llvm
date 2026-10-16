@@ -34,6 +34,7 @@ struct Atom {
     int64_t n = 0;                     // Div / Mod：除数；Wrap：位数
     std::shared_ptr<const LinExpr> a;  // Div / Mod / Wrap / Mul
     std::shared_ptr<const LinExpr> b;  // Mul
+    int depth = 0;                     // 不透明项的嵌套层数（Sym / Ext 为 0，SPEC-0080）
 
     // 规范排序键（D-21）：组、形参下标、文本
     int group = 0;
@@ -63,6 +64,9 @@ public:
     static LinExpr Ext(llvm::StringRef name);
     static LinExpr BExt(llvm::StringRef name);  // SPEC-0039
     // 不透明项：内层是常数就当场算出来（同 replay.py 的 mk_opaque）；n 为 0 时未知
+    // 不透明项嵌套的上限（同 06- A-13 的深度 ≤ 4）：超过 → 未知（SPEC-0080）
+    static constexpr int kMaxOpaqueDepth = 4;
+    int Depth() const;
     static LinExpr Div(const LinExpr &a, int64_t n);
     static LinExpr Mod(const LinExpr &a, int64_t n);
     static LinExpr Wrap(unsigned bits, const LinExpr &a);

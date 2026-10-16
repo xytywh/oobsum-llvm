@@ -204,3 +204,19 @@ TEST(LinExpr, GoldenFromReplay)
     }
     EXPECT_TRUE(checked >= 100);
 }
+
+TEST(LinExpr, OpaqueDepthCap)
+{
+    // SPEC-0080：不透明项嵌套不超过 4 层，超过 → 未知
+    LinExpr e = L("p0");
+    for (int i = 1; i <= LinExpr::kMaxOpaqueDepth; ++i) {
+        e = LinExpr::Wrap(32, e - LinExpr::Const(1));
+        EXPECT_FALSE(e.IsUnknown());
+        EXPECT_EQ(e.Depth(), i);
+    }
+    EXPECT_TRUE(LinExpr::Wrap(32, e - LinExpr::Const(1)).IsUnknown());
+    EXPECT_TRUE(LinExpr::Div(e, 4).IsUnknown());
+    EXPECT_TRUE(LinExpr::Mul(e, L("p1")).IsUnknown());
+    EXPECT_EQ(L("4*div(p1 + 31, 32)").Depth(), 1);
+    EXPECT_EQ(L("p1 + 3").Depth(), 0);
+}

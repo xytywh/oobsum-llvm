@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace oobsum {
@@ -62,6 +63,9 @@ public:
     Limit Bound(const Atom &atom, bool upper) const;
     // 线性式的上 / 下界；有一项没有界或 int64 溢出 → 没有界
     Limit RangeOf(const LinExpr &l, bool upper) const;
+    // 一遍同时求下界与上界：嵌套的 wrap / div / mul 每层只递归一次（原来分开求，嵌套 N 层是 2^N，SPEC-0080）
+    std::pair<Limit, Limit> BoundBoth(const Atom &atom) const;
+    std::pair<Limit, Limit> RangeBoth(const LinExpr &l) const;
 
 private:
     std::map<std::string, Limit> lo;

@@ -168,3 +168,34 @@ TEST(Range, GoldenFromReplay)
     }
     EXPECT_TRUE(checked >= 50);
 }
+
+TEST(Range, RangeBothMatchesSides)
+{
+    // SPEC-0080：一遍求的上下界与分开求的逐项相同（标签、溢出、嵌套原子都一样）
+    SymEnv env;
+    env.SetTypeRange("p0", 0, 4294967295);
+    env.SetTypeRange("p1", -10, 20);
+    env.AddGuard(L("p0 - 16"), Tag::Check);
+    for (const char *text :
+         {"p0 + 3", "-2*p1 + p0 - 7", "wrap32(p0 - 1)", "wrap32(wrap32(p0 - 1) - 1)", "div(p0 + 31, 32)", "mod(p1, 8)",
+          "4*div(p1 + 31, 32) - p0", "ext(p0) + 1", "p2 + 1", "9223372036854775807*p0"}) {
+        LinExpr e = L(text);
+        std::pair<Limit, Limit> both = env.RangeBoth(e);
+        Limit lo = env.RangeOf(e, false);
+        Limit hi = env.RangeOf(e, true);
+        EXPECT_EQ(both.first.known, lo.known);
+        EXPECT_EQ(both.second.known, hi.known);
+        if (lo.known) {
+            EXPECT_EQ(both.first.value, lo.value);
+            EXPECT_TRUE(both.first.tag == lo.tag);
+        }
+        if (hi.known) {
+            EXPECT_EQ(both.second.value, hi.value);
+            EXPECT_TRUE(both.second.tag == hi.tag);
+        }
+    }
+    // 嵌套 wrap：p0 <= 16 时 wrap32(wrap32(p0 − 1) − 1) 落回类型范围
+    Limit deep = env.RangeOf(L("wrap32(wrap32(p0 - 1) - 1)"), true);
+    EXPECT_TRUE(deep.known);
+    EXPECT_EQ(deep.value, int64_t(4294967295));
+}

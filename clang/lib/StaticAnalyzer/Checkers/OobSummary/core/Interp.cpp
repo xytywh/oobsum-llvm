@@ -1121,6 +1121,37 @@ private:
         fir::TypeId type = fir::kNone;
     };
     std::vector<FieldSlot> FieldSlots() const;
+    mutable llvm::Optional<std::vector<FieldSlot>> slotsCache;  // FieldSlots 只算一次（SPEC-0080）
+    // 格的基址 G<键> → 全局（SPEC-0080：GlobalsAt 只看状态里动过的全局）
+    // 同名的取最后一个（同原来按表顺序找、后面的覆盖前面的）
+    const fir::Global *GlobalOf(const std::string &id) const
+    {
+        IndexGlobals();
+        auto it = globalById.find(id);
+        return it != globalById.end() ? it->second : nullptr;
+    }
+    // g:名字 → 同名的全局（函数内 static 可能与全局同名，都要）
+    const std::vector<const fir::Global *> &GlobalsNamed(const std::string &name) const
+    {
+        static const std::vector<const fir::Global *> none;
+        IndexGlobals();
+        auto it = globalsByName.find(name);
+        return it != globalsByName.end() ? it->second : none;
+    }
+    void IndexGlobals() const
+    {
+        if (indexed) {
+            return;
+        }
+        indexed = true;
+        for (const fir::Global &g : m.globals) {
+            globalById["G" + g.key] = &g;
+            globalsByName["g:" + g.name].push_back(&g);
+        }
+    }
+    mutable bool indexed = false;
+    mutable std::map<std::string, const fir::Global *> globalById;
+    mutable std::map<std::string, std::vector<const fir::Global *>> globalsByName;
     std::vector<std::map<std::string, FieldAt>> fieldOuts;
     std::vector<llvm::Optional<int64_t>> outRets;  // 与 fieldOuts 对齐：这条路径返回的常数（SPEC-0079）
     std::vector<bool> heads;                       // 循环头（回边的目标），按块下标
@@ -1286,12 +1317,7 @@ Value Analyzer::Eval(ExprId e, const State &s)
         }
         case ExprOp::GAddr: {
             v.isPtr = true;
-            const fir::Global *g = nullptr;
-            for (const fir::Global &x2 : m.globals) {
-                if (x2.key == x.text) {
-                    g = &x2;
-                }
-            }
+            const fir::Global *g = GlobalOf("G" + x.text);  // 按键查表（SPEC-0080）
             if (g == nullptr) {
                 v.p = UnknownPtr("unknown_global");
                 return v;
@@ -1507,10 +1533,11 @@ Value Analyzer::LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const 
     }
     // 全局标量：调用过可能写全局的函数、或它可能被改过之后，不是入口值，读成 data（SPEC-0041）
     if (addr.kind == BaseKind::Global && off && *off == 0 && !v.isPtr && !s.called && !Changed(s, addr.id, 0, size)) {
-        for (const fir::Global &g : m.globals) {
+        if (const fir::Global *found = GlobalOf(addr.id)) {
+            const fir::Global &g = *found;
             int64_t gsize = 0;
-            if ("G" + g.key == addr.id && g.type < m.types.size() && m.types[g.type].kind == fir::TypeKind::Int &&
-                TypeSize(m, g.type, gsize) && gsize == size) {
+            if (g.type < m.types.size() && m.types[g.type].kind == fir::TypeKind::Int && TypeSize(m, g.type, gsize) &&
+                gsize == size) {
                 globalTypes["g:" + g.name] = fir::TypeText(m, g.type);
                 v.i = IntVal::Exact(LinExpr::Sym("g:" + g.name));
                 return v;
@@ -1652,8 +1679,9 @@ void Analyzer::ApplyMods(const fir::Inst &inst, const std::vector<std::string> &
             continue;
         }
         if (text.startswith("g:")) {
-            for (const fir::Global &g : m.globals) {
-                if ("g:" + g.name == mod) {
+            for (const fir::Global *gp : GlobalsNamed(mod)) {  // 查表（SPEC-0080）
+                const fir::Global &g = *gp;
+                {
                     std::string id = "G" + g.key;
                     s.writtenAll.insert(id);
                     eraseBase(id, llvm::None);
@@ -2475,12 +2503,31 @@ std::map<std::string, std::string> Analyzer::GlobalsAt(const State &s,
     if (s.called || s.clobbered) {
         out["g:*"] = "?";  // 调用过可能写任何全局的函数 / 内存整个被清
     }
-    for (const fir::Global &g : m.globals) {
+    // 只看状态里动过的全局（格、常数偏移写过、整块写过；SPEC-0080）——called / clobbered 时上面的 g:* 已经兜住其余的
+    std::set<std::string> ids;
+    for (const auto &cell : s.cells) {
+        if (std::get<0>(cell.first).compare(0, 1, "G") == 0) {
+            ids.insert(std::get<0>(cell.first));
+        }
+    }
+    for (const CellKey &w : s.written) {
+        if (std::get<0>(w).compare(0, 1, "G") == 0) {
+            ids.insert(std::get<0>(w));
+        }
+    }
+    for (const std::string &w : s.writtenAll) {
+        if (w.compare(0, 1, "G") == 0) {
+            ids.insert(w);
+        }
+    }
+    for (const std::string &id : ids) {
+        const fir::Global *global = GlobalOf(id);
         int64_t size = 0;
-        if (g.type >= m.types.size() || m.types[g.type].kind != fir::TypeKind::Int || !TypeSize(m, g.type, size)) {
+        if (global == nullptr || global->type >= m.types.size() || m.types[global->type].kind != fir::TypeKind::Int ||
+            !TypeSize(m, global->type, size)) {
             continue;
         }
-        std::string id = "G" + g.key;
+        const fir::Global &g = *global;
         std::string name = "g:" + g.name;
         auto cell = s.cells.find(CellKey(id, 0, size));
         const IntVal *iv = cell != s.cells.end() && !cell->second.isPtr ? &cell->second.i : nullptr;
@@ -3347,6 +3394,9 @@ void Analyzer::RecordReturn(const fir::Inst &inst, const State &s)
 
 std::vector<Analyzer::FieldSlot> Analyzer::FieldSlots() const
 {
+    if (slotsCache) {
+        return *slotsCache;
+    }
     std::vector<FieldSlot> out;
     for (const fir::Local &l : f.locals) {
         if (l.param < 0 || l.type >= m.types.size() || m.types[l.type].kind != fir::TypeKind::Ptr) {
@@ -3372,13 +3422,49 @@ std::vector<Analyzer::FieldSlot> Analyzer::FieldSlots() const
             }
         }
     }
-    // 整数全局标量（写效应 global，SPEC-0077）
-    for (const fir::Global &g : m.globals) {
+    // 整数全局标量（写效应 global，SPEC-0077）：只取本函数直接引用的、与被调者写效应的目标（别的不可能写出确切值，SPEC-0080）
+    std::set<std::string> keys;
+    for (const fir::Expr &x : f.exprs) {
+        if (x.op == ExprOp::GAddr) {
+            keys.insert(x.text);
+        }
+    }
+    std::set<std::string> names;
+    for (const fir::Block &b : f.blocks) {
+        for (const fir::Inst &inst : b.insts) {
+            if (inst.op != fir::InstOp::Call || callees == nullptr) {
+                continue;
+            }
+            auto callee = callees->find(inst.callee);
+            if (callee == callees->end()) {
+                continue;
+            }
+            for (const summary::Eff &e : callee->second.effs) {
+                if (e.kind == "global" && e.target) {
+                    names.insert(*e.target);
+                }
+            }
+        }
+    }
+    std::set<const fir::Global *> picked;
+    for (const std::string &key : keys) {
+        if (const fir::Global *g = GlobalOf("G" + key)) {
+            picked.insert(g);
+        }
+    }
+    for (const std::string &name : names) {
+        for (const fir::Global *g : GlobalsNamed(name)) {
+            picked.insert(g);
+        }
+    }
+    for (const fir::Global &g : m.globals) {  // 按表顺序输出（结果确定）
         int64_t size = 0;
-        if (g.type < m.types.size() && m.types[g.type].kind == fir::TypeKind::Int && TypeSize(m, g.type, size)) {
+        if (picked.count(&g) != 0 && g.type < m.types.size() && m.types[g.type].kind == fir::TypeKind::Int &&
+            TypeSize(m, g.type, size)) {
             out.push_back({"g:" + g.name, "G" + g.key, -1, 0, size, g.type});
         }
     }
+    slotsCache = out;
     return out;
 }
 
@@ -3493,9 +3579,9 @@ llvm::Optional<LinExpr> Analyzer::CallerExpr(const fir::Inst &inst, const LinExp
         if (!llvm::StringRef(x).startswith("g:") || globalTypes.count(x) != 0) {
             continue;
         }
-        for (const fir::Global &g : m.globals) {
-            if ("g:" + g.name == x && g.type < m.types.size() && m.types[g.type].kind == fir::TypeKind::Int) {
-                globalTypes[x] = fir::TypeText(m, g.type);
+        for (const fir::Global *g : GlobalsNamed(x)) {
+            if (g->type < m.types.size() && m.types[g->type].kind == fir::TypeKind::Int) {
+                globalTypes[x] = fir::TypeText(m, g->type);
             }
         }
     }
@@ -3607,10 +3693,10 @@ std::vector<std::pair<CellKey, Value>> Analyzer::FieldWrites(
         int64_t size = 0;
         if (e.kind == "global") {
             const fir::Global *global = nullptr;
-            for (const fir::Global &g : m.globals) {
-                if ("g:" + g.name == *e.target && g.type < m.types.size() &&
-                    m.types[g.type].kind == fir::TypeKind::Int && TypeSize(m, g.type, size)) {
-                    global = &g;
+            for (const fir::Global *g : GlobalsNamed(*e.target)) {
+                if (g->type < m.types.size() && m.types[g->type].kind == fir::TypeKind::Int &&
+                    TypeSize(m, g->type, size)) {
+                    global = g;
                 }
             }
             if (global == nullptr) {
@@ -4073,10 +4159,8 @@ std::map<std::string, summary::ArgValue> Analyzer::ArgFields(const PtrVal &p, co
         const fir::Local *l = f.FindLocal(static_cast<uint32_t>(std::strtoul(p.id.c_str() + 1, nullptr, 10)));
         type = l != nullptr ? l->type : fir::kNone;
     } else if (p.kind == BaseKind::Global && p.id[0] == 'G') {
-        for (const fir::Global &g : m.globals) {
-            if (g.key == p.id.substr(1)) {
-                type = g.type;
-            }
+        if (const fir::Global *g = GlobalOf(p.id)) {
+            type = g->type;
         }
     }
     // 结构体：各字段；整数（或整数数组的第 0 个元素）：伪字段 _0（*pK，SPEC-0071）

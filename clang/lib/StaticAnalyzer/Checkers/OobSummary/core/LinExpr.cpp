@@ -10,6 +10,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/MathExtras.h"
 
+#include <algorithm>
 #include <cctype>
 
 namespace oobsum {
@@ -121,11 +122,21 @@ LinExpr LinExpr::BExt(llvm::StringRef name)
     return OfAtom(atom);
 }
 
+int LinExpr::Depth() const
+{
+    int d = 0;
+    for (const auto &term : Terms()) {
+        d = std::max(d, term.first.depth);
+    }
+    return d;
+}
+
 Atom LinExpr::OpaqueAtom(Atom::Kind kind, const LinExpr &a, const LinExpr *b, int64_t n)
 {
     Atom atom;
     atom.kind = kind;
     atom.n = n;
+    atom.depth = 1 + std::max(a.Depth(), b != nullptr ? b->Depth() : 0);
     atom.a = std::make_shared<const LinExpr>(a);
     if (b != nullptr) {
         atom.b = std::make_shared<const LinExpr>(*b);
@@ -159,6 +170,9 @@ LinExpr LinExpr::Div(const LinExpr &a, int64_t n)
         int64_t q = 0;
         return FloorDiv(a.k, n, q) ? Const(q) : Unknown();
     }
+    if (a.Depth() >= kMaxOpaqueDepth) {
+        return Unknown();  // 嵌套太深（SPEC-0080）
+    }
     return OfAtom(OpaqueAtom(Atom::Kind::Div, a, nullptr, n));
 }
 
@@ -170,6 +184,9 @@ LinExpr LinExpr::Mod(const LinExpr &a, int64_t n)
     if (a.IsConst()) {
         int64_t m = 0;
         return FloorMod(a.k, n, m) ? Const(m) : Unknown();
+    }
+    if (a.Depth() >= kMaxOpaqueDepth) {
+        return Unknown();  // 嵌套太深（SPEC-0080）
     }
     return OfAtom(OpaqueAtom(Atom::Kind::Mod, a, nullptr, n));
 }
@@ -184,6 +201,9 @@ LinExpr LinExpr::Wrap(unsigned bits, const LinExpr &a)
         FloorMod(a.k, int64_t(1) << bits, m);
         return Const(m);
     }
+    if (a.Depth() >= kMaxOpaqueDepth) {
+        return Unknown();  // 嵌套太深（SPEC-0080）
+    }
     return OfAtom(OpaqueAtom(Atom::Kind::Wrap, a, nullptr, bits));
 }
 
@@ -195,6 +215,9 @@ LinExpr LinExpr::Mul(const LinExpr &a, const LinExpr &b)
     if (a.IsConst() && b.IsConst()) {
         int64_t p = 0;
         return llvm::MulOverflow(a.k, b.k, p) ? Unknown() : Const(p);
+    }
+    if (std::max(a.Depth(), b.Depth()) >= kMaxOpaqueDepth) {
+        return Unknown();  // 嵌套太深（SPEC-0080）
     }
     return OfAtom(OpaqueAtom(Atom::Kind::Mul, a, &b, 0));
 }
