@@ -113,4 +113,5 @@
 | [SPEC-0079](SPEC-0079-conditional-write-effect.md) | 只在某个返回值下成立的写效应（`ret == OK ⇒ pst->ulLen := …`） | 已实现 |
 | [SPEC-0080](SPEC-0080-range-perf.md) | 性能：区间一遍求上下界、不透明项嵌套 ≤ 4 层、全局查表 | 已实现 |
 | [SPEC-0081](SPEC-0081-pointer-compare.md) | 同一对象的两个指针比较按偏移收窄（`while (p < pEnd)`） | 已实现 |
+| [SPEC-0082](SPEC-0082-ne-loop-threshold.md) | 循环头 widening 的符号阈值：`!=` 结束的循环（`i != n`、`q != p + n`） | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

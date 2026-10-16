@@ -2324,6 +2324,107 @@ FunctionFacts Analyzer::Run()
         }
     }
 
+    // 循环头上 x != c / x == c 的阈值候选（SPEC-0082）：x 是本循环里被赋值的局部（隔着类型转换也行），头块的指令不赋 x、
+    // 也不赋 c 里用到的局部
+    struct NeBound {
+        uint32_t local;
+        ExprId side;   // 比较里 x 那一边
+        ExprId other;  // c
+    };
+    std::vector<std::vector<NeBound>> neBounds(n);
+    for (size_t t = 0; t < n; ++t) {
+        if (!heads[t]) {
+            continue;
+        }
+        std::set<uint32_t> defined;
+        for (const fir::Inst &inst : f.blocks[t].insts) {
+            if (inst.dst != fir::kNone) {
+                defined.insert(inst.dst);
+            }
+        }
+        for (const fir::Edge &e : f.blocks[t].succ) {
+            ExprId c = e.assume;
+            while (c < f.exprs.size() && f.exprs[c].op == ExprOp::LNot) {
+                c = f.exprs[c].a;
+            }
+            if (c >= f.exprs.size() || f.exprs[c].op != ExprOp::Cmp) {
+                continue;
+            }
+            fir::CmpOp op = static_cast<fir::CmpOp>(f.exprs[c].sub);
+            if (op != fir::CmpOp::Ne && op != fir::CmpOp::Eq) {
+                continue;
+            }
+            for (int k = 0; k < 2; ++k) {
+                ExprId side = k == 0 ? f.exprs[c].a : f.exprs[c].b;
+                ExprId other = k == 0 ? f.exprs[c].b : f.exprs[c].a;
+                ExprId cur = side;
+                while (cur < f.exprs.size() && f.exprs[cur].op == ExprOp::Cast) {
+                    cur = f.exprs[cur].a;
+                }
+                if (other == fir::kNone || cur >= f.exprs.size() || f.exprs[cur].op != ExprOp::Local) {
+                    continue;
+                }
+                uint32_t x = static_cast<uint32_t>(f.exprs[cur].value);
+                std::set<uint32_t> used;
+                CollectLocals(other, used);
+                if (loopVars[t].count(x) != 0 && defined.count(x) == 0 &&
+                    llvm::none_of(used, [&](uint32_t u) { return defined.count(u) != 0; })) {
+                    neBounds[t].push_back({x, side, other});
+                }
+            }
+        }
+    }
+    // widen 去掉了 x 的上（下）界：旧值与这条入边的贡献里 c 是同一个确切值、x 的界在各自的状态下都能证明 ≤ c（≥ c）→ 界取 c。
+    // 只是候选的不变式：下一圈回来证明不了就照常 widen 掉（SPEC-0082）
+    auto neThreshold = [&](size_t t, const State &old, const State &o, State &next) {
+        for (const NeBound &nb : neBounds[t]) {
+            auto it = next.locals.find(nb.local);
+            auto lo = old.locals.find(nb.local);
+            auto ln = o.locals.find(nb.local);
+            if (it == next.locals.end() || lo == old.locals.end() || ln == o.locals.end()) {
+                continue;
+            }
+            const Value &xo = lo->second;
+            const Value &xn = ln->second;
+            if (!(Eval(nb.side, old) == xo) || !(Eval(nb.side, o) == xn)) {
+                continue;  // 类型转换改了值
+            }
+            Value co = Eval(nb.other, old);
+            Value cn = Eval(nb.other, o);
+            Value &v = it->second;
+            if (!(co == cn) || co.isPtr != v.isPtr || xo.isPtr != v.isPtr || xn.isPtr != v.isPtr) {
+                continue;
+            }
+            auto sameBase = [&](const Value &a) { return a.p.kind == v.p.kind && a.p.id == v.p.id; };
+            if (v.isPtr && (v.p.kind == BaseKind::Unknown || !sameBase(xo) || !sameBase(xn) || !sameBase(co))) {
+                continue;
+            }
+            const IntVal &c = v.isPtr ? co.p.off : co.i;
+            const IntVal &io = v.isPtr ? xo.p.off : xo.i;
+            const IntVal &in2 = v.isPtr ? xn.p.off : xn.i;
+            IntVal &w = v.isPtr ? v.p.off : v.i;
+            if (c.kind != IntVal::Kind::Exact || c.value.IsUnknown() || w.kind != IntVal::Kind::Range) {
+                continue;
+            }
+            SymEnv envOld = Env(old);
+            SymEnv envNew = Env(o);
+            Comparer cmpOld{&envOld, &old.guards};
+            Comparer cmpNew{&envNew, &o.guards};
+            llvm::Optional<LinExpr> ho = io.Upper();
+            llvm::Optional<LinExpr> hn = in2.Upper();
+            if (!w.hasHi && ho && hn && ProvablyLe(*ho, c.value, &cmpOld) && ProvablyLe(*hn, c.value, &cmpNew)) {
+                w.hasHi = true;
+                w.hi = c.value;
+            }
+            llvm::Optional<LinExpr> lo2 = io.Lower();
+            llvm::Optional<LinExpr> ln2 = in2.Lower();
+            if (!w.hasLo && lo2 && ln2 && ProvablyLe(c.value, *lo2, &cmpOld) && ProvablyLe(c.value, *ln2, &cmpNew)) {
+                w.hasLo = true;
+                w.lo = c.value;
+            }
+        }
+    };
+
     // 汇合时比较符号界的环境：类型范围 + 两边都成立的守卫（SPEC-0023）
     auto envOf = [&](const std::vector<LinExpr> &guards) {
         State t;
@@ -2357,6 +2458,7 @@ FunctionFacts Analyzer::Run()
             State next = Join(in[t], o, envOf, selfOf);
             if (heads[t] && in[t].reached) {
                 next = WidenState(in[t], next, &loopVars[t]);
+                neThreshold(t, in[t], o, next);  // SPEC-0082
                 // 无符号局部缺的界补成类型范围：真实值本来就在里面，补上后循环条件才收得住（从 1 开始的循环，SPEC-0050）
                 for (uint32_t id : loopVars[t]) {
                     auto it = next.locals.find(id);
@@ -2977,6 +3079,7 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
     }
     static const fir::CmpOp mirror[] = {fir::CmpOp::Eq, fir::CmpOp::Ne, fir::CmpOp::Gt,
                                         fir::CmpOp::Ge, fir::CmpOp::Lt, fir::CmpOp::Le};
+    bool offsets = false;  // 比的是同一对象两个指针的偏移（数学整数，不用查忠实）
     if (va.isPtr || vb.isPtr) {
         // 同一对象的两个指针：比较偏移（越过对象的指针算术是未定义行为，偏移按数学整数，SPEC-0081）；其余不产生信息
         bool sameObject = b != fir::kNone && va.isPtr && vb.isPtr && va.p.kind == vb.p.kind && va.p.id == vb.p.id &&
@@ -2992,35 +3095,25 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
         if (ob.kind == IntVal::Kind::Range && oa.kind == IntVal::Kind::Exact) {
             return NarrowPtr(b, mirror[static_cast<int>(op)], oa.value, s);
         }
-        if (oa.kind == IntVal::Kind::Exact && ob.kind == IntVal::Kind::Exact) {
-            LinExpr d = oa.value - ob.value;
-            if (d.IsConst()) {
-                int64_t k = d.Constant();
-                switch (op) {
-                    case fir::CmpOp::Lt:
-                        return k < 0;
-                    case fir::CmpOp::Le:
-                        return k <= 0;
-                    case fir::CmpOp::Gt:
-                        return k > 0;
-                    case fir::CmpOp::Ge:
-                        return k >= 0;
-                    case fir::CmpOp::Eq:
-                        return k == 0;
-                    case fir::CmpOp::Ne:
-                        return k != 0;
-                }
-            }
+        if (oa.kind != IntVal::Kind::Exact || ob.kind != IntVal::Kind::Exact) {
+            return true;
         }
-        return true;
+        // 两边确切：同整数，按偏移的差推原子（差是常数直接判真假；p != p + n 推出 n >= 1，SPEC-0082）
+        IntVal offA = oa;  // oa / ob 引用着 va / vb，先复制
+        IntVal offB = ob;
+        va = Value();
+        vb = Value();
+        va.i = offA;
+        vb.i = offB;
+        offsets = true;
     }
     // 带情形的值与常数比较：按情形筛选（SPEC-0025 §2.4）
     static const fir::CmpOp swapped[] = {fir::CmpOp::Eq, fir::CmpOp::Ne, fir::CmpOp::Gt,
                                          fir::CmpOp::Ge, fir::CmpOp::Lt, fir::CmpOp::Le};
-    if (!va.i.cases.empty() && vb.i.IsConst()) {
+    if (!offsets && !va.i.cases.empty() && vb.i.IsConst()) {
         return FilterCases(a, va.i, op, vb.i.value.Constant(), s);
     }
-    if (b != fir::kNone && !vb.i.cases.empty() && va.i.IsConst()) {
+    if (!offsets && b != fir::kNone && !vb.i.cases.empty() && va.i.IsConst()) {
         return FilterCases(b, vb.i, swapped[static_cast<int>(op)], va.i.value.Constant(), s);
     }
     SymEnv env = Env(s);
@@ -3033,7 +3126,7 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
         }
         return Faithful(e, v, env) || (large && v.kind == IntVal::Kind::Exact && UpperSound(e, s, env));
     };
-    if (!usable(a, va.i, aLarge) || !usable(b, vb.i, bLarge)) {
+    if (!offsets && (!usable(a, va.i, aLarge) || !usable(b, vb.i, bLarge))) {
         return true;
     }
     static const fir::CmpOp mirrored[] = {fir::CmpOp::Eq, fir::CmpOp::Ne, fir::CmpOp::Gt,

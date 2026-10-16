@@ -1,0 +1,17 @@
+# 循环头 widening 的符号阈值：!= 结束的循环（oobsum/specs/SPEC-0082）。原来上界被 widen 掉，i != n 收不回来，只能记账。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(I1|P2)$' \
+# RUN:   %S/Inputs/neloop/n.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:state] fn I1 b3: p=*p0+0 n=p1 i=[0, p1]:loop (head)
+CHECK-DAG: [oobsum:state] fn I1 b2: p=*p0+0 n=p1 i=[0, p1 - 1]:loop
+CHECK-DAG: [oobsum:state] fn P2 b3: p=*p0+0 n=p1 q=*p0+[0, p1]:loop (head)
+CHECK-DAG: [oobsum:state] fn P2 b2: p=*p0+0 n=p1 q=*p0+[0, p1 - 1]:loop
+CHECK-DAG: n.c:5:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 17 of 'a' (16 bytes) may be accessed; the bound comes from a loop condition
+CHECK-DAG: n.c:6:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+CHECK-DAG: n.c:8:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 17 of 'a' (16 bytes) may be accessed; the bound comes from a loop condition
+CHECK-DAG: n.c:9:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+CHECK-DAG: n.c:11:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove this access is within bounds: the offset is bounded only by its type
+CHECK-DAG: n.c:14:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove this access is within bounds: the offset is bounded only by its type

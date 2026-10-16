@@ -1483,3 +1483,37 @@ TEST(Interp, PointerCompareNarrows)
               b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(p), b.L(e), false)));
     EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=loop at=t.c:7");
 }
+
+TEST(Interp, NeLoopThreshold)
+{
+    // SPEC-0082：for (i = 0; i != n; i++) p[i] = 0; → 头上 i ∈ [0, p1]（符号阈值），体内 [0, p1 − 1]（原来上界被 widen 掉）；
+    // != 端点收窄不推守卫原子（与 < 不同，少一个守卫只是更保守）
+    std::vector<std::string> trace;
+    EXPECT_EQ(ForLoop(
+                  CmpOp::Ne, [](Builder &b, uint32_t n) { return b.L(n); }, &trace),
+              "W have=ext(p0) obj=*p0 end=[1, p1] bound=loop at=t.c:7");
+    bool head = false;
+    for (const std::string &line : trace) {
+        if (line.rfind("b4:", 0) == 0) {
+            head = true;
+            EXPECT_EQ(line, "b4: p=*p0+0 n=p1 i=[0, p1]:loop (head)");
+        }
+        if (line.rfind("b3:", 0) == 0) {
+            EXPECT_EQ(line, "b3: p=*p0+0 n=p1 i=[0, p1 - 1]:loop");
+        }
+    }
+    EXPECT_TRUE(head);
+    // 指针：for (q = p; q != p + n; q++) *q = 0;
+    Builder b;
+    TypeId pu8 = b.m.Intern(Type::Ptr(b.u8));
+    uint32_t p = b.Param("p", pu8);
+    uint32_t n = b.Param("n", b.u32);
+    uint32_t q = b.LocalVar("q", pu8);
+    Loop l;
+    l.entry.insts = {b.Set(q, b.L(p))};
+    l.body.insts = {b.Store(b.L(q), 1, b.C(0), 7)};
+    l.latch.insts = {b.Set(q, b.PAdd(b.L(q), b.C(1)))};
+    ExprId end = b.PAdd(b.L(p), b.L(n));
+    l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(q), end, false)), b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(q), end, false)));
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=loop at=t.c:7");
+}
