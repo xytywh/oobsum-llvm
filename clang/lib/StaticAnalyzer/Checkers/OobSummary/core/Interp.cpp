@@ -14,6 +14,8 @@
 #include "llvm/Support/Path.h"
 
 #include <algorithm>
+#include <cctype>
+#include <cstdlib>
 #include <functional>
 #include <set>
 
@@ -829,6 +831,11 @@ private:
                     const std::vector<LinExpr> &forced);
     void Record(RawAccess a, const State &s, const std::vector<LinExpr> &forced);
     void AddOpen(const std::string &reason, const std::string &at);
+    // 形参所指结构体的字段进函数后改过没有（SPEC-0026 / SPEC-0040）；形参别名（同所指类型的结构体形参，SPEC-0040 §2.2）
+    bool Changed(const State &s, const std::string &id, int64_t off, int64_t size) const;
+    void MarkWritten(State &s, const std::string &id) const;
+    void AliasWritten(State &s, const std::string &id) const;
+    llvm::Optional<uint32_t> PointeeRecord(int param) const;
     // ---- 模型（SPEC-0018）----
     void ApplyAccessModel(const fir::Inst &inst, const models::AccessModel &model, const State &s);
     Value HeapResult(const fir::Inst &inst, const std::string &size, int64_t effDepth, const State &s);
@@ -1130,6 +1137,61 @@ Value Analyzer::Eval(ExprId e, const State &s)
 }
 
 // load 的值：命中格；形参所指结构体的字段 → pi->字段（指针字段 → *pi->字段 的基址）；全局标量 → g:名（A-28）；其余 data
+bool Analyzer::Changed(const State &s, const std::string &id, int64_t off, int64_t size) const
+{
+    return s.clobbered || s.writtenAll.count(id) != 0 || llvm::any_of(s.written, [&](const CellKey &w) {
+               return std::get<0>(w) == id && std::get<1>(w) < off + size && off < std::get<1>(w) + std::get<2>(w);
+           });
+}
+
+// 第 param 个形参所指的结构体（记录号）；不是指向结构体的指针 → None
+llvm::Optional<uint32_t> Analyzer::PointeeRecord(int param) const
+{
+    for (const fir::Local &l : f.locals) {
+        if (l.param != param || l.type >= m.types.size() || m.types[l.type].kind != fir::TypeKind::Ptr) {
+            continue;
+        }
+        fir::TypeId pointee = m.types[l.type].to;
+        if (pointee < m.types.size() && m.types[pointee].kind == fir::TypeKind::Rec) {
+            return m.types[pointee].record;
+        }
+    }
+    return llvm::None;
+}
+
+// 基址 id 整个可能被改：记进 writtenAll，同类型的形参别名也算（SPEC-0040 §2.2）
+void Analyzer::MarkWritten(State &s, const std::string &id) const
+{
+    s.writtenAll.insert(id);
+    AliasWritten(s, id);
+}
+
+// 经形参 pK（或它所指结构体里的成员数组）写：所指结构体类型相同的其它形参 pJ 可能就是同一个对象——清掉它的格、记进 writtenAll。
+// 只看结构体形参（char / void 缓冲区的写不算，SPEC-0040 §2 的取舍）
+void Analyzer::AliasWritten(State &s, const std::string &id) const
+{
+    if (id.size() < 2 || id[0] != 'P' || !std::isdigit(static_cast<unsigned char>(id[1]))) {
+        return;  // 不是形参（PP… 是形参结构体里的指针字段所指的对象，不算）
+    }
+    int k = static_cast<int>(std::strtol(id.c_str() + 1, nullptr, 10));
+    llvm::Optional<uint32_t> record = PointeeRecord(k);
+    if (!record) {
+        return;
+    }
+    for (const fir::Local &l : f.locals) {
+        if (l.param < 0 || l.param == k || PointeeRecord(l.param) != record) {
+            continue;
+        }
+        std::string other = "P" + std::to_string(l.param);
+        for (auto it = s.cells.begin(); it != s.cells.end();) {
+            llvm::StringRef base = std::get<0>(it->first);
+            bool same = base == other || base.startswith(other + ".");
+            it = same ? s.cells.erase(it) : std::next(it);
+        }
+        s.writtenAll.insert(other);
+    }
+}
+
 Value Analyzer::LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const State &s) const
 {
     Value v;
@@ -1144,8 +1206,8 @@ Value Analyzer::LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const 
             return it->second;
         }
     }
-    if (addr.kind == BaseKind::Param && off) {
-        // 形参的类型 → 所指的记录 → 这个偏移处的字段
+    if (addr.kind == BaseKind::Param && off && !Changed(s, addr.id, *off, size)) {
+        // 形参的类型 → 所指的记录 → 这个偏移处的字段。进函数后改过的不是入口值，读成 data（SPEC-0040 §2.1）
         int param = std::atoi(addr.obj.c_str() + 2);  // "*p0"
         for (const fir::Local &l : f.locals) {
             if (l.param != param || l.type >= m.types.size() || m.types[l.type].kind != fir::TypeKind::Ptr) {
@@ -1412,8 +1474,9 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             }
             if (addr.off.IsConst()) {
                 s.written.insert(CellKey(addr.id, addr.off.value.Constant(), inst.size));
+                AliasWritten(s, addr.id);  // 同类型的形参可能就是这个对象（SPEC-0040 §2.2）
             } else {
-                s.writtenAll.insert(addr.id);
+                MarkWritten(s, addr.id);
             }
             // 失效同一基址上的格：常数偏移时只失效与 [off, off + size) 重叠的（SPEC-0026），再强更新；偏移不定时整个基址
             bool exact = addr.off.IsConst();
@@ -1484,7 +1547,7 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                     if (v.p.kind == BaseKind::Unknown) {
                         s.clobbered = true;
                     } else {
-                        s.writtenAll.insert(v.p.id);
+                        MarkWritten(s, v.p.id);
                     }
                 }
             }
@@ -2665,10 +2728,7 @@ std::map<std::string, summary::ArgValue> Analyzer::ArgFields(const PtrVal &p, co
             continue;  // 数组、嵌套结构体不写
         }
         // 别名：没改过的字段照旧按别名代换成入口值；改过的写当前值，不知道当前值就写成未知
-        bool changed = s.clobbered || s.writtenAll.count(p.id) != 0 || llvm::any_of(s.written, [&](const CellKey &w) {
-                           return std::get<0>(w) == p.id && std::get<1>(w) < field.off + size &&
-                                  field.off < std::get<1>(w) + std::get<2>(w);
-                       });
+        bool changed = Changed(s, p.id, field.off, size);
         if (alias && !changed) {
             continue;
         }
