@@ -98,6 +98,17 @@ Map BuildMap(const Call &call)
             out.m.sym[p] = P(arg.expr);
         }
     }
+    // 调用前已经不是入口值的全局（SPEC-0064）：确切值代进去，不知道的改名成非接口符号
+    if (call.gvals) {
+        for (const auto &entry : *call.gvals) {
+            if (entry.first == "g:*") {
+                out.m.poisonGlobals = true;
+            } else {
+                out.m.sym[entry.first] =
+                    entry.second == "?" ? LinExpr::Sym("_unmapped:" + entry.first) : P(entry.second);
+            }
+        }
+    }
     return out;
 }
 
@@ -492,7 +503,9 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
         return o;
     }
     o.outcome = "open";
-    o.reason = "entry_unproven";
+    // 末端里有调用点上值不知道的全局（调用前改过，SPEC-0064）：global_value；其余照旧
+    o.reason = (o.end2Hi.Show() + " " + o.end2Lo.Show()).find("_unmapped:g:") != std::string::npos ? "global_value"
+                                                                                                   : "entry_unproven";
     o.why = "含调用方局部且没有界";
     return o;
 }

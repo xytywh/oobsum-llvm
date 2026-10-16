@@ -681,7 +681,8 @@ LinExpr Substitute(const LinExpr &e, const Substitution &m)
                 piece = a.kind == Atom::Kind::Sym   ? LinExpr::Sym(renamed)
                         : a.kind == Atom::Kind::Ext ? LinExpr::Ext(renamed)
                                                     : LinExpr::BExt(renamed);
-            } else if (m.poison && IsCalleeIface(a.name)) {
+            } else if ((m.poison && IsCalleeIface(a.name)) ||
+                       (m.poisonGlobals && a.kind == Atom::Kind::Sym && a.name.compare(0, 2, "g:") == 0)) {
                 std::string text = a.kind == Atom::Kind::Sym   ? a.name
                                    : a.kind == Atom::Kind::Ext ? "ext(" + a.name + ")"
                                                                : "bext(" + a.name + ")";

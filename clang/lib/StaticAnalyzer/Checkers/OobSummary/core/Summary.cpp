@@ -230,7 +230,7 @@ private:
         if (o.get(key) == nullptr) {
             return true;
         }
-        T value;
+        T value{};  // 值初始化：T 是 bool 时 GCC 的 -Wmaybe-uninitialized
         if (!Key(o, key, value, read)) {
             return false;
         }
@@ -432,8 +432,8 @@ bool Reader::ReadResult(const Value &v, Result &r)
 
 bool Reader::ReadCall(const Value &v, Call &c)
 {
-    const Object *o =
-        Obj(v, {"site", "callee", "args", "results"}, {"model", "locals", "guards", "callee_key", "alt", "ind"});
+    const Object *o = Obj(v, {"site", "callee", "args", "results"},
+                          {"model", "locals", "guards", "callee_key", "alt", "ind", "gvals"});
     llvm::Optional<bool> alt;  // SPEC-0058
     llvm::Optional<bool> ind;
     if (o != nullptr && (!OptKey(*o, "alt", alt, OOBSUM_M(Bool)) || !OptKey(*o, "ind", ind, OOBSUM_M(Bool)))) {
@@ -460,6 +460,22 @@ bool Reader::ReadCall(const Value &v, Call &c)
         }
         return true;
     };
+    auto gvals = [&](const Value &x, std::map<std::string, std::string> &y) {  // SPEC-0064
+        const Object *go = x.getAsObject();
+        if (go == nullptr) {
+            return Fail("expected an object");
+        }
+        for (const auto &entry : *go) {
+            std::string value;
+            bool ok = In(entry.first,
+                         [&] { return Str(entry.second, value) && (value == "?" || Expr(entry.second, value)); });
+            if (!ok) {
+                return false;
+            }
+            y[entry.first.str()] = value;
+        }
+        return true;
+    };
     auto guards = [&](const Value &x, std::vector<CallGuard> &y) {
         return List(x, y, [&](const Value &g, CallGuard &out) {
             const Object *go = Obj(g, {"cond", "bound"}, {});
@@ -478,6 +494,7 @@ bool Reader::ReadCall(const Value &v, Call &c)
                               [&](const Value &x, ArgValue &y) { return ReadArg(x, y, true); });
               }) &&
            OptKey(*o, "locals", c.locals, locals) && OptKey(*o, "guards", c.guards, guards) &&
+           OptKey(*o, "gvals", c.gvals, gvals) &&
            In("results", [&] { return List(*o->get("results"), c.results, OOBSUM_M(ReadResult)); });
 }
 
@@ -799,6 +816,13 @@ Value SummaryToJson(const Summary &s)
                 g.push_back(Object{{"cond", x.cond}, {"bound", x.bound}});
             }
             o["guards"] = std::move(g);
+        }
+        if (c.gvals) {
+            Object g;
+            for (const auto &entry : *c.gvals) {
+                g[entry.first] = entry.second;
+            }
+            o["gvals"] = std::move(g);
         }
         calls.push_back(std::move(o));
     }

@@ -213,3 +213,27 @@ TEST(Summary, ModsRoundTrip)
     EXPECT_EQ(s.mods[2], "p0+4:4");
     EXPECT_EQ(Print(SummaryToJson(s)), Print(in));
 }
+
+TEST(Summary, GvalsRoundTrip)
+{
+    // 调用点记录的 gvals（SPEC-0064）：值是表达式或 "?"；读写往返；坏表达式报错
+    Summary s;
+    s.fn = "Top";
+    s.key = "F:Top";
+    s.loc = "t.c:1";
+    Call c;
+    c.site = "t.c:2";
+    c.callee = "Fill";
+    c.gvals = std::map<std::string, std::string>{{"g:*", "?"}, {"g:g_ulLen", "p0 + 4"}, {"g:g_ulCnt", "?"}};
+    s.calls.push_back(c);
+    llvm::json::Value out = SummaryToJson(s);
+    Summary back;
+    std::string error;
+    ASSERT_TRUE(ReadSummary(out, back, error));
+    ASSERT_TRUE(back.calls.size() == 1 && back.calls[0].gvals.hasValue());
+    EXPECT_EQ(back.calls[0].gvals->at("g:g_ulLen"), "p0 + 4");
+    EXPECT_EQ(back.calls[0].gvals->at("g:*"), "?");
+    EXPECT_EQ(Print(SummaryToJson(back)), Print(out));
+    out.getAsObject()->getArray("calls")->front().getAsObject()->getObject("gvals")->insert({"g:bad", "p0 +"});
+    EXPECT_FALSE(ReadSummary(out, back, error));
+}

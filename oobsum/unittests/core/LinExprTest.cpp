@@ -174,6 +174,11 @@ TEST(LinExpr, SubstitutePoison)
     EXPECT_EQ(Substitute(L("p0->ulLen"), m).Show(), "_unmapped:p0->ulLen");
     EXPECT_EQ(Substitute(L("bext(p3) + p3"), m).Show(), "_unmapped:bext(p3) + _unmapped:p3");  // 空实参
     EXPECT_EQ(Substitute(L("wrap32(p3 - 1)"), m).Show(), "wrap32(_unmapped:p3 - 1)");  // 不透明项里的也改
+    // 调用前任何全局都可能改过（SPEC-0064）：表里没有的 g:… 也改名，表里有的按表
+    m.sym["g:ulKnown"] = L("100");
+    m.poisonGlobals = true;
+    EXPECT_EQ(Substitute(L("g:ulCnt + g:ulKnown"), m).Show(), "_unmapped:g:ulCnt + 100");
+    m.poisonGlobals = false;
     m.poison = false;
     EXPECT_EQ(Substitute(L("ext(p0->pucRes) + p3"), m).Show(), "p3 + ext(p0->pucRes)");  // 关着时照旧
 }

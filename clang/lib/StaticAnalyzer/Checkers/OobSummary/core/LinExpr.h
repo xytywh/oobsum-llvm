@@ -128,6 +128,7 @@ struct Substitution {
     // 调用点代换：表里没有、也不是别名的被调者接口符号（p<i>、p<i>->f 及其 ext / bext）改名成 _unmapped:<原文>，
     // 不能当成调用方的同名符号（SPEC-0063）
     bool poison = false;
+    bool poisonGlobals = false;  // 表里没有的 g:… 也改名（调用前任何全局都可能改过，SPEC-0064）
 };
 LinExpr Substitute(const LinExpr &e, const Substitution &m);
 

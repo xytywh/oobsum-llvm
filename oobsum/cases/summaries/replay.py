@@ -315,7 +315,8 @@ def subst(l, m):
         elif a[0] in ('ext', 'bext') and '->' in a[1] and a[1].split('->', 1)[0] in m.get('__alias__', {}):
             base, rest = a[1].split('->', 1)
             out = out + Lin(0, {(a[0], m['__alias__'][base] + '->' + rest): c})
-        elif m.get('__poison__') and a[0] in ('s', 'ext', 'bext') and re.match(r'p\d+($|->)', a[1]):
+        elif (m.get('__poison__') and a[0] in ('s', 'ext', 'bext') and re.match(r'p\d+($|->)', a[1])) or \
+                (m.get('__poison_g__') and a[0] == 's' and a[1].startswith('g:')):
             text = a[1] if a[0] == 's' else '%s(%s)' % a     # SPEC-0063：改名成非接口符号
             out = out + Lin(0, {('s', '_unmapped:' + text): c})
         elif a[0] in ('div', 'mod'):
@@ -730,6 +731,11 @@ def build_map(call, callee):
             m[p] = P(arg)
     m['__alias__'] = alias
     m['__poison__'] = True  # 表里没有的被调者符号不能当成调用方的（SPEC-0063）
+    for g, v in call.get('gvals', {}).items():  # 调用前已经不是入口值的全局（SPEC-0064）
+        if g == 'g:*':
+            m['__poison_g__'] = True
+        else:
+            m[g] = Lin(0, {('s', '_unmapped:' + g): 1}) if v == '?' else P(v)
     return m, effd
 
 
@@ -879,7 +885,9 @@ def classify(req, call, caller, callee, env_guards):
     if all(is_iface(a) for a in list(dhi.t) + list(dlo.t)):
         new_guards = [g for g in live + ne if all(is_iface(a) for a in g.t)]
         return dict(base, outcome='up', guards2=new_guards)
-    return dict(base, outcome='open', reason='entry_unproven', why='含调用方局部且没有界')
+    # 末端里有调用点上值不知道的全局（调用前改过，SPEC-0064）：global_value
+    unknown_g = any(a[0] == 's' and a[1].startswith('_unmapped:g:') for a in list(ehi2.t) + list(elo2.t))
+    return dict(base, outcome='open', reason='global_value' if unknown_g else 'entry_unproven', why='含调用方局部且没有界')
 
 
 def subst_cond(s, m):

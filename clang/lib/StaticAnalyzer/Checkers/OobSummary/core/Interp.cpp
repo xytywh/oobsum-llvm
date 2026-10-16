@@ -1004,6 +1004,8 @@ private:
     std::vector<summary::Req> Merge() const;
     summary::Req ToReq(const RawAccess &a, size_t number) const;
     void RecordCall(const fir::Inst &inst, const State &s, bool alt = false);
+    // 调用点上已经不是入口值的整数全局（调用点记录的 gvals，SPEC-0064）
+    std::map<std::string, std::string> GlobalsAt(const State &s) const;
     // 没有摘要可用的被调者：保守失效（清格、指针实参整块、可能写全局，SPEC-0026 / 0041 / 0045）
     void Clobber(const fir::Inst &inst, models::Kind kind, llvm::StringRef name, State &s);
     // 局部函数指针（S9.1，06- A-60 ①，SPEC-0058）：只被赋过函数地址常量的局部 → 可能指向的函数
@@ -2274,6 +2276,32 @@ void Analyzer::Clobber(const fir::Inst &inst, models::Kind kind, llvm::StringRef
     }
 }
 
+std::map<std::string, std::string> Analyzer::GlobalsAt(const State &s) const
+{
+    std::map<std::string, std::string> out;
+    if (s.called || s.clobbered) {
+        out["g:*"] = "?";  // 调用过可能写任何全局的函数 / 内存整个被清
+    }
+    for (const fir::Global &g : m.globals) {
+        int64_t size = 0;
+        if (g.type >= m.types.size() || m.types[g.type].kind != fir::TypeKind::Int || !TypeSize(m, g.type, size)) {
+            continue;
+        }
+        std::string id = "G" + g.key;
+        std::string name = "g:" + g.name;
+        auto cell = s.cells.find(CellKey(id, 0, size));
+        if (cell != s.cells.end() && !cell->second.isPtr && cell->second.i.kind == IntVal::Kind::Exact &&
+            !cell->second.i.value.IsUnknown()) {
+            if (cell->second.i.value.Show() != name) {
+                out[name] = cell->second.i.value.Show();  // 本函数写过的确切值
+            }
+        } else if (Changed(s, id, 0, size)) {
+            out[name] = "?";
+        }
+    }
+    return out;
+}
+
 void Analyzer::ResolveFnLocals()
 {
     // 局部的全部赋值（set）都是函数地址常量、空指针或已解析的局部（可隔着类型转换）才解析（流不敏感，可靠）；
@@ -2425,6 +2453,11 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s, bool alt)
     bool pure = kind == models::Kind::Pure;
     if (kind != models::Kind::None) {
         call.model = models::KindName(kind).str();
+    } else {
+        std::map<std::string, std::string> globals = GlobalsAt(s);  // 调用前改过的全局（SPEC-0064）
+        if (!globals.empty()) {
+            call.gvals = std::move(globals);
+        }
     }
     for (size_t k = 0; k < inst.args.size(); ++k) {
         Value v = Eval(inst.args[k], s);
@@ -3160,12 +3193,26 @@ IntVal Analyzer::CondResult(const fir::Inst &inst, const std::vector<summary::Ef
                 sub.sym["p" + std::to_string(k)] = v.value;
             }
         }
+        // 调用前改过的全局：确切值代进去，不知道的 → 返回值未知（SPEC-0064 §2.3）
+        for (const auto &entry : GlobalsAt(s)) {
+            if (entry.first == "g:*") {
+                sub.poisonGlobals = true;
+                continue;
+            }
+            LinExpr value;
+            std::string bad;
+            sub.sym[entry.first] = entry.second != "?" && ParseLin(entry.second, value, bad)
+                                       ? value
+                                       : LinExpr::Sym("_unmapped:" + entry.first);
+        }
         LinExpr a = Substitute(el, sub);
         LinExpr b = Substitute(eh, sub);
         std::set<std::string> syms;
         CollectSyms(a, syms);
         CollectSyms(b, syms);
-        bool leaked = llvm::any_of(syms, [](const std::string &x) { return ParamIndexOf(x) >= 0; });
+        bool leaked = llvm::any_of(syms, [](const std::string &x) {
+            return ParamIndexOf(x) >= 0 || llvm::StringRef(x).startswith("_unmapped:");
+        });
         if (a.IsUnknown() || b.IsUnknown() || leaked) {
             return IntVal::Top("call");
         }

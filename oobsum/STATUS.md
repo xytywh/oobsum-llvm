@@ -111,6 +111,8 @@
       lit `callee-writes.test` 守住"被调者改了字段 / 全局后不再用旧值证明安全"（做 mod-ref 之前的保守做法）。
 - [x] **S5b-1 `MaxBlocks`**（SPEC-0037）：CFG 块数超过 `MaxBlocks`（默认 5000）的函数不降级函数体（`cfg_too_large`），建不出 CFG 的（`no_cfg`，原来悄悄当成空函数）同样
       `skipped:…`；`partial:*` / `skipped:*` 的函数都在声明处报 SUSPECT `unanalyzed:<后缀>`。
+- [x] **调用前改过的全局**（SPEC-0064）：被调者 Req 里的 `g:K` 原来代成调用方**入口**的值——探针里先 `g_ulLen = 100`（或经 `SetLen(100)`）再调 `Fill(a)`，
+      被入口守卫 `g_ulLen <= 16` **判成 SAFE（错误）**。现在调用点记录带 `gvals`（确切值 / `?` / `g:*`），代换按它；不知道时记 `global_value`。`run.py csa` 与基线相同。
 - [x] **代换里没映射的被调者符号**（SPEC-0063）：原来原样保留、被当成调用方的同名形参符号继续上传——探针里经外部函数拿到的 `st.pucRes` 被套上上层
       `outer.pucRes` 的 128 字节，**判成 SAFE（错误）**。现在改名成非接口符号 `_unmapped:…`，对象大小里有它时记 `untracked_pointer`。
       `run.py csa` 回退 0（LV5-02、LV10-05 的同一条 SUSPECT 从入口声明处挪到调用点）。

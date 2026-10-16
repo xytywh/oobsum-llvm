@@ -486,7 +486,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 `ret_cond`（`when: "ret == c"`、`then: [条件…]`，至多 4 条）、`out_new`〔SPEC-0053：`target: "pK"`、`size`、`maybe_null`、`eff_depth`，每条返回路径都把同一个新对象写进 `*pK` 时记；SPEC-0061：`target` 也可以是 `pK->f`（写进所指结构体的指针字段）〕 / `out_int`、`field`（`target: "p0->ulUsed"`、`value`）、`global`、`invalidate`。
 `doc.via` 记效果是从哪个分配器 / 封装传上来的（只给人看）。
 
-**D-25 调用点记录**〔由 SPEC-0015、SPEC-0027、SPEC-0035、SPEC-0039 修订：成员数组实参加 `parent: {obj, have}`，`results[]` 的外层对象那一条标 `parent: true`；指针实参加 `back`（指针前面的字节数）〕 `calls[]`：`site`、`callee`、`model`（`access` / `alloc` / `pure` / `unknown`，被调者是模型或未知时）、
+**D-25 调用点记录**〔由 SPEC-0015、SPEC-0027、SPEC-0035、SPEC-0039 修订；SPEC-0058 加 `alt` / `ind`；SPEC-0064 加 `gvals`（调用前已经不是入口值的整数全局）。成员数组实参加 `parent: {obj, have}`，`results[]` 的外层对象那一条标 `parent: true`；指针实参加 `back`（指针前面的字节数）〕 `calls[]`：`site`、`callee`、`model`（`access` / `alloc` / `pure` / `unknown`，被调者是模型或未知时）、
 `args`（整数实参写表达式；指针实参写 `{obj, have, alias?, fields?, eff_depth?}`——指向哪个对象、从这个指针起还剩多少字节、
 就是调用方的哪个形参、栈帧里记着的字段值；与越界无关的写 `null`）、`locals`（`{名字: {range: [lo, hi], bound}}`）、
 `guards`（`[{cond, bound}]`）、`results`——被调者每条 Req / Eff 在这里的结局，全部结构化：
@@ -622,7 +622,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | 步 | 编号 | 规则 |
 |---|---|---|
 | ① 取摘要 | A-60 | 直接调用 → 求解阶段已算好的摘要（SCC 逆拓扑序保证被调者先算）或模型；间接调用 → 被调表达式是定义式为 `faddr` 常量的局部时当直接调用（S9.1 尽力；多个目标时每个一条 `alt` 记录、只判 L2，由 SPEC-0058 修订），否则记账 `fptr` |
-| ② 代换表 | A-61 | `p<i> ↦` 实参的值与符号形；`ext(p<i>) ↦ have(实参指针)`；`p<i>->字段 ↦` 调用方在（实参 base，实参偏移 + o，s）处的格值——实参 base 是调用方形参时改写成调用方的字段符号（路径加一层，超过两次解引用则未知）；`g:K ↦ g:K`〔由 SPEC-0063 修订：表里没有、也不是别名的被调者符号改名成非接口符号 `_unmapped:…`，不能当成调用方的同名符号〕 |
+| ② 代换表 | A-61 | `p<i> ↦` 实参的值与符号形；`ext(p<i>) ↦ have(实参指针)`；`p<i>->字段 ↦` 调用方在（实参 base，实参偏移 + o，s）处的格值——实参 base 是调用方形参时改写成调用方的字段符号（路径加一层，超过两次解引用则未知）；`g:K ↦ g:K`〔由 SPEC-0063 修订：表里没有、也不是别名的被调者符号改名成非接口符号 `_unmapped:…`，不能当成调用方的同名符号；由 SPEC-0064 修订：调用点记录的 `gvals` 里有的全局按它（确切值 / 不知道），有 `g:*` 时没写的全局都不知道〕 |
 | ③ 代换并判定 | A-62 〔由 SPEC-0049 修订：调用方局部换成区间时也进入 `div` / `mod` / `wrap`〕 | 每条 Req：代换 `have` / `lo` / `hi` / `size` / 守卫，按 §6.4 第 2–6 步判定：安全 / L1 / L2 / 上传（`depth + 1`，`path` 前加本调用点，`eff_depth` 取所用值的 `via` 最大值）/ 记账。守卫代换后为假 → 这次调用不会走到访问 → 安全；守卫判不了且含调用方局部 → **不报**（避免误报），记账 `entry_unproven` |
 | ④ 效果 | A-63〔由 SPEC-0052 修订：被调者返回"同一个新对象 + 常数偏移 k"也记 `ret_new`，大小 `S − k`〕 | `ret_new` → 结果为 `Alloc(调用点, 代换后的大小)`、`via + 1`；`ret_ptr` / `ret_int` → 代换后的值、`src` 加 `ret`；`out_*` / `field` → 写调用方的格；`invalidate` → 失效调用方相应的格；`global` → P0 只失效调用方对该全局的缓存 |
 | ⑤ 条件效应 | A-64 | `ret_cond` 挂在接收返回值的局部上；之后在该局部上的 `assume` 选中 `ret == c` 那一侧时，把代换后的原子加入守卫并收窄实参对应的局部（LV4-06 `if (Check(id) != OK) return;`） |

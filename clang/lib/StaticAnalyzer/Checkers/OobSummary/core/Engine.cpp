@@ -84,9 +84,19 @@ std::string SizeText(const std::string &have)
 
 }  // namespace
 
-std::string SuspectMessage(const std::string &kind, int64_t depth, const std::string &object, const std::string &have,
-                           const std::string &endHi, const std::string &dir)
+// 调用点上不知道的符号（SPEC-0063 / 0064）显示时去掉内部前缀
+std::string Readable(std::string text)
 {
+    for (size_t at = text.find("_unmapped:"); at != std::string::npos; at = text.find("_unmapped:", at)) {
+        text.erase(at, 10);
+    }
+    return text;
+}
+
+std::string SuspectMessage(const std::string &kind, int64_t depth, const std::string &object, const std::string &have,
+                           const std::string &rawEndHi, const std::string &dir)
+{
+    std::string endHi = Readable(rawEndHi);
     std::string levels = depth > 0 ? " through a " + std::to_string(depth) + "-level call chain" : "";
     if (!dir.empty()) {  // 负偏移（SPEC-0039 §2.3）
         return "Cannot prove the " + Word(kind) + levels + " stays within " + object + " (" + SizeText(have) +
