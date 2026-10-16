@@ -1041,8 +1041,10 @@ private:
     bool AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s);
     bool Narrow(ExprId e, fir::CmpOp op, const LinExpr &c, State &s);
     // 按比较收窄一个区间（Narrow 与 NarrowPtr 共用，SPEC-0081）：收成空 → false；changed：有没有收窄
-    bool NarrowRange(const IntVal &v, fir::CmpOp op, const LinExpr &c, const State &s, IntVal &out, bool &changed);
-    bool NarrowPtr(ExprId e, fir::CmpOp op, const LinExpr &c, State &s);
+    // coarse：收窄出的上界不当代码给出的界（标 widen，SPEC-0083）
+    bool NarrowRange(const IntVal &v, fir::CmpOp op, const LinExpr &c, const State &s, IntVal &out, bool &changed,
+                     bool coarse = false);
+    bool NarrowPtr(ExprId e, fir::CmpOp op, const LinExpr &c, State &s, bool coarse);
     uint32_t WrittenLocal(ExprId e, const State &s);
     static void AddGuard(State &s, const LinExpr &le0);
     void SetLocal(State &s, uint32_t dst, Value v) const
@@ -3089,11 +3091,20 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
         }
         const IntVal &oa = va.p.off;
         const IntVal &ob = vb.p.off;
+        // 被收窄的指针局部指向的类型宽于 1 字节（或不知道）：它按元素大小走，按字节收窄的上界比真实的大到"元素大小 − 1"，
+        // 不当代码给出的界（SPEC-0083）
+        auto coarse = [&](ExprId e) {
+            uint32_t local = WrittenLocal(e, s);
+            const fir::Type *type = local != fir::kNone ? LocalType(local) : nullptr;
+            int64_t size = 0;
+            return type == nullptr || type->kind != fir::TypeKind::Ptr || type->to >= m.types.size() ||
+                   !TypeSize(m, type->to, size) || size != 1;
+        };
         if (oa.kind == IntVal::Kind::Range && ob.kind == IntVal::Kind::Exact) {
-            return NarrowPtr(a, op, ob.value, s);
+            return NarrowPtr(a, op, ob.value, s, coarse(a));
         }
         if (ob.kind == IntVal::Kind::Range && oa.kind == IntVal::Kind::Exact) {
-            return NarrowPtr(b, mirror[static_cast<int>(op)], oa.value, s);
+            return NarrowPtr(b, mirror[static_cast<int>(op)], oa.value, s, coarse(b));
         }
         if (oa.kind != IntVal::Kind::Exact || ob.kind != IntVal::Kind::Exact) {
             return true;
@@ -3205,7 +3216,8 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
 }
 
 // e op c，e 的值是区间：收窄（e 是局部、或保值的类型转换下的局部时写回）；区间为空 → 不可达
-bool Analyzer::NarrowRange(const IntVal &v, fir::CmpOp op, const LinExpr &c, const State &s, IntVal &out, bool &changed)
+bool Analyzer::NarrowRange(const IntVal &v, fir::CmpOp op, const LinExpr &c, const State &s, IntVal &out, bool &changed,
+                           bool coarse)
 {
     out = v;
     changed = false;
@@ -3275,8 +3287,8 @@ bool Analyzer::NarrowRange(const IntVal &v, fir::CmpOp op, const LinExpr &c, con
         // 标签说的是上界的来源（F-12 只看上界，同 replay.py）：上界被代码里的检查收窄 → check，循环头上的条件 → loop
         // （SPEC-0017 §2.2）；只收窄了下界 → 原标签不变
         bool hiNarrowed = h && (!hi || !(*h == *hi));
-        Tag by = edgeFromHead ? Tag::Loop : Tag::Check;
-        Tag tag = !hiNarrowed ? v.tag : (IsCodeTag(v.tag) ? WorseTag(v.tag, by) : by);
+        Tag by = coarse ? Tag::Widen : edgeFromHead ? Tag::Loop : Tag::Check;
+        Tag tag = !hiNarrowed ? v.tag : coarse ? by : (IsCodeTag(v.tag) ? WorseTag(v.tag, by) : by);
         out = IntVal::Range(l, h, tag);
     }
     return true;
@@ -3318,12 +3330,12 @@ bool Analyzer::Narrow(ExprId e, fir::CmpOp op, const LinExpr &c, State &s)
 }
 
 // 指针 e 的偏移按 op c 收窄并写回指针局部（同一对象的两个指针比较，SPEC-0081）
-bool Analyzer::NarrowPtr(ExprId e, fir::CmpOp op, const LinExpr &c, State &s)
+bool Analyzer::NarrowPtr(ExprId e, fir::CmpOp op, const LinExpr &c, State &s, bool coarse)
 {
     Value v = Eval(e, s);
     IntVal out;
     bool changed = false;
-    if (!NarrowRange(v.p.off, op, c, s, out, changed)) {
+    if (!NarrowRange(v.p.off, op, c, s, out, changed, coarse)) {
         return false;
     }
     uint32_t local = WrittenLocal(e, s);

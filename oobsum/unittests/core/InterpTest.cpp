@@ -1484,6 +1484,23 @@ TEST(Interp, PointerCompareNarrows)
     EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=loop at=t.c:7");
 }
 
+TEST(Interp, WidePointerCompareIsCoarse)
+{
+    // SPEC-0083：UINT32 *p; e = p + n; while (p < e) { *p = 0; p++; } → 按字节收窄到 4·p1 − 1，上界标 widen（不是代码给出的界）
+    Builder b;
+    TypeId pu32 = b.m.Intern(Type::Ptr(b.u32));
+    uint32_t p = b.Param("p", pu32);
+    uint32_t n = b.Param("n", b.u32);
+    uint32_t e = b.LocalVar("e", pu32);
+    Loop l;
+    l.entry.insts = {b.Set(e, b.PAdd(b.L(p), b.f.Add(Expr::Bin(BinOp::Mul, b.L(n), b.C(4)))))};
+    l.body.insts = {b.Store(b.L(p), 4, b.C(0), 7)};
+    l.latch.insts = {b.Set(p, b.PAdd(b.L(p), b.C(4)))};
+    l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(p), b.L(e), false)),
+              b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(p), b.L(e), false)));
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[4, 4*p1 + 3] bound=widen at=t.c:7");
+}
+
 TEST(Interp, NeLoopThreshold)
 {
     // SPEC-0082：for (i = 0; i != n; i++) p[i] = 0; → 头上 i ∈ [0, p1]（符号阈值），体内 [0, p1 − 1]（原来上界被 widen 掉）；
