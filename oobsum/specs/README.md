@@ -70,4 +70,5 @@
 | [SPEC-0036](SPEC-0036-entry-ledger-dedupe.md) | 入口账本按访问去重：同一入口同一次访问只报一条，日志全记 | 已实现 |
 | [SPEC-0037](SPEC-0037-max-blocks.md) | `MaxBlocks`：块数超限 / 没有 CFG 的函数不分析、报一条 SUSPECT | 已实现（S5b-1） |
 | [SPEC-0038](SPEC-0038-open-reason-data.md) | 调用点记账原因：上界只来自 `data` 时记 `type_range_only`；被调者改字段 / 全局的回归用例 | 已实现 |
+| [SPEC-0039](SPEC-0039-underflow-back-req.md) | 负偏移（下溢）：反向 Req `dir: back` 与 `bext(p)` | 实现中 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

@@ -109,6 +109,18 @@ LinExpr LinExpr::Ext(llvm::StringRef name)
     return OfAtom(atom);
 }
 
+// 排在所有 ext 之后（同 replay.py 的 atom_order：(2, 1, 名字)）
+LinExpr LinExpr::BExt(llvm::StringRef name)
+{
+    Atom atom;
+    atom.kind = Atom::Kind::BExt;
+    atom.name = name.str();
+    atom.group = 2;
+    atom.index = 1;
+    atom.text = atom.name;
+    return OfAtom(atom);
+}
+
 Atom LinExpr::OpaqueAtom(Atom::Kind kind, const LinExpr &a, const LinExpr *b, int64_t n)
 {
     Atom atom;
@@ -264,7 +276,10 @@ std::string LinExpr::Show() const
     std::vector<std::string> parts;
     for (const auto &term : t) {
         const Atom &a = term.first;
-        std::string s = a.kind == Atom::Kind::Sym ? a.name : a.kind == Atom::Kind::Ext ? "ext(" + a.name + ")" : a.text;
+        std::string s = a.kind == Atom::Kind::Sym    ? a.name
+                        : a.kind == Atom::Kind::Ext  ? "ext(" + a.name + ")"
+                        : a.kind == Atom::Kind::BExt ? "bext(" + a.name + ")"
+                                                     : a.text;
         if (term.second == 1) {
             parts.push_back(s);
         } else if (term.second == -1) {
@@ -472,14 +487,15 @@ private:
             return true;
         }
         bool call = i + 1 < toks.size() && toks[i + 1].text == "(";
-        if (call && (t == "ext" || t == "div" || t == "mod" || t == "wrap32" || t == "wrap16" || t == "mul")) {
+        if (call &&
+            (t == "ext" || t == "bext" || t == "div" || t == "mod" || t == "wrap32" || t == "wrap16" || t == "mul")) {
             i += 2;
-            if (t == "ext") {
+            if (t == "ext" || t == "bext") {
                 std::string name;
                 if (!Name(name) || !Expect(")")) {
                     return false;
                 }
-                out = LinExpr::Ext(name);
+                out = t == "ext" ? LinExpr::Ext(name) : LinExpr::BExt(name);
                 return true;
             }
             LinExpr a;
@@ -641,15 +657,17 @@ LinExpr Substitute(const LinExpr &e, const Substitution &m)
         const Atom &a = term.first;
         int64_t c = term.second;
         LinExpr piece;
-        if (a.kind == Atom::Kind::Sym || a.kind == Atom::Kind::Ext) {
-            const auto &table = a.kind == Atom::Kind::Sym ? m.sym : m.ext;
+        if (a.kind == Atom::Kind::Sym || a.kind == Atom::Kind::Ext || a.kind == Atom::Kind::BExt) {
+            const auto &table = a.kind == Atom::Kind::Sym ? m.sym : a.kind == Atom::Kind::Ext ? m.ext : m.bext;
             auto hit = table.find(a.name);
             size_t arrow = a.name.find("->");
             if (hit != table.end()) {
                 piece = hit->second;
             } else if (arrow != std::string::npos && m.alias.count(a.name.substr(0, arrow)) != 0) {
                 std::string renamed = m.alias.at(a.name.substr(0, arrow)) + a.name.substr(arrow);
-                piece = a.kind == Atom::Kind::Sym ? LinExpr::Sym(renamed) : LinExpr::Ext(renamed);
+                piece = a.kind == Atom::Kind::Sym   ? LinExpr::Sym(renamed)
+                        : a.kind == Atom::Kind::Ext ? LinExpr::Ext(renamed)
+                                                    : LinExpr::BExt(renamed);
             } else {
                 piece = LinExpr::OfAtom(a);
             }

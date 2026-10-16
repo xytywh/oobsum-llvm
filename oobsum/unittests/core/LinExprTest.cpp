@@ -147,6 +147,12 @@ TEST(LinExpr, Substitute)
     EXPECT_EQ(Substitute(L("ext(p0) - p0"), m).Show(), "-i - 4*j + 15");
     EXPECT_EQ(Substitute(L("p1->ulLen + ext(p1->pucBuf)"), m).Show(), "p2->ulLen + ext(p2->pucBuf)");
     EXPECT_EQ(Substitute(L("p1 + p3"), m).Show(), "p1 + p3");  // 别名只改字段路径
+    // bext（负偏移，SPEC-0039）：与 ext 同样的代换规则，排在所有 ext 之后
+    m.bext["p0"] = L("8 - i");
+    EXPECT_EQ(Substitute(L("bext(p0) + ext(p0)"), m).Show(), "-i - 4*j + 24");
+    EXPECT_EQ(Substitute(L("bext(p1->pucBuf)"), m).Show(), "bext(p2->pucBuf)");
+    EXPECT_EQ(Show("bext(p0) + ext(p1) + ext(p0)"), "ext(p0) + ext(p1) + bext(p0)");
+    EXPECT_TRUE(L("bext(p0)") != L("ext(p0)"));
     Substitution konst;
     konst.sym["p1"] = L("33");
     EXPECT_EQ(Substitute(L("4*div(p1 + 31, 32)"), konst).Show(), "8");  // 代换后内层成了常数就算出来

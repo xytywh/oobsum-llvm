@@ -200,7 +200,7 @@ bool IsIface(const Atom &a)
         }
         return llvm::StringRef(a.name).startswith("g:");
     }
-    if (a.kind == Atom::Kind::Ext) {
+    if (a.kind == Atom::Kind::Ext || a.kind == Atom::Kind::BExt) {
         return true;
     }
     for (const LinExpr *inner : {a.a.get(), a.b.get()}) {

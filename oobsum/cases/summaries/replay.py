@@ -43,6 +43,7 @@ TYPE_MIN = {'INT32': -0x80000000, 'CHAR': -0x80}
 # 线性式：常数 k + Σ c·atom。atom 是可哈希的元组：
 #   ('s', name)                 符号：p0、p1->ulLen、g:g_x、调用方局部 i
 #   ('ext', name)               ext(p0)、ext(p0->pucBuf)
+#   ('bext', name)              bext(p0)：指针前面还有多少字节（负偏移，SPEC-0039）
 #   ('div', key, n) ('mod', key, n) ('wrap', bits, key) ('mul', key, key)   不透明项，key 是内层线性式的冻结形式
 
 
@@ -103,14 +104,16 @@ def atom_order(a):
         return (4, 0, n)
     if kind == 'ext':
         return (2, 0, a[1])
+    if kind == 'bext':
+        return (2, 1, a[1])
     return (5, 0, show_atom(a))
 
 
 def show_atom(a):
     if a[0] == 's':
         return a[1]
-    if a[0] == 'ext':
-        return 'ext(%s)' % a[1]
+    if a[0] in ('ext', 'bext'):
+        return '%s(%s)' % (a[0], a[1])
     if a[0] in ('div', 'mod'):
         return '%s(%s, %d)' % (a[0], show(unfreeze(a[1])), a[2])
     if a[0] == 'wrap':
@@ -214,13 +217,13 @@ class Parser(object):
         if t is not None and re.match(r'0x|\d', t):
             self.take()
             return Lin(int(t, 0))
-        if t in ('ext', 'div', 'mod', 'wrap32', 'wrap16', 'mul') and self.toks[self.i + 1:self.i + 2] == ['(']:
+        if t in ('ext', 'bext', 'div', 'mod', 'wrap32', 'wrap16', 'mul') and self.toks[self.i + 1:self.i + 2] == ['(']:
             self.take()
             self.take('(')
-            if t == 'ext':
+            if t in ('ext', 'bext'):
                 n = self.name()
                 self.take(')')
-                return Lin(0, {('ext', n): 1})
+                return Lin(0, {(t, n): 1})
             a = self.expr()
             self.take(',') if t in ('div', 'mod', 'mul') else None
             if t in ('div', 'mod'):
@@ -307,11 +310,11 @@ def subst(l, m):
         elif a[0] == 's' and '->' in a[1] and a[1].split('->', 1)[0] in m.get('__alias__', {}):
             base, rest = a[1].split('->', 1)
             out = out + Lin(0, {('s', m['__alias__'][base] + '->' + rest): c})
-        elif a[0] == 'ext' and ('ext(%s)' % a[1]) in m:
-            out = out + m['ext(%s)' % a[1]].scale(c)
-        elif a[0] == 'ext' and '->' in a[1] and a[1].split('->', 1)[0] in m.get('__alias__', {}):
+        elif a[0] in ('ext', 'bext') and ('%s(%s)' % a) in m:
+            out = out + m['%s(%s)' % a].scale(c)
+        elif a[0] in ('ext', 'bext') and '->' in a[1] and a[1].split('->', 1)[0] in m.get('__alias__', {}):
             base, rest = a[1].split('->', 1)
-            out = out + Lin(0, {('ext', m['__alias__'][base] + '->' + rest): c})
+            out = out + Lin(0, {(a[0], m['__alias__'][base] + '->' + rest): c})
         elif a[0] in ('div', 'mod'):
             out = out + mk_opaque((a[0], subst(unfreeze(a[1]), m).key(), a[2])).scale(c)
         elif a[0] == 'wrap':
@@ -327,7 +330,7 @@ def is_iface(a):
     """调用方的接口符号（形参、字段、ext、全局）。"""
     if a[0] == 's':
         return bool(re.match(r'p\d+($|->)', a[1])) or a[1].startswith('g:')
-    if a[0] == 'ext':
+    if a[0] in ('ext', 'bext'):
         return True
     return all(is_iface(x) for x in opaque_atoms(a))
 
@@ -376,7 +379,7 @@ class Env(object):
                 self.lo[a] = (v, tag)
 
     def bound(self, a, upper):
-        if a[0] == 'ext':
+        if a[0] in ('ext', 'bext'):
             return (None, None) if upper else (0, 'type')
         if a[0] == 's':
             return (self.hi if upper else self.lo).get(a, (None, None))

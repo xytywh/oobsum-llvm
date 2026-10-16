@@ -712,6 +712,9 @@ void CollectSyms(const LinExpr &e, std::set<std::string> &out)
             case Atom::Kind::Ext:
                 out.insert("ext:" + atom.name);
                 break;
+            case Atom::Kind::BExt:
+                out.insert("bext:" + atom.name);
+                break;
             default:
                 if (atom.a) {
                     CollectSyms(*atom.a, out);

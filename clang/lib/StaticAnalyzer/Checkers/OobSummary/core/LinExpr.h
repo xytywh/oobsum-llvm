@@ -26,10 +26,11 @@ namespace oobsum {
 class LinExpr;
 
 struct Atom {
-    enum class Kind : uint8_t { Sym, Ext, Div, Mod, Wrap, Mul };
+    // BExt：bext(x)，指针 x 前面还有多少字节（负偏移，SPEC-0039）
+    enum class Kind : uint8_t { Sym, Ext, Div, Mod, Wrap, Mul, BExt };
 
     Kind kind = Kind::Sym;
-    std::string name;                  // Sym / Ext
+    std::string name;                  // Sym / Ext / BExt
     int64_t n = 0;                     // Div / Mod：除数；Wrap：位数
     std::shared_ptr<const LinExpr> a;  // Div / Mod / Wrap / Mul
     std::shared_ptr<const LinExpr> b;  // Mul
@@ -49,7 +50,7 @@ struct Atom {
     }
     bool IsOpaque() const
     {
-        return kind != Kind::Sym && kind != Kind::Ext;
+        return kind != Kind::Sym && kind != Kind::Ext && kind != Kind::BExt;
     }
 };
 
@@ -60,6 +61,7 @@ public:
     static LinExpr Const(int64_t k);
     static LinExpr Sym(llvm::StringRef name);
     static LinExpr Ext(llvm::StringRef name);
+    static LinExpr BExt(llvm::StringRef name);  // SPEC-0039
     // 不透明项：内层是常数就当场算出来（同 replay.py 的 mk_opaque）；n 为 0 时未知
     static LinExpr Div(const LinExpr &a, int64_t n);
     static LinExpr Mod(const LinExpr &a, int64_t n);
@@ -121,6 +123,7 @@ std::string ShowLe0(const LinExpr &g);
 struct Substitution {
     std::map<std::string, LinExpr> sym;
     std::map<std::string, LinExpr> ext;
+    std::map<std::string, LinExpr> bext;  // SPEC-0039
     std::map<std::string, std::string> alias;
 };
 LinExpr Substitute(const LinExpr &e, const Substitution &m);

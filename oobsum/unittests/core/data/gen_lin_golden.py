@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """LinExpr 的金标准（oobsum/specs/SPEC-0010 §5）：用 replay.py（参考实现）把 cases/summaries 里 104 份摘要（去掉 doc）中的
-所有表达式与条件解析、按规范形式打印，写成 lin-golden.txt，C++ 的 LinExprTest 逐行比对。
+所有表达式与条件（另加 EXTRA 里摘要还没用到的写法）解析、按规范形式打印，写成 lin-golden.txt，C++ 的 LinExprTest 逐行比对。
 
 用法：
   python3 -I gen_lin_golden.py            # 重新生成 lin-golden.txt（摘要有意改动时）
@@ -19,6 +19,10 @@ SUMMARIES = os.path.join(HERE, '..', '..', '..', 'cases', 'summaries')
 spec = importlib.util.spec_from_file_location('replay', os.path.join(SUMMARIES, 'replay.py'))
 replay = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(replay)
+
+# 摘要里还没有、但两边都要支持的写法：bext（负偏移，SPEC-0039）
+EXTRA = ['bext(p0) + ext(p0) - 4', 'bext(p0->pucBuf) - p1 + 1', 'ext(p1) + bext(p0) + ext(p0) + p0',
+         '4 - bext(p0) <= 0', 'p1 + 1 <= bext(p0) + 8', '-p1 <= bext(p2->pucBuf)']
 
 CMP = re.compile(r'<=|>=|==|<|(?<!-)>')
 LOOKS = re.compile(r'[0-9+*()]|^-|(?<!^)-(?!>)|^p\d|ext\(')
@@ -58,6 +62,9 @@ def main():
             except Exception:
                 continue  # 不是表达式（对象名、位置……）
             rows.add((kind, s, out))
+    for s in EXTRA:
+        kind, out = one(s)
+        rows.add((kind, s, out))
     with open(os.path.join(HERE, 'lin-golden.txt'), 'w', encoding='utf-8') as f:
         f.write('# 由 gen_lin_golden.py 从 cases/summaries 生成（replay.py 的规范打印），不要手改\n')
         for kind, s, out in sorted(rows):

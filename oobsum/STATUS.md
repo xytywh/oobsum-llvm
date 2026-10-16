@@ -58,6 +58,11 @@
       去掉 `body_pending`；修正 S4c-1 的赋值表达式取值（`y = (x = x + 1)`）。lit 14 个；67 个用例只剩 `unk(cond_value)`（S5）。
 - [x] **S5 控制流**（SPEC-0009）：条件边 `assume`（后继 0 为真，与 `debug.DumpCFG` 逐个对照）、`switch`（`case` / `default` / 区间）、`?:` / `&&` / `||`
       当值用（汇合块前驱补 `set`）。lit 15 个；67 个用例 1451 条边里 260 条带条件，`unk` / `havoc` 一处都不剩。
+- [ ] **负偏移（下溢）**（SPEC-0039）：规格（06- §3.1）有、实现没有——`p[i - 1]`（`i = 0`）、`p - 4` 都被判成 SAFE（**错误的 SAFE**，探针发现）。
+      1/2 `bext` 原子（C++ LinExpr 与 replay.py 两边，lin-golden 加 bext 行）已提交；2/2 反向 Req（`dir: back`）、实参 `back`、文本进行中。
+- [ ] **形参别名**（探针发现，错误的 SAFE）：`Alias_Fill(&st, &st)` 里 `a->ulLen = 4; b->ulLen = 100;` 之后按 4 证明 `a->aucBuf` 安全。
+      打算：经形参指针的写让**同类型**的其它形参基址的格失效（按类型的别名假设，写进 SPEC 后做）。
+- [ ] 二维数组行内越界（`a[0][5]` 在 `UINT8 a[2][4]` 里）：仍按整个对象判（06- 已列为 P1 #18）。
 - [x] **调用点记账原因**（SPEC-0038）：上界只来自 `data`（被调者改过的字段、全局）时记 `type_range_only`（原来误记 `pointer_stepping`）；
       lit `callee-writes.test` 守住"被调者改了字段 / 全局后不再用旧值证明安全"（做 mod-ref 之前的保守做法）。
 - [x] **S5b-1 `MaxBlocks`**（SPEC-0037）：CFG 块数超过 `MaxBlocks`（默认 5000）的函数不降级函数体（`cfg_too_large`），建不出 CFG 的（`no_cfg`，原来悄悄当成空函数）同样

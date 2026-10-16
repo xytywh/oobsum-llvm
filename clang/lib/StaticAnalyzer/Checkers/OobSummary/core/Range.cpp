@@ -174,6 +174,7 @@ Limit SymEnv::Bound(const Atom &atom, bool upper) const
 {
     switch (atom.kind) {
         case Atom::Kind::Ext:
+        case Atom::Kind::BExt:  // 字节数：不小于 0（SPEC-0039）
             return upper ? Limit() : Limit::Of(0, Tag::Type);
         case Atom::Kind::Sym:
             return upper ? Upper(atom.name) : Lower(atom.name);
