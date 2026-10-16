@@ -9,13 +9,13 @@
 # 不配：三处都是 not_in_tu / 入口记账（SUSPECT）
 # RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/models/use.c 2>&1 | FileCheck %s --check-prefix=NOFILE
-# 示例文件 = 内置表
+# 示例文件 = 内置表（按内容比，顺序不论：合并时同名条目先删后加；lower 的内部调用 __oobsum_copy 不在示例文件里也总在，SPEC-0051）
 # RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=models %S/Inputs/models/use.c 2>&1 | grep 'oobsum:models' | grep -v ' source ' > %t/builtin
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=models %S/Inputs/models/use.c 2>&1 | grep 'oobsum:models' | grep -v ' source ' | sort > %t/builtin
 # RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -analyzer-checker=rb.enhance.ipa.OobSummary \
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:ModelFile=%S/../../../../oobsum/config/oob_models.example.yaml \
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=models %S/Inputs/models/use.c > %t/example.out 2>&1
-# RUN: grep 'oobsum:models' %t/example.out | grep -v ' source ' | diff %t/builtin -
+# RUN: grep 'oobsum:models' %t/example.out | grep -v ' source ' | sort | diff %t/builtin -
 # RUN: not grep 'warning: ModelFile' %t/example.out
 # 读不了 → 选项错误
 # RUN: not %clang_analyze_cc1 -triple armebv7-linux-gnueabi -analyzer-checker=rb.enhance.ipa.OobSummary \

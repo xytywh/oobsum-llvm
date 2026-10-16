@@ -1,0 +1,14 @@
+# 结构体整体赋值的内置访问模型 __oobsum_copy（oobsum/specs/SPEC-0051；06- A-06）：W / R 各 sizeof 字节。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=models %S/Inputs/scopy/scopy.c 2>&1 | FileCheck %s
+
+CHECK: [oobsum:models] access __oobsum_copy W p0[p2] R p1[p2]
+# 循环里按个数拷贝到较小的目的（原来记 not_in_tu、目的一侧漏掉）
+CHECK-DAG: scopy.c:6:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 64 of 'd' (32 bytes) may be accessed
+CHECK-DAG: scopy.c:6:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 64 of 's' (64 bytes)
+CHECK-DAG: scopy.c:7:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 64 of 'd' (64 bytes)
+# 单个结构体赋值到越界的位置
+CHECK-DAG: scopy.c:10:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 40 of 'd' (32 bytes) is accessed
+CHECK-NOT: __oobsum_copy', whose body

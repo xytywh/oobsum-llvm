@@ -26,6 +26,12 @@ namespace {
 
 const char *const kDebugPattern = "^oobsum_debug_";  // 调试内建函数（SPEC-0001 §6.3），defaults: false 也保留
 
+// 结构体整体赋值 a = b → __oobsum_copy(&a, &b, sizeof)（06- A-06，SPEC-0051）：W / R 各 sizeof 字节；内部调用，defaults: false 也保留
+AccessModel StructCopyModel()
+{
+    return {"__oobsum_copy", {{0, "p2", "W", "", false}, {1, "p2", "R", "", false}}, -1};
+}
+
 struct RawCond {
     std::string base;
     std::string bytes;
@@ -151,6 +157,8 @@ const ModelTable &ModelTable::Default()
         t.access.push_back({"memcpy", {{0, "p2", "W", "", false}, {1, "p2", "R", "", false}}, -1});
         t.access.push_back({"memmove", {{0, "p2", "W", "", false}, {1, "p2", "R", "", false}}, -1});
         t.access.push_back({"memset", {{0, "p2", "W", "", false}}, -1});
+        // A-06：结构体整体赋值（lower 生成的内部调用，SPEC-0051）
+        t.access.push_back(StructCopyModel());
         // 底层分配器（VOS_MemAlloc 的字节数是第几个形参待用户确认：07- 输入 I5）
         t.allocators.push_back({"VOS_MemAlloc", "p2"});
         t.allocators.push_back({"malloc", "p0"});
@@ -330,6 +338,7 @@ bool MergeModelYaml(llvm::StringRef text, ModelTable &table, std::vector<std::st
     ModelTable t = raw.defaults ? table : ModelTable();
     if (!raw.defaults) {
         t.purePatterns.push_back(kDebugPattern);
+        t.access.push_back(StructCopyModel());
     }
     std::set<std::string> seen;
     auto take = [&](llvm::StringRef what, const std::string &name) {

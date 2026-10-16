@@ -548,7 +548,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | **A-03** | 右值：未取过地址的标量局部 → `["l", id]`；其余左值转右值 → `load`（同时是一次 R 访问）；整数转换 → `cast`；**指针类型转换在 FIR 里消失**（偏移都按字节）；数组退化 → 首元素地址；`sizeof` / 枚举 / 常量表达式 → `EvaluateAsInt` 成常数；浮点 → `unk` |
 | **A-04** | `?:`、`&&`、`||` 作为值使用时，在两个前驱块末尾补 `set tmp`，汇合块引用 `tmp` |
 | **A-05** | 调用：直接调用 → 函数键；`__builtin_memcpy` 等映射到 libc 名；`__builtin_expect(x, c)` → `x`；间接调用 → `["ind", E]` |
-| **A-06** | 结构体整体赋值 `a = b` → 一次 `call __oobsum_copy(&a, &b, sizeof)`（内置访问模型：W / R 各 `sizeof` 字节）；结构体按值传参 → 实参 `unk(struct_by_value)` |
+| **A-06** | 结构体整体赋值 `a = b` → 一次 `call __oobsum_copy(&a, &b, sizeof)`（内置访问模型：W / R 各 `sizeof` 字节；〔SPEC-0051：原来模型表里漏了，已补；`defaults: false` 也保留〕）；结构体按值传参 → 实参 `unk(struct_by_value)` |
 | **A-07** | 下标访问在 `load` / `store` 上带 `sub: true`；引擎据此识别 F-08 的盲区形态（指针来自 `&a[k]` / `a + k`、再用非常量下标） |
 | **A-08** | 不认识的构造 → `havoc` 或 `unk`，带原因；**函数照样导出**（全函数性） |
 | **A-09** | 块数 > `MaxBlocks` 的函数只导出签名与 `flags: ["cfg_too_large"]`，求解时 `skipped:cfg_too_large` |

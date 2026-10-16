@@ -331,8 +331,8 @@
    "kind": "TP",
    "entry": "Cell_OnNbrUpdate_TP",
    "pa": "L2",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "级别不同"
+   "actual": "POSSIBLE×2",
+   "verdict": "通过"
   },
   {
    "case": "LV3-04",
@@ -1505,20 +1505,20 @@
   },
   {
    "case": "LV3-04",
-   "site": "lv3/lv3_04_copy_by_src_count.c:35:0",
-   "kind": "",
-   "fn": "F@f18e8834463b2f58:Nbr_CopyN",
-   "label": "suspect",
-   "reason": "not_in_tu",
-   "access": "lv3/lv3_04_copy_by_src_count.c:35"
-  },
-  {
-   "case": "LV3-04",
    "site": "lv3/lv3_04_copy_by_src_count.c:42:0",
    "kind": "R",
    "fn": "F:Cell_OnNbrUpdate_TP",
    "label": "suspect",
    "reason": "entry_unproven",
+   "access": "lv3/lv3_04_copy_by_src_count.c:35"
+  },
+  {
+   "case": "LV3-04",
+   "site": "lv3/lv3_04_copy_by_src_count.c:48:0",
+   "kind": "W",
+   "fn": "F:Cell_OnNbrUpdate_TP",
+   "label": "possible",
+   "reason": "",
    "access": "lv3/lv3_04_copy_by_src_count.c:35"
   },
   {

@@ -29,7 +29,9 @@ TEST(Models, DefaultKinds)
     EXPECT_TRUE(t.Access("snprintf_s")->conds[0].upto);
     EXPECT_EQ(t.Access("strcat_s")->destMax, 1);
     EXPECT_FALSE(t.Access("memcpy_s")->conds[0].upto);
-    EXPECT_TRUE(t.KindOf("wcscpy_s") == Kind::None);  // 宽字符版本以后
+    EXPECT_TRUE(t.KindOf("wcscpy_s") == Kind::None);         // 宽字符版本以后
+    EXPECT_TRUE(t.KindOf("__oobsum_copy") == Kind::Access);  // A-06 结构体整体赋值（SPEC-0051）
+    EXPECT_EQ(t.Access("__oobsum_copy")->conds.size(), 2u);
     EXPECT_TRUE(t.KindOf("Drv_ReadReg") == Kind::None);
     EXPECT_EQ(KindName(Kind::Access).str(), "access");
     EXPECT_EQ(KindName(Kind::None).str(), "");
@@ -109,6 +111,7 @@ TEST(Models, MergeYamlWithoutDefaults)
     EXPECT_TRUE(t.KindOf("memcpy_s") == Kind::None);
     EXPECT_TRUE(t.KindOf("Pool_Put") == Kind::Free);
     EXPECT_TRUE(t.KindOf("oobsum_debug_print_oob") == Kind::Pure);  // 调试内建函数总是纯函数
+    EXPECT_TRUE(t.KindOf("__oobsum_copy") == Kind::Access);         // lower 的内部调用总在（SPEC-0051）
     EXPECT_TRUE(t.KindOf("A") == Kind::None);                       // 出参式分配器以后（I-42）
     ASSERT_TRUE(warnings.size() == 1);
     EXPECT_TRUE(warnings[0].find("result 'p1'") != std::string::npos);
