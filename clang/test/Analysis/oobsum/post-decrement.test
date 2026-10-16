@@ -1,0 +1,15 @@
+# 条件边收窄后重算同一块里依赖它的局部（oobsum/specs/SPEC-0075）：while (n--) / if (len-- > 0) 不再丢界。
+# 原来 n = t − 1 按收窄前的 t 算（t 可能是 0，n 回绕成类型最大值）→ 只能记账。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Clr|Last)$' \
+# RUN:   %S/Inputs/postdec/d.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:state] fn Clr b3: p=*p0+0 n=[0, p1]:branch (head)
+CHECK-DAG: [oobsum:state] fn Clr b2: p=*p0+0 n=[0, p1 - 1]:branch
+CHECK-DAG: [oobsum:state] fn Last b1: p=*p0+0 len=p1 - 1 guards: p1 >= 1
+CHECK-DAG: d.c:5:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 17 of 'a' (16 bytes) may be accessed
+CHECK-DAG: d.c:6:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+CHECK-DAG: d.c:8:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 17 of 'a' (16 bytes) is accessed
+CHECK-DAG: d.c:9:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)

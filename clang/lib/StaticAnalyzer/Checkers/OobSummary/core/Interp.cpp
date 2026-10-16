@@ -1005,6 +1005,19 @@ private:
                       const summary::Summary *callee = nullptr);
     bool FilterCases(ExprId e, const IntVal &v, fir::CmpOp op, int64_t k, State &s);
     std::vector<State> FlowOut(size_t block, State s);
+    // 表达式里出现的局部（Local 叶子，SPEC-0075）
+    void CollectLocals(ExprId e, std::set<uint32_t> &out) const
+    {
+        if (e >= f.exprs.size()) {
+            return;
+        }
+        const fir::Expr &x = f.exprs[e];
+        if (x.op == ExprOp::Local) {
+            out.insert(static_cast<uint32_t>(x.value));
+        }
+        CollectLocals(x.a, out);
+        CollectLocals(x.b, out);
+    }
 
     // ---- 条件边与守卫（SPEC-0016）----
     SymEnv Env(const State &s) const;
@@ -2071,8 +2084,33 @@ summary::Req Analyzer::ToReq(const RawAccess &a, size_t number) const
 // 一个块：执行指令，再沿每条出边 Assume（不可达的边给出未到达的状态）
 std::vector<State> Analyzer::FlowOut(size_t block, State s)
 {
-    for (const fir::Inst &inst : f.blocks[block].insts) {
+    const std::vector<fir::Inst> &insts = f.blocks[block].insts;
+    for (const fir::Inst &inst : insts) {
         Step(inst, s);
+    }
+    // 可重算的定义（SPEC-0075）：Y = E，Y 之后没再赋值，E 里的局部不是 Y、在这之后也没再赋值 → 出口处 Y 就是 E 的值
+    std::map<uint32_t, size_t> lastDef;
+    for (size_t i = 0; i < insts.size(); ++i) {
+        if (insts[i].dst != fir::kNone) {
+            lastDef[insts[i].dst] = i;
+        }
+    }
+    std::vector<std::pair<uint32_t, ExprId>> redefs;
+    for (size_t i = 0; i < insts.size(); ++i) {
+        const fir::Inst &inst = insts[i];
+        if (inst.op != fir::InstOp::Set || inst.dst == fir::kNone || lastDef[inst.dst] != i) {
+            continue;
+        }
+        std::set<uint32_t> used;
+        CollectLocals(inst.val, used);
+        bool ok = !used.empty() && used.count(inst.dst) == 0;
+        for (uint32_t x : used) {
+            auto d = lastDef.find(x);
+            ok = ok && (d == lastDef.end() || d->second < i);
+        }
+        if (ok) {
+            redefs.push_back({inst.dst, inst.val});
+        }
     }
     const std::vector<fir::Edge> &succ = f.blocks[block].succ;
     std::vector<State> out(succ.size());
@@ -2084,6 +2122,24 @@ std::vector<State> Analyzer::FlowOut(size_t block, State s)
         }
         State taken = s;
         if (Assume(succ[i].assume, false, taken)) {
+            // 收窄了 E 里的局部（或边上新加了守卫：确切值收窄不了时只加守卫）、Y 自己没被这次收窄改过 →
+            // Y 按收窄后的值重算（while (n--) 的 n = t − 1，SPEC-0075）
+            bool guarded = taken.guards.size() != s.guards.size();
+            for (const auto &r : redefs) {
+                std::set<uint32_t> used;
+                CollectLocals(r.second, used);
+                bool narrowed = guarded || llvm::any_of(used, [&](uint32_t x) {
+                                    auto a = s.locals.find(x);
+                                    auto b = taken.locals.find(x);
+                                    return a != s.locals.end() && b != taken.locals.end() && !(a->second == b->second);
+                                });
+                auto before = s.locals.find(r.first);
+                auto now = taken.locals.find(r.first);
+                bool self = before != s.locals.end() && now != taken.locals.end() && before->second == now->second;
+                if (narrowed && self) {
+                    SetLocal(taken, r.first, Eval(r.second, taken));
+                }
+            }
             out[i] = std::move(taken);
         }
     }

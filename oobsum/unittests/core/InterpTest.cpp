@@ -1364,3 +1364,19 @@ TEST(Interp, FieldEffect)
     ASSERT_TRUE(ranged->range.hasValue() && ranged->range->size() == 2);
     EXPECT_EQ((*ranged->range)[0] + " " + (*ranged->range)[1], "8 32");
 }
+
+TEST(Interp, DependentNarrowing)
+{
+    // SPEC-0075：t = n; n = (t − 1):u32; 分支 t != 0 → 真边上 n 按收窄后的 t 重算成 [0, p1 − 1]，p[n] 末端 p1
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("n", b.u32);
+    uint32_t t = b.LocalVar("t0", b.u32);
+    Loop l;
+    l.body.insts = {b.Store(b.PAdd(b.L(p), b.L(n)), 1, b.C(0), 7)};
+    // 循环头里先算 t = n、n = t − 1，再按 t 分支（Loop 把条件放在头上）
+    l.head.insts = {b.Set(t, b.L(n)), b.Set(n, b.Wrap(BinOp::Sub, b.L(t), b.C(1)))};
+    l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(t), b.C(0), false)),
+              b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(t), b.C(0), false)));
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=branch at=t.c:7");
+}
