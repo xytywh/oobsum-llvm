@@ -11,15 +11,15 @@
    "kind": "TP",
    "entry": "Cell_OnSetupTimeout_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV1-01",
    "kind": "TN",
    "entry": "Cell_OnSetupTimeout_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -27,15 +27,15 @@
    "kind": "TP",
    "entry": "Ue_ShowInfo_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV1-02",
    "kind": "TN",
    "entry": "Ue_ShowInfo_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -43,15 +43,15 @@
    "kind": "TP",
    "entry": "Msg_Build_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "POSSIBLE",
+   "verdict": "通过"
   },
   {
    "case": "LV1-03",
    "kind": "TN",
    "entry": "Msg_Build_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -59,31 +59,31 @@
    "kind": "TP",
    "entry": "Cell_Setup_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:typed_field",
+   "verdict": "级别不同"
   },
   {
    "case": "LV1-04",
    "kind": "TN",
    "entry": "Cell_Setup_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:typed_field",
+   "verdict": "通过+S"
   },
   {
    "case": "LV1-05",
    "kind": "TP",
    "entry": "Ue_OnDetach_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV1-05",
    "kind": "TN",
    "entry": "Ue_OnDetach_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -91,15 +91,15 @@
    "kind": "TP",
    "entry": "Sched_InitDefault_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV1-06",
    "kind": "TN",
    "entry": "Sched_InitDefault_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -123,31 +123,31 @@
    "kind": "TP",
    "entry": "Cfg_InitDefault_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "DEFINITE×2",
+   "verdict": "通过"
   },
   {
    "case": "LV1-08",
    "kind": "TN",
    "entry": "Cfg_InitDefault_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV2-01",
    "kind": "TP",
    "entry": "Erab_OnSetupReq_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "POSSIBLE",
+   "verdict": "通过"
   },
   {
    "case": "LV2-01",
    "kind": "TN",
    "entry": "Erab_OnSetupReq_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -155,15 +155,15 @@
    "kind": "TP",
    "entry": "Msg_Entry_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV2-02",
    "kind": "TN",
    "entry": "Msg_Entry_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:local_entailed(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -171,31 +171,31 @@
    "kind": "TP",
    "entry": "Pkt_Build_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "DEFINITE×2",
+   "verdict": "通过"
   },
   {
    "case": "LV2-03",
    "kind": "TN",
    "entry": "Pkt_Build_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV2-04",
    "kind": "TP",
    "entry": "List_Create_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV2-04",
    "kind": "TN",
    "entry": "List_Create_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -203,15 +203,15 @@
    "kind": "TP",
    "entry": "Cell_ResetUeMap_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "POSSIBLE",
+   "verdict": "通过"
   },
   {
    "case": "LV2-05",
    "kind": "TN",
    "entry": "Cell_ResetUeMap_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -219,31 +219,31 @@
    "kind": "TP",
    "entry": "Cell_RefreshActive_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "级别不同"
   },
   {
    "case": "LV2-06",
    "kind": "TN",
    "entry": "Cell_RefreshActive_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV2-07",
    "kind": "TP",
    "entry": "Tbl_OnAddReq_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "POSSIBLE",
+   "verdict": "通过"
   },
   {
    "case": "LV2-07",
    "kind": "TN",
    "entry": "Tbl_OnAddReq_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:local_entailed(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -251,15 +251,15 @@
    "kind": "TP",
    "entry": "Frame_Build_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV2-08",
    "kind": "TN",
    "entry": "Frame_Build_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -267,15 +267,15 @@
    "kind": "TP",
    "entry": "Ue_CheckJitter_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV2-09",
    "kind": "TN",
    "entry": "Ue_CheckJitter_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:local_entailed(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -283,31 +283,31 @@
    "kind": "TP",
    "entry": "Cell_OnSetupReq_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "POSSIBLE×2",
+   "verdict": "通过"
   },
   {
    "case": "LV3-01",
    "kind": "TN",
    "entry": "Cell_OnSetupReq_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:typed_field",
+   "verdict": "通过+S"
   },
   {
    "case": "LV3-02",
    "kind": "TP",
    "entry": "Ue_OnAttach_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "POSSIBLE",
+   "verdict": "通过"
   },
   {
    "case": "LV3-02",
    "kind": "TN",
    "entry": "Ue_OnAttach_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:guard_entailed(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -315,15 +315,15 @@
    "kind": "TP",
    "entry": "Board_OnCfgMsg_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "POSSIBLE",
+   "verdict": "通过"
   },
   {
    "case": "LV3-03",
    "kind": "TN",
    "entry": "Board_InitDefault_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -331,23 +331,23 @@
    "kind": "TP",
    "entry": "Cell_OnNbrUpdate_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "级别不同"
   },
   {
    "case": "LV3-04",
    "kind": "TN",
    "entry": "Cell_OnNbrUpdate_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV3-05",
    "kind": "TP",
    "entry": "Cell_SetDefaultName_TP",
    "pa": "L1",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "漏报"
   },
   {
@@ -355,7 +355,7 @@
    "kind": "TN",
    "entry": "Cell_SetDefaultName_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -363,47 +363,47 @@
    "kind": "TP",
    "entry": "Ue_OnCapInfo_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "POSSIBLE×2",
+   "verdict": "通过"
   },
   {
    "case": "LV3-06",
    "kind": "TN",
    "entry": "Ue_OnCapInfo_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV3-07",
    "kind": "TP",
    "entry": "Msg_Encode_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "级别不同"
   },
   {
    "case": "LV3-07",
    "kind": "TN",
    "entry": "Msg_Encode_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV3-08",
    "kind": "TP",
    "entry": "Cell_ResetAll_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "POSSIBLE",
+   "verdict": "通过"
   },
   {
    "case": "LV3-08",
    "kind": "TN",
    "entry": "Cell_ResetAll_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -427,224 +427,224 @@
    "kind": "TP",
    "entry": "Ue_OnHoPrepare_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "POSSIBLE",
+   "verdict": "通过"
   },
   {
    "case": "LV3-10",
    "kind": "TN",
    "entry": "Ue_OnHoPrepare_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:type_range_only",
+   "verdict": "通过+S"
   },
   {
    "case": "LV4-01",
    "kind": "TP",
    "entry": "Ue_ModuleInit_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "级别不同"
   },
   {
    "case": "LV4-01",
    "kind": "TN",
    "entry": "Ue_ModuleInit_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV4-02",
    "kind": "TP",
    "entry": "Ue_CreateSec_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven×2",
+   "verdict": "级别不同"
   },
   {
    "case": "LV4-02",
    "kind": "TN",
    "entry": "Ue_CreateSec_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven×2",
+   "verdict": "通过+S"
   },
   {
    "case": "LV4-03",
    "kind": "TP",
    "entry": "Msg_MakeText_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven×2",
+   "verdict": "级别不同"
   },
   {
    "case": "LV4-03",
    "kind": "TN",
    "entry": "Msg_MakeText_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven×2",
+   "verdict": "通过+S"
   },
   {
    "case": "LV4-04",
    "kind": "TP",
    "entry": "Rpt_Send_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "级别不同"
   },
   {
    "case": "LV4-04",
    "kind": "TN",
    "entry": "Rpt_Send_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV4-05",
    "kind": "TP",
    "entry": "Ue_OnReconfig_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "级别不同"
   },
   {
    "case": "LV4-05",
    "kind": "TN",
    "entry": "Ue_OnReconfig_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV4-06",
    "kind": "TP",
    "entry": "Cell_OnDelReq_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:type_range_only",
+   "verdict": "级别不同"
   },
   {
    "case": "LV4-06",
    "kind": "TN",
    "entry": "Cell_OnDelReq_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:type_range_only",
+   "verdict": "通过+S"
   },
   {
    "case": "LV4-07",
    "kind": "TP",
    "entry": "Pool_UseBlock_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过"
   },
   {
    "case": "LV4-07",
    "kind": "TN",
    "entry": "Pool_UseBlock_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV5-01",
    "kind": "TP",
    "entry": "Rrc_EncodeMsg_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "级别不同"
   },
   {
    "case": "LV5-01",
    "kind": "TN",
    "entry": "Rrc_EncodeMsg_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV5-02",
    "kind": "TP",
    "entry": "Rrc_EncodeSib_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过"
   },
   {
    "case": "LV5-02",
    "kind": "TN",
    "entry": "Rrc_EncodeSib_TN",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV5-03",
    "kind": "TP",
    "entry": "Ue_OnIeInd_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven×2",
+   "verdict": "级别不同"
   },
   {
    "case": "LV5-03",
    "kind": "TN",
    "entry": "Ue_OnIeInd_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven×2",
+   "verdict": "通过+S"
   },
   {
    "case": "LV5-04",
    "kind": "TP",
    "entry": "Rrc_EncodeExt_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "级别不同"
   },
   {
    "case": "LV5-04",
    "kind": "TN",
    "entry": "Rrc_EncodeExt_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV5-05",
    "kind": "TP",
    "entry": "Ue_OnSetup_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "级别不同"
   },
   {
    "case": "LV5-05",
    "kind": "TN",
    "entry": "Ue_OnSetup_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV5-06",
    "kind": "TP",
    "entry": "Rpt_Flush_TP",
    "pa": "L1",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven×2",
+   "verdict": "级别不同"
   },
   {
    "case": "LV5-06",
    "kind": "TN",
    "entry": "Rpt_Flush_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven×2",
+   "verdict": "通过+S"
   },
   {
    "case": "LV6-01",
@@ -667,16 +667,16 @@
    "kind": "TP",
    "entry": "Cell_ResetUe_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过"
   },
   {
    "case": "LV6-02",
    "kind": "TN",
    "entry": "Cell_ResetUe_TN",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV6-03",
@@ -731,23 +731,23 @@
    "kind": "TP",
    "entry": "List_Build_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过"
   },
   {
    "case": "LV7-01",
    "kind": "TN",
    "entry": "List_Build_TN",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV7-02",
    "kind": "TP",
    "entry": "Sched_OnSlot_TP",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -755,7 +755,7 @@
    "kind": "TN",
    "entry": "Sched_OnSlot_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -763,15 +763,15 @@
    "kind": "TP",
    "entry": "Om_OnShortMsg_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "DEFINITE",
+   "verdict": "超出预期"
   },
   {
    "case": "LV7-03",
    "kind": "TN",
    "entry": "Om_OnShortMsg_TN",
    "pa": "记账",
-   "actual": "未判",
+   "actual": "SAFE:local_entailed(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -779,7 +779,7 @@
    "kind": "TP",
    "entry": "Om_DumpReg_TP",
    "pa": "记账",
-   "actual": "未判",
+   "actual": "SAFE:local_entailed(未报出:safe)",
    "verdict": "漏报"
   },
   {
@@ -787,7 +787,7 @@
    "kind": "TN",
    "entry": "Om_DumpReg_TN",
    "pa": "记账",
-   "actual": "未判",
+   "actual": "SAFE:local_entailed(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -827,16 +827,16 @@
    "kind": "TP",
    "entry": "Om_OnCfgMsg_TP",
    "pa": "L2",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "级别不同"
   },
   {
    "case": "LV8-01",
    "kind": "TN",
    "entry": "Om_OnCfgMsg_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven",
+   "verdict": "通过+S"
   },
   {
    "case": "LV8-02",
@@ -891,16 +891,16 @@
    "kind": "TP",
    "entry": "Om_Trace_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven×2",
+   "verdict": "通过"
   },
   {
    "case": "LV8-05",
    "kind": "TN",
    "entry": "Om_Trace_TN",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven×2",
+   "verdict": "通过+S"
   },
   {
    "case": "LV9-01",
@@ -971,48 +971,48 @@
    "kind": "TP",
    "entry": "Cfg_DumpTree_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:typed_field",
+   "verdict": "通过"
   },
   {
    "case": "LV9-05",
    "kind": "TN",
    "entry": "Cfg_DumpTree_TN",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:typed_field",
+   "verdict": "通过+S"
   },
   {
    "case": "LV9-06",
    "kind": "TP",
    "entry": "Om_OnPortCfg_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:not_in_tu",
+   "verdict": "通过"
   },
   {
    "case": "LV9-06",
    "kind": "TN",
    "entry": "Om_OnPortCfg_TN",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:not_in_tu",
+   "verdict": "通过+S"
   },
   {
    "case": "LV10-01",
    "kind": "TP",
    "entry": "Drv_OnRxPkt_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:entry_unproven×2",
+   "verdict": "通过"
   },
   {
    "case": "LV10-01",
    "kind": "TN",
    "entry": "Drv_OnRxPkt_TN",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:typed_field×2",
+   "verdict": "通过+S"
   },
   {
    "case": "LV10-02",
@@ -1035,49 +1035,1234 @@
    "kind": "TP",
    "entry": "Port_SetSpeed_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:type_range_only",
+   "verdict": "通过"
   },
   {
    "case": "LV10-03",
    "kind": "TN",
    "entry": "Port_SetSpeed_TN",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:type_range_only",
+   "verdict": "通过+S"
   },
   {
    "case": "LV10-04",
    "kind": "TP",
    "entry": "Om_OnSaveCfg_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:typed_field×3",
+   "verdict": "通过"
   },
   {
    "case": "LV10-04",
    "kind": "TN",
    "entry": "Om_OnSaveCfg_TN",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:typed_field×3",
+   "verdict": "通过+S"
   },
   {
    "case": "LV10-05",
    "kind": "TP",
    "entry": "Cell_OnNbrMsg_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:typed_field×3",
+   "verdict": "通过"
   },
   {
    "case": "LV10-05",
    "kind": "TN",
    "entry": "Cell_OnNbrMsg_TN",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven×3",
+   "verdict": "通过+S"
   }
  ],
- "emitted": []
+ "emitted": [
+  {
+   "case": "LV1-01",
+   "site": "lv1/lv1_01_stat_enum_butt.c:54:0",
+   "kind": "W",
+   "fn": "F:Cell_OnSetupTimeout_TP",
+   "label": "definite",
+   "reason": ""
+  },
+  {
+   "case": "LV1-02",
+   "site": "lv1/lv1_02_name_terminator.c:47:0",
+   "kind": "W",
+   "fn": "F:Ue_ShowInfo_TP",
+   "label": "definite",
+   "reason": ""
+  },
+  {
+   "case": "LV1-03",
+   "site": "lv1/lv1_03_heap_const_loop.c:50:0",
+   "kind": "W",
+   "fn": "F:Msg_Build_TP",
+   "label": "possible",
+   "reason": ""
+  },
+  {
+   "case": "LV1-04",
+   "site": "lv1/lv1_04_member_array_macro.c:58:0",
+   "kind": "W",
+   "fn": "F@31ef0e654b6a8586:Cell_InitNbrList",
+   "label": "possible",
+   "reason": ""
+  },
+  {
+   "case": "LV1-04",
+   "site": "lv1/lv1_04_member_array_macro.c:68:0",
+   "kind": "W",
+   "fn": "F:Cell_Setup_TP",
+   "label": "suspect",
+   "reason": "typed_field"
+  },
+  {
+   "case": "LV1-04",
+   "site": "lv1/lv1_04_member_array_macro.c:69:0",
+   "kind": "W",
+   "fn": "F:Cell_Setup_TN",
+   "label": "suspect",
+   "reason": "typed_field"
+  },
+  {
+   "case": "LV1-05",
+   "site": "lv1/lv1_05_memset_ext_struct.c:54:0",
+   "kind": "W",
+   "fn": "F:Ue_OnDetach_TP",
+   "label": "definite",
+   "reason": ""
+  },
+  {
+   "case": "LV1-06",
+   "site": "lv1/lv1_06_qci_table_local.c:46:0",
+   "kind": "R",
+   "fn": "F:Sched_InitDefault_TP",
+   "label": "definite",
+   "reason": ""
+  },
+  {
+   "case": "LV1-07",
+   "site": "lv1/lv1_07_cross_tu/alm_low.c:10:0",
+   "kind": "W",
+   "fn": "F:Alm_RaiseOne",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV1-08",
+   "site": "lv1/lv1_08_tmpl_src_read.c:44:0",
+   "kind": "R",
+   "fn": "F:Cfg_InitDefault_TP",
+   "label": "definite",
+   "reason": ""
+  },
+  {
+   "case": "LV1-08",
+   "site": "lv1/lv1_08_tmpl_src_read.c:44:0",
+   "kind": "W",
+   "fn": "F:Cfg_InitDefault_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV1-08",
+   "site": "lv1/lv1_08_tmpl_src_read.c:45:0",
+   "kind": "W",
+   "fn": "F:Cfg_InitDefault_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV10-01",
+   "site": "lv10/lv10_01_field_pairing.c:53:0",
+   "kind": "R",
+   "fn": "F:Drv_OnRxPkt_TP",
+   "label": "suspect",
+   "reason": "typed_field"
+  },
+  {
+   "case": "LV10-01",
+   "site": "lv10/lv10_01_field_pairing.c:53:0",
+   "kind": "W",
+   "fn": "F:Drv_OnRxPkt_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV10-01",
+   "site": "lv10/lv10_01_field_pairing.c:54:0",
+   "kind": "R",
+   "fn": "F:Drv_OnRxPkt_TN",
+   "label": "suspect",
+   "reason": "typed_field"
+  },
+  {
+   "case": "LV10-01",
+   "site": "lv10/lv10_01_field_pairing.c:54:0",
+   "kind": "W",
+   "fn": "F:Drv_OnRxPkt_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV10-02",
+   "site": "lv10/lv10_02_param_pairing_api.c:26:0",
+   "kind": "",
+   "fn": "F@e1218a05b7ecbdd7:Dev_Read",
+   "label": "suspect",
+   "reason": "not_in_tu"
+  },
+  {
+   "case": "LV10-03",
+   "site": "lv10/lv10_03_doc_contract.c:38:0",
+   "kind": "W",
+   "fn": "F:Port_SetSpeed_TP",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV10-03",
+   "site": "lv10/lv10_03_doc_contract.c:44:0",
+   "kind": "W",
+   "fn": "F:Port_SetSpeed_TN",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV10-04",
+   "site": "lv10/lv10_04_unchecked_ext_len.c:42:0",
+   "kind": "R",
+   "fn": "F:Om_OnSaveCfg_TP",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV10-04",
+   "site": "lv10/lv10_04_unchecked_ext_len.c:42:0",
+   "kind": "R",
+   "fn": "F:Om_OnSaveCfg_TP",
+   "label": "suspect",
+   "reason": "typed_field"
+  },
+  {
+   "case": "LV10-04",
+   "site": "lv10/lv10_04_unchecked_ext_len.c:42:0",
+   "kind": "W",
+   "fn": "F:Om_OnSaveCfg_TP",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV10-04",
+   "site": "lv10/lv10_04_unchecked_ext_len.c:43:0",
+   "kind": "R",
+   "fn": "F:Om_OnSaveCfg_TN",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV10-04",
+   "site": "lv10/lv10_04_unchecked_ext_len.c:43:0",
+   "kind": "R",
+   "fn": "F:Om_OnSaveCfg_TN",
+   "label": "suspect",
+   "reason": "typed_field"
+  },
+  {
+   "case": "LV10-04",
+   "site": "lv10/lv10_04_unchecked_ext_len.c:43:0",
+   "kind": "W",
+   "fn": "F:Om_OnSaveCfg_TN",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV10-04",
+   "site": "lv10/lv10_04_unchecked_ext_len.c:45:0",
+   "kind": "",
+   "fn": "F:Om_ModInit",
+   "label": "suspect",
+   "reason": "not_in_tu"
+  },
+  {
+   "case": "LV10-05",
+   "site": "lv10/lv10_05_count_field_writer.c:60:0",
+   "kind": "R",
+   "fn": "F:Cell_OnNbrMsg_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV10-05",
+   "site": "lv10/lv10_05_count_field_writer.c:60:0",
+   "kind": "R",
+   "fn": "F:Cell_OnNbrMsg_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV10-05",
+   "site": "lv10/lv10_05_count_field_writer.c:60:0",
+   "kind": "R",
+   "fn": "F:Cell_OnNbrMsg_TP",
+   "label": "suspect",
+   "reason": "typed_field"
+  },
+  {
+   "case": "LV10-05",
+   "site": "lv10/lv10_05_count_field_writer.c:67:0",
+   "kind": "R",
+   "fn": "F:Cell_OnNbrMsg_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV10-05",
+   "site": "lv10/lv10_05_count_field_writer.c:67:0",
+   "kind": "R",
+   "fn": "F:Cell_OnNbrMsg_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV10-05",
+   "site": "lv10/lv10_05_count_field_writer.c:67:0",
+   "kind": "R",
+   "fn": "F:Cell_OnNbrMsg_TN",
+   "label": "suspect",
+   "reason": "typed_field"
+  },
+  {
+   "case": "LV2-01",
+   "site": "lv2/lv2_01_sizeof_as_count.c:39:0",
+   "kind": "W",
+   "fn": "F:Erab_OnSetupReq_TP",
+   "label": "possible",
+   "reason": ""
+  },
+  {
+   "case": "LV2-02",
+   "site": "lv2/lv2_02_skip_header_len.c:52:0",
+   "kind": "R",
+   "fn": "F:Msg_Entry_TP",
+   "label": "definite",
+   "reason": ""
+  },
+  {
+   "case": "LV2-03",
+   "site": "lv2/lv2_03_tlv_destmax_no_off.c:54:0",
+   "kind": "R",
+   "fn": "F:Pkt_Build_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV2-03",
+   "site": "lv2/lv2_03_tlv_destmax_no_off.c:57:0",
+   "kind": "W",
+   "fn": "F:Pkt_Build_TP",
+   "label": "definite",
+   "reason": ""
+  },
+  {
+   "case": "LV2-03",
+   "site": "lv2/lv2_03_tlv_destmax_no_off.c:60:0",
+   "kind": "R",
+   "fn": "F:Pkt_Build_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV2-04",
+   "site": "lv2/lv2_04_heap_n_items_end.c:52:0",
+   "kind": "W",
+   "fn": "F:List_Create_TP",
+   "label": "definite",
+   "reason": ""
+  },
+  {
+   "case": "LV2-05",
+   "site": "lv2/lv2_05_bitmap_cast_words.c:54:0",
+   "kind": "W",
+   "fn": "F:Cell_ResetUeMap_TP",
+   "label": "possible",
+   "reason": ""
+  },
+  {
+   "case": "LV2-06",
+   "site": "lv2/lv2_06_bitmap_set_loop.c:39:0",
+   "kind": "W",
+   "fn": "F:Cell_RefreshActive_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV2-06",
+   "site": "lv2/lv2_06_bitmap_set_loop.c:48:0",
+   "kind": "W",
+   "fn": "F:Cell_RefreshActive_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV2-07",
+   "site": "lv2/lv2_07_hash_mask_wrong.c:43:0",
+   "kind": "W",
+   "fn": "F:Tbl_OnAddReq_TP",
+   "label": "possible",
+   "reason": ""
+  },
+  {
+   "case": "LV2-08",
+   "site": "lv2/lv2_08_layered_headers.c:49:0",
+   "kind": "W",
+   "fn": "F:Frame_Build_TP",
+   "label": "definite",
+   "reason": ""
+  },
+  {
+   "case": "LV2-09",
+   "site": "lv2/lv2_09_unsigned_wrap.c:48:0",
+   "kind": "R",
+   "fn": "F:Ue_CheckJitter_TP",
+   "label": "definite",
+   "reason": ""
+  },
+  {
+   "case": "LV3-01",
+   "site": "lv3/lv3_01_check_gt_vs_ge.c:49:0",
+   "kind": "R",
+   "fn": "F:Cell_OnSetupReq_TP",
+   "label": "suspect",
+   "reason": "typed_field"
+  },
+  {
+   "case": "LV3-01",
+   "site": "lv3/lv3_01_check_gt_vs_ge.c:53:0",
+   "kind": "W",
+   "fn": "F:Cell_OnSetupReq_TP",
+   "label": "possible",
+   "reason": ""
+  },
+  {
+   "case": "LV3-01",
+   "site": "lv3/lv3_01_check_gt_vs_ge.c:59:0",
+   "kind": "R",
+   "fn": "F:Cell_OnSetupReq_TN",
+   "label": "suspect",
+   "reason": "typed_field"
+  },
+  {
+   "case": "LV3-02",
+   "site": "lv3/lv3_02_check_wrong_macro.c:47:0",
+   "kind": "W",
+   "fn": "F:Ue_OnAttach_TP",
+   "label": "possible",
+   "reason": ""
+  },
+  {
+   "case": "LV3-03",
+   "site": "lv3/lv3_03_callee_guard_wrong.c:46:0",
+   "kind": "W",
+   "fn": "F:Board_OnCfgMsg_TP",
+   "label": "possible",
+   "reason": ""
+  },
+  {
+   "case": "LV3-04",
+   "site": "lv3/lv3_04_copy_by_src_count.c:35:0",
+   "kind": "",
+   "fn": "F@f18e8834463b2f58:Nbr_CopyN",
+   "label": "suspect",
+   "reason": "not_in_tu"
+  },
+  {
+   "case": "LV3-04",
+   "site": "lv3/lv3_04_copy_by_src_count.c:42:0",
+   "kind": "R",
+   "fn": "F:Cell_OnNbrUpdate_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV3-04",
+   "site": "lv3/lv3_04_copy_by_src_count.c:51:0",
+   "kind": "R",
+   "fn": "F:Cell_OnNbrUpdate_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV3-05",
+   "site": "lv3/lv3_05_pad_then_terminate.c:30:0",
+   "kind": "",
+   "fn": "F@caf02c43fa889209:Name_Pad",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV3-06",
+   "site": "lv3/lv3_06_rat_branch_len.c:35:0",
+   "kind": "R",
+   "fn": "F:Ue_OnCapInfo_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV3-06",
+   "site": "lv3/lv3_06_rat_branch_len.c:39:0",
+   "kind": "W",
+   "fn": "F:Ue_OnCapInfo_TP",
+   "label": "possible",
+   "reason": ""
+  },
+  {
+   "case": "LV3-06",
+   "site": "lv3/lv3_06_rat_branch_len.c:42:0",
+   "kind": "R",
+   "fn": "F:Ue_OnCapInfo_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV3-07",
+   "site": "lv3/lv3_07_pkt_loop_destmax.c:42:0",
+   "kind": "",
+   "fn": "F@085529dcc89aa585:Pkt_PutIes_OK",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV3-07",
+   "site": "lv3/lv3_07_pkt_loop_destmax.c:42:0",
+   "kind": "",
+   "fn": "F@085529dcc89aa585:Pkt_PutIes_OK",
+   "label": "suspect",
+   "reason": "untracked_pointer"
+  },
+  {
+   "case": "LV3-07",
+   "site": "lv3/lv3_07_pkt_loop_destmax.c:58:0",
+   "kind": "",
+   "fn": "F@085529dcc89aa585:Pkt_PutIes",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV3-07",
+   "site": "lv3/lv3_07_pkt_loop_destmax.c:58:0",
+   "kind": "",
+   "fn": "F@085529dcc89aa585:Pkt_PutIes",
+   "label": "suspect",
+   "reason": "untracked_pointer"
+  },
+  {
+   "case": "LV3-07",
+   "site": "lv3/lv3_07_pkt_loop_destmax.c:71:0",
+   "kind": "R",
+   "fn": "F:Msg_Encode_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV3-07",
+   "site": "lv3/lv3_07_pkt_loop_destmax.c:77:0",
+   "kind": "R",
+   "fn": "F:Msg_Encode_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV3-08",
+   "site": "lv3/lv3_08_caller_loop_le.c:43:0",
+   "kind": "W",
+   "fn": "F:Cell_ResetAll_TP",
+   "label": "possible",
+   "reason": ""
+  },
+  {
+   "case": "LV3-09",
+   "site": "lv3/lv3_09_grid_row_col_swap.c:31:0",
+   "kind": "",
+   "fn": "F@59911fe69b7e89e5:Grid_Clear",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV3-09",
+   "site": "lv3/lv3_09_grid_row_col_swap.c:41:0",
+   "kind": "",
+   "fn": "F@59911fe69b7e89e5:Grid_Clear_OK",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV3-10",
+   "site": "lv3/lv3_10_modify_after_check.c:40:0",
+   "kind": "W",
+   "fn": "F:Ue_OnHoPrepare_TP",
+   "label": "possible",
+   "reason": ""
+  },
+  {
+   "case": "LV3-10",
+   "site": "lv3/lv3_10_modify_after_check.c:44:0",
+   "kind": "W",
+   "fn": "F:Ue_OnHoPrepare_TN",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV4-01",
+   "site": "lv4/lv4_01_wrapper_alloc_spec.c:72:0",
+   "kind": "W",
+   "fn": "F:Ue_ModuleInit_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-01",
+   "site": "lv4/lv4_01_wrapper_alloc_spec.c:81:0",
+   "kind": "W",
+   "fn": "F:Ue_ModuleInit_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-02",
+   "site": "lv4/lv4_02_sizeof_pointer.c:44:0",
+   "kind": "R",
+   "fn": "F:Ue_CreateSec_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-02",
+   "site": "lv4/lv4_02_sizeof_pointer.c:50:0",
+   "kind": "W",
+   "fn": "F:Ue_CreateSec_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-02",
+   "site": "lv4/lv4_02_sizeof_pointer.c:54:0",
+   "kind": "R",
+   "fn": "F:Ue_CreateSec_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-02",
+   "site": "lv4/lv4_02_sizeof_pointer.c:60:0",
+   "kind": "W",
+   "fn": "F:Ue_CreateSec_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-03",
+   "site": "lv4/lv4_03_hdr_pool_alloc.c:51:0",
+   "kind": "W",
+   "fn": "F:Msg_MakeText_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-03",
+   "site": "lv4/lv4_03_hdr_pool_alloc.c:51:0",
+   "kind": "W",
+   "fn": "F:Msg_MakeText_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-03",
+   "site": "lv4/lv4_03_hdr_pool_alloc.c:61:0",
+   "kind": "W",
+   "fn": "F:Msg_MakeText_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-03",
+   "site": "lv4/lv4_03_hdr_pool_alloc.c:61:0",
+   "kind": "W",
+   "fn": "F:Msg_MakeText_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-04",
+   "site": "lv4/lv4_04_outparam_alloc.c:47:0",
+   "kind": "W",
+   "fn": "F:Rpt_Send_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-04",
+   "site": "lv4/lv4_04_outparam_alloc.c:56:0",
+   "kind": "W",
+   "fn": "F:Rpt_Send_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-05",
+   "site": "lv4/lv4_05_getter_clamp_le.c:68:0",
+   "kind": "W",
+   "fn": "F:Ue_OnReconfig_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-05",
+   "site": "lv4/lv4_05_getter_clamp_le.c:75:0",
+   "kind": "W",
+   "fn": "F:Ue_OnReconfig_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-06",
+   "site": "lv4/lv4_06_validator_func.c:60:0",
+   "kind": "W",
+   "fn": "F:Cell_OnDelReq_TP",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV4-06",
+   "site": "lv4/lv4_06_validator_func.c:69:0",
+   "kind": "W",
+   "fn": "F:Cell_OnDelReq_TN",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV4-07",
+   "site": "lv4/lv4_07_opaque_allocator.c:37:0",
+   "kind": "W",
+   "fn": "F:Pool_UseBlock_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV4-07",
+   "site": "lv4/lv4_07_opaque_allocator.c:46:0",
+   "kind": "W",
+   "fn": "F:Pool_UseBlock_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-01",
+   "site": "lv5/lv5_01_ctx_filled_at_top.c:43:0",
+   "kind": "W",
+   "fn": "F:Rrc_EncodeMsg_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-01",
+   "site": "lv5/lv5_01_ctx_filled_at_top.c:54:0",
+   "kind": "W",
+   "fn": "F:Rrc_EncodeMsg_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-02",
+   "site": "lv5/lv5_02_ctx_init_func.c:63:0",
+   "kind": "W",
+   "fn": "F:Rrc_EncodeSib_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-02",
+   "site": "lv5/lv5_02_ctx_init_func.c:73:0",
+   "kind": "W",
+   "fn": "F:Rrc_EncodeSib_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-03",
+   "site": "lv5/lv5_03_len_from_sibling_chain.c:50:0",
+   "kind": "R",
+   "fn": "F:Ue_OnIeInd_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-03",
+   "site": "lv5/lv5_03_len_from_sibling_chain.c:50:0",
+   "kind": "W",
+   "fn": "F:Ue_OnIeInd_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-03",
+   "site": "lv5/lv5_03_len_from_sibling_chain.c:56:0",
+   "kind": "R",
+   "fn": "F:Ue_OnIeInd_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-03",
+   "site": "lv5/lv5_03_len_from_sibling_chain.c:56:0",
+   "kind": "W",
+   "fn": "F:Ue_OnIeInd_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-04",
+   "site": "lv5/lv5_04_field_changed_midway.c:44:0",
+   "kind": "W",
+   "fn": "F:Rrc_EncodeExt_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-04",
+   "site": "lv5/lv5_04_field_changed_midway.c:52:0",
+   "kind": "W",
+   "fn": "F:Rrc_EncodeExt_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-05",
+   "site": "lv5/lv5_05_field_alloc_offset.c:45:0",
+   "kind": "W",
+   "fn": "F:Ue_OnSetup_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-05",
+   "site": "lv5/lv5_05_field_alloc_offset.c:55:0",
+   "kind": "W",
+   "fn": "F:Ue_OnSetup_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-06",
+   "site": "lv5/lv5_06_diamond_buf_len.c:51:0",
+   "kind": "R",
+   "fn": "F:Rpt_Flush_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-06",
+   "site": "lv5/lv5_06_diamond_buf_len.c:51:0",
+   "kind": "W",
+   "fn": "F:Rpt_Flush_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-06",
+   "site": "lv5/lv5_06_diamond_buf_len.c:61:0",
+   "kind": "R",
+   "fn": "F:Rpt_Flush_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV5-06",
+   "site": "lv5/lv5_06_diamond_buf_len.c:61:0",
+   "kind": "W",
+   "fn": "F:Rpt_Flush_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV6-01",
+   "site": "lv6/lv6_01_extern_tbl/port_stat_use.c:26:0",
+   "kind": "",
+   "fn": "F@52b88a2f35dd3950:Stat_PortInc",
+   "label": "suspect",
+   "reason": "alloc_size_unknown"
+  },
+  {
+   "case": "LV6-02",
+   "site": "lv6/lv6_02_global_spec_len.c:60:0",
+   "kind": "W",
+   "fn": "F:Cell_ResetUe_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV6-02",
+   "site": "lv6/lv6_02_global_spec_len.c:61:0",
+   "kind": "W",
+   "fn": "F:Cell_ResetUe_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV6-03",
+   "site": "lv6/lv6_03_global_runtime_tbl.c:44:0",
+   "kind": "",
+   "fn": "F@bbf4a9577bacc754:Tbl_Set",
+   "label": "suspect",
+   "reason": "untracked_pointer"
+  },
+  {
+   "case": "LV6-03",
+   "site": "lv6/lv6_03_global_runtime_tbl.c:52:0",
+   "kind": "",
+   "fn": "F@bbf4a9577bacc754:Tbl_Set_OK",
+   "label": "suspect",
+   "reason": "untracked_pointer"
+  },
+  {
+   "case": "LV6-04",
+   "site": "lv6/lv6_04_global_cfg_from_file.c:45:0",
+   "kind": "R",
+   "fn": "F:Cfg_Parse",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV6-04",
+   "site": "lv6/lv6_04_global_cfg_from_file.c:52:0",
+   "kind": "",
+   "fn": "F@c8fefac454ea733d:Port_ResetAll",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV6-04",
+   "site": "lv6/lv6_04_global_cfg_from_file.c:64:0",
+   "kind": "",
+   "fn": "F@c8fefac454ea733d:Port_ResetAll_OK",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV6-05",
+   "site": "lv6/lv6_05_global_ptr_into_pool.c:29:0",
+   "kind": "",
+   "fn": "F@9e81ee17d5fdd110:Shm_WriteAt",
+   "label": "suspect",
+   "reason": "untracked_pointer"
+  },
+  {
+   "case": "LV7-01",
+   "site": "lv7/lv7_01_flexible_array.c:37:0",
+   "kind": "",
+   "fn": "F@18126edf740e90a7:List_New",
+   "label": "suspect",
+   "reason": "untracked_pointer"
+  },
+  {
+   "case": "LV7-01",
+   "site": "lv7/lv7_01_flexible_array.c:52:0",
+   "kind": "W",
+   "fn": "F:List_Build_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV7-01",
+   "site": "lv7/lv7_01_flexible_array.c:62:0",
+   "kind": "W",
+   "fn": "F:List_Build_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV7-03",
+   "site": "lv7/lv7_03_struct_overlay.c:40:0",
+   "kind": "W",
+   "fn": "F:Om_OnShortMsg_TP",
+   "label": "definite",
+   "reason": ""
+  },
+  {
+   "case": "LV7-04",
+   "site": "lv7/lv7_04_pointer_stepping.c:27:0",
+   "kind": "",
+   "fn": "F@423ed8e6e1828c25:Buf_CopyStep",
+   "label": "suspect",
+   "reason": "pointer_stepping"
+  },
+  {
+   "case": "LV7-05",
+   "site": "lv7/lv7_05_strcpy_destmax.c:26:0",
+   "kind": "",
+   "fn": "F@d98a88bb33497778:Name_Copy",
+   "label": "suspect",
+   "reason": "not_in_tu"
+  },
+  {
+   "case": "LV7-05",
+   "site": "lv7/lv7_05_strcpy_destmax.c:31:0",
+   "kind": "",
+   "fn": "F@d98a88bb33497778:Name_Copy_OK",
+   "label": "suspect",
+   "reason": "not_in_tu"
+  },
+  {
+   "case": "LV7-06",
+   "site": "lv7/lv7_06_variable_stride.c:31:0",
+   "kind": "W",
+   "fn": "F@a63700acb936f569:Map_Fill",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV7-06",
+   "site": "lv7/lv7_06_variable_stride.c:41:0",
+   "kind": "W",
+   "fn": "F@a63700acb936f569:Map_Fill_OK",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV8-01",
+   "site": "lv8/lv8_01_tlv_relative_check.c:30:0",
+   "kind": "",
+   "fn": "F@28d37d3076984a20:Tlv_ParseAll",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV8-01",
+   "site": "lv8/lv8_01_tlv_relative_check.c:34:0",
+   "kind": "",
+   "fn": "F@28d37d3076984a20:Tlv_ParseAll",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV8-01",
+   "site": "lv8/lv8_01_tlv_relative_check.c:43:0",
+   "kind": "",
+   "fn": "F@28d37d3076984a20:Tlv_ParseAll_OK",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV8-01",
+   "site": "lv8/lv8_01_tlv_relative_check.c:47:0",
+   "kind": "",
+   "fn": "F@28d37d3076984a20:Tlv_ParseAll_OK",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV8-01",
+   "site": "lv8/lv8_01_tlv_relative_check.c:61:0",
+   "kind": "R",
+   "fn": "F:Om_OnCfgMsg_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV8-01",
+   "site": "lv8/lv8_01_tlv_relative_check.c:69:0",
+   "kind": "R",
+   "fn": "F:Om_OnCfgMsg_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV8-02",
+   "site": "lv8/lv8_02_tlv_two_pass.c:31:0",
+   "kind": "",
+   "fn": "F@0671f843381ff82f:Tlv_SumLen",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV8-02",
+   "site": "lv8/lv8_02_tlv_two_pass.c:45:0",
+   "kind": "",
+   "fn": "F@0671f843381ff82f:Tlv_Gather",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV8-02",
+   "site": "lv8/lv8_02_tlv_two_pass.c:52:0",
+   "kind": "",
+   "fn": "F@0671f843381ff82f:Tlv_Gather",
+   "label": "suspect",
+   "reason": "type_range_only"
+  },
+  {
+   "case": "LV8-03",
+   "site": "lv8/lv8_03_handwritten_strcpy.c:23:0",
+   "kind": "",
+   "fn": "F@52a303b0afdd8a96:Str_CopyRaw",
+   "label": "suspect",
+   "reason": "pointer_stepping"
+  },
+  {
+   "case": "LV8-03",
+   "site": "lv8/lv8_03_handwritten_strcpy.c:24:0",
+   "kind": "",
+   "fn": "F@52a303b0afdd8a96:Str_CopyRaw",
+   "label": "suspect",
+   "reason": "pointer_stepping"
+  },
+  {
+   "case": "LV8-03",
+   "site": "lv8/lv8_03_handwritten_strcpy.c:26:0",
+   "kind": "",
+   "fn": "F@52a303b0afdd8a96:Str_CopyRaw",
+   "label": "suspect",
+   "reason": "pointer_stepping"
+  },
+  {
+   "case": "LV8-04",
+   "site": "lv8/lv8_04_grid_3d_config.c:32:0",
+   "kind": "W",
+   "fn": "F@198ddca1f2a6c7f3:Grid_Fill",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV8-05",
+   "site": "lv8/lv8_05_ring_tail_invariant.c:56:0",
+   "kind": "W",
+   "fn": "F:Om_Trace_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV8-05",
+   "site": "lv8/lv8_05_ring_tail_invariant.c:56:0",
+   "kind": "W",
+   "fn": "F:Om_Trace_TP",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV8-05",
+   "site": "lv8/lv8_05_ring_tail_invariant.c:57:0",
+   "kind": "W",
+   "fn": "F:Om_Trace_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV8-05",
+   "site": "lv8/lv8_05_ring_tail_invariant.c:57:0",
+   "kind": "W",
+   "fn": "F:Om_Trace_TN",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV9-01",
+   "site": "lv9/lv9_01_local_fptr_select.c:30:0",
+   "kind": "W",
+   "fn": "F@e8b1b35f0bb01914:Nr_SaveCap",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV9-01",
+   "site": "lv9/lv9_01_local_fptr_select.c:31:0",
+   "kind": "W",
+   "fn": "F@e8b1b35f0bb01914:Lte_SaveCap",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV9-02",
+   "site": "lv9/lv9_02_static_ops_table.c:32:0",
+   "kind": "W",
+   "fn": "F@eb8cab0b705f403f:A_Proc",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV9-02",
+   "site": "lv9/lv9_02_static_ops_table.c:33:0",
+   "kind": "W",
+   "fn": "F@eb8cab0b705f403f:B_Proc",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV9-03",
+   "site": "lv9/lv9_03_runtime_register.c:35:0",
+   "kind": "W",
+   "fn": "F@40c684d9f6455504:Cell_OnUpEvt",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV9-04",
+   "site": "lv9/lv9_04_external_driver.c:25:0",
+   "kind": "",
+   "fn": "F@51fb153f9de9a11d:Chip_ReadStatus",
+   "label": "suspect",
+   "reason": "not_in_tu"
+  },
+  {
+   "case": "LV9-05",
+   "site": "lv9/lv9_05_recursion_depth.c:51:0",
+   "kind": "R",
+   "fn": "F:Cfg_DumpTree_TP",
+   "label": "suspect",
+   "reason": "typed_field"
+  },
+  {
+   "case": "LV9-05",
+   "site": "lv9/lv9_05_recursion_depth.c:57:0",
+   "kind": "R",
+   "fn": "F:Cfg_DumpTree_TN",
+   "label": "suspect",
+   "reason": "typed_field"
+  },
+  {
+   "case": "LV9-06",
+   "site": "lv9/lv9_06_intertask_msg.c:48:0",
+   "kind": "R",
+   "fn": "F:Port_TaskEntry",
+   "label": "suspect",
+   "reason": "typed_field"
+  },
+  {
+   "case": "LV9-06",
+   "site": "lv9/lv9_06_intertask_msg.c:48:0",
+   "kind": "W",
+   "fn": "F:Port_TaskEntry",
+   "label": "suspect",
+   "reason": "entry_unproven"
+  },
+  {
+   "case": "LV9-06",
+   "site": "lv9/lv9_06_intertask_msg.c:58:0",
+   "kind": "",
+   "fn": "F:Om_OnPortCfg_TP",
+   "label": "suspect",
+   "reason": "not_in_tu"
+  },
+  {
+   "case": "LV9-06",
+   "site": "lv9/lv9_06_intertask_msg.c:68:0",
+   "kind": "",
+   "fn": "F:Om_OnPortCfg_TN",
+   "label": "suspect",
+   "reason": "not_in_tu"
+  }
+ ]
 }

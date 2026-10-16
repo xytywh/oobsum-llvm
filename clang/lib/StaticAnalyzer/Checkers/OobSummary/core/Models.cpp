@@ -32,7 +32,7 @@ const ModelTable &ModelTable::Default()
         t.allocators.push_back({"calloc", "p0*p1"});
         // 纯函数（清单待用户补：07- 输入 I9）
         t.pureNames = {"LOG_Print", "VOS_Printf"};
-        t.purePatterns = {"^LOG_", "^DIAG_", "_Trace$"};
+        t.purePatterns = {"^LOG_", "^DIAG_", "_Trace$", "^oobsum_debug_"};  // 最后一个：调试内建函数（SPEC-0001 §6.3）
         t.frees = {"VOS_MemFree", "free"};
         return t;
     }();

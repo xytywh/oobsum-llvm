@@ -157,7 +157,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 * **F-30 位置**：汇合点函数里**那次调用的调用表达式**（被判定的条件从这里进入）。`depth = 0`（只在 F-21 / F-22 时才会报）报在访问点本身。
 * **F-31 BugType**（英文，`csa-checker-dev` 约定；category 只用于展示）：
   `"Out-of-bound access via call chain (definite)"`、`"Out-of-bound access via call chain (possible)"`，category `"Memory error"`。
-* **F-32 消息**（英文模板，`{}` 为占位）：
+* **F-32 消息**〔由 SPEC-0021 修订：加 SUSPECT / SAFE 的模板〕（英文模板，`{}` 为占位）：
 
   ```
   L1: Definite out-of-bound {write|read} through a {N}-level call chain: up to byte {need} of {object} ({size} bytes) is accessed
@@ -506,7 +506,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 全局告警记录 `reports.json` 每条是 F-30…F-35 的成品（`checker`、`bug_type`、`category`、`level`、`fn`、`loc`、`msg`、`notes`、`fp`），
 另带 `decision_fn`、`decision_tu`（`report` 阶段按它分发）。`replay.py --alerts FILE` 输出的就是这个形状。
 
-* **D-27 账本**〔由 SPEC-0019 修订：加 `typed_field`〕 `opens[]` / `ledger.jsonl`：`{reason, at, req?}`（`req` 指向入口处到此为止的那条 Req），`doc` 写细节。`reason` 取值：
+* **D-27 账本**〔由 SPEC-0019 修订：加 `typed_field`；SPEC-0021：`not_in_tu` 在调用点、每个调用点一条〕 `opens[]` / `ledger.jsonl`：`{reason, at, req?}`（`req` 指向入口处到此为止的那条 Req），`doc` 写细节。`reason` 取值：
   `01-` §3.12 的 16 类（`fptr`、`unknown_callee`、`recursion`、`msg_edge`、`global_value`、`global_ptr_target`、`field_written_by_callee`、
   `alloc_size_unknown`、`flexible_array`、`struct_overlay`、`pointer_stepping`、`string_length`、`nonlinear`、`type_range_only`、`entry_unproven`、`cond_truncated`）
   加运行类 11 个：`ambiguous_callee`、`not_exported`（被调者不在 cdb 里）、`not_in_tu`（inline 模式下的跨 TU 被调者）、`cfg_too_large`、`timeout`、

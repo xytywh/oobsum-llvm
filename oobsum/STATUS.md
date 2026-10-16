@@ -106,8 +106,15 @@
 - [ ] **S7d-3**：`ret_new` 效果（封装分配器，D-24、A-63…A-65；LV4-01）——要求被调者的摘要先算出来（自底向上），与 S8c 的调度一起做。
 - [ ] **S7d-4**：条件效应（校验函数的返回值，LV4-06）；局部结构体字段带进调用点（LV5-01 的 `fields`）；偏移与长度的抵消（A-41，LV3-07、LV8-01）。
 - [ ] **S7e** `extern` 不完整数组的大小符号 `ext(g:名)`（LV6-01；全局大小表在 S8c / WP9 接上）。
-- [ ] **S8c 接进 checker**（WP4 其余）：`core/Solver`（同 TU 的调用图、SCC 逆拓扑序求解，A-80…A-82）、`Dump=summary` / `Dump=apply`；
-      S7 产出的摘要经 `Apply` 判定 → 标签 / 告警 / 判定日志；Lv1 + Lv2 用例出告警，`run.py csa` 对照 `@expect`（G1）。
+- [x] **S8c-1 引擎接进 checker（`Phase=inline`）**（SPEC-0021）：`core/Engine::RunInline`——每个函数解释 → 摘要 → `Propagate` → 带标签的判定：
+      调用点 L1 / L2（DEFINITE / POSSIBLE，F-32 文本、`rep.fp`）、调用点判安全 / 记账（SAFE `guard_false` / `within` / `guard_entailed` / `guard_bounds`，
+      SUSPECT）、入口账本（`typed_field` / `type_range_only` / `entry_unproven`）、本函数当场证明安全（SAFE `local_entailed`）、本函数账本、没分析完（`unanalyzed:*`）、
+      指针流进本 TU 外的被调者（`not_in_tu`）；位置里的文件名按 TU 的文件表换回完整路径；`Dump=apply`；调试内建函数按纯函数。
+      **`run.py csa`（67 个用例 134 个入口）：通过 68、通过+S 32、级别不同 16、漏报 15、超出预期 1、需跨TU 2；TN 上误报（DEFINITE / POSSIBLE）0 条；回退 0**
+      （原来 通过 69、漏报 63）。基线有意更新。查过 TP 上的每条 SAFE：没有把越界证明成安全的（LV7-03 的那条已由 SPEC-0022 修掉）。
+      剩下 15 条漏报大多是"在被调者里报了 SUSPECT、但不在入口上"（`run.py` 只按入口对照）；真正一条都没报的用例：无。
+- [ ] **S8c-2**：按 `TopoOrder` 自底向上解释、把被调者的效果代进来（`ret_new` 等，S7d-3，LV4-01）；汇合时用符号界（`max(0, p1) = p1`，LV3-05 的出口 `i == ulLen`）；
+      告警 note 按 F-33 的三种写法；`unknown_callee` / 跨 TU（`export` / `solve` / `report`）。
 - [ ] S9 之后：WP5 安全函数族模型 → WP7 循环与守卫 → WP8 效果与分配器 → WP9 大小模型 → WP10 驱动 → WP11 真实代码子集（公司）→ WP12 全量与性能 → WP13 冻结。
 
 ## 等用户提供 / 在公司做的
@@ -117,6 +124,8 @@
 * 公司（可选，很快）：bxen 命令加 `-analyzer-config rb.enhance.ipa.OobSummary:Dump=fir` 跑 TestCase，看 `module` 行是否 `ptr=4 long=4 big-endian`
   （fork 是否按 ILP32 分析，对应探针 R2），以及 `char` 字段是否 `u8`。只带回"是/否"。
 * 公司：`oobsum/devenv/fork-facts.sh` 的输出；I0 探针 R1–R3；本骨架在 bxen 下的 TestCase 结果（预期 3 条告警 + 判定日志 5 条）。
+* 公司（可选）：引擎已在默认的 `Phase=inline` 下跑。拿 bxen 跑 TestCase（应仍是 3 条告警、判定日志 5 条）和一个业务子目录，
+  带回各标签 / 原因的条数与耗时（`tools/decisions.py` 汇总，只要数字），用来定 `SuspectReasons` 的默认值（`not_in_tu`、`typed_field` 预计很多）。
 * 其余输入见 `HANDOFF.md` §6。
 
 ## 已知问题与注意

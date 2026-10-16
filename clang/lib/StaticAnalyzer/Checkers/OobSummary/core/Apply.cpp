@@ -301,6 +301,7 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
         LinExpr gmin = EliminateLocals(g, locs, false).out;
         if (HasConst(gmin) && gmin.Constant() > 0) {
             o.outcome = "safe";
+            o.reason = "guard_false";  // 判安全的机器原因（判定日志的 SAFE 用，SPEC-0021 §2.2）
             o.why = "守卫 " + ShowLe0(g) + " 在此为假，访问走不到";
             return o;
         }
@@ -338,6 +339,7 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
     if (HasConst(dhi)) {
         if (dhi.Constant() <= 0) {
             o.outcome = "safe";
+            o.reason = "within";
             o.why = "最大末端 " + Show(o.end2Hi) + " ≤ " + Show(o.have);
             return o;
         }
@@ -363,6 +365,7 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
     }
     if (EntailsLe0(dhi, all, env)) {
         o.outcome = "safe";
+        o.reason = "guard_entailed";
         o.why = "守卫蕴含 " + Show(o.end2Hi) + " ≤ " + Show(o.have);
         return o;
     }
@@ -373,6 +376,7 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
             std::string tmax = TagName(vmax.tag).str();
             if (vmax.value <= 0) {
                 o.outcome = "safe";
+                o.reason = "guard_bounds";
                 o.why = "在守卫给出的范围内最大末端也不越界";
                 return o;
             }

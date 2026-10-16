@@ -17,7 +17,7 @@ D-33（分配器的返回值）、D-25（调用点的 `model`）；金标准 `LV
 |---|---|---|
 | `access` | 名字、若干条件 `{base: 第几个实参, bytes: 实参的线性式, kind: R/W, when: 实参的条件}`、`destMax`（securec 规则用的实参下标，没有为 −1） | `memcpy_s` / `memmove_s`：`{p0, "p1", W}`、`{p2, "p3", R, when "p3 <= p1"}`，destMax = 1；`memset_s`：`{p0, "p1", W}`，destMax = 1；`memcpy` / `memmove`：`{p0, "p2", W}`、`{p1, "p2", R}`；`memset`：`{p0, "p2", W}` |
 | `alloc` | 名字、大小（实参的线性式或乘积） | `VOS_MemAlloc`：`p2`（I5 待确认）；`malloc`：`p0`；`calloc`：`p0*p1` |
-| `pure` | 名字、正则 | `LOG_Print`、`VOS_Printf`；`^LOG_`、`^DIAG_`、`_Trace$`（I9 待补） |
+| `pure` | 名字、正则 | `LOG_Print`、`VOS_Printf`；`^LOG_`、`^DIAG_`、`_Trace$`（I9 待补）；`^oobsum_debug_`（调试内建函数，SPEC-0021 加） |
 | `free` | 名字 | `VOS_MemFree`、`free`（不改被跟踪的大小；I-42 的 `MEM_FREE` 读入但 P0 不用） |
 
 查找按 I-44：**模型表优先**，函数体可见也用模型。

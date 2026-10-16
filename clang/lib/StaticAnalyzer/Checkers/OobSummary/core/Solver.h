@@ -9,6 +9,7 @@
 #ifndef LLVM_CLANG_LIB_STATICANALYZER_CHECKERS_OOBSUMMARY_CORE_SOLVER_H
 #define LLVM_CLANG_LIB_STATICANALYZER_CHECKERS_OOBSUMMARY_CORE_SOLVER_H
 
+#include "OobSummary/core/Apply.h"
 #include "OobSummary/core/LinExpr.h"
 #include "OobSummary/core/Summary.h"
 
@@ -35,8 +36,17 @@ struct DerivedReq {
     std::string kind;
 };
 
+// 调用点上被调者一条 Req 的结局（Dump=apply 与判定日志用，SPEC-0021 §2.2）
+struct SiteOutcome {
+    std::string site;
+    std::string callee;
+    apply::Outcome mine;
+    DerivedReq req;  // 被调者的那条
+};
+
 struct FunctionResult {
-    std::vector<DerivedReq> reqs;         // 覆盖合并之后
+    std::vector<DerivedReq> reqs;  // 覆盖合并之后
+    std::vector<SiteOutcome> sites;  // 调用点上的每个结局（判出 L1 / L2 的另在 reps，上传的并进 reqs）
     std::vector<summary::Rep> reps;       // 本函数判出的（L1 / L2）
     std::vector<std::string> entryOpens;  // 入口函数：每条推出的 Req 的账本原因
     bool entry = false;                   // 没有调用方

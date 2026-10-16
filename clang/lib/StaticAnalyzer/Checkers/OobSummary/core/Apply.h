@@ -30,8 +30,8 @@ constexpr int64_t kInlineDepth = 2;
 // classify 的结果（同 replay.py 返回的 dict）
 struct Outcome {
     std::string outcome;  // safe / L1 / L2 / up / open
-    std::string reason;   // open：账本原因
-    std::string why;      // 说明（只给 Dump=apply 看）
+    std::string reason;  // open：账本原因；safe：怎么证明的（guard_false / within / guard_entailed / guard_bounds）
+    std::string why;  // 说明（只给 Dump=apply 看）
     LinExpr have;
     LinExpr endLo;
     LinExpr endHi;

@@ -216,6 +216,7 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns)
                     result.reps.push_back(apply::RepOf(mine, call, fn, s, rj));
                     ++out.rep;
                 }
+                result.sites.push_back({call.site, call.callee, mine, r});
             }
         }
         result.reqs = Absorb(cand);

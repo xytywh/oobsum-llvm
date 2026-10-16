@@ -39,6 +39,6 @@ int use_rec(void)
 
 // CYCLE: [oobsum:callgraph] scc #{{[0-9]+}} cycle F@{{[0-9a-f]+}}:rec
 
-// FILTER-NOT: leaf
+// FILTER-NOT: [oobsum:callgraph] {{.*}}leaf
 // FILTER: [oobsum:callgraph] scc #0 F@{{[0-9a-f]+}}:mid
-// FILTER-NOT: top
+// FILTER-NOT: [oobsum:callgraph] {{.*}}top

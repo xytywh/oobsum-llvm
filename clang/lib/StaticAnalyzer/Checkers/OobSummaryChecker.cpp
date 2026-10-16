@@ -40,6 +40,7 @@
 #include "OobSummary/core/DecisionLog.h"
 #include "OobSummary/core/Fingerprint.h"
 #include "OobSummary/core/FirJson.h"
+#include "OobSummary/core/Engine.h"
 #include "OobSummary/core/FirText.h"
 #include "OobSummary/core/Interp.h"
 #include "OobSummary/core/Policy.h"
@@ -273,8 +274,10 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
     if (dump.On("callgraph")) {
         dumpCallGraph(tu, keys);
     }
-    // 降级只在要看 FIR / 状态 / 摘要时才做（引擎接上前不增加默认运行的开销，SPEC-0007 §2.5）
-    if (dump.On("fir") || dump.On("summary") || dump.On("state")) {
+    // Phase=inline：单个 TU 内 降级 → 函数内解释 → 摘要 → 推到底 → 判定（SPEC-0021）；降级只做一次，Dump=fir/summary/state 共用
+    bool engine = phase == "inline";
+    std::vector<oobsum::Decision> decisions;
+    if (engine || dump.On("fir") || dump.On("summary") || dump.On("state")) {
         oobsum::fir::Module module = oobsum::LowerTranslationUnit(tu, mgr, keys, mainFile);
         if (dump.On("fir")) {
             dumpFir(module, tuId);
@@ -282,10 +285,18 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
         if (dump.On("summary") || dump.On("state")) {
             dumpSummaries(module, tuId);
         }
+        if (engine) {
+            oobsum::engine::InlineResult result = oobsum::engine::RunInline(module);
+            for (const std::string &line : result.applyLines) {
+                if (dump.Wants("apply", line.substr(0, line.find(' ')))) {
+                    dump.Line("apply", line);
+                }
+            }
+            decisions = std::move(result.decisions);
+        }
     }
 
-    // 判定来源：目前只有调试内建函数；引擎接入后在这里加上 lower → solve → apply 产出的判定
-    std::vector<oobsum::Decision> decisions;
+    // 另一个判定来源：调试内建函数（SPEC-0001 §6.2）
     DebugIntrinsicVisitor visitor(sm, keys, decisions);
     visitor.astContext = &mgr.getASTContext();
     visitor.TraverseDecl(const_cast<TranslationUnitDecl *>(tu));

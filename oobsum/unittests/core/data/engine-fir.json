@@ -1,0 +1,921 @@
+{
+ "file": "/x/engine.c",
+ "files": [
+  "/x/engine.c"
+ ],
+ "funcs": [
+  {
+   "blocks": [
+    {
+     "id": 2,
+     "insts": [],
+     "succ": [
+      {
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "addr": [
+        "padd",
+        [
+         "l",
+         0
+        ],
+        [
+         "l",
+         1
+        ]
+       ],
+       "loc": [
+        0,
+        9,
+        5
+       ],
+       "op": "store",
+       "size": 1,
+       "sub": true,
+       "val": [
+        "c",
+        0
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 2,
+   "exit": 0,
+   "ext": false,
+   "key": "F@09ecfdf35a30f988:Leaf",
+   "loc": [
+    0,
+    7,
+    13
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "pucBuf",
+     "param": 0,
+     "t": {
+      "k": "ptr",
+      "to": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      }
+     }
+    },
+    {
+     "id": 1,
+     "name": "ulIdx",
+     "param": 1,
+     "t": {
+      "k": "int",
+      "s": false,
+      "w": 32
+     }
+    }
+   ],
+   "name": "Leaf",
+   "ret": {
+    "k": "void"
+   }
+  },
+  {
+   "blocks": [
+    {
+     "id": 2,
+     "insts": [],
+     "succ": [
+      {
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "args": [
+        [
+         "l",
+         0
+        ],
+        [
+         "l",
+         1
+        ]
+       ],
+       "callee": "F@09ecfdf35a30f988:Leaf",
+       "loc": [
+        0,
+        14,
+        5
+       ],
+       "op": "call",
+       "ord": 0
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 2,
+   "exit": 0,
+   "ext": false,
+   "key": "F@09ecfdf35a30f988:Mid",
+   "loc": [
+    0,
+    12,
+    13
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "pucBuf",
+     "param": 0,
+     "t": {
+      "k": "ptr",
+      "to": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      }
+     }
+    },
+    {
+     "id": 1,
+     "name": "ulIdx",
+     "param": 1,
+     "t": {
+      "k": "int",
+      "s": false,
+      "w": 32
+     }
+    }
+   ],
+   "name": "Mid",
+   "ret": {
+    "k": "void"
+   }
+  },
+  {
+   "blocks": [
+    {
+     "id": 2,
+     "insts": [],
+     "succ": [
+      {
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "args": [
+        [
+         "l",
+         0
+        ],
+        [
+         "l",
+         1
+        ]
+       ],
+       "callee": "F@09ecfdf35a30f988:Mid",
+       "loc": [
+        0,
+        19,
+        5
+       ],
+       "op": "call",
+       "ord": 0
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 2,
+   "exit": 0,
+   "ext": false,
+   "key": "F@09ecfdf35a30f988:Up",
+   "loc": [
+    0,
+    17,
+    13
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "pucBuf",
+     "param": 0,
+     "t": {
+      "k": "ptr",
+      "to": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      }
+     }
+    },
+    {
+     "id": 1,
+     "name": "ulIdx",
+     "param": 1,
+     "t": {
+      "k": "int",
+      "s": false,
+      "w": 32
+     }
+    }
+   ],
+   "name": "Up",
+   "ret": {
+    "k": "void"
+   }
+  },
+  {
+   "blocks": [
+    {
+     "id": 2,
+     "insts": [],
+     "succ": [
+      {
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "args": [
+        [
+         "laddr",
+         0
+        ],
+        [
+         "c",
+         16
+        ]
+       ],
+       "callee": "F@09ecfdf35a30f988:Up",
+       "loc": [
+        0,
+        25,
+        5
+       ],
+       "op": "call",
+       "ord": 0
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 2,
+   "exit": 0,
+   "ext": true,
+   "key": "F:Top_TP",
+   "loc": [
+    0,
+    22,
+    6
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "aucBuf",
+     "obj": true,
+     "t": {
+      "elem": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      },
+      "k": "arr",
+      "n": 16
+     }
+    }
+   ],
+   "name": "Top_TP",
+   "ret": {
+    "k": "void"
+   }
+  },
+  {
+   "blocks": [
+    {
+     "id": 2,
+     "insts": [],
+     "succ": [
+      {
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "args": [
+        [
+         "laddr",
+         0
+        ],
+        [
+         "c",
+         15
+        ]
+       ],
+       "callee": "F@09ecfdf35a30f988:Up",
+       "loc": [
+        0,
+        31,
+        5
+       ],
+       "op": "call",
+       "ord": 0
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 2,
+   "exit": 0,
+   "ext": true,
+   "key": "F:Top_TN",
+   "loc": [
+    0,
+    28,
+    6
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "aucBuf",
+     "obj": true,
+     "t": {
+      "elem": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      },
+      "k": "arr",
+      "n": 16
+     }
+    }
+   ],
+   "name": "Top_TN",
+   "ret": {
+    "k": "void"
+   }
+  },
+  {
+   "blocks": [
+    {
+     "id": 5,
+     "insts": [],
+     "succ": [
+      {
+       "to": 4
+      }
+     ]
+    },
+    {
+     "id": 4,
+     "insts": [
+      {
+       "dst": 1,
+       "loc": [
+        0,
+        38,
+        10
+       ],
+       "op": "set",
+       "val": [
+        "c",
+        0
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "to": 3
+      }
+     ]
+    },
+    {
+     "id": 3,
+     "insts": [],
+     "succ": [
+      {
+       "assume": [
+        "cmp",
+        "le",
+        [
+         "l",
+         1
+        ],
+        [
+         "c",
+         16
+        ],
+        false
+       ],
+       "to": 2
+      },
+      {
+       "assume": [
+        "cmp",
+        "gt",
+        [
+         "l",
+         1
+        ],
+        [
+         "c",
+         16
+        ],
+        false
+       ],
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 2,
+     "insts": [
+      {
+       "args": [
+        [
+         "laddr",
+         0
+        ],
+        [
+         "l",
+         1
+        ]
+       ],
+       "callee": "F@09ecfdf35a30f988:Up",
+       "loc": [
+        0,
+        39,
+        9
+       ],
+       "op": "call",
+       "ord": 0
+      }
+     ],
+     "succ": [
+      {
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "dst": 2,
+       "loc": [
+        0,
+        38,
+        26
+       ],
+       "op": "set",
+       "val": [
+        "l",
+        1
+       ]
+      },
+      {
+       "dst": 1,
+       "loc": [
+        0,
+        38,
+        26
+       ],
+       "op": "set",
+       "val": [
+        "bin",
+        "add",
+        [
+         "l",
+         2
+        ],
+        [
+         "c",
+         1
+        ],
+        32,
+        false
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "to": 3
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 5,
+   "exit": 0,
+   "ext": true,
+   "key": "F:Top_L2",
+   "loc": [
+    0,
+    34,
+    6
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "aucBuf",
+     "obj": true,
+     "t": {
+      "elem": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      },
+      "k": "arr",
+      "n": 16
+     }
+    },
+    {
+     "id": 1,
+     "name": "i",
+     "t": {
+      "k": "int",
+      "s": false,
+      "w": 32
+     }
+    },
+    {
+     "id": 2,
+     "name": "t0",
+     "t": {
+      "k": "int",
+      "s": false,
+      "w": 32
+     },
+     "tmp": true
+    }
+   ],
+   "name": "Top_L2",
+   "ret": {
+    "k": "void"
+   }
+  },
+  {
+   "blocks": [
+    {
+     "id": 6,
+     "insts": [],
+     "succ": [
+      {
+       "to": 5
+      }
+     ]
+    },
+    {
+     "id": 5,
+     "insts": [
+      {
+       "dst": 2,
+       "loc": [
+        0,
+        47,
+        10
+       ],
+       "op": "set",
+       "val": [
+        "c",
+        0
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "to": 4
+      }
+     ]
+    },
+    {
+     "id": 4,
+     "insts": [],
+     "succ": [
+      {
+       "assume": [
+        "cmp",
+        "lt",
+        [
+         "l",
+         2
+        ],
+        [
+         "c",
+         4
+        ],
+        false
+       ],
+       "to": 3
+      },
+      {
+       "assume": [
+        "cmp",
+        "ge",
+        [
+         "l",
+         2
+        ],
+        [
+         "c",
+         4
+        ],
+        false
+       ],
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 3,
+     "insts": [
+      {
+       "addr": [
+        "padd",
+        [
+         "l",
+         0
+        ],
+        [
+         "l",
+         2
+        ]
+       ],
+       "dst": 3,
+       "loc": [
+        0,
+        48,
+        21
+       ],
+       "op": "load",
+       "size": 1,
+       "sub": true
+      },
+      {
+       "addr": [
+        "padd",
+        [
+         "laddr",
+         1
+        ],
+        [
+         "l",
+         2
+        ]
+       ],
+       "loc": [
+        0,
+        48,
+        9
+       ],
+       "op": "store",
+       "size": 1,
+       "sub": true,
+       "val": [
+        "l",
+        3
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "to": 2
+      }
+     ]
+    },
+    {
+     "id": 2,
+     "insts": [
+      {
+       "dst": 4,
+       "loc": [
+        0,
+        47,
+        24
+       ],
+       "op": "set",
+       "val": [
+        "l",
+        2
+       ]
+      },
+      {
+       "dst": 2,
+       "loc": [
+        0,
+        47,
+        24
+       ],
+       "op": "set",
+       "val": [
+        "bin",
+        "add",
+        [
+         "l",
+         4
+        ],
+        [
+         "c",
+         1
+        ],
+        32,
+        false
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "to": 4
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "args": [
+        [
+         "laddr",
+         1
+        ],
+        [
+         "c",
+         4
+        ]
+       ],
+       "callee": "F:Ext_Send",
+       "loc": [
+        0,
+        50,
+        5
+       ],
+       "op": "call",
+       "ord": 0
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 6,
+   "exit": 0,
+   "ext": true,
+   "key": "F:Entry",
+   "loc": [
+    0,
+    43,
+    6
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "pucIn",
+     "param": 0,
+     "t": {
+      "k": "ptr",
+      "to": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      }
+     }
+    },
+    {
+     "id": 1,
+     "name": "aucTmp",
+     "obj": true,
+     "t": {
+      "elem": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      },
+      "k": "arr",
+      "n": 4
+     }
+    },
+    {
+     "id": 2,
+     "name": "i",
+     "t": {
+      "k": "int",
+      "s": false,
+      "w": 32
+     }
+    },
+    {
+     "id": 3,
+     "name": "t0",
+     "t": {
+      "k": "int",
+      "s": false,
+      "w": 8
+     },
+     "tmp": true
+    },
+    {
+     "id": 4,
+     "name": "t1",
+     "t": {
+      "k": "int",
+      "s": false,
+      "w": 32
+     },
+     "tmp": true
+    }
+   ],
+   "name": "Entry",
+   "ret": {
+    "k": "void"
+   }
+  }
+ ],
+ "globals": [],
+ "records": [],
+ "schema": "oobsum-fir/1",
+ "target": {
+  "big_endian": true,
+  "long": 4,
+  "ptr": 4,
+  "triple": "armebv7-unknown-linux-gnueabi"
+ },
+ "tu": "09ecfdf35a30f988"
+}
