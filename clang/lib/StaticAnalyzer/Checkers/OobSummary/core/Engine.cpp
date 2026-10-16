@@ -276,6 +276,8 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
         }
         // 入口函数上推不下去的 Req（A-80）
         if (result.entry) {
+            // 同一次访问（同读写）只报第一条，其余记 dup_of（SPEC-0036）
+            std::map<std::string, std::string> firstFp;
             for (size_t i = 0; i < result.reqs.size(); ++i) {
                 const solver::DerivedReq &r = result.reqs[i];
                 Decision d =
@@ -292,6 +294,10 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
                 d.chain = allSites.Chain(r.path);
                 d.msg = SuspectMessage(d.kind, d.depth, alert::ObjName(d.obj, s.params), d.have, d.endHi);
                 d.fp = DecisionFingerprint(LabelName(d.label), s.key, r.access.key, d.kind, r.access.end, d.obj);
+                auto first = firstFp.emplace(r.access.key + "@" + r.access.at + "|" + d.kind, d.fp);
+                if (!first.second) {
+                    d.dupOf = first.first->second;
+                }
                 out.decisions.push_back(std::move(d));
             }
         }

@@ -62,6 +62,9 @@ bool DecisionFromJson(const llvm::json::Value &value, Decision &out, std::string
         !str("msg", out.msg) || !str("fp", out.fp) || !str("origin", out.origin)) {
         return false;
     }
+    if (llvm::Optional<llvm::StringRef> dup = o->getString("dup_of")) {
+        out.dupOf = dup->str();  // SPEC-0036
+    }
     llvm::Optional<Label> parsed = ParseLabel(label);
     if (!parsed || !SiteFromText(site, out.site)) {
         error = "decision: bad label or site";
@@ -124,6 +127,9 @@ llvm::json::Object DecisionToJson(const Decision &decision, const Disposition &d
         {"fp", decision.fp},
         {"origin", decision.origin},
     };
+    if (!decision.dupOf.empty()) {
+        out["dup_of"] = decision.dupOf;
+    }
     if (!disposition.emit) {
         out["not_emitted_because"] = disposition.why;
     }

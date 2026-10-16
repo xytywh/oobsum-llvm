@@ -78,6 +78,28 @@ TEST(Policy, SuspectReasonsFilter)
     EXPECT_EQ(Why(Make(Label::Definite, 3), picky), "emit");
 }
 
+// 同一入口同一次访问的重复账本（SPEC-0036）：指向的那条报出了才不报；那条被过滤掉时照常
+TEST(Policy, DuplicateAccessIsLoggedNotEmitted)
+{
+    Decision first = Make(Label::Suspect, 3, 0, "type_range_only");
+    first.fp = "aaaaaaaaaaaaaaaa";
+    Decision dup = Make(Label::Suspect, 3, 0, "entry_unproven");
+    dup.fp = "bbbbbbbbbbbbbbbb";
+    dup.dupOf = first.fp;
+    PolicyOptions recall;
+    std::vector<Disposition> got = ClassifyBatch({first, dup}, recall);
+    ASSERT_TRUE(got.size() == 2);
+    EXPECT_TRUE(got[0].emit);
+    EXPECT_FALSE(got[1].emit);
+    EXPECT_EQ(got[1].why, "duplicate_access");
+    PolicyOptions picky;  // 第一条的原因被滤掉：第二条照常报
+    picky.suspectReasons = {"entry_unproven"};
+    got = ClassifyBatch({first, dup}, picky);
+    EXPECT_FALSE(got[0].emit);
+    EXPECT_TRUE(got[1].emit);
+    EXPECT_TRUE(Classify(dup, recall).emit);  // 单条 Classify 不看 dupOf
+}
+
 TEST(Policy, SafeIsLoggedNotEmitted)
 {
     PolicyOptions recall;

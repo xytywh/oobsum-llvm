@@ -68,8 +68,10 @@ std::vector<std::pair<Decision, Disposition>> Reporter::Flush(BugReporter &br, c
                std::tie(b.site.file, b.site.line, b.site.col, b.fp);
     });
     std::vector<std::pair<Decision, Disposition>> out;
-    for (Decision &decision : pending) {
-        Disposition disposition = Classify(decision, policy);
+    std::vector<Disposition> dispositions = ClassifyBatch(pending, policy);
+    for (size_t i = 0; i < pending.size(); ++i) {
+        Decision &decision = pending[i];
+        const Disposition &disposition = dispositions[i];
         if (disposition.emit) {
             SourceLocation loc = Locate(decision.site, sm);
             if (loc.isInvalid()) {

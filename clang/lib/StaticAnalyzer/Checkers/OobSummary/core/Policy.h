@@ -15,6 +15,7 @@
 
 #include <set>
 #include <string>
+#include <vector>
 
 namespace oobsum {
 
@@ -31,6 +32,8 @@ struct Disposition {
 };
 
 Disposition Classify(const Decision &decision, const PolicyOptions &options);
+// 一批判定：逐条 Classify，再把 dupOf 指向的判定已报出的那些改成不报（duplicate_access，SPEC-0036）
+std::vector<Disposition> ClassifyBatch(const std::vector<Decision> &decisions, const PolicyOptions &options);
 
 // "a+b + c" → {"a","b","c"}。分隔符用 '+'：-analyzer-config 会把逗号当成多个键值对的分隔（实测：
 // Dump=options,stats 报 "analyzer-config option 'stats' has a key but no value"）。逗号也认，供将来从配置文件读入。

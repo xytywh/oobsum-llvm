@@ -60,4 +60,24 @@ Disposition Classify(const Decision &decision, const PolicyOptions &options)
     return result;
 }
 
+std::vector<Disposition> ClassifyBatch(const std::vector<Decision> &decisions, const PolicyOptions &options)
+{
+    std::vector<Disposition> out;
+    std::set<std::string> emitted;
+    for (const Decision &d : decisions) {
+        out.push_back(Classify(d, options));
+        if (out.back().emit) {
+            emitted.insert(d.fp);
+        }
+    }
+    // 同一入口同一次访问的重复账本：它指向的那条报出了才不报（那条被过滤掉时这条照常，SPEC-0036）
+    for (size_t i = 0; i < decisions.size(); ++i) {
+        if (out[i].emit && !decisions[i].dupOf.empty() && emitted.count(decisions[i].dupOf) != 0) {
+            out[i].emit = false;
+            out[i].why = "duplicate_access";
+        }
+    }
+    return out;
+}
+
 }  // namespace oobsum

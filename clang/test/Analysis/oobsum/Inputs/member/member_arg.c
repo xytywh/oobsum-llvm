@@ -50,3 +50,9 @@ void TopAll_TP(void)
     MSG st;
     Msg_ClearAll(&st);
 }
+
+/* 入口把成员数组传下去：成员、外层对象两条 typed_field 账本，只报一条（SPEC-0036） */
+void Entry_Msg(MSG *pstMsg, UINT32 n)
+{
+    Body_Clear(pstMsg->aucBody, n);
+}

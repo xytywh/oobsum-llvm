@@ -46,6 +46,7 @@ struct Decision {
     std::string msg;     // F-32 正文（不含标签前缀）
     std::string fp;      // F-34 指纹
     std::string origin;  // 谁产生的：engine / debug-intrinsic
+    std::string dupOf;  // 同一入口同一次访问的另一条账本（报出的那条）的指纹：日志照写、不报（SPEC-0036）
 };
 
 }  // namespace oobsum

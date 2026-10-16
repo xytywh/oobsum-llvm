@@ -67,4 +67,5 @@
 | [SPEC-0033](SPEC-0033-model-file.md) | `ModelFile`：YAML 模型表合并进内置表；`Dump=models` | 已实现（S7d-2a） |
 | [SPEC-0034](SPEC-0034-securec-string.md) | `strcpy_s` 族的目的一侧：`upto` 条件与来源标签 `model` | 已实现（S7d-2b） |
 | [SPEC-0035](SPEC-0035-member-arg-parent.md) | 成员数组当实参：调用点记录带外层对象，代换时外层也查 | 已实现 |
+| [SPEC-0036](SPEC-0036-entry-ledger-dedupe.md) | 入口账本按访问去重：同一入口同一次访问只报一条，日志全记 | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

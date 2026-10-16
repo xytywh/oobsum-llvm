@@ -190,6 +190,7 @@ TEST(Engine, DecisionJsonRoundTrip)
         EXPECT_EQ(back.endHi, d.endHi);
         EXPECT_EQ(back.msg, d.msg);
         EXPECT_EQ(back.fp, d.fp);
+        EXPECT_EQ(back.dupOf, d.dupOf);
         EXPECT_EQ(back.depth, d.depth);
         ASSERT_TRUE(back.chain.size() == d.chain.size());
         for (size_t i = 0; i < d.chain.size(); ++i) {
@@ -197,4 +198,10 @@ TEST(Engine, DecisionJsonRoundTrip)
             EXPECT_EQ(back.chain[i].site.line, d.chain[i].site.line);
         }
     }
+    // dup_of（SPEC-0036）
+    Decision dup = r.decisions[0];
+    dup.dupOf = "0123456789abcdef";
+    Decision back;
+    ASSERT_TRUE(DecisionFromJson(llvm::json::Value(DecisionToJson(dup, Disposition())), back, error));
+    EXPECT_EQ(back.dupOf, "0123456789abcdef");
 }
