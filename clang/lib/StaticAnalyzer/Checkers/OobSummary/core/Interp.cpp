@@ -1040,6 +1040,10 @@ private:
     bool Assume(ExprId c, bool negate, State &s);
     bool AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s);
     bool Narrow(ExprId e, fir::CmpOp op, const LinExpr &c, State &s);
+    // 按比较收窄一个区间（Narrow 与 NarrowPtr 共用，SPEC-0081）：收成空 → false；changed：有没有收窄
+    bool NarrowRange(const IntVal &v, fir::CmpOp op, const LinExpr &c, const State &s, IntVal &out, bool &changed);
+    bool NarrowPtr(ExprId e, fir::CmpOp op, const LinExpr &c, State &s);
+    uint32_t WrittenLocal(ExprId e, const State &s);
     static void AddGuard(State &s, const LinExpr &le0);
     void SetLocal(State &s, uint32_t dst, Value v) const
     {
@@ -2971,8 +2975,44 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
     if (b != fir::kNone) {
         vb = Eval(b, s);
     }
+    static const fir::CmpOp mirror[] = {fir::CmpOp::Eq, fir::CmpOp::Ne, fir::CmpOp::Gt,
+                                        fir::CmpOp::Ge, fir::CmpOp::Lt, fir::CmpOp::Le};
     if (va.isPtr || vb.isPtr) {
-        return true;  // 指针比较本步不产生信息
+        // 同一对象的两个指针：比较偏移（越过对象的指针算术是未定义行为，偏移按数学整数，SPEC-0081）；其余不产生信息
+        bool sameObject = b != fir::kNone && va.isPtr && vb.isPtr && va.p.kind == vb.p.kind && va.p.id == vb.p.id &&
+                          va.p.kind != BaseKind::Unknown && va.p.kind != BaseKind::Func;
+        if (!sameObject) {
+            return true;
+        }
+        const IntVal &oa = va.p.off;
+        const IntVal &ob = vb.p.off;
+        if (oa.kind == IntVal::Kind::Range && ob.kind == IntVal::Kind::Exact) {
+            return NarrowPtr(a, op, ob.value, s);
+        }
+        if (ob.kind == IntVal::Kind::Range && oa.kind == IntVal::Kind::Exact) {
+            return NarrowPtr(b, mirror[static_cast<int>(op)], oa.value, s);
+        }
+        if (oa.kind == IntVal::Kind::Exact && ob.kind == IntVal::Kind::Exact) {
+            LinExpr d = oa.value - ob.value;
+            if (d.IsConst()) {
+                int64_t k = d.Constant();
+                switch (op) {
+                    case fir::CmpOp::Lt:
+                        return k < 0;
+                    case fir::CmpOp::Le:
+                        return k <= 0;
+                    case fir::CmpOp::Gt:
+                        return k > 0;
+                    case fir::CmpOp::Ge:
+                        return k >= 0;
+                    case fir::CmpOp::Eq:
+                        return k == 0;
+                    case fir::CmpOp::Ne:
+                        return k != 0;
+                }
+            }
+        }
+        return true;
     }
     // 带情形的值与常数比较：按情形筛选（SPEC-0025 §2.4）
     static const fir::CmpOp swapped[] = {fir::CmpOp::Eq, fir::CmpOp::Ne, fir::CmpOp::Gt,
@@ -3072,9 +3112,10 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
 }
 
 // e op c，e 的值是区间：收窄（e 是局部、或保值的类型转换下的局部时写回）；区间为空 → 不可达
-bool Analyzer::Narrow(ExprId e, fir::CmpOp op, const LinExpr &c, State &s)
+bool Analyzer::NarrowRange(const IntVal &v, fir::CmpOp op, const LinExpr &c, const State &s, IntVal &out, bool &changed)
 {
-    IntVal v = EvalInt(e, s);
+    out = v;
+    changed = false;
     llvm::Optional<LinExpr> lo = v.Lower();
     llvm::Optional<LinExpr> hi = v.Upper();
     llvm::Optional<LinExpr> newLo;
@@ -3134,26 +3175,69 @@ bool Analyzer::Narrow(ExprId e, fir::CmpOp op, const LinExpr &c, State &s)
             return false;
         }
     }
-    // 写回局部：跳过保值的类型转换（转换的值与里面的值相同）
-    ExprId cur = e;
-    while (cur < f.exprs.size() && f.exprs[cur].op == ExprOp::Cast && EvalInt(f.exprs[cur].a, s) == v) {
-        cur = f.exprs[cur].a;
-    }
-    if (cur >= f.exprs.size() || f.exprs[cur].op != ExprOp::Local) {
-        return true;
-    }
-    Value out;
+    changed = true;
     if (l && h && same(l, *h)) {
-        out.i = IntVal::Exact(*l);
+        out = IntVal::Exact(*l);
     } else {
         // 标签说的是上界的来源（F-12 只看上界，同 replay.py）：上界被代码里的检查收窄 → check，循环头上的条件 → loop
         // （SPEC-0017 §2.2）；只收窄了下界 → 原标签不变
         bool hiNarrowed = h && (!hi || !(*h == *hi));
         Tag by = edgeFromHead ? Tag::Loop : Tag::Check;
         Tag tag = !hiNarrowed ? v.tag : (IsCodeTag(v.tag) ? WorseTag(v.tag, by) : by);
-        out.i = IntVal::Range(l, h, tag);
+        out = IntVal::Range(l, h, tag);
     }
-    s.locals[static_cast<uint32_t>(f.exprs[cur].value)] = out;
+    return true;
+}
+
+// 写回时跳过保值的类型转换（转换的值与里面的值相同）；不是局部 → kNone
+uint32_t Analyzer::WrittenLocal(ExprId e, const State &s)
+{
+    ExprId cur = e;
+    while (cur < f.exprs.size() && f.exprs[cur].op == ExprOp::Cast && Eval(f.exprs[cur].a, s) == Eval(cur, s)) {
+        cur = f.exprs[cur].a;
+    }
+    if (cur >= f.exprs.size() || f.exprs[cur].op != ExprOp::Local) {
+        return fir::kNone;
+    }
+    return static_cast<uint32_t>(f.exprs[cur].value);
+}
+
+bool Analyzer::Narrow(ExprId e, fir::CmpOp op, const LinExpr &c, State &s)
+{
+    IntVal v = EvalInt(e, s);
+    IntVal out;
+    bool changed = false;
+    if (!NarrowRange(v, op, c, s, out, changed)) {
+        return false;
+    }
+    // 写回局部：跳过保值的类型转换（转换的值与里面的值相同）
+    ExprId cur = e;
+    while (cur < f.exprs.size() && f.exprs[cur].op == ExprOp::Cast && EvalInt(f.exprs[cur].a, s) == v) {
+        cur = f.exprs[cur].a;
+    }
+    if (!changed || cur >= f.exprs.size() || f.exprs[cur].op != ExprOp::Local) {
+        return true;
+    }
+    Value written;
+    written.i = out;
+    s.locals[static_cast<uint32_t>(f.exprs[cur].value)] = written;
+    return true;
+}
+
+// 指针 e 的偏移按 op c 收窄并写回指针局部（同一对象的两个指针比较，SPEC-0081）
+bool Analyzer::NarrowPtr(ExprId e, fir::CmpOp op, const LinExpr &c, State &s)
+{
+    Value v = Eval(e, s);
+    IntVal out;
+    bool changed = false;
+    if (!NarrowRange(v.p.off, op, c, s, out, changed)) {
+        return false;
+    }
+    uint32_t local = WrittenLocal(e, s);
+    if (changed && local != fir::kNone) {
+        v.p.off = out;
+        s.locals[local] = v;
+    }
     return true;
 }
 

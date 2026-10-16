@@ -1466,3 +1466,20 @@ TEST(Interp, ConditionalWriteEffect)
     EXPECT_EQ(cond->when.getValueOr(""), "ret == 0");
     EXPECT_FALSE(cond->may.hasValue());
 }
+
+TEST(Interp, PointerCompareNarrows)
+{
+    // SPEC-0081：e = p + n; while (p < e) { *p = 0; p++; } → 循环体 p 的偏移 [0, p1 − 1]，末端 [1, p1]（原来 pointer_stepping）
+    Builder b;
+    TypeId pu8 = b.m.Intern(Type::Ptr(b.u8));
+    uint32_t p = b.Param("p", pu8);
+    uint32_t n = b.Param("n", b.u32);
+    uint32_t e = b.LocalVar("e", pu8);
+    Loop l;
+    l.entry.insts = {b.Set(e, b.PAdd(b.L(p), b.L(n)))};
+    l.body.insts = {b.Store(b.L(p), 1, b.C(0), 7)};
+    l.latch.insts = {b.Set(p, b.PAdd(b.L(p), b.C(1)))};
+    l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(p), b.L(e), false)),
+              b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(p), b.L(e), false)));
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=loop at=t.c:7");
+}
