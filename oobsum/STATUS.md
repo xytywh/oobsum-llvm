@@ -111,6 +111,9 @@
       lit `callee-writes.test` 守住"被调者改了字段 / 全局后不再用旧值证明安全"（做 mod-ref 之前的保守做法）。
 - [x] **S5b-1 `MaxBlocks`**（SPEC-0037）：CFG 块数超过 `MaxBlocks`（默认 5000）的函数不降级函数体（`cfg_too_large`），建不出 CFG 的（`no_cfg`，原来悄悄当成空函数）同样
       `skipped:…`；`partial:*` / `skipped:*` 的函数都在声明处报 SUSPECT `unanalyzed:<后缀>`。
+- [x] **代换里没映射的被调者符号**（SPEC-0063）：原来原样保留、被当成调用方的同名形参符号继续上传——探针里经外部函数拿到的 `st.pucRes` 被套上上层
+      `outer.pucRes` 的 128 字节，**判成 SAFE（错误）**。现在改名成非接口符号 `_unmapped:…`，对象大小里有它时记 `untracked_pointer`。
+      `run.py csa` 回退 0（LV5-02、LV10-05 的同一条 SUSPECT 从入口声明处挪到调用点）。
 - [x] **不跟踪的指针实参**（SPEC-0062）：外部函数返回的指针交给下一层时，原来记 `entry_unproven`，告警文本露出内部占位符（"stays within '_unknown0' (size _unknown0)"）；
       现在记 `untracked_pointer`，文本 "the object passed as argument 1 (size unknown)"。只换原因与文本（LV4-07 两个入口仍是 SUSPECT）。
 - [x] **出参式分配器写进结构体字段**（SPEC-0061）：`out_new` 的 `target` 可以是 `pK->字段`（`pstUe->pucRes = alloc(64)`）。**LV5-05 从"级别不同"变成通过**

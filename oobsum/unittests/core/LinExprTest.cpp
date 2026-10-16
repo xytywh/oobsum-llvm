@@ -159,6 +159,25 @@ TEST(LinExpr, Substitute)
     EXPECT_EQ(Substitute(L("wrap32(p1 - 34)"), konst).Show(), "4294967295");
 }
 
+TEST(LinExpr, SubstitutePoison)
+{
+    // 调用点代换（SPEC-0063）：表里没有、也不是别名的被调者接口符号改名成 _unmapped:…，不能当成调用方的同名符号
+    Substitution m;
+    m.sym["p0"] = L("i + 1");
+    m.ext["p0"] = L("16");
+    m.alias["p1"] = "p2";
+    m.poison = true;
+    EXPECT_EQ(Substitute(L("ext(p0) + p0"), m).Show(), "i + 17");                        // 映射到的照旧
+    EXPECT_EQ(Substitute(L("ext(p1->pucBuf)"), m).Show(), "ext(p2->pucBuf)");            // 别名照旧
+    EXPECT_EQ(Substitute(L("g:ulCnt + 1"), m).Show(), "g:ulCnt + 1");                    // 全局同名同义
+    EXPECT_EQ(Substitute(L("ext(p0->pucRes)"), m).Show(), "_unmapped:ext(p0->pucRes)");  // 实参没带这个字段
+    EXPECT_EQ(Substitute(L("p0->ulLen"), m).Show(), "_unmapped:p0->ulLen");
+    EXPECT_EQ(Substitute(L("bext(p3) + p3"), m).Show(), "_unmapped:bext(p3) + _unmapped:p3");  // 空实参
+    EXPECT_EQ(Substitute(L("wrap32(p3 - 1)"), m).Show(), "wrap32(_unmapped:p3 - 1)");  // 不透明项里的也改
+    m.poison = false;
+    EXPECT_EQ(Substitute(L("ext(p0->pucRes) + p3"), m).Show(), "p3 + ext(p0->pucRes)");  // 关着时照旧
+}
+
 TEST(LinExpr, GoldenFromReplay)
 {
     // 104 份摘要（去掉 doc）里的全部表达式与条件，replay.py 的规范打印结果

@@ -125,6 +125,9 @@ struct Substitution {
     std::map<std::string, LinExpr> ext;
     std::map<std::string, LinExpr> bext;  // SPEC-0039
     std::map<std::string, std::string> alias;
+    // 调用点代换：表里没有、也不是别名的被调者接口符号（p<i>、p<i>->f 及其 ext / bext）改名成 _unmapped:<原文>，
+    // 不能当成调用方的同名符号（SPEC-0063）
+    bool poison = false;
 };
 LinExpr Substitute(const LinExpr &e, const Substitution &m);
 

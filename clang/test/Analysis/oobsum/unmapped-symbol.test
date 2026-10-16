@@ -1,0 +1,12 @@
+# 调用点代换：映射表里没有的被调者接口符号不再"变成"调用方的符号（oobsum/specs/SPEC-0063）。
+# 原来 Mid 把 ext(p0->pucRes)（st.pucRes，外部函数返回）原样上传成自己 p0（pstOuter）的字段，Top 代成 outer.pucRes 的 128 字节 → 错误的 SAFE。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=apply %S/Inputs/unmapped/leak.c 2>&1 | FileCheck %s
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/unmapped/leak.c 2>&1 | not grep 'up to byte 101'
+
+CHECK-DAG: [oobsum:apply] Mid @ leak.c:9 Res_Fill.leak.c:7 → open (untracked_pointer)
+CHECK-DAG: leak.c:9:1: warning: [OOB-SUSPECT:untracked_pointer] Cannot prove the write through a 2-level call chain stays within '*pst->pucRes' (size unknown): up to byte p1 + 1 may be accessed

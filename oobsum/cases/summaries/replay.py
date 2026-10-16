@@ -315,6 +315,9 @@ def subst(l, m):
         elif a[0] in ('ext', 'bext') and '->' in a[1] and a[1].split('->', 1)[0] in m.get('__alias__', {}):
             base, rest = a[1].split('->', 1)
             out = out + Lin(0, {(a[0], m['__alias__'][base] + '->' + rest): c})
+        elif m.get('__poison__') and a[0] in ('s', 'ext', 'bext') and re.match(r'p\d+($|->)', a[1]):
+            text = a[1] if a[0] == 's' else '%s(%s)' % a     # SPEC-0063：改名成非接口符号
+            out = out + Lin(0, {('s', '_unmapped:' + text): c})
         elif a[0] in ('div', 'mod'):
             out = out + mk_opaque((a[0], subst(unfreeze(a[1]), m).key(), a[2])).scale(c)
         elif a[0] == 'wrap':
@@ -726,6 +729,7 @@ def build_map(call, callee):
         elif arg is not None:
             m[p] = P(arg)
     m['__alias__'] = alias
+    m['__poison__'] = True  # 表里没有的被调者符号不能当成调用方的（SPEC-0063）
     return m, effd
 
 
@@ -832,6 +836,9 @@ def classify(req, call, caller, callee, env_guards):
     # 实参是不跟踪的指针（调用点记录的占位符 local:_unknownK / _unknownK）：判不了也传不上去（SPEC-0062）
     if obj2.startswith('local:_unknown') and show(have) == obj2[6:]:
         return dict(trace, outcome='open', reason='untracked_pointer', why='实参是不跟踪的指针，大小未知')
+    # 被调者经实参所指对象里的指针访问，调用方不知道那个指针指向哪里（SPEC-0063）
+    if any(a[0] == 's' and a[1].startswith('_unmapped:') for a in have.t):
+        return dict(trace, outcome='open', reason='untracked_pointer', why='对象大小 %s 在调用方不知道' % show(have))
     # ② 局部换成区间
     ehi2, tags_hi, ne = eliminate_locals(ehi, locs, True)
     elo2, _, _ = eliminate_locals(elo, locs, False)

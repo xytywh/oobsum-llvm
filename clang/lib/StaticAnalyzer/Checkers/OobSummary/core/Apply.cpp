@@ -68,6 +68,7 @@ struct Map {
 Map BuildMap(const Call &call)
 {
     Map out;
+    out.m.poison = true;  // 表里没有的被调者符号不能当成调用方的（SPEC-0063）
     for (size_t i = 0; i < call.args.size(); ++i) {
         std::string p = "p" + std::to_string(i);
         const ArgValue &arg = call.args[i];
@@ -376,6 +377,13 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
         o.outcome = "open";
         o.reason = "untracked_pointer";
         o.why = "实参是不跟踪的指针，大小未知";
+        return o;
+    }
+    // 被调者经实参所指对象里的指针访问，调用方不知道那个指针指向哪里（大小里有没映射的被调者符号，SPEC-0063）
+    if (o.have.Show().find("_unmapped:") != std::string::npos) {
+        o.outcome = "open";
+        o.reason = "untracked_pointer";
+        o.why = "对象大小 " + Show(o.have) + " 在调用方不知道";
         return o;
     }
     // ② 局部换成区间

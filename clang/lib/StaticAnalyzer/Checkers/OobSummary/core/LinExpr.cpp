@@ -647,6 +647,19 @@ std::string ShowLe0(const LinExpr &g)
     return pos.Show() + " <= " + (neg + LinExpr::Const(-k)).Show();
 }
 
+// 被调者的接口符号名：p<i> 或 p<i>->…（全局 g:… 两边同名同义，不算）
+static bool IsCalleeIface(const std::string &name)
+{
+    if (name.size() < 2 || name[0] != 'p' || !std::isdigit(static_cast<unsigned char>(name[1]))) {
+        return false;
+    }
+    size_t i = 1;
+    while (i < name.size() && std::isdigit(static_cast<unsigned char>(name[i]))) {
+        ++i;
+    }
+    return i == name.size() || name.compare(i, 2, "->") == 0;
+}
+
 LinExpr Substitute(const LinExpr &e, const Substitution &m)
 {
     if (e.IsUnknown()) {
@@ -668,6 +681,11 @@ LinExpr Substitute(const LinExpr &e, const Substitution &m)
                 piece = a.kind == Atom::Kind::Sym   ? LinExpr::Sym(renamed)
                         : a.kind == Atom::Kind::Ext ? LinExpr::Ext(renamed)
                                                     : LinExpr::BExt(renamed);
+            } else if (m.poison && IsCalleeIface(a.name)) {
+                std::string text = a.kind == Atom::Kind::Sym   ? a.name
+                                   : a.kind == Atom::Kind::Ext ? "ext(" + a.name + ")"
+                                                               : "bext(" + a.name + ")";
+                piece = LinExpr::Sym("_unmapped:" + text);  // SPEC-0063
             } else {
                 piece = LinExpr::OfAtom(a);
             }

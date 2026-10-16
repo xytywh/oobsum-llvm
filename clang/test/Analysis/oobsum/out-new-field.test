@@ -12,5 +12,5 @@
 CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{{.*}}{"eff_depth":1,"kind":"out_new","maybe_null":true,"size":"64","target":"p0->pucRes"}]{{.*}}"fields":{"p0->pucRes":{"off":4,"size":4,"type":"u8*"}},"fn":"Res_Alloc"
 CHECK-DAG: field.c:12:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 2-level call chain: up to byte 65 of heap object allocated at {{.*}}field.c:12 (64 bytes
 CHECK-DAG: field.c:13:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 64 of heap object allocated at {{.*}}field.c:13 (64 bytes)
-# 对照：调用方读到的 pucRes 不是新对象 → 照旧记账
-CHECK-DAG: field.c:17:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 2-level call chain stays within '?' (size ext(p0->pucRes))
+# 对照：调用方读到的 pucRes 不是新对象 → 照旧记账（字段指针在调用方不知道：untracked_pointer，SPEC-0063）
+CHECK-DAG: field.c:17:1: warning: [OOB-SUSPECT:untracked_pointer] Cannot prove the write through a 2-level call chain stays within '*pst->pucRes' (size unknown)

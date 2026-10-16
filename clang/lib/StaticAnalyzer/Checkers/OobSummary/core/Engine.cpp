@@ -76,8 +76,8 @@ std::string Word(const std::string &kind)
 std::string SizeText(const std::string &have)
 {
     bool number = !have.empty() && have.find_first_not_of("0123456789") == std::string::npos;
-    if (llvm::StringRef(have).startswith("_unknown")) {
-        return "size unknown";  // 不跟踪的指针实参（SPEC-0062）
+    if (llvm::StringRef(have).startswith("_unknown") || have.find("_unmapped:") != std::string::npos) {
+        return "size unknown";  // 不跟踪的指针实参（SPEC-0062）、调用方不知道的字段指针（SPEC-0063）
     }
     return number ? have + " bytes" : "size " + have;
 }

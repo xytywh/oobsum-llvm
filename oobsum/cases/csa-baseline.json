@@ -891,7 +891,7 @@
    "kind": "TP",
    "entry": "Om_Trace_TP",
    "pa": "记账",
-   "actual": "SUSPECT:entry_unproven",
+   "actual": "SUSPECT:entry_unproven×2",
    "verdict": "通过"
   },
   {
@@ -899,7 +899,7 @@
    "kind": "TN",
    "entry": "Om_Trace_TN",
    "pa": "记账",
-   "actual": "SUSPECT:entry_unproven",
+   "actual": "SUSPECT:entry_unproven×2",
    "verdict": "通过+S"
   },
   {
@@ -1067,7 +1067,7 @@
    "kind": "TP",
    "entry": "Cell_OnNbrMsg_TP",
    "pa": "记账",
-   "actual": "SUSPECT:typed_field×2",
+   "actual": "SUSPECT:typed_field×3",
    "verdict": "通过"
   },
   {
@@ -1075,7 +1075,7 @@
    "kind": "TN",
    "entry": "Cell_OnNbrMsg_TN",
    "pa": "-",
-   "actual": "SUSPECT:typed_field×2",
+   "actual": "SUSPECT:typed_field×3",
    "verdict": "通过+S"
   }
  ],
@@ -1329,23 +1329,23 @@
    "kind": "R",
    "fn": "F:Cell_OnNbrMsg_TP",
    "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv10/lv10_05_count_field_writer.c:52"
-  },
-  {
-   "case": "LV10-05",
-   "site": "lv10/lv10_05_count_field_writer.c:60:0",
-   "kind": "R",
-   "fn": "F:Cell_OnNbrMsg_TP",
-   "label": "suspect",
    "reason": "typed_field",
    "access": "lv10/lv10_05_count_field_writer.c:39"
   },
   {
    "case": "LV10-05",
-   "site": "lv10/lv10_05_count_field_writer.c:67:0",
+   "site": "lv10/lv10_05_count_field_writer.c:64:0",
    "kind": "R",
-   "fn": "F:Cell_OnNbrMsg_TN",
+   "fn": "F:Cell_OnNbrMsg_TP",
+   "label": "suspect",
+   "reason": "entry_unproven",
+   "access": "lv10/lv10_05_count_field_writer.c:52"
+  },
+  {
+   "case": "LV10-05",
+   "site": "lv10/lv10_05_count_field_writer.c:64:0",
+   "kind": "R",
+   "fn": "F:Cell_OnNbrMsg_TP",
    "label": "suspect",
    "reason": "entry_unproven",
    "access": "lv10/lv10_05_count_field_writer.c:52"
@@ -1358,6 +1358,24 @@
    "label": "suspect",
    "reason": "typed_field",
    "access": "lv10/lv10_05_count_field_writer.c:44"
+  },
+  {
+   "case": "LV10-05",
+   "site": "lv10/lv10_05_count_field_writer.c:71:0",
+   "kind": "R",
+   "fn": "F:Cell_OnNbrMsg_TN",
+   "label": "suspect",
+   "reason": "entry_unproven",
+   "access": "lv10/lv10_05_count_field_writer.c:52"
+  },
+  {
+   "case": "LV10-05",
+   "site": "lv10/lv10_05_count_field_writer.c:71:0",
+   "kind": "R",
+   "fn": "F:Cell_OnNbrMsg_TN",
+   "label": "suspect",
+   "reason": "entry_unproven",
+   "access": "lv10/lv10_05_count_field_writer.c:52"
   },
   {
    "case": "LV2-01",
@@ -1757,7 +1775,7 @@
   },
   {
    "case": "LV5-02",
-   "site": "lv5/lv5_02_ctx_init_func.c:63:0",
+   "site": "lv5/lv5_02_ctx_init_func.c:70:0",
    "kind": "W",
    "fn": "F:Rrc_EncodeSib_TP",
    "label": "suspect",
@@ -1766,7 +1784,7 @@
   },
   {
    "case": "LV5-02",
-   "site": "lv5/lv5_02_ctx_init_func.c:73:0",
+   "site": "lv5/lv5_02_ctx_init_func.c:80:0",
    "kind": "W",
    "fn": "F:Rrc_EncodeSib_TN",
    "label": "suspect",
@@ -2087,6 +2105,24 @@
    "label": "suspect",
    "reason": "entry_unproven",
    "access": "lv8/lv8_05_ring_tail_invariant.c:35"
+  },
+  {
+   "case": "LV8-05",
+   "site": "lv8/lv8_05_ring_tail_invariant.c:56:0",
+   "kind": "W",
+   "fn": "F:Om_Trace_TP",
+   "label": "suspect",
+   "reason": "entry_unproven",
+   "access": "lv8/lv8_05_ring_tail_invariant.c:35"
+  },
+  {
+   "case": "LV8-05",
+   "site": "lv8/lv8_05_ring_tail_invariant.c:57:0",
+   "kind": "W",
+   "fn": "F:Om_Trace_TN",
+   "label": "suspect",
+   "reason": "entry_unproven",
+   "access": "lv8/lv8_05_ring_tail_invariant.c:44"
   },
   {
    "case": "LV8-05",
