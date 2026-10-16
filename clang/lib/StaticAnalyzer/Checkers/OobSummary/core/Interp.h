@@ -21,6 +21,7 @@
 
 #include <cstdint>
 #include <map>
+#include <set>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -108,6 +109,7 @@ struct FunctionFacts {
     std::map<std::string, summary::FieldInfo> fields;  // 用到的 pi->字段（D-23 的 fields 表）
     std::vector<summary::Eff> effs;                    // 对调用方的效果（本步只有 ret_new，SPEC-0024）
     std::vector<summary::Open> opens;
+    std::set<std::string> mods = {"*"};  // 可能写的位置（SPEC-0045）；没分析完 / 跳过的函数不知道写了什么：*
 };
 
 // stateTrace 非空时，每个块入口的状态各一行（Dump=state）；models：库函数的模型表（SPEC-0018）

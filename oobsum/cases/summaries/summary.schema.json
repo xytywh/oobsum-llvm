@@ -27,6 +27,8 @@
     "effs": { "type": "array", "items": { "$ref": "#/definitions/eff" } },
     "calls": { "type": "array", "items": { "$ref": "#/definitions/call" } },
     "reps": { "type": "array", "items": { "$ref": "#/definitions/rep" } },
+    "mods": { "type": "array", "items": { "type": "string", "pattern": "^(\\*|g:\\*|g:\\w+|\\*p\\d+->\\w+|p\\d+(\\+\\d+:\\d+)?)$" },
+              "description": "可能写的位置（mod-ref，SPEC-0045）：pK、pK+off:size、*pK->f、g:名字、g:*、*；不写 = 不写被跟踪的内存" },
     "opens": { "type": "array", "items": { "$ref": "#/definitions/open" } },
     "doc": { "$ref": "#/definitions/doc" }
   },

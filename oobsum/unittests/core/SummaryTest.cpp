@@ -191,3 +191,25 @@ TEST(Summary, BackFieldsRoundTrip)
     (*(*o->getArray("reqs"))[0].getAsObject())["dir"] = "front";
     EXPECT_FALSE(ReadSummary(in, s, error));
 }
+
+// mod-ref（SPEC-0045）：mods 读入再写出不变；空的不写
+TEST(Summary, ModsRoundTrip)
+{
+    std::vector<std::string> files = SummaryFiles();
+    ASSERT_TRUE(!files.empty());
+    auto buffer = llvm::MemoryBuffer::getFile(files[0]);
+    ASSERT_TRUE(static_cast<bool>(buffer));
+    llvm::Expected<llvm::json::Value> v = llvm::json::parse((*buffer)->getBuffer());
+    ASSERT_TRUE(static_cast<bool>(v));
+    llvm::json::Value in = StripDoc(*v);
+    Summary s;
+    std::string error;
+    ASSERT_TRUE(ReadSummary(in, s, error));
+    EXPECT_TRUE(s.mods.empty());
+    EXPECT_TRUE(SummaryToJson(s).getAsObject()->get("mods") == nullptr);
+    in.getAsObject()->insert({"mods", llvm::json::Array{"*p0->pucBuf", "g:g_x", "p0+4:4"}});
+    ASSERT_TRUE(ReadSummary(in, s, error));
+    ASSERT_TRUE(s.mods.size() == 3);
+    EXPECT_EQ(s.mods[2], "p0+4:4");
+    EXPECT_EQ(Print(SummaryToJson(s)), Print(in));
+}

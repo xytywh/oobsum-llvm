@@ -517,7 +517,7 @@ bool Reader::ReadSummary(const Value &v, Summary &s)
 {
     const Object *o =
         Obj(v, {"schema", "fn", "key", "loc", "params", "status", "reqs", "effs", "calls", "reps", "opens"},
-            {"tu", "fields"});
+            {"tu", "fields", "mods"});
     if (o == nullptr) {
         return false;
     }
@@ -553,6 +553,7 @@ bool Reader::ReadSummary(const Value &v, Summary &s)
            OptKey(*o, "tu", s.tu, OOBSUM_M(Str)) && Key(*o, "loc", s.loc, OOBSUM_M(Str)) &&
            In("params", [&] { return List(*o->get("params"), s.params, params); }) &&
            OptKey(*o, "fields", s.fields, fields) && Key(*o, "status", s.status, OOBSUM_M(Str)) &&
+           (o->get("mods") == nullptr || In("mods", [&] { return List(*o->get("mods"), s.mods, OOBSUM_M(Str)); })) &&
            In("reqs", [&] { return List(*o->get("reqs"), s.reqs, OOBSUM_M(ReadReq)); }) &&
            In("effs", [&] { return List(*o->get("effs"), s.effs, OOBSUM_M(ReadEff)); }) &&
            In("calls", [&] { return List(*o->get("calls"), s.calls, OOBSUM_M(ReadCall)); }) &&
@@ -827,6 +828,9 @@ Value SummaryToJson(const Summary &s)
                {"reps", std::move(reps)},
                {"opens", std::move(opens)}};
     Put(out, "tu", s.tu);
+    if (!s.mods.empty()) {
+        out["mods"] = Strings(s.mods);  // SPEC-0045
+    }
     if (s.fields) {
         Object f;
         for (const auto &entry : *s.fields) {

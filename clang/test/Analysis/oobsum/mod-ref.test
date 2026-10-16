@@ -1,0 +1,24 @@
+# mod-ref（oobsum/specs/SPEC-0045）：摘要记可能写的位置（mods），调用点只让写到的位置失效。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary \
+# RUN:   -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Msg_SetType|Msg_Zero|G_Fill|Len_SetVia|GLen_SetVia)$' \
+# RUN:   %S/Inputs/modref2/mods.c 2>&1 | FileCheck %s
+# 经两层写到了 ulLen / g_ulLen 的：写 a 的不能是 SAFE
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/modref2/mods.c 2>&1 | not grep -E "OOB-SAFE.*of 'a'"
+
+# mods：本函数的写、被调者换算过来的（经 p->aucData 的 p0+0:1 → p0+8:1）、全局
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Msg_SetType"{{.*}}"mods":["p0+4:4"]
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Msg_Zero"{{.*}}"mods":["p0+8:1"]
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"G_Fill"{{.*}}"mods":["g:g_ulCnt","p0"]
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Len_SetVia"{{.*}}"mods":["p0+0:4"]
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"GLen_SetVia"{{.*}}"mods":["g:g_ulLen"]
+# 被调者只写了 ulType / g_ulCnt / aucData：调用后仍用入口值（原来是 SUSPECT type_range_only）
+CHECK-DAG: mods.c:11:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 2-level call chain: up to byte 32 of 'a' (16 bytes) is accessed
+CHECK-DAG: mods.c:18:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 2-level call chain: up to byte 32 of 'a' (16 bytes) may be accessed
+CHECK-DAG: mods.c:24:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 2-level call chain: up to byte 32 of 'a' (16 bytes) is accessed
+# 对照：经两层写到了的仍失效
+CHECK-DAG: mods.c:30:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 2-level call chain stays within 'a' (16 bytes)
+CHECK-DAG: mods.c:34:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 2-level call chain stays within 'a' (16 bytes)

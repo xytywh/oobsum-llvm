@@ -69,4 +69,4 @@ static void MidD(S *a, S *b) { a->ulLen = 4; b->ulLen = 100; Buf_Clear(a->aucBuf
 
 ## 9. 待定 / 以后
 
-* mod-ref（被调者不改的字段在调用后仍用入口值，S8c-2）；形参与全局的别名。全局标量在调用后的当前值：SPEC-0041。
+* mod-ref（被调者不改的字段在调用后仍用入口值）：SPEC-0045；形参与全局的别名。全局标量在调用后的当前值：SPEC-0041。

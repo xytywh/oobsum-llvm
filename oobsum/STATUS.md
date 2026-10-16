@@ -61,6 +61,9 @@
 - [x] **负偏移（下溢）**（SPEC-0039）：规格（06- §3.1）有、实现没有——`p[i - 1]`（`i = 0`）、`p - 4` 原来都被判成 SAFE（**错误的 SAFE**，探针发现）。
       偏移下界不能证明 ≥ 0 时记一条反向 Req（`dir: back`，安全条件 `−lo ≤ bext(基址)`），复用整套代换 / 判定 / 记账；调用点指针实参带 `back`；
       C++ 与 replay.py 同步、文本单写（"N bytes before …"）。67 个用例与金标准都没有负偏移：`run.py csa` 与基线完全相同，replay / engine_check 不变。
+- [x] **mod-ref**（SPEC-0045）：摘要加 `mods`（本函数的写 + 被调者按实参换算过来的；没摘要的被调者按整块 + `g:*`；没分析完的函数 `*`），调用点只让
+      写到的位置失效——"被调者只写了 ulType / 别的全局 / 数据区，之后读 ulLen / g_ulLen"从 SUSPECT 变回 DEFINITE / POSSIBLE；写到了的（含经两层）照旧失效。
+      `run.py csa` 与基线完全相同；上游用例 0 崩溃。
 - [x] **同一调用点同一次访问只报一条**（SPEC-0044）：成员数组越界时成员界与外层界各判一条 DEFINITE（其中一条对象名是 `'?'`），现在只报主判定
       （DEFINITE 优先、对象名写得出来的优先），另一条 `dup_of` 写日志。结构体数组、元素成员、联合体各一条告警。
 - [x] **符号形的钳位**（SPEC-0043）：`if (ulLen > ulDstLen) ulLen = ulDstLen;` 后 `memcpy_s(dst, ulDstLen, src, ulLen)` 合并成 `[0, p1]`（原来 Top → SUSPECT），
@@ -166,7 +169,7 @@
       **本地 export → solve → report 端到端跑通**（lit `phase-solve.test`）。
 - [x] **S9-5 驱动**（SPEC-0031，`oobsum/tools/oobsum_run.py`）：`local` 按源文件列表跑三阶段（cc1，同 run.py csa）；`bxen` 生成桩 TU 的 cdb、report 的 cdb
       （原样复制有判定的 TU）并打印 / 执行三段 bxen 命令；`status`。每条命令先打印再执行、输出存 `logs/<阶段>.log`、失败即停并提示单独重跑。
-- [ ] **S8c-2**：`field` 效果（被调者改调用方结构体的字段，LV5-02）、mod-ref（被调者不改的字段在调用后仍可用）；
+- [ ] **S8c-2**：`field` 效果（被调者改调用方结构体的字段，LV5-02）；mod-ref 已做（SPEC-0045）；
       偏移与长度的抵消（A-41，LV3-07、LV8-01：需要局部的符号形与关系，且 `ulOff + len <= max` 这类检查的回绕问题要一起定）；
       告警 note 按 F-33 的三种写法；`unknown_callee` / 跨 TU（`export` / `solve` / `report`）。
 - [ ] S9 之后：WP5 安全函数族模型 → WP7 循环与守卫 → WP8 效果与分配器 → WP9 大小模型 → WP10 驱动 → WP11 真实代码子集（公司）→ WP12 全量与性能 → WP13 冻结。

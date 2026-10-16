@@ -76,4 +76,5 @@
 | [SPEC-0042](SPEC-0042-join-per-branch-bounds.md) | 汇合时按各自路上的守卫求常数界（钳位写法不再丢界） | 已实现 |
 | [SPEC-0043](SPEC-0043-join-symbolic-clamp.md) | 汇合时的符号界：一边的界在另一边自己的守卫下也成立（符号形的钳位） | 已实现 |
 | [SPEC-0044](SPEC-0044-rep-dedupe.md) | 同一调用点同一次访问的判定只报一条（成员界与外层界） | 已实现 |
+| [SPEC-0045](SPEC-0045-mod-ref.md) | mod-ref：摘要记可能写哪些位置，调用点只让这些位置失效 | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

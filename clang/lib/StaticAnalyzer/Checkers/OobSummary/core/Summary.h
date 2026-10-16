@@ -206,6 +206,8 @@ struct Summary {
     std::vector<Call> calls;
     std::vector<Rep> reps;
     std::vector<Open> opens;
+    // 可能写的位置（mod-ref，SPEC-0045 §2.1）：pK、pK+off:size、*pK->f、g:名字、g:*、*；空 = 不写被跟踪的内存
+    std::vector<std::string> mods;
 };
 
 // 去掉所有键名为 doc 的内容（D-30：剩下的就是机器字段）

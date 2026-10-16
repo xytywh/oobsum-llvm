@@ -924,6 +924,10 @@ private:
                     const std::vector<LinExpr> &forced);
     void Record(RawAccess a, const State &s, const std::vector<LinExpr> &forced);
     void AddOpen(const std::string &reason, const std::string &at);
+    // mod-ref（SPEC-0045）：记下可能写的位置；调用点按被调者的 mods 只让写到的位置失效
+    void AddMod(const PtrVal &addr, llvm::Optional<int64_t> size);
+    void AddModText(const std::string &mod);
+    void ApplyMods(const fir::Inst &inst, const std::vector<std::string> &calleeMods, State &s);
     // 形参所指结构体的字段进函数后改过没有（SPEC-0026 / SPEC-0040）；形参别名（同所指类型的结构体形参，SPEC-0040 §2.2）
     bool Changed(const State &s, const std::string &id, int64_t off, int64_t size) const;
     void MarkWritten(State &s, const std::string &id) const;
@@ -982,6 +986,7 @@ private:
     std::vector<RawAccess> accesses;
     std::vector<RawAccess> safe;
     std::vector<summary::Open> opens;
+    std::set<std::string> mods;  // 可能写的位置（记录那一遍，SPEC-0045）
     std::vector<summary::Call> calls;
     mutable std::map<std::string, summary::FieldInfo> fields;
     mutable std::map<std::string, std::string> globalTypes;  // 读到过的全局标量：g:名 → 类型（Env 用）
@@ -1403,6 +1408,142 @@ void Analyzer::AddOpen(const std::string &reason, const std::string &at)
     }
 }
 
+void Analyzer::AddModText(const std::string &mod)
+{
+    if (recording) {
+        mods.insert(mod);
+    }
+}
+
+// 经 addr 写 size 字节（None = 不定 / 整块）：换成摘要的说法（SPEC-0045 §2.2）；局部、堆、字符串调用方看不到，不记
+void Analyzer::AddMod(const PtrVal &addr, llvm::Optional<int64_t> size)
+{
+    llvm::Optional<int64_t> off;
+    if (addr.off.IsConst()) {
+        off = addr.off.value.Constant();
+    }
+    switch (addr.kind) {
+        case BaseKind::Unknown:
+            AddModText("*");
+            return;
+        case BaseKind::Param: {
+            std::string p = addr.obj.substr(1);  // *p0 → p0
+            AddModText(off && size ? p + "+" + std::to_string(*off) + ":" + std::to_string(*size) : p);
+            return;
+        }
+        case BaseKind::ParamField: {
+            std::string p = llvm::StringRef(addr.parentObj).drop_front().str();
+            if (off && size) {
+                AddModText(p + "+" + std::to_string(addr.parentOff + *off) + ":" + std::to_string(*size));
+            } else if (addr.size.IsConst()) {
+                AddModText(p + "+" + std::to_string(addr.parentOff) + ":" + std::to_string(addr.size.Constant()));
+            } else {
+                AddModText(p);
+            }
+            return;
+        }
+        case BaseKind::ParamPtr:
+            AddModText(addr.obj);  // *p0->pucBuf
+            return;
+        case BaseKind::Global:
+            AddModText(addr.obj);  // g:名字
+            return;
+        case BaseKind::Local:
+        case BaseKind::Heap:
+        case BaseKind::Str:
+        case BaseKind::Func:
+            return;
+    }
+}
+
+// 被调者有摘要：它的每条 mods 换成调用方的说法照做，只让写到的位置失效，并记进本函数的 mods（SPEC-0045 §2.3）
+void Analyzer::ApplyMods(const fir::Inst &inst, const std::vector<std::string> &calleeMods, State &s)
+{
+    auto eraseBase = [&](const std::string &id, llvm::Optional<std::pair<int64_t, int64_t>> range) {
+        for (auto it = s.cells.begin(); it != s.cells.end();) {
+            bool same = std::get<0>(it->first) == id;
+            int64_t o = std::get<1>(it->first);
+            int64_t sz = std::get<2>(it->first);
+            bool overlap = !range || (o < range->first + range->second && range->first < o + sz);
+            it = same && overlap ? s.cells.erase(it) : std::next(it);
+        }
+    };
+    auto everything = [&]() {
+        s.clobbered = true;
+        s.called = true;
+        s.cells.clear();
+        AddModText("*");
+    };
+    for (const std::string &mod : calleeMods) {
+        llvm::StringRef text = mod;
+        if (text == "*") {
+            everything();
+            continue;
+        }
+        if (text == "g:*") {
+            s.called = true;
+            for (auto it = s.cells.begin(); it != s.cells.end();) {
+                it = llvm::StringRef(std::get<0>(it->first)).startswith("G") ? s.cells.erase(it) : std::next(it);
+            }
+            AddModText("g:*");
+            continue;
+        }
+        if (text.startswith("g:")) {
+            for (const fir::Global &g : m.globals) {
+                if ("g:" + g.name == mod) {
+                    std::string id = "G" + g.key;
+                    s.writtenAll.insert(id);
+                    eraseBase(id, llvm::None);
+                }
+            }
+            AddModText(mod);
+            continue;
+        }
+        bool viaField = text.consume_front("*");  // *pK->f
+        if (!text.consume_front("p")) {
+            everything();  // 认不出的写法：保守
+            continue;
+        }
+        unsigned k = 0;
+        if (text.consumeInteger(10, k) || k >= inst.args.size()) {
+            everything();
+            continue;
+        }
+        Value v = Eval(inst.args[k], s);
+        if (viaField) {
+            // 指针字段所指的内存：实参是本函数的形参 pJ（偏移 0）时换成 *pJ->f；否则不处理（数据缓冲区，SPEC-0040 的取舍）
+            if (v.isPtr && v.p.kind == BaseKind::Param && v.p.off.IsConst() && v.p.off.value.Constant() == 0) {
+                AddModText("*" + v.p.obj.substr(1) + text.str());
+            }
+            continue;
+        }
+        if (!v.isPtr || v.p.kind == BaseKind::Unknown) {
+            everything();
+            continue;
+        }
+        if (v.p.kind == BaseKind::Func) {
+            continue;
+        }
+        int64_t off = 0;
+        int64_t size = 0;
+        bool range = text.consume_front("+") && !text.consumeInteger(10, off) && text.consume_front(":") &&
+                     !text.consumeInteger(10, size) && text.empty();
+        if (range && v.p.off.IsConst()) {
+            int64_t at = v.p.off.value.Constant() + off;
+            s.written.insert(CellKey(v.p.id, at, size));
+            eraseBase(v.p.id, std::make_pair(at, size));
+            AliasWritten(s, v.p.id);
+            PtrVal q = v.p;
+            q.off = IntVal::Exact(LinExpr::Const(at));
+            AddMod(q, size);
+        } else {
+            MarkWritten(s, v.p.id);
+            eraseBase(v.p.id, llvm::None);
+            AddMod(v.p, llvm::None);
+        }
+    }
+}
+
 void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, const IntVal &bytes, const fir::Loc &loc,
                       const State &s, const std::vector<LinExpr> &forced, bool checkBack)
 {
@@ -1561,6 +1702,7 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
         case fir::InstOp::Store: {
             PtrVal addr = EvalPtr(inst.addr, s);
             Access("W", addr, inst.addr, IntVal::Exact(LinExpr::Const(inst.size)), inst.loc, s);
+            AddMod(addr, inst.size);  // SPEC-0045
             if (addr.kind == BaseKind::Unknown) {
                 s.cells.clear();  // A-12：经未知基址的写
                 s.clobbered = true;
@@ -1600,13 +1742,16 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             result.i = IntVal::Top("call");
             if (kind == models::Kind::Alloc) {
                 result = HeapResult(inst, models.Alloc(name)->size, 0, s);
-            } else if (kind == models::Kind::None && inst.calleeExpr == fir::kNone && callees != nullptr) {
-                // 本 TU 里已算出摘要的被调者：代入它的 ret_new（SPEC-0024 §2.2）
+            }
+            const summary::Summary *calleeSummary = nullptr;  // 本 TU / solve 时已算出摘要的被调者
+            if (kind == models::Kind::None && inst.calleeExpr == fir::kNone && callees != nullptr) {
+                // 代入它的 ret_new（SPEC-0024 §2.2）
                 auto callee = callees->find(inst.callee);  // 按函数键（SPEC-0027）；找不到再按名字
                 if (callee == callees->end()) {
                     callee = callees->find(name.str());
                 }
                 if (callee != callees->end()) {
+                    calleeSummary = &callee->second;
                     for (const summary::Eff &e : callee->second.effs) {
                         if (e.kind == "ret_new" && e.size) {
                             result = HeapResult(inst, *e.size, e.effDepth.getValueOr(1), s);
@@ -1619,10 +1764,13 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                     }
                 }
             }
-            if (kind == models::Kind::None) {
-                s.called = true;  // 被调者可能写全局：之后读全局标量不再是入口值（SPEC-0041）
-            }
-            if (kind != models::Kind::Pure && kind != models::Kind::Free) {
+            if (calleeSummary != nullptr) {
+                ApplyMods(inst, calleeSummary->mods, s);  // 只让被调者可能写的位置失效（mod-ref，SPEC-0045）
+            } else if (kind != models::Kind::Pure && kind != models::Kind::Free) {
+                if (kind == models::Kind::None) {
+                    s.called = true;  // 被调者可能写全局：之后读全局标量不再是入口值（SPEC-0041）
+                    AddModText("g:*");  // 没有摘要：往上传时也按"可能写任何全局"（SPEC-0045 §2.3）
+                }
                 s.cells.clear();  // 被调者可能经指针 / 全局写内存（效果在 S7d-3）；纯函数、释放函数不改被跟踪的内存
                 // 交给被调者的指针所指的对象可能被改（SPEC-0026）；访问类模型只写目的一侧
                 std::set<size_t> writtenArgs;
@@ -1646,6 +1794,7 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                     } else {
                         MarkWritten(s, v.p.id);
                     }
+                    AddMod(v.p, llvm::None);  // 交给了不知道写哪里的被调者 / 访问类模型的目的：整块（SPEC-0045）
                 }
             }
             if (inst.dst != fir::kNone) {
@@ -1945,6 +2094,7 @@ FunctionFacts Analyzer::Run()
     facts.fields = fields;
     facts.effs = Effects();
     facts.opens = opens;
+    facts.mods = mods;  // SPEC-0045
     return facts;
 }
 
@@ -2960,6 +3110,7 @@ summary::Summary BuildSummary(const fir::Module &m, const fir::Function &f, cons
     s.calls = facts.calls;
     s.effs = facts.effs;
     s.opens = facts.opens;
+    s.mods.assign(facts.mods.begin(), facts.mods.end());  // SPEC-0045
     return s;
 }
 
