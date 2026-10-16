@@ -396,10 +396,18 @@ def cmd_csa(a):
         for e in m['expect']:
             actual, rep = _entry_actual([d for d in decs if _fn_name(d['fn']) == e['entry']])
             pa = e.get('pa', '?')
+            own_keys = {k for k, n in names_of.items() if n == e['entry']}
+            reach = _reachable(own_keys, edges) - own_keys
+            if e['kind'] == 'TP' and rep not in ('definite', 'possible'):
+                # L1 / L2 可以判在入口调用链上的汇合点（SPEC-0048）：取那里报出的最强 DEFINITE / POSSIBLE
+                strong = [d for d in decs if d.get('emitted') and d['label'] in ('definite', 'possible') and d['fn'] in reach]
+                if strong:
+                    best = max(strong, key=lambda d: STRENGTH.get(d['label'], -1))
+                    rep = best['label']
+                    actual = '%s@%s' % (_tag(best), names_of.get(best['fn'], _fn_name(best['fn']))) + \
+                        ('×%d' % len(strong) if len(strong) > 1 else '')
             if pa == '记账' and e['kind'] == 'TP' and rep is None:
                 # 账本可以在入口经静态调用能到达的函数里（被调者本函数的账本、没有调用方的函数，SPEC-0047）
-                reach = _reachable([k for k, n in names_of.items() if n == e['entry']], edges) - \
-                    {k for k, n in names_of.items() if n == e['entry']}
                 sus = [d for d in decs if d.get('emitted') and d['label'] == 'suspect' and d['fn'] in reach]
                 if sus:
                     rep = 'suspect'

@@ -79,4 +79,5 @@
 | [SPEC-0045](SPEC-0045-mod-ref.md) | mod-ref：摘要记可能写哪些位置，调用点只让这些位置失效 | 已实现 |
 | [SPEC-0046](SPEC-0046-widen-loop-vars.md) | 循环头只对本循环里被赋值的局部做 widening（嵌套循环的外层下标不丢界） | 已实现 |
 | [SPEC-0047](SPEC-0047-csa-ledger-reachable.md) | `run.py csa`：期望"记账"的入口，账本可以在它调用链上的函数里 | 已实现 |
+| [SPEC-0048](SPEC-0048-csa-summit-reachable.md) | `run.py csa`：TP 入口的 L1 / L2 可以判在它调用链上的汇合点 | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

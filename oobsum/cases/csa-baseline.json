@@ -59,8 +59,8 @@
    "kind": "TP",
    "entry": "Cell_Setup_TP",
    "pa": "L2",
-   "actual": "SUSPECT:typed_field",
-   "verdict": "级别不同"
+   "actual": "POSSIBLE@Cell_InitNbrList",
+   "verdict": "通过"
   },
   {
    "case": "LV1-04",
