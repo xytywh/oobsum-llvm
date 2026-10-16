@@ -114,6 +114,8 @@ std::string LedgerMessage(const std::string &reason, const std::string &callee)
         phrase = "the offset is bounded only by its type";
     } else if (reason == "pointer_stepping") {
         phrase = "the pointer is advanced in a loop";
+    } else if (reason == "fptr") {
+        phrase = "a pointer is passed through a function pointer whose target is not resolved";  // SPEC-0057
     } else if (reason == "not_in_tu") {
         phrase = "a pointer is passed to '" + callee + "', whose body is not in this translation unit";
     } else if (reason == "unknown_callee") {

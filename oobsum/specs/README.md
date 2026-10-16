@@ -88,4 +88,5 @@
 | [SPEC-0054](SPEC-0054-ret-int-range.md) | 返回值范围 `ret_int`：不是常数的返回也推出（取值 / 截断函数） | 已实现 |
 | [SPEC-0055](SPEC-0055-csa-cross-tu.md) | `run.py csa`：多文件用例走 export → solve → report 三阶段 | 已实现 |
 | [SPEC-0056](SPEC-0056-faithful-low-covered.md) | 无符号区间下界盖住 0 时可信：`i <= n` 的循环不再多估 2（误报） | 已实现 |
+| [SPEC-0057](SPEC-0057-fptr-ledger.md) | 间接调用把指针交出去时，调用点记账 `fptr` | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

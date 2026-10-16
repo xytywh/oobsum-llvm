@@ -923,8 +923,8 @@
    "kind": "TP",
    "entry": "Msg_OnRecv_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:fptr@Msg_Dispatch",
+   "verdict": "通过"
   },
   {
    "case": "LV9-02",
@@ -939,8 +939,8 @@
    "kind": "TP",
    "entry": "Evt_FireCellUp_TP",
    "pa": "记账",
-   "actual": "未判",
-   "verdict": "漏报"
+   "actual": "SUSPECT:fptr@Evt_Fire",
+   "verdict": "通过"
   },
   {
    "case": "LV9-03",
@@ -2125,6 +2125,15 @@
    "access": "lv9/lv9_01_local_fptr_select.c:31"
   },
   {
+   "case": "LV9-01",
+   "site": "lv9/lv9_01_local_fptr_select.c:36:0",
+   "kind": "",
+   "fn": "F@e8b1b35f0bb01914:Cap_Dispatch",
+   "label": "suspect",
+   "reason": "fptr",
+   "access": "lv9/lv9_01_local_fptr_select.c:36"
+  },
+  {
    "case": "LV9-02",
    "site": "lv9/lv9_02_static_ops_table.c:32:0",
    "kind": "W",
@@ -2143,6 +2152,15 @@
    "access": "lv9/lv9_02_static_ops_table.c:33"
   },
   {
+   "case": "LV9-02",
+   "site": "lv9/lv9_02_static_ops_table.c:45:0",
+   "kind": "",
+   "fn": "F@eb8cab0b705f403f:Msg_Dispatch",
+   "label": "suspect",
+   "reason": "fptr",
+   "access": "lv9/lv9_02_static_ops_table.c:45"
+  },
+  {
    "case": "LV9-03",
    "site": "lv9/lv9_03_runtime_register.c:35:0",
    "kind": "W",
@@ -2150,6 +2168,15 @@
    "label": "suspect",
    "reason": "entry_unproven",
    "access": "lv9/lv9_03_runtime_register.c:35"
+  },
+  {
+   "case": "LV9-03",
+   "site": "lv9/lv9_03_runtime_register.c:42:0",
+   "kind": "",
+   "fn": "F@40c684d9f6455504:Evt_Fire",
+   "label": "suspect",
+   "reason": "fptr",
+   "access": "lv9/lv9_03_runtime_register.c:42"
   },
   {
    "case": "LV9-04",

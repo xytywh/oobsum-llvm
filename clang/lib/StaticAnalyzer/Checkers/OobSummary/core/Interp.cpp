@@ -2200,8 +2200,19 @@ FunctionFacts Analyzer::Run()
 // 纯函数模型的指针实参为 null；不知道的值写成不是接口符号的名字（_unknown<k>），以后在调用点只会走向 entry_unproven
 void Analyzer::RecordCall(const fir::Inst &inst, const State &s)
 {
-    if (!recording || inst.calleeExpr != fir::kNone) {
-        return;  // 间接调用（fptr）留到 S9
+    if (!recording) {
+        return;
+    }
+    if (inst.calleeExpr != fir::kNone) {
+        // 间接调用解析不出目标（06- A-60 ①）：实参里有指针时记账 fptr，经函数指针交出去的路径不能悄悄断掉（SPEC-0057）
+        for (ExprId arg : inst.args) {
+            Value v = Eval(arg, s);
+            if (v.isPtr && v.p.kind != BaseKind::Func) {
+                AddOpen("fptr", SiteOf(m, inst.loc));
+                break;
+            }
+        }
+        return;
     }
     summary::Call call;
     call.site = SiteOf(m, inst.loc);

@@ -1,0 +1,12 @@
+# 间接调用把指针交出去时调用点记账 fptr（oobsum/specs/SPEC-0057；06- A-60 ①、D-27）。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary \
+# RUN:   -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Via_Local|Tick_Only)$' %S/Inputs/fptr/fp.c 2>&1 | FileCheck %s
+# 只传整数的间接调用不记 fptr
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/fptr/fp.c 2>&1 | not grep 'fp.c:13:1: warning: \[OOB-SUSPECT:fptr'
+
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Via_Local"{{.*}}"opens":[{"at":"fp.c:11","reason":"fptr"}]
+CHECK-DAG: fp.c:11:1: warning: [OOB-SUSPECT:fptr] Cannot prove this access is within bounds: a pointer is passed through a function pointer whose target is not resolved
+CHECK-DAG: fp.c:12:1: warning: [OOB-SUSPECT:fptr] Cannot prove this access is within bounds: a pointer is passed through a function pointer whose target is not resolved
