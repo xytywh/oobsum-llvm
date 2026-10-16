@@ -13,5 +13,5 @@ CHECK-DAG: modref.c:16:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove th
 # 被调者不在本 TU：调用点记 not_in_tu，之后同样不用旧值
 CHECK-DAG: modref.c:25:1: warning: [OOB-SUSPECT:not_in_tu] Cannot prove this access is within bounds: a pointer is passed to 'Ext_SetLen'
 CHECK-DAG: modref.c:26:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'auc' (16 bytes)
-# G_Set() 改了全局：入口上推不下去
-CHECK-DAG: modref.c:31:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within 'auc' (16 bytes): up to byte g:g_ulLen may be accessed
+# G_Set() 之后读的全局不是入口值（SPEC-0041）：在本函数的调用点记 type_range_only（原来是入口符号 g:g_ulLen 上传到入口）
+CHECK-DAG: modref.c:36:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'auc' (16 bytes)

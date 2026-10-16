@@ -1,0 +1,15 @@
+# 全局标量的当前值（oobsum/specs/SPEC-0041）：调用过可能写全局的函数之后不用入口符号 g:K。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/globalcur/gcur.c 2>&1 | FileCheck %s
+# 第 13 行不能是 SAFE（原来是错误的 SAFE）
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/globalcur/gcur.c 2>&1 | not grep "gcur.c:13:1: warning: \[OOB-SAFE.*'g_aucTbl'"
+
+# Idx_Inc() 之后读 g_ulIdx：不再被调用方的检查"证明"安全
+CHECK-DAG: gcur.c:13:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'g_aucTbl' (16 bytes)
+# 对照：调用之前读的、只调用纯函数 / 访问类模型之后读的 → 调用方的守卫证明安全
+CHECK-DAG: gcur.c:17:1: warning: [OOB-SAFE:guard_entailed] Proven within bounds: up to byte g:g_ulIdx + 1 of 'g_aucTbl' (16 bytes)
+CHECK-DAG: gcur.c:19:1: warning: [OOB-SAFE:guard_entailed] Proven within bounds: up to byte g:g_ulIdx + 1 of 'g_aucTbl' (16 bytes)

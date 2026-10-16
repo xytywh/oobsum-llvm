@@ -430,6 +430,7 @@ struct State {
     std::set<CellKey> written;         // 常数偏移写过的 (基址, 偏移, 大小)
     std::set<std::string> writtenAll;  // 偏移不定写过、或把指针交给了被调者的基址
     bool clobbered = false;  // 经未知指针写过 / 把未知指针交给了被调者：任何基址都可能被改
+    bool called = false;  // 调用过可能写全局的函数（不在模型表里的被调者）：全局标量不再是入口值（SPEC-0041）
 };
 
 const size_t kMaxGuards = 8;
@@ -483,7 +484,7 @@ const int kNarrowPasses = 2;     // 下降的遍数（SPEC-0017 §2.1）
 bool operator==(const State &a, const State &b)
 {
     return a.reached == b.reached && a.locals == b.locals && a.cells == b.cells && a.guards == b.guards &&
-           a.written == b.written && a.writtenAll == b.writtenAll && a.clobbered == b.clobbered;
+           a.written == b.written && a.writtenAll == b.writtenAll && a.clobbered == b.clobbered && a.called == b.called;
 }
 
 // envOf：给定汇合后成立的守卫（两边的交集），建比较符号界的环境（SPEC-0023）；空 = 只认常数差
@@ -507,6 +508,7 @@ State Join(const State &a, const State &b, const std::function<SymEnv(const std:
     out.writtenAll = a.writtenAll;
     out.writtenAll.insert(b.writtenAll.begin(), b.writtenAll.end());
     out.clobbered = a.clobbered || b.clobbered;
+    out.called = a.called || b.called;
     SymEnv env;
     Comparer cmp;
     if (envOf) {
@@ -1244,7 +1246,8 @@ Value Analyzer::LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const 
             break;
         }
     }
-    if (addr.kind == BaseKind::Global && off && *off == 0 && !v.isPtr) {
+    // 全局标量：调用过可能写全局的函数、或它可能被改过之后，不是入口值，读成 data（SPEC-0041）
+    if (addr.kind == BaseKind::Global && off && *off == 0 && !v.isPtr && !s.called && !Changed(s, addr.id, 0, size)) {
         for (const fir::Global &g : m.globals) {
             int64_t gsize = 0;
             if ("G" + g.key == addr.id && g.type < m.types.size() && m.types[g.type].kind == fir::TypeKind::Int &&
@@ -1524,6 +1527,9 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                         }
                     }
                 }
+            }
+            if (kind == models::Kind::None) {
+                s.called = true;  // 被调者可能写全局：之后读全局标量不再是入口值（SPEC-0041）
             }
             if (kind != models::Kind::Pure && kind != models::Kind::Free) {
                 s.cells.clear();  // 被调者可能经指针 / 全局写内存（效果在 S7d-3）；纯函数、释放函数不改被跟踪的内存
