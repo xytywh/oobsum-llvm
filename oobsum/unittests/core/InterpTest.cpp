@@ -1159,3 +1159,47 @@ TEST(Interp, UnsupportedConstructReason)
     EXPECT_EQ(got,
               "unsupported_construct@t.c:5 | unsupported_construct@t.c:6 | inline_asm@t.c:7 | type_range_only@t.c:8");
 }
+
+TEST(Interp, RangeFieldArg)
+{
+    // SPEC-0069：两条分支给局部结构体的字段写 5 / 100，汇合后是 [5, 100]（branch）；调用点记录写成 _fld0_ulLen + locals
+    Builder b;
+    Record r;
+    r.id = 0;
+    r.name = "CTX_S";
+    r.size = 4;
+    r.fields = {{"ulLen", 0, b.u32}};
+    b.m.records.push_back(r);
+    uint32_t n = b.Param("n", b.u32);
+    uint32_t st = b.LocalVar("st", b.m.Intern(Type::Rec(0)), true);
+    ExprId addr = b.f.Add(Expr::LAddr(st));
+    Block entry;
+    entry.id = 4;
+    entry.succ = {{3, b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(n), b.C(0), false))},
+                  {2, b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(n), b.C(0), false))}};
+    Block big;
+    big.id = 3;
+    big.insts = {b.Store(addr, 4, b.C(100), 3)};
+    big.succ = {{1, kNone}};
+    Block small;
+    small.id = 2;
+    small.insts = {b.Store(addr, 4, b.C(5), 4)};
+    small.succ = {{1, kNone}};
+    Block join;
+    join.id = 1;
+    join.insts = {CallOf("F@abc:Fill", {addr}, 5)};
+    join.succ = {{0, kNone}};
+    Block exit;
+    exit.id = 0;
+    b.f.blocks = {entry, big, small, join, exit};
+    b.f.entry = 4;
+    b.f.exit = 0;
+    interp::FunctionFacts facts = b.Run();
+    ASSERT_TRUE(facts.calls.size() == 1);
+    const summary::Call &c = facts.calls[0];
+    ASSERT_TRUE(c.args[0].ptr->fields.hasValue());
+    EXPECT_EQ(c.args[0].ptr->fields->at("ulLen").expr, "_fld0_ulLen");
+    ASSERT_TRUE(c.locals.hasValue() && c.locals->count("_fld0_ulLen") == 1);
+    const summary::Local &l = c.locals->at("_fld0_ulLen");
+    EXPECT_EQ(l.lo + " " + l.hi + " " + l.bound, "5 100 branch");
+}

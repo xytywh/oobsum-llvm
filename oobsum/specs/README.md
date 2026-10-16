@@ -100,4 +100,5 @@
 | [SPEC-0066](SPEC-0066-recursion-ledger.md) | 递归调用点记账 `recursion`：经递归传上来的条件不再悄悄丢掉（错误的 SAFE） | 已实现 |
 | [SPEC-0067](SPEC-0067-unmapped-text.md) | 告警文本：调用点上不知道的被调者符号按被调者的形参名写 | 已实现 |
 | [SPEC-0068](SPEC-0068-text-placeholders.md) | 告警文本：字符串常量、调用点上不知道的字段值不再露出内部名字 | 已实现 |
+| [SPEC-0069](SPEC-0069-range-field-args.md) | 实参所指结构体的字段值是区间时也带进调用点（经 `locals`） | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

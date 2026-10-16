@@ -1,0 +1,16 @@
+# 实参所指结构体的字段值是区间时也带进调用点（oobsum/specs/SPEC-0069）：汇合后的区间写成调用点局部 _fld<k>_<字段>，区间放进 locals。
+# 原来汇合后不同的值直接丢掉，Br_TP / Sw_TP / Ok_TN 都只记账。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Br_TP$' \
+# RUN:   %S/Inputs/rangefield/j.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {"calls":[{"args":[{{.*}}{"back":"0","fields":{"ulLen":"_fld1_ulLen"},"have":"4","obj":"local:s"}],{{.*}}"locals":{"_fld1_ulLen":{"bound":"branch","range":["5","100"]}}
+# 分支里赋 5 / 100、switch 里赋 100 / 4 → POSSIBLE；两个分支都在界内 → SAFE
+CHECK-DAG: j.c:7:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 100 of 'a' (16 bytes) may be accessed; the bound comes from a branch constant
+CHECK-DAG: j.c:11:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 100 of 'a' (16 bytes) may be accessed
+CHECK-DAG: j.c:12:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+# 对照：外部函数返回的值、循环里改的 → 照旧记账
+CHECK-DAG: j.c:8:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within 'a' (16 bytes): up to byte c->ulLen may be accessed
+CHECK-DAG: j.c:9:1: warning: [OOB-SUSPECT:entry_unproven]

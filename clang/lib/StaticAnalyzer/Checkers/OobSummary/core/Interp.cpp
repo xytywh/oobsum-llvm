@@ -653,8 +653,23 @@ State Join(const State &a, const State &b, const std::function<SymEnv(const std:
     }
     for (const auto &entry : a.cells) {
         auto it = b.cells.find(entry.first);
-        if (it != b.cells.end() && it->second == entry.second) {
-            out.cells.insert(entry);  // 两边都有且相同才保留
+        if (it == b.cells.end()) {
+            continue;  // 只有一边有：丢掉（读的时候按没记过的规则）
+        }
+        if (it->second == entry.second) {
+            out.cells.insert(entry);
+            continue;
+        }
+        // 两边是不同的整数：汇合成两头都有界的区间时保留（SPEC-0069）；循环头上 WidenState 会丢掉变了的格
+        if (entry.second.isPtr || it->second.isPtr) {
+            continue;
+        }
+        Value j = JoinValue(entry.second, it->second, &cmp);
+        llvm::Optional<LinExpr> lo = j.i.Lower();
+        llvm::Optional<LinExpr> hi = j.i.Upper();
+        if (!j.isPtr && j.i.kind == IntVal::Kind::Range && lo && hi && !lo->IsUnknown() && !hi->IsUnknown()) {
+            j.i.cases.clear();
+            out.cells[entry.first] = j;
         }
     }
     return out;
@@ -727,6 +742,11 @@ State WidenState(const State &old, const State &next, const std::set<uint32_t> *
         if (it != old.locals.end()) {
             entry.second = WidenValue(it->second, entry.second);
         }
+    }
+    // 内存格：循环里变了的丢掉（同 SPEC-0069 之前的汇合规则，保证收敛）
+    for (auto it = out.cells.begin(); it != out.cells.end();) {
+        auto before = old.cells.find(it->first);
+        it = before == old.cells.end() || before->second == it->second ? std::next(it) : out.cells.erase(it);
     }
     return out;
 }
@@ -1019,7 +1039,9 @@ private:
         }
         return e;
     }
-    std::map<std::string, summary::ArgValue> ArgFields(const PtrVal &p, const State &s) const;
+    // locals 非空时：区间值的整数字段写成调用点局部 _fld<k>_<字段>，区间写进 locals（SPEC-0069）
+    std::map<std::string, summary::ArgValue> ArgFields(const PtrVal &p, const State &s, size_t k = 0,
+                                                       std::map<std::string, summary::Local> *locals = nullptr) const;
     std::string ShowState(const fir::Block &b, const State &s) const;
 
 public:
@@ -2488,9 +2510,16 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s, bool alt)
                     if (v.p.kind == BaseKind::Heap && v.p.effDepth > 0) {
                         arg.ptr->effDepth = v.p.effDepth;  // 经几层 ret_new 得到的对象（D-25，SPEC-0024 §2.2）
                     }
-                    std::map<std::string, summary::ArgValue> fieldValues = ArgFields(v.p, s);
+                    std::map<std::string, summary::Local> fieldRanges;
+                    std::map<std::string, summary::ArgValue> fieldValues = ArgFields(v.p, s, k, &fieldRanges);
                     if (!fieldValues.empty()) {
                         arg.ptr->fields = fieldValues;  // 局部 / 全局结构体里存进去的字段值（SPEC-0026）
+                    }
+                    if (!fieldRanges.empty()) {
+                        if (!call.locals) {
+                            call.locals = std::map<std::string, summary::Local>();
+                        }
+                        call.locals->insert(fieldRanges.begin(), fieldRanges.end());  // SPEC-0069
                     }
                 } else {
                     arg.ptr->obj = "local:" + unknown;
@@ -3463,7 +3492,8 @@ std::vector<summary::Eff> Analyzer::Effects() const
 }
 
 // 指针实参指向局部 / 全局结构体变量（偏移 0）：内存格里有值的标量 / 指针字段（SPEC-0026）
-std::map<std::string, summary::ArgValue> Analyzer::ArgFields(const PtrVal &p, const State &s) const
+std::map<std::string, summary::ArgValue> Analyzer::ArgFields(const PtrVal &p, const State &s, size_t k,
+                                                             std::map<std::string, summary::Local> *locals) const
 {
     std::map<std::string, summary::ArgValue> out;
     if (!p.off.IsConst() || p.off.value.Constant() != 0 || p.id.size() < 2) {
@@ -3549,6 +3579,14 @@ std::map<std::string, summary::ArgValue> Analyzer::ArgFields(const PtrVal &p, co
         } else if (v.i.kind == IntVal::Kind::Exact) {
             a.kind = summary::ArgValue::Kind::Expr;
             a.expr = v.i.value.Show();
+        } else if (locals != nullptr && v.i.kind == IntVal::Kind::Range && IsCodeTag(v.i.tag) && v.i.Lower() &&
+                   v.i.Upper() && !v.i.Lower()->IsUnknown() && !v.i.Upper()->IsUnknown()) {
+            // 代码给出的区间：调用点局部符号 + locals 里的区间，判定时按调用方局部换成区间（SPEC-0069）；
+            // 只有类型范围的（data / type / widen）照旧写成未知
+            std::string name = "_fld" + std::to_string(k) + "_" + field.name;
+            (*locals)[name] = {v.i.Lower()->Show(), v.i.Upper()->Show(), TagName(v.i.tag).str()};
+            a.kind = summary::ArgValue::Kind::Expr;
+            a.expr = name;
         } else {
             if (alias) {
                 out[field.name] = unknownArg();
