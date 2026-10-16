@@ -507,16 +507,16 @@
    "kind": "TP",
    "entry": "Ue_OnReconfig_TP",
    "pa": "L2",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "级别不同"
+   "actual": "POSSIBLE",
+   "verdict": "通过"
   },
   {
    "case": "LV4-05",
    "kind": "TN",
    "entry": "Ue_OnReconfig_TN",
    "pa": "-",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "actual": "SAFE:within(未报出:safe)",
+   "verdict": "通过"
   },
   {
    "case": "LV4-06",
@@ -587,15 +587,15 @@
    "kind": "TP",
    "entry": "Ue_OnIeInd_TP",
    "pa": "L2",
-   "actual": "SUSPECT:entry_unproven×2",
-   "verdict": "级别不同"
+   "actual": "POSSIBLE×2",
+   "verdict": "通过"
   },
   {
    "case": "LV5-03",
    "kind": "TN",
    "entry": "Ue_OnIeInd_TN",
    "pa": "-",
-   "actual": "SUSPECT:entry_unproven×2",
+   "actual": "SUSPECT:entry_unproven",
    "verdict": "通过+S"
   },
   {
@@ -635,16 +635,16 @@
    "kind": "TP",
    "entry": "Rpt_Flush_TP",
    "pa": "L1",
-   "actual": "SUSPECT:entry_unproven×2",
-   "verdict": "级别不同"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV5-06",
    "kind": "TN",
    "entry": "Rpt_Flush_TN",
    "pa": "-",
-   "actual": "SUSPECT:entry_unproven×2",
-   "verdict": "通过+S"
+   "actual": "SAFE:local_entailed(未报出:safe)",
+   "verdict": "通过"
   },
   {
    "case": "LV6-01",
@@ -1715,17 +1715,8 @@
    "site": "lv4/lv4_05_getter_clamp_le.c:68:0",
    "kind": "W",
    "fn": "F:Ue_OnReconfig_TP",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv4/lv4_05_getter_clamp_le.c:42"
-  },
-  {
-   "case": "LV4-05",
-   "site": "lv4/lv4_05_getter_clamp_le.c:75:0",
-   "kind": "W",
-   "fn": "F:Ue_OnReconfig_TN",
-   "label": "suspect",
-   "reason": "entry_unproven",
+   "label": "possible",
+   "reason": "",
    "access": "lv4/lv4_05_getter_clamp_le.c:42"
   },
   {
@@ -1784,7 +1775,7 @@
   },
   {
    "case": "LV5-03",
-   "site": "lv5/lv5_03_len_from_sibling_chain.c:50:0",
+   "site": "lv5/lv5_03_len_from_sibling_chain.c:47:0",
    "kind": "R",
    "fn": "F:Ue_OnIeInd_TP",
    "label": "suspect",
@@ -1796,23 +1787,14 @@
    "site": "lv5/lv5_03_len_from_sibling_chain.c:50:0",
    "kind": "W",
    "fn": "F:Ue_OnIeInd_TP",
-   "label": "suspect",
-   "reason": "entry_unproven",
+   "label": "possible",
+   "reason": "",
    "access": "lv5/lv5_03_len_from_sibling_chain.c:41"
   },
   {
    "case": "LV5-03",
-   "site": "lv5/lv5_03_len_from_sibling_chain.c:56:0",
+   "site": "lv5/lv5_03_len_from_sibling_chain.c:53:0",
    "kind": "R",
-   "fn": "F:Ue_OnIeInd_TN",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv5/lv5_03_len_from_sibling_chain.c:41"
-  },
-  {
-   "case": "LV5-03",
-   "site": "lv5/lv5_03_len_from_sibling_chain.c:56:0",
-   "kind": "W",
    "fn": "F:Ue_OnIeInd_TN",
    "label": "suspect",
    "reason": "entry_unproven",
@@ -1848,37 +1830,10 @@
   {
    "case": "LV5-06",
    "site": "lv5/lv5_06_diamond_buf_len.c:51:0",
-   "kind": "R",
-   "fn": "F:Rpt_Flush_TP",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv5/lv5_06_diamond_buf_len.c:38"
-  },
-  {
-   "case": "LV5-06",
-   "site": "lv5/lv5_06_diamond_buf_len.c:51:0",
    "kind": "W",
    "fn": "F:Rpt_Flush_TP",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv5/lv5_06_diamond_buf_len.c:38"
-  },
-  {
-   "case": "LV5-06",
-   "site": "lv5/lv5_06_diamond_buf_len.c:61:0",
-   "kind": "R",
-   "fn": "F:Rpt_Flush_TN",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv5/lv5_06_diamond_buf_len.c:38"
-  },
-  {
-   "case": "LV5-06",
-   "site": "lv5/lv5_06_diamond_buf_len.c:61:0",
-   "kind": "W",
-   "fn": "F:Rpt_Flush_TN",
-   "label": "suspect",
-   "reason": "entry_unproven",
+   "label": "definite",
+   "reason": "",
    "access": "lv5/lv5_06_diamond_buf_len.c:38"
   },
   {

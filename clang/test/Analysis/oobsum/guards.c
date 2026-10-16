@@ -16,7 +16,7 @@ UINT8 Prev(const UINT8 *pucHist, UINT32 ulPos)
     return pucHist[ulPos - 1];
 }
 // CHECK: [oobsum:state] fn Prev b{{[0-9]+}}: pucHist=*p0+0 ulPos=p1 guards: p1 >= 1
-// CHECK: [oobsum:summary] {"calls":[],"effs":[],"fn":"Prev",
+// CHECK: [oobsum:summary] {"calls":[],"effs":[{"bound":"data","kind":"ret_int","range":["0","255"]}],"fn":"Prev",
 // CHECK-SAME: "end":["p1","p1"],"guard":["p1 >= 1"]
 // CHECK-SAME: "start":"p1 - 1"
 

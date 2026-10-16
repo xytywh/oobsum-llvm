@@ -7,7 +7,7 @@
 
 CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{{.*}}{"eff_depth":1,"kind":"out_new","maybe_null":true,"size":"p1","target":"p0"}],"fn":"Buf_Create"
 CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{{.*}}{"eff_depth":2,"kind":"out_new","maybe_null":true,"size":"64","target":"p0"}],"fn":"Rpt_Create"
-CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{{[^]]*}}],"fn":"Buf_Maybe"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"bound":"const","kind":"ret_int","range":["0","0"]}],"fn":"Buf_Maybe"
 CHECK-DAG: outp.c:14:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 72 of heap object allocated at outp.c:14 (64 bytes) is accessed
 CHECK-DAG: outp.c:15:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 64 of heap object allocated at outp.c:15 (64 bytes)
 # 对照：只有一条路径写出参 → 没有 out_new，调用方是未知指针 → 记账

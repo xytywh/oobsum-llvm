@@ -1,0 +1,18 @@
+# 返回值范围 ret_int（oobsum/specs/SPEC-0054）：不是常数的返回也推出（截断函数、确切式子），调用方代入。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Num_Clamp|Num_Get|Next|Raw)$' \
+# RUN:   %S/Inputs/retint/getter.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"bound":"check","kind":"ret_int","range":["0","8"]}],"fn":"Num_Clamp"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"bound":"check","kind":"ret_int","range":["0","8"]}],"fn":"Num_Get"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"bound":"exact","kind":"ret_int","range":["p0 + 1","p0 + 1"]}],"fn":"Next"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"bound":"data","kind":"ret_int","range":["0","4294967295"]}],"fn":"Raw"
+# 截断到 8：8 字节够、4 字节可能越界（原来是 ?(call) → 记账）
+CHECK-DAG: getter.c:8:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 8 of 'a' (8 bytes)
+CHECK-DAG: getter.c:9:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 8 of 'a' (4 bytes) may be accessed; the bound comes from a check
+# 确切式子 x + 1：Next(7) = 8 → 写 a[8]
+CHECK-DAG: getter.c:14:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 9 of 'a' (8 bytes) is accessed
+# 对照：没有守卫的返回只有类型 / 数据范围 → 记账
+CHECK-DAG: getter.c:18:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'a' (8 bytes)

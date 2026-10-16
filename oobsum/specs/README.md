@@ -85,4 +85,5 @@
 | [SPEC-0051](SPEC-0051-struct-copy-model.md) | 结构体整体赋值的内置访问模型 `__oobsum_copy`（规格有、模型表里漏了） | 已实现 |
 | [SPEC-0052](SPEC-0052-ret-new-offset.md) | `ret_new` 允许常数偏移：带管理头的分配器（返回 `pucRaw + 16`） | 已实现 |
 | [SPEC-0053](SPEC-0053-out-new.md) | 出参式分配器：效果 `out_new`（把新对象写进 `*pp`） | 已实现 |
+| [SPEC-0054](SPEC-0054-ret-int-range.md) | 返回值范围 `ret_int`：不是常数的返回也推出（取值 / 截断函数） | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

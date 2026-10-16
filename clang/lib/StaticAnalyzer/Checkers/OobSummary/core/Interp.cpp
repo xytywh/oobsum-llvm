@@ -942,6 +942,7 @@ private:
     Value HeapResult(const fir::Inst &inst, const std::string &size, int64_t effDepth, const State &s);
     void RecordReturn(const fir::Inst &inst, const State &s);
     std::vector<summary::Eff> Effects() const;
+    llvm::Optional<summary::Eff> ReturnRange() const;
     std::vector<summary::Eff> CondEffects() const;
     IntVal CondResult(const fir::Inst &inst, const std::vector<summary::Eff> &effs, const State &s);
     bool FilterCases(ExprId e, const IntVal &v, fir::CmpOp op, int64_t k, State &s);
@@ -2920,11 +2921,40 @@ IntVal Analyzer::CondResult(const fir::Inst &inst, const std::vector<summary::Ef
     }
     int64_t lo = 0;
     int64_t hi = 0;
-    if (range == nullptr || llvm::StringRef((*range->range)[0]).getAsInteger(10, lo) ||
-        llvm::StringRef((*range->range)[1]).getAsInteger(10, hi) || hi < lo) {
+    if (range == nullptr) {
         return IntVal::Top("call");
     }
-    IntVal out = IntVal::Range(LinExpr::Const(lo), LinExpr::Const(hi), Tag::Const);
+    if (llvm::StringRef((*range->range)[0]).getAsInteger(10, lo) ||
+        llvm::StringRef((*range->range)[1]).getAsInteger(10, hi) || hi < lo) {
+        // 符号式（SPEC-0054 §2.2）：被调者形参换成可信的确切实参；代完还含被调者形参 → 未知
+        LinExpr el;
+        LinExpr eh;
+        std::string error;
+        if (!ParseLin((*range->range)[0], el, error) || !ParseLin((*range->range)[1], eh, error)) {
+            return IntVal::Top("call");
+        }
+        SymEnv env = Env(s);
+        Substitution sub;
+        for (size_t k = 0; k < inst.args.size(); ++k) {
+            IntVal v = EvalInt(inst.args[k], s);
+            if (v.kind == IntVal::Kind::Exact && Faithful(inst.args[k], v, env)) {
+                sub.sym["p" + std::to_string(k)] = v.value;
+            }
+        }
+        LinExpr a = Substitute(el, sub);
+        LinExpr b = Substitute(eh, sub);
+        std::set<std::string> syms;
+        CollectSyms(a, syms);
+        CollectSyms(b, syms);
+        bool leaked = llvm::any_of(syms, [](const std::string &x) { return ParamIndexOf(x) >= 0; });
+        if (a.IsUnknown() || b.IsUnknown() || leaked) {
+            return IntVal::Top("call");
+        }
+        return a == b ? IntVal::Exact(a) : IntVal::Range(a, b, Tag::Branch);
+    }
+    llvm::Optional<Tag> bound = range->bound ? ParseTag(*range->bound) : llvm::None;
+    IntVal out =
+        IntVal::Range(LinExpr::Const(lo), LinExpr::Const(hi), bound && *bound != Tag::Exact ? *bound : Tag::Const);
     if (hi - lo + 1 > static_cast<int64_t>(kMaxCases)) {
         return out;
     }
@@ -3019,6 +3049,53 @@ bool Analyzer::FilterCases(ExprId e, const IntVal &v, fir::CmpOp op, int64_t k, 
 }
 
 // 每条返回路径都是同一个堆对象（偏移 0、大小已知）或空指针常量 → ret_new（D-24）
+// 返回值范围（SPEC-0054 §2.1）：各条返回都是同一个确切式子 → [E, E]；否则各条返回在自己那条路的守卫下的常数界取并；有一条求不出来 → None
+llvm::Optional<summary::Eff> Analyzer::ReturnRange() const
+{
+    if (returns.empty()) {
+        return llvm::None;
+    }
+    summary::Eff e;
+    e.kind = "ret_int";
+    const Value &first = returns[0].first;
+    bool same = !first.isPtr && first.i.kind == IntVal::Kind::Exact && !first.i.value.IsUnknown();
+    for (const auto &ret : returns) {
+        same = same && !ret.first.isPtr && ret.first.i == first.i;
+    }
+    if (same) {
+        e.range = std::vector<std::string>{first.i.value.Show(), first.i.value.Show()};
+        e.bound = std::string(first.i.IsConst() ? "const" : "exact");
+        return e;
+    }
+    llvm::Optional<int64_t> lo;
+    llvm::Optional<int64_t> hi;
+    Tag tag = Tag::None;
+    for (const auto &ret : returns) {
+        const Value &v = ret.first;
+        llvm::Optional<LinExpr> l = v.isPtr ? llvm::None : v.i.Lower();
+        llvm::Optional<LinExpr> h = v.isPtr ? llvm::None : v.i.Upper();
+        if (!l || !h || l->IsUnknown() || h->IsUnknown()) {
+            return llvm::None;
+        }
+        State t;
+        t.reached = true;
+        t.guards = ret.second;
+        SymEnv env = Env(t);
+        Limit a = env.RangeOf(*l, false);
+        Limit b = env.RangeOf(*h, true);
+        if (!a.known || !b.known) {
+            return llvm::None;
+        }
+        Tag own = v.i.kind == IntVal::Kind::Exact ? (v.i.IsConst() ? Tag::Const : Tag::Exact) : v.i.tag;
+        tag = WorseTag(tag, WorseTag(own, b.tag == Tag::None ? own : b.tag));
+        lo = lo ? std::min(*lo, a.value) : a.value;
+        hi = hi ? std::max(*hi, b.value) : b.value;
+    }
+    e.range = std::vector<std::string>{std::to_string(*lo), std::to_string(*hi)};
+    e.bound = TagName(tag == Tag::None ? Tag::Const : tag).str();
+    return e;
+}
+
 // 一组值都是同一个新对象 + 同一个常数偏移（或空指针）：(新对象, 偏移)；否则 None（SPEC-0024 / 0052 / 0053）
 llvm::Optional<std::pair<const PtrVal *, int64_t>> SameNewObject(const std::vector<const Value *> &values)
 {
@@ -3061,6 +3138,8 @@ std::vector<summary::Eff> Analyzer::Effects() const
             e.maybeNull = true;
             e.effDepth = hit->first->effDepth + 1;
             out.push_back(e);
+        } else if (llvm::Optional<summary::Eff> range = ReturnRange()) {
+            out.push_back(*range);  // 返回值范围（取值 / 截断函数，SPEC-0054）
         }
     }
     // 出参写回的新对象：每条返回路径都写了 *pK（SPEC-0053）；有一条没写就不记
