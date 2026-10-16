@@ -155,7 +155,8 @@
       区间与确切值的比较也推出原子（`i < X`、`i ∈ [0, +∞)` → `X >= 1`），已成立的原子不加；忠实判断放宽到"盖住整个类型范围的区间"、
       `div` / `mod` 内层要忠实、无符号单调表达式可当"大的一边"（`(n + 31) / 32`）；无符号区间运算回绕感知；`*p++` → `pointer_stepping`；账本按（原因, 位置）去重。
       **LV2-05、LV7-04 对上，16 个用例 7 个一致**；506 个函数全部 `analyzed`。
-- [ ] **S7c-2**（以后按需要）：阈值 widening、递减循环的下界、存进局部的"可当上界"的值（来源标记）、带 `min` / `max` 的界（A-10、A-15、A-17）。
+- [ ] **S7c-2**（以后按需要）：阈值 widening、存进局部的"可当上界"的值（来源标记）、带 `min` / `max` 的界（A-10、A-15、A-17）。
+      递减循环已做：`while (n--)`（SPEC-0075）、有符号 `for (i = n − 1; i >= 0; i--)`（SPEC-0076）。
 - [x] **S7d-1 模型表第一步**（SPEC-0018）：`core/Models`（内置默认表：`memcpy_s` / `memmove_s` / `memset_s` / libc 的访问条件、分配器、纯函数名字与正则、释放函数；
       模型表优先）；调用点按 F-03 / F-04 / F-05 生成访问（securec 的 destMax 规则：0 或过大不写、回绕的减法 → 守卫 `E >= 0`；源只在 `count <= destMax` 时读）；
       `Access` 的字节数可以是区间 / 符号；守卫挑选把 `start` 也算进去；分配器的返回值是 `heap@<调用点>`；函数指针实参写 null；纯函数、释放函数不清内存格。
@@ -182,7 +183,9 @@
 - [x] **S7d-3 `ret_new` 效果**（SPEC-0024）：每条返回路径都是同一个堆对象或空指针 → `ret_new`（`eff_depth` 逐层加 1）；调用方拿到 `heap@<调用点>`、
       实参写 `eff_depth`；`RunInline` 按 FIR 调用图自底向上解释，`Dump=summary` / `state` 取同一份结果。**LV4-01 端到端一致（16 个金标准用例 9 个）**；
       `run.py csa`：LV4-01 TP POSSIBLE、LV4-02 TP DEFINITE、LV7-01（柔性数组）TP DEFINITE / TN SAFE——**通过 72、漏报 14**，回退 0（尺子：账本判定同一处有 SAFE 就算证明）。
-- [ ] **S7d-4**：条件效应（校验函数的返回值，LV4-06）；局部结构体字段带进调用点（LV5-01 的 `fields`）；偏移与长度的抵消（A-41，LV3-07、LV8-01）。
+- [ ] **S7d-4**：偏移与长度的抵消（A-41，LV3-07、LV8-01）。条件效应（LV4-06，SPEC-0025）、局部结构体字段带进调用点（LV5-01，SPEC-0026 / 0069）已做。
+      A-41 的难点（2026-10-17 查过）：securec 的 destMax 回绕到 `(0, 0x7fffffff]` 时照样写（SPEC-0020 段 B），widening 后的 `ulOff` 排除不了段 B；
+      要先有跨轮不变式 `ulOff <= ulPktLen`（关系域）。
 - [x] **S7e 全局大小表**（SPEC-0032）：`extern` 不完整数组在 solve 时取定义所在 TU 的大小（D-34）；solve 时"哪里都没有定义"的被调者也写进调用方的本地账本；
       `Phase=solve` 打 `Dump=summary`；`engine_check.py` 改为把用例的文件走 export + solve（金标准按"用例的文件就是整个程序"写）。
       **金标准 16 个用例 14 个端到端一致**（只剩 LV3-07、LV8-01：偏移与长度的抵消 A-41）。LV1-07、LV6-01 的"需跨TU"入口在三阶段下报出 DEFINITE（`run.py csa` 仍按 inline 对照）。
@@ -235,9 +238,8 @@
       **本地 export → solve → report 端到端跑通**（lit `phase-solve.test`）。
 - [x] **S9-5 驱动**（SPEC-0031，`oobsum/tools/oobsum_run.py`）：`local` 按源文件列表跑三阶段（cc1，同 run.py csa）；`bxen` 生成桩 TU 的 cdb、report 的 cdb
       （原样复制有判定的 TU）并打印 / 执行三段 bxen 命令；`status`。每条命令先打印再执行、输出存 `logs/<阶段>.log`、失败即停并提示单独重跑。
-- [ ] **S8c-2**：`field` 效果（被调者改调用方结构体的字段，LV5-02）；mod-ref 已做（SPEC-0045）；
-      偏移与长度的抵消（A-41，LV3-07、LV8-01：需要局部的符号形与关系，且 `ulOff + len <= max` 这类检查的回绕问题要一起定）；
-      告警 note 按 F-33 的三种写法；`unknown_callee` / 跨 TU（`export` / `solve` / `report`）。
+- [ ] **S8c-2**：只在某个返回值下成立的写效应（`ret == OK ⇒ pst->ulLen := …`，LV5-02，2027H1）；告警 note 按 F-33 的三种写法。
+      已做：`field` / `global` 写效应（SPEC-0073 / 0074 / 0077）、mod-ref（SPEC-0045）、`unknown_callee` 与跨 TU 三阶段（SPEC-0028…0031）；A-41 见 S7d-4。
 - [ ] S9 之后：WP5 安全函数族模型 → WP7 循环与守卫 → WP8 效果与分配器 → WP9 大小模型 → WP10 驱动 → WP11 真实代码子集（公司）→ WP12 全量与性能 → WP13 冻结。
 
 ## 等用户提供 / 在公司做的
