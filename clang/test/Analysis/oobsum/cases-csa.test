@@ -1,18 +1,18 @@
 # 用例回归尺子 cases/run.py csa（oobsum/specs/SPEC-0002）：按判定日志与 @expect 对照（§2.3），与基线比召回不回退（§2.4）。
-# 合成用例在 Inputs/cases/，判定来自 oobsum_debug_emit()（SPEC-0001 §6.3）；Phase=export 不跑引擎（SPEC-0021），只看调试判定。
+# 合成用例在 Inputs/cases/，判定来自 oobsum_debug_emit()（SPEC-0001 §6.3）；Phase=report 不在本 TU 跑引擎（判定来自 solve 的结果，SPEC-0028；这里没有），只看调试判定。
 #
 # RUN: rm -rf %t && mkdir -p %t
 # RUN: %python %S/../../../../oobsum/cases/run.py csa --clang %clang --cases %S/Inputs/cases --out %t/out \
-# RUN:   --baseline %t/base.json --config Phase=export --save | FileCheck %s --check-prefix=FIRST
+# RUN:   --baseline %t/base.json --config Phase=report --save | FileCheck %s --check-prefix=FIRST
 # RUN: FileCheck %s --check-prefix=BASE < %t/base.json
 #
 # 同一处 SUSPECT 变成 SAFE（证明了安全）：不算回退，退出码 0
 # RUN: %python %S/../../../../oobsum/cases/run.py csa --clang %clang --cases %S/Inputs/cases --out %t/out \
-# RUN:   --baseline %t/base.json --config Phase=export --cc1-arg=-DPROVEN | FileCheck %s --check-prefix=PROVEN
+# RUN:   --baseline %t/base.json --config Phase=report --cc1-arg=-DPROVEN | FileCheck %s --check-prefix=PROVEN
 #
 # Policy=balanced 让 SUSPECT 不报出、同一处又没有 SAFE：回退，退出码 1
 # RUN: not %python %S/../../../../oobsum/cases/run.py csa --clang %clang --cases %S/Inputs/cases --out %t/out \
-# RUN:   --baseline %t/base.json --config Phase=export --config Policy=balanced | FileCheck %s --check-prefix=BALANCED
+# RUN:   --baseline %t/base.json --config Phase=report --config Policy=balanced | FileCheck %s --check-prefix=BALANCED
 
 FIRST: == clang={{.*}} triple=armebv7-linux-gnueabi 用例 5 个、TU 6 个、入口 11 个
 FIRST: MINI-01 TP A_L1_Pass L1 DEFINITE×2 通过

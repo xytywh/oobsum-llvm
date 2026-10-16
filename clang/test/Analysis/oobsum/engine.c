@@ -4,7 +4,7 @@
 // RUN:   -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t \
 // RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=apply+stats %s 2>&1 | FileCheck %s
 // RUN: cat %t/decisions/*.jsonl | FileCheck %s --check-prefix=LOG
-// 其它 Phase 不跑引擎（跨 TU 模式以后做）
+// Phase=export 不跑引擎、不报（SPEC-0028；没设 WorkDir 时只提示一行）
 // RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
 // RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=export %s 2>&1 | FileCheck %s --check-prefix=EXPORT --allow-empty
 
@@ -67,4 +67,5 @@ void Entry(UINT8 *pucIn)
 // LOG-DAG: "emitted":false,{{.*}}"fn":"F:Top_TN",{{.*}}"label":"safe",{{.*}}"not_emitted_because":"safe",{{.*}}"reason":"within"
 // LOG-DAG: "emitted":true,{{.*}}"label":"suspect",{{.*}}"reason":"not_in_tu"
 
-// EXPORT-NOT: warning
+// EXPORT: [oobsum] warning: Phase=export needs WorkDir; nothing written
+// EXPORT-NOT: [OOB-

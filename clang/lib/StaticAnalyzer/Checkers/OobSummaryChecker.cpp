@@ -32,8 +32,11 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
 
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/JSON.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "OobSummary/core/Decision.h"
@@ -141,6 +144,7 @@ private:
     void dumpCallGraph(const TranslationUnitDecl *tu, oobsum::KeyMaker &keys) const;
     void dumpKeys(const TranslationUnitDecl *tu, const std::string &tuId, oobsum::KeyMaker &keys) const;
     void dumpFir(const oobsum::fir::Module &module, const std::string &tuId) const;
+    std::string writeFir(const oobsum::fir::Module &module, const std::string &tuId) const;
     void dumpSummaries(const oobsum::fir::Module &module, const std::string &tuId,
                        const oobsum::engine::InlineResult &result) const;
 };
@@ -186,6 +190,27 @@ void OobSummaryChecker::dumpKeys(const TranslationUnitDecl *tu, const std::strin
         content += line + "\n";
     }
     dump.File(tuId + "/keys/keys.txt", content);
+}
+
+// WorkDir/fir/<tu-id>.json（06- X-01，SPEC-0028）：紧凑 JSON，先写 .tmp 再改名；返回路径（没写成为空）
+std::string OobSummaryChecker::writeFir(const oobsum::fir::Module &module, const std::string &tuId) const
+{
+    if (workDir.empty()) {
+        llvm::errs() << "[oobsum] warning: Phase=export needs WorkDir; nothing written\n";
+        return "";
+    }
+    llvm::SmallString<256> dir(workDir);
+    llvm::sys::path::append(dir, "fir");
+    std::error_code ec = llvm::sys::fs::create_directories(dir);
+    llvm::SmallString<256> path(dir);
+    llvm::sys::path::append(path, tuId + ".json");
+    std::string error;
+    if (ec || !oobsum::fir::WriteModuleFile(path, module, error)) {
+        llvm::errs() << "[oobsum] warning: " << (ec ? "cannot create " + dir.str().str() + ": " + ec.message() : error)
+                     << "\n";
+        return "";
+    }
+    return path.str().str();
 }
 
 void OobSummaryChecker::dumpFir(const oobsum::fir::Module &module, const std::string &tuId) const
@@ -277,11 +302,24 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
     }
     // Phase=inline：单个 TU 内 降级 → 函数内解释 → 摘要 → 推到底 → 判定（SPEC-0021）；降级只做一次，Dump=fir/summary/state 共用
     bool engine = phase == "inline";
+    bool exporting = phase == "export";
+    bool keepFir = exporting || (engine && !workDir.empty());  // X-01 / X-06（SPEC-0028）
     std::vector<oobsum::Decision> decisions;
-    if (engine || dump.On("fir") || dump.On("summary") || dump.On("state")) {
+    if (engine || exporting || dump.On("fir") || dump.On("summary") || dump.On("state")) {
         oobsum::fir::Module module = oobsum::LowerTranslationUnit(tu, mgr, keys, mainFile);
         if (dump.On("fir")) {
             dumpFir(module, tuId);
+        }
+        if (keepFir) {
+            std::string path = writeFir(module, tuId);
+            if (exporting) {
+                // export：不求解、不报、不写判定日志（X-02）
+                if (dump.On("stats")) {
+                    dump.Line("stats", "export tu=" + tuId + " functions=" + std::to_string(module.funcs.size()) +
+                                           " fir=" + path);
+                }
+                return;
+            }
         }
         bool wantState = dump.On("state");
         oobsum::engine::InlineResult result =
