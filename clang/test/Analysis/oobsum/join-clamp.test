@@ -7,8 +7,20 @@
 
 # 汇合后的区间（Dump=state）：两条路分别是 i <= 15 与常数 15
 CHECK: [oobsum:state] fn Clamp b1: p=*p0+0 i=[0, 15]:check
-CHECK-DAG: clamp.c:7:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
-CHECK-DAG: clamp.c:10:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 17 of 'a' (16 bytes) may be accessed; the bound comes from a check
-CHECK-DAG: clamp.c:13:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 8 of 'a' (16 bytes)
+CHECK-DAG: clamp.c:8:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+CHECK-DAG: clamp.c:11:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 17 of 'a' (16 bytes) may be accessed; the bound comes from a check
+CHECK-DAG: clamp.c:14:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 8 of 'a' (16 bytes)
 # 对照：钳到 20 仍报
-CHECK-DAG: clamp.c:17:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 21 of 'a' (16 bytes) may be accessed; the bound comes from a check
+CHECK-DAG: clamp.c:18:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 21 of 'a' (16 bytes) may be accessed; the bound comes from a check
+
+# 符号形的钳位（oobsum/specs/SPEC-0043）：if (ulLen > ulDstLen) ulLen = ulDstLen; 后 memcpy_s
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(CopyClamp|SetUpTo)$' \
+# RUN:   %S/Inputs/clamp/clamp.c 2>&1 | FileCheck %s --check-prefix=SYM
+SYM: [oobsum:state] fn CopyClamp b0: pucDst=*p0+0 ulDstLen=p1 pucSrc=*p2+0 ulLen=[0, p1]:branch
+SYM: [oobsum:state] fn SetUpTo b0: p=*p0+0 ulMax=p1 i=[0, p1]:branch
+SYM-DAG: clamp.c:28:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'b' (64 bytes)
+SYM-DAG: clamp.c:29:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 32 of 'a' (16 bytes) is accessed
+SYM-DAG: clamp.c:33:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+SYM-DAG: clamp.c:34:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 17 of 'a' (16 bytes) may be accessed

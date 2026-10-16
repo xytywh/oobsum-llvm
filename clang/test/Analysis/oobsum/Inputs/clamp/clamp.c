@@ -2,6 +2,7 @@
 typedef unsigned int UINT32;
 typedef unsigned char UINT8;
 int memset_s(void *dest, unsigned int destMax, int c, unsigned int count);
+int memcpy_s(void *dest, unsigned int destMax, const void *src, unsigned int count);
 
 static void Clamp(UINT8 *p, UINT32 i) { if (i > 15) { i = 15; } p[i] = 0; }
 void Clamp_OK(UINT32 i) { UINT8 a[16]; Clamp(a, i); }
@@ -15,3 +16,19 @@ void ClearLen_OK(UINT32 len) { UINT8 a[16]; ClearLen(a, len); }
 /* 对照：钳到 20，越界仍要报 */
 static void Clamp20(UINT8 *p, UINT32 i) { if (i > 20) { i = 20; } p[i] = 0; }
 void Clamp20_TP(UINT32 i) { UINT8 a[16]; Clamp20(a, i); }
+
+/* 符号形的钳位（SPEC-0043） */
+static void CopyClamp(UINT8 *pucDst, UINT32 ulDstLen, const UINT8 *pucSrc, UINT32 ulLen)
+{
+    if (ulLen > ulDstLen) {
+        ulLen = ulDstLen;
+    }
+    (void)memcpy_s(pucDst, ulDstLen, pucSrc, ulLen);
+}
+void CopyClamp_OK(void) { UINT8 a[16]; UINT8 b[64] = {0}; CopyClamp(a, 16, b, 100); }
+void CopyClamp_TP(void) { UINT8 a[16]; UINT8 b[64] = {0}; CopyClamp(a, 32, b, 100); }
+
+/* 对照：钳到形参 ulMax、但再往上越界 1 字节——仍报 */
+static void SetUpTo(UINT8 *p, UINT32 ulMax, UINT32 i) { if (i > ulMax) { i = ulMax; } p[i] = 0; }
+void SetUpTo_OK(UINT32 i) { UINT8 a[16]; SetUpTo(a, 15, i); }
+void SetUpTo_TP(UINT32 i) { UINT8 a[16]; SetUpTo(a, 16, i); }

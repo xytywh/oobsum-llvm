@@ -319,6 +319,9 @@ struct Comparer {
     // 两边各自路上的守卫与类型范围（SPEC-0042）：共同环境下比不出来时，各自求常数界
     const SymEnv *sideA = nullptr;
     const SymEnv *sideB = nullptr;
+    const std::vector<LinExpr> *guardsA = nullptr;  // 两边各自路上的守卫（SPEC-0043）
+    const std::vector<LinExpr> *guardsB = nullptr;
+    std::string self = std::string();  // 正在合并的局部若是形参：它的入口符号 pK（SPEC-0043）
 };
 
 // x <= y 恒成立：差是常数，或在类型范围与守卫下可证
@@ -393,8 +396,9 @@ IntVal JoinInt(const IntVal &a, const IntVal &b, const Comparer *cmp = nullptr)
     }
     llvm::Optional<LinExpr> lo = MinOpt(a.Lower(), b.Lower(), cmp);
     llvm::Optional<LinExpr> hi = MaxOpt(a.Upper(), b.Upper(), cmp);
-    // 共同环境下比不出来的一端：各自在自己路上的守卫下求常数界、取 min / max（钳位写法，SPEC-0042）。
-    // 上界只在两边都是代码给出的界时才用（类型范围 / widen / data 照旧丢掉，记账方式不变）
+    // 共同环境下比不出来的一端（钳位写法）：① 各自在自己路上的守卫下求常数界、取 min / max（SPEC-0042）；
+    // ② 符号候选：一边的界在另一边自己路上的守卫下也成立就取它（if (ulLen > ulDstLen) ulLen = ulDstLen;，SPEC-0043）。
+    // 上界只在来源是代码给出的界时才用（类型范围 / widen / data 照旧丢掉，记账方式不变）
     bool sides = cmp != nullptr && cmp->sideA != nullptr && cmp->sideB != nullptr;
     llvm::Optional<Tag> sideTag;
     if (!lo && sides) {
@@ -410,6 +414,44 @@ IntVal JoinInt(const IntVal &a, const IntVal &b, const Comparer *cmp = nullptr)
         if (ha && hb && IsCodeTag(WorseTag(ha->tag, hb->tag))) {
             hi = LinExpr::Const(std::max(ha->value, hb->value));
             sideTag = WorseTag(ha->tag, hb->tag);
+        }
+    }
+    if (sides && (!lo || !hi)) {
+        Comparer onA;
+        Comparer onB;
+        onA.env = cmp->sideA;
+        onA.guards = cmp->guardsA;
+        onB.env = cmp->sideB;
+        onB.guards = cmp->guardsB;
+        // 两个候选都成立（合并后其实是 min / max）：不取变量自己的原值（形参的入口符号），取钳位的目标
+        auto pick = [&](const llvm::Optional<LinExpr> &x, const llvm::Optional<LinExpr> &y, bool upper) {
+            llvm::Optional<LinExpr> out;
+            if (!x || !y) {
+                return out;
+            }
+            // upper：y 在 a 那条路上不小于 x → 取 y；x 在 b 那条路上不小于 y → 取 x（下界对称）
+            bool takeY = upper ? ProvablyLe(*x, *y, &onA) : ProvablyLe(*y, *x, &onA);
+            bool takeX = upper ? ProvablyLe(*y, *x, &onB) : ProvablyLe(*x, *y, &onB);
+            bool selfY = !cmp->self.empty() && *y == LinExpr::Sym(cmp->self);
+            if (takeY && takeX) {
+                out = selfY ? x : y;
+            } else if (takeY) {
+                out = y;
+            } else if (takeX) {
+                out = x;
+            }
+            return out;
+        };
+        Tag both = WorseTag(a.kind == IntVal::Kind::Exact ? Tag::Branch : a.tag,
+                            b.kind == IntVal::Kind::Exact ? Tag::Branch : b.tag);
+        if (!hi && IsCodeTag(both)) {
+            hi = pick(a.Upper(), b.Upper(), true);
+            if (hi) {
+                sideTag = both;
+            }
+        }
+        if (!lo) {
+            lo = pick(a.Lower(), b.Lower(), false);
         }
     }
     if (!lo && !hi) {
@@ -526,7 +568,9 @@ bool operator==(const State &a, const State &b)
 }
 
 // envOf：给定汇合后成立的守卫（两边的交集），建比较符号界的环境（SPEC-0023）；空 = 只认常数差
-State Join(const State &a, const State &b, const std::function<SymEnv(const std::vector<LinExpr> &)> &envOf = nullptr)
+// selfOf：局部号 → 它若是形参，入口符号 pK（合并时不把变量自己的原值当钳位目标，SPEC-0043）
+State Join(const State &a, const State &b, const std::function<SymEnv(const std::vector<LinExpr> &)> &envOf = nullptr,
+           const std::function<std::string(uint32_t)> &selfOf = nullptr)
 {
     if (!a.reached) {
         return b;
@@ -559,6 +603,8 @@ State Join(const State &a, const State &b, const std::function<SymEnv(const std:
         envB = envOf(b.guards);
         cmp.sideA = &envA;
         cmp.sideB = &envB;
+        cmp.guardsA = &a.guards;
+        cmp.guardsB = &b.guards;
     }
     for (const auto &entry : a.locals) {
         auto it = b.locals.find(entry.first);
@@ -566,6 +612,7 @@ State Join(const State &a, const State &b, const std::function<SymEnv(const std:
             out.locals[entry.first] = Value();
             continue;
         }
+        cmp.self = selfOf ? selfOf(entry.first) : std::string();
         Value j = JoinValue(entry.second, it->second, &cmp);
         // 两边是不同的常数（或已带情形）：记下各自路径上的守卫（SPEC-0025 §2.1）
         std::vector<IntCase> ca;
@@ -1812,6 +1859,11 @@ FunctionFacts Analyzer::Run()
         t.guards = guards;
         return Env(t);
     };
+    // 形参局部的入口符号（SPEC-0043）
+    auto selfOf = [&](uint32_t id) {
+        const fir::Local *l = f.FindLocal(id);
+        return l != nullptr && l->param >= 0 ? "p" + std::to_string(l->param) : std::string();
+    };
     // 上升：工作表按逆后序编号
     std::vector<State> in(n);
     in[entry->second] = Entry();
@@ -1830,7 +1882,7 @@ FunctionFacts Analyzer::Run()
             if (!o.reached) {
                 continue;
             }
-            State next = Join(in[t], o, envOf);
+            State next = Join(in[t], o, envOf, selfOf);
             if (heads[t] && in[t].reached) {
                 next = WidenState(in[t], next);
             }
@@ -1860,7 +1912,7 @@ FunctionFacts Analyzer::Run()
         for (size_t b : rpo) {
             State s = b == entry->second ? Entry() : State();
             for (size_t e : incoming[b]) {
-                s = Join(s, contrib[e], envOf);
+                s = Join(s, contrib[e], envOf, selfOf);
             }
             in[b] = s;
             std::vector<State> out = s.reached ? FlowOut(b, s) : std::vector<State>(f.blocks[b].succ.size());
