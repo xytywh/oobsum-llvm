@@ -1,0 +1,17 @@
+# 访问因不支持的构造而进账本时，原因记 unsupported_construct / inline_asm（oobsum/specs/SPEC-0060；06- A-08、D-27）。
+# 只换 SUSPECT 的原因，记不记、报不报不变。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:Dump=fir \
+# RUN:   -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Va_Idx|Literal_Ptr)$' %S/Inputs/unsupported/u.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:fir]     store1 [padd(l0, unk(VAArgExpr))] = 0 sub
+CHECK-DAG: [oobsum:fir]     l1 = unk(CompoundLiteralExpr)
+# va_arg 作下标
+CHECK-DAG: u.c:5:1: warning: [OOB-SUSPECT:unsupported_construct] Cannot prove this access is within bounds: the address or size comes from a construct the engine does not support
+# 指向复合字面量的指针
+CHECK-DAG: u.c:6:1: warning: [OOB-SUSPECT:unsupported_construct]
+# 内联汇编写出的下标
+CHECK-DAG: u.c:7:1: warning: [OOB-SUSPECT:inline_asm] Cannot prove this access is within bounds: the value is written by inline assembly
+# 对照：整数转成的指针照旧
+CHECK-DAG: u.c:9:1: warning: [OOB-SUSPECT:untracked_pointer] Cannot prove this access is within bounds: the pointer's target is not tracked

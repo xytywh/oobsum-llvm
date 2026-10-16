@@ -463,6 +463,31 @@ IntVal JoinInt(const IntVal &a, const IntVal &b, const Comparer *cmp = nullptr)
     return IntVal::Range(lo, hi, sideTag ? *sideTag : tag);
 }
 
+// 未知值的原因 → 账本原因（A-08、D-27，SPEC-0060）：引擎不认识的构造；认识、只是值不知道的返回空
+llvm::StringRef ConstructReason(llvm::StringRef why)
+{
+    if (why == "struct_by_value" || why == "struct_rvalue") {
+        return "struct_by_value";
+    }
+    if (why == "inline_asm") {
+        return "inline_asm";
+    }
+    bool className = !why.empty() && why.front() >= 'A' && why.front() <= 'Z';  // Clang 的类名（StmtExpr…）
+    if (className || why.startswith("cast:") || why.startswith("unary:") || why.startswith("binary:") ||
+        why == "decl_ref" || why == "member" || why == "lvalue_as_rvalue" || why == "unknown_var" ||
+        why == "wide_string") {
+        return "unsupported_construct";
+    }
+    return "";
+}
+
+// 账本原因：值是不支持的构造给出的未知值时换成对应原因，否则用 fallback
+std::string OpenReason(const IntVal &v, const char *fallback)
+{
+    llvm::StringRef r = v.kind == IntVal::Kind::Top ? ConstructReason(v.why) : llvm::StringRef();
+    return r.empty() ? fallback : r.str();
+}
+
 PtrVal UnknownPtr(llvm::StringRef why)
 {
     PtrVal p;
@@ -963,6 +988,9 @@ private:
             Value p;
             p.isPtr = true;
             p.p = UnknownPtr(v.i.IsConst() && v.i.value.Constant() == 0 ? "null" : "int_as_ptr");
+            if (v.i.kind == IntVal::Kind::Top && !ConstructReason(v.i.why).empty()) {
+                p.p = UnknownPtr(v.i.why);  // 不支持的构造给出的指针：原因留着（账本原因，SPEC-0060）
+            }
             v = p;
         } else if (!ptr && v.isPtr) {
             Value i;
@@ -1590,7 +1618,8 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
         return;  // 0 字节：不访问
     }
     if (addr.kind == BaseKind::Unknown || addr.kind == BaseKind::Func) {
-        open("untracked_pointer");
+        llvm::StringRef r = ConstructReason(addr.why);
+        AddOpen(r.empty() ? "untracked_pointer" : r.str(), at);  // 不支持的构造给出的指针（SPEC-0060）
         return;
     }
     if (checkBack) {
@@ -1605,13 +1634,13 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
         // 偏移的上界被 widening 去掉、地址就是一个指针局部（*p++）→ 指针步进（A-45、SPEC-0017 §2.5）
         bool stepping = addr.off.kind == IntVal::Kind::Range && addr.off.tag == Tag::Widen &&
                         addrExpr < f.exprs.size() && f.exprs[addrExpr].op == ExprOp::Local;
-        open(stepping ? "pointer_stepping" : "type_range_only");
+        AddOpen(OpenReason(addr.off, stepping ? "pointer_stepping" : "type_range_only"), at);
         return;
     }
     // 字节数（模型给出的可以是区间或符号，SPEC-0018 §2.2）：没有上界 → 账本；没有下界按 0
     llvm::Optional<LinExpr> bytesHi = bytes.Upper();
     if (!bytesHi) {
-        open("type_range_only");
+        AddOpen(OpenReason(bytes, "type_range_only"), at);
         return;
     }
     llvm::Optional<LinExpr> bytesLo = bytes.Lower();
@@ -1646,7 +1675,7 @@ void Analyzer::BackAccess(const char *kind, const PtrVal &addr, ExprId addrExpr,
     if (!lo || lo->IsUnknown()) {
         bool stepping = addr.off.kind == IntVal::Kind::Range && addr.off.tag == Tag::Widen &&
                         addrExpr < f.exprs.size() && f.exprs[addrExpr].op == ExprOp::Local;
-        AddOpen(stepping ? "pointer_stepping" : "type_range_only", at);
+        AddOpen(OpenReason(addr.off, stepping ? "pointer_stepping" : "type_range_only"), at);
         return;
     }
     LinExpr under = LinExpr::Const(0) - *lo;

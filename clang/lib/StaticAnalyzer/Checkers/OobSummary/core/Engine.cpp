@@ -114,6 +114,12 @@ std::string LedgerMessage(const std::string &reason, const std::string &callee)
         phrase = "the offset is bounded only by its type";
     } else if (reason == "pointer_stepping") {
         phrase = "the pointer is advanced in a loop";
+    } else if (reason == "unsupported_construct") {
+        phrase = "the address or size comes from a construct the engine does not support";  // SPEC-0060
+    } else if (reason == "struct_by_value") {
+        phrase = "the value comes from a structure passed or returned by value";
+    } else if (reason == "inline_asm") {
+        phrase = "the value is written by inline assembly";
     } else if (reason == "fptr") {
         phrase = "a pointer is passed through a function pointer whose target is not resolved";  // SPEC-0057
     } else if (reason == "not_in_tu") {

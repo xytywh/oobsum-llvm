@@ -1135,3 +1135,27 @@ TEST(Interp, LocalFnPtrResolved)
     EXPECT_EQ(facts.opens[0].reason + "@" + facts.opens[0].at, "fptr@t.c:12");
     EXPECT_EQ(facts.opens[1].reason + "@" + facts.opens[1].at, "fptr@t.c:14");
 }
+
+TEST(Interp, UnsupportedConstructReason)
+{
+    // S5b-2（SPEC-0060）：下标 / 基址来自不支持的构造 → 账本原因 unsupported_construct / inline_asm；认识、只是值不知道的照旧
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t q = b.LocalVar("q", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t k = b.LocalVar("k", b.u32);
+    Inst asmOut;
+    asmOut.op = InstOp::Havoc;
+    asmOut.dst = k;
+    asmOut.why = "inline_asm";
+    b.Straight({b.Store(b.PAdd(b.L(p), b.f.Add(Expr::Unknown("VAArgExpr"))), 1, b.C(0), 5),
+                b.Set(q, b.f.Add(Expr::Unknown("CompoundLiteralExpr"))), b.Store(b.L(q), 1, b.C(0), 6), asmOut,
+                b.Store(b.PAdd(b.L(p), b.L(k)), 1, b.C(0), 7),
+                b.Store(b.PAdd(b.L(p), b.f.Add(Expr::Unknown("float"))), 1, b.C(0), 8)});
+    interp::FunctionFacts facts = b.Run();
+    std::string got;
+    for (const summary::Open &o : facts.opens) {
+        got += (got.empty() ? "" : " | ") + o.reason + "@" + o.at;
+    }
+    EXPECT_EQ(got,
+              "unsupported_construct@t.c:5 | unsupported_construct@t.c:6 | inline_asm@t.c:7 | type_range_only@t.c:8");
+}
