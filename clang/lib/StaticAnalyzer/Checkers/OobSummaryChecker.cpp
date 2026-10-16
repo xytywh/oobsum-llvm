@@ -141,7 +141,8 @@ private:
     void dumpCallGraph(const TranslationUnitDecl *tu, oobsum::KeyMaker &keys) const;
     void dumpKeys(const TranslationUnitDecl *tu, const std::string &tuId, oobsum::KeyMaker &keys) const;
     void dumpFir(const oobsum::fir::Module &module, const std::string &tuId) const;
-    void dumpSummaries(const oobsum::fir::Module &module, const std::string &tuId) const;
+    void dumpSummaries(const oobsum::fir::Module &module, const std::string &tuId,
+                       const oobsum::engine::InlineResult &result) const;
 };
 
 void OobSummaryChecker::dumpCallGraph(const TranslationUnitDecl *tu, oobsum::KeyMaker &keys) const
@@ -228,24 +229,24 @@ void OobSummaryChecker::dumpFir(const oobsum::fir::Module &module, const std::st
     dump.File(tuId + "/fir/" + tuId + ".json", prettyOs.str());
 }
 
-void OobSummaryChecker::dumpSummaries(const oobsum::fir::Module &module, const std::string &tuId) const
+void OobSummaryChecker::dumpSummaries(const oobsum::fir::Module &module, const std::string &tuId,
+                                      const oobsum::engine::InlineResult &result) const
 {
-    // SPEC-0015 §2.3：每个函数的局部事实（函数内解释的结果）写成摘要；Dump=state 打每个块入口的状态
+    // SPEC-0015 §2.3：每个函数的局部事实（函数内解释的结果）写成摘要；Dump=state 打每个块入口的状态。
+    // 摘要取引擎自底向上算出的那一份（与判定用的相同，SPEC-0024 §2.3），按源码里函数的顺序打
     for (const oobsum::fir::Function &f : module.funcs) {
         bool wantSummary = dump.Wants("summary", f.name);
-        bool wantState = dump.Wants("state", f.name);
-        if (!wantSummary && !wantState) {
+        auto trace = result.traces.find(f.name);
+        if (trace != result.traces.end()) {
+            for (const std::string &line : trace->second) {
+                dump.Line("state", "fn " + f.name + " " + line);
+            }
+        }
+        auto summary = result.summaries.find(f.name);
+        if (!wantSummary || summary == result.summaries.end()) {
             continue;
         }
-        std::vector<std::string> trace;
-        oobsum::interp::FunctionFacts facts = oobsum::interp::AnalyzeFunction(module, f, wantState ? &trace : nullptr);
-        for (const std::string &line : trace) {
-            dump.Line("state", "fn " + f.name + " " + line);
-        }
-        if (!wantSummary) {
-            continue;
-        }
-        llvm::json::Value json = oobsum::summary::SummaryToJson(oobsum::interp::BuildSummary(module, f, facts));
+        llvm::json::Value json = oobsum::summary::SummaryToJson(summary->second);
         std::string compact;
         llvm::raw_string_ostream compactOs(compact);
         compactOs << json;
@@ -282,11 +283,14 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
         if (dump.On("fir")) {
             dumpFir(module, tuId);
         }
+        bool wantState = dump.On("state");
+        oobsum::engine::InlineResult result =
+            oobsum::engine::RunInline(module, oobsum::models::ModelTable::Default(),
+                                      [&](const std::string &fn) { return wantState && dump.Wants("state", fn); });
         if (dump.On("summary") || dump.On("state")) {
-            dumpSummaries(module, tuId);
+            dumpSummaries(module, tuId, result);
         }
         if (engine) {
-            oobsum::engine::InlineResult result = oobsum::engine::RunInline(module);
             for (const std::string &line : result.applyLines) {
                 if (dump.Wants("apply", line.substr(0, line.find(' ')))) {
                     dump.Line("apply", line);

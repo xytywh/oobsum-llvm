@@ -103,7 +103,9 @@
 - [x] **修：经形参访问成员数组只查成员**（SPEC-0022）：外层对象（`*pK`、`ext(pK)`）的边界也查——否则"按结构体访问更短的缓冲区"（LV7-03）会被证明成安全。
       由引擎接进 checker 时 `run.py csa` 的对照发现。
 - [ ] **S7d-2**：`ModelFile`（YAML，I-40）、`strcpy_s` 等其余 securec 函数（I8）。
-- [ ] **S7d-3**：`ret_new` 效果（封装分配器，D-24、A-63…A-65；LV4-01）——要求被调者的摘要先算出来（自底向上），与 S8c 的调度一起做。
+- [x] **S7d-3 `ret_new` 效果**（SPEC-0024）：每条返回路径都是同一个堆对象或空指针 → `ret_new`（`eff_depth` 逐层加 1）；调用方拿到 `heap@<调用点>`、
+      实参写 `eff_depth`；`RunInline` 按 FIR 调用图自底向上解释，`Dump=summary` / `state` 取同一份结果。**LV4-01 端到端一致（16 个金标准用例 9 个）**；
+      `run.py csa`：LV4-01 TP POSSIBLE、LV4-02 TP DEFINITE、LV7-01（柔性数组）TP DEFINITE / TN SAFE——**通过 72、漏报 14**，回退 0（尺子：账本判定同一处有 SAFE 就算证明）。
 - [ ] **S7d-4**：条件效应（校验函数的返回值，LV4-06）；局部结构体字段带进调用点（LV5-01 的 `fields`）；偏移与长度的抵消（A-41，LV3-07、LV8-01）。
 - [ ] **S7e** `extern` 不完整数组的大小符号 `ext(g:名)`（LV6-01；全局大小表在 S8c / WP9 接上）。
 - [x] **S8c-1 引擎接进 checker（`Phase=inline`）**（SPEC-0021）：`core/Engine::RunInline`——每个函数解释 → 摘要 → `Propagate` → 带标签的判定：
@@ -115,7 +117,7 @@
       剩下 15 条漏报大多是"在被调者里报了 SUSPECT、但不在入口上"（`run.py` 只按入口对照）；真正一条都没报的用例：无。
 - [x] **汇合、收窄时比较符号界**（SPEC-0023）：`max(0, p1) = p1`、出口 `i >= ulLen` → `i == ulLen`；区间的界在忠实判断里只查类型范围。
       LV3-05 TP 从"只在被调者里 SUSPECT"变成调用点 DEFINITE：**通过 69、漏报 14**，回退 0（尺子认"改报在汇合点"，SPEC-0002 §2.4 修订）。
-- [ ] **S8c-2**：按 `TopoOrder` 自底向上解释、把被调者的效果代进来（`ret_new` 等，S7d-3，LV4-01）；
+- [ ] **S8c-2**：其余效果（`ret_cond` 校验函数 LV4-06、`ret_int`、`field` LV5-01）；
       告警 note 按 F-33 的三种写法；`unknown_callee` / 跨 TU（`export` / `solve` / `report`）。
 - [ ] S9 之后：WP5 安全函数族模型 → WP7 循环与守卫 → WP8 效果与分配器 → WP9 大小模型 → WP10 驱动 → WP11 真实代码子集（公司）→ WP12 全量与性能 → WP13 冻结。
 

@@ -375,6 +375,7 @@ def cmd_csa(a):
             key = (cid, d['site'], d['kind'])
             if d['label'] == 'safe':
                 safe_sites.add(key)
+                safe_sites.add((cid, d['site'], ''))  # 账本判定（没有 kind）：同一处有任意 kind 的 SAFE 就算证明了（SPEC-0024）
             if d.get('emitted') and d.get('access_site'):
                 reported_accesses.add((cid, d['access_site']))
             if d.get('emitted'):

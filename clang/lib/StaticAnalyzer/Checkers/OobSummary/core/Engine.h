@@ -15,6 +15,7 @@
 #include "OobSummary/core/Solver.h"
 #include "OobSummary/core/Summary.h"
 
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -28,9 +29,13 @@ struct InlineResult {
     solver::PropagateResult propagate;
     std::vector<Decision> decisions;
     std::vector<std::string> applyLines;  // Dump=apply：<函数> @ <调用点> <被调者>.<访问位置> → <结局>[ (<原因>)]
+    std::map<std::string, std::vector<std::string>> traces;  // Dump=state：traceFilter 选中的函数
+    std::vector<std::string> order;                          // 解释的顺序（被调者先，SPEC-0024 §2.3）
 };
 
-InlineResult RunInline(const fir::Module &m, const models::ModelTable &models = models::ModelTable::Default());
+// traceFilter：哪些函数记 Dump=state 的轨迹（空 = 都不记）
+InlineResult RunInline(const fir::Module &m, const models::ModelTable &models = models::ModelTable::Default(),
+                       const std::function<bool(const std::string &)> &traceFilter = nullptr);
 
 // 文本（SPEC-0021 §2.3）
 std::string SuspectMessage(const std::string &kind, int64_t depth, const std::string &object, const std::string &have,

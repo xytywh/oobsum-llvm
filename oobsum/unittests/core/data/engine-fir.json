@@ -906,6 +906,455 @@
    "ret": {
     "k": "void"
    }
+  },
+  {
+   "blocks": [
+    {
+     "id": 2,
+     "insts": [],
+     "succ": [
+      {
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "args": [
+        [
+         "c",
+         1
+        ],
+        [
+         "c",
+         0
+        ],
+        [
+         "l",
+         0
+        ]
+       ],
+       "callee": "F:VOS_MemAlloc",
+       "dst": 1,
+       "loc": [
+        0,
+        58,
+        12
+       ],
+       "op": "call",
+       "ord": 0
+      },
+      {
+       "loc": [
+        0,
+        58,
+        5
+       ],
+       "op": "ret",
+       "val": [
+        "l",
+        1
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 2,
+   "exit": 0,
+   "ext": false,
+   "key": "F@09ecfdf35a30f988:Wrap_Alloc",
+   "loc": [
+    0,
+    56,
+    14
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "ulSize",
+     "param": 0,
+     "t": {
+      "k": "int",
+      "s": false,
+      "w": 32
+     }
+    },
+    {
+     "id": 1,
+     "name": "t0",
+     "t": {
+      "k": "ptr",
+      "to": {
+       "k": "void"
+      }
+     },
+     "tmp": true
+    }
+   ],
+   "name": "Wrap_Alloc",
+   "ret": {
+    "k": "ptr",
+    "to": {
+     "k": "void"
+    }
+   }
+  },
+  {
+   "blocks": [
+    {
+     "id": 4,
+     "insts": [],
+     "succ": [
+      {
+       "to": 3
+      }
+     ]
+    },
+    {
+     "id": 3,
+     "insts": [
+      {
+       "args": [
+        [
+         "c",
+         8
+        ]
+       ],
+       "callee": "F@09ecfdf35a30f988:Wrap_Alloc",
+       "dst": 1,
+       "loc": [
+        0,
+        63,
+        30
+       ],
+       "op": "call",
+       "ord": 0
+      },
+      {
+       "dst": 0,
+       "loc": [
+        0,
+        63,
+        21
+       ],
+       "op": "set",
+       "val": [
+        "l",
+        1
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "assume": [
+        "cmp",
+        "eq",
+        [
+         "l",
+         0
+        ],
+        [
+         "c",
+         0
+        ],
+        false
+       ],
+       "to": 2
+      },
+      {
+       "assume": [
+        "cmp",
+        "ne",
+        [
+         "l",
+         0
+        ],
+        [
+         "c",
+         0
+        ],
+        false
+       ],
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 2,
+     "insts": [
+      {
+       "loc": [
+        0,
+        65,
+        9
+       ],
+       "op": "ret",
+       "val": [
+        "c",
+        0
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "loc": [
+        0,
+        67,
+        5
+       ],
+       "op": "ret",
+       "val": [
+        "l",
+        0
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 4,
+   "exit": 0,
+   "ext": false,
+   "key": "F@09ecfdf35a30f988:Tbl_Alloc",
+   "loc": [
+    0,
+    61,
+    15
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "pucTbl",
+     "t": {
+      "k": "ptr",
+      "to": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      }
+     }
+    },
+    {
+     "id": 1,
+     "name": "t0",
+     "t": {
+      "k": "ptr",
+      "to": {
+       "k": "void"
+      }
+     },
+     "tmp": true
+    }
+   ],
+   "name": "Tbl_Alloc",
+   "ret": {
+    "k": "ptr",
+    "to": {
+     "k": "int",
+     "s": false,
+     "w": 8
+    }
+   }
+  },
+  {
+   "blocks": [
+    {
+     "id": 4,
+     "insts": [],
+     "succ": [
+      {
+       "to": 3
+      }
+     ]
+    },
+    {
+     "id": 3,
+     "insts": [
+      {
+       "args": [],
+       "callee": "F@09ecfdf35a30f988:Tbl_Alloc",
+       "dst": 1,
+       "loc": [
+        0,
+        72,
+        21
+       ],
+       "op": "call",
+       "ord": 0
+      },
+      {
+       "dst": 0,
+       "loc": [
+        0,
+        72,
+        21
+       ],
+       "op": "set",
+       "val": [
+        "l",
+        1
+       ]
+      }
+     ],
+     "succ": [
+      {
+       "assume": [
+        "cmp",
+        "eq",
+        [
+         "l",
+         0
+        ],
+        [
+         "c",
+         0
+        ],
+        false
+       ],
+       "to": 2
+      },
+      {
+       "assume": [
+        "cmp",
+        "ne",
+        [
+         "l",
+         0
+        ],
+        [
+         "c",
+         0
+        ],
+        false
+       ],
+       "to": 1
+      }
+     ]
+    },
+    {
+     "id": 2,
+     "insts": [
+      {
+       "loc": [
+        0,
+        74,
+        9
+       ],
+       "op": "ret",
+       "val": null
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "insts": [
+      {
+       "args": [
+        [
+         "l",
+         0
+        ],
+        [
+         "c",
+         8
+        ]
+       ],
+       "callee": "F@09ecfdf35a30f988:Leaf",
+       "loc": [
+        0,
+        76,
+        5
+       ],
+       "op": "call",
+       "ord": 1
+      }
+     ],
+     "succ": [
+      {
+       "to": 0
+      }
+     ]
+    },
+    {
+     "id": 0,
+     "insts": [],
+     "succ": []
+    }
+   ],
+   "entry": 4,
+   "exit": 0,
+   "ext": true,
+   "key": "F:Heap_TP",
+   "loc": [
+    0,
+    70,
+    6
+   ],
+   "locals": [
+    {
+     "id": 0,
+     "name": "pucTbl",
+     "t": {
+      "k": "ptr",
+      "to": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      }
+     }
+    },
+    {
+     "id": 1,
+     "name": "t0",
+     "t": {
+      "k": "ptr",
+      "to": {
+       "k": "int",
+       "s": false,
+       "w": 8
+      }
+     },
+     "tmp": true
+    }
+   ],
+   "name": "Heap_TP",
+   "ret": {
+    "k": "void"
+   }
   }
  ],
  "globals": [],

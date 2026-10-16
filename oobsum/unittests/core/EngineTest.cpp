@@ -43,6 +43,9 @@ TEST(Engine, InlineDecisions)
     engine::InlineResult r = engine::RunInline(m);
     std::vector<std::string> got = Decisions(r);
     std::vector<std::string> want = {
+        // 两层封装的分配器（SPEC-0024）：Tbl_Alloc 的返回值是 8 字节的堆对象，Leaf 写下标 8 → L1
+        "definite Heap_TP engine.c:76 | Definite out-of-bound write through a 1-level call chain: up to byte 9 of heap "
+        "object allocated at engine.c:72 (8 bytes) is accessed",
         // 三层链：TP 越界（L1）、循环界给出的可能越界（L2）、TN 在调用点证明安全
         "definite Top_TP engine.c:25 | Definite out-of-bound write through a 3-level call chain: up to byte 17 of "
         "'aucBuf' (16 bytes) is accessed",
@@ -63,8 +66,23 @@ TEST(Engine, InlineDecisions)
         EXPECT_EQ(got[i], want[i]);
     }
     // 判定的调用链：汇合点 → … → 访问点（完整路径换回来了）
+    // ret_new 逐层推出（SPEC-0024）：Wrap_Alloc 的 eff_depth 1、Tbl_Alloc 2；Heap_TP 的判定 eff_depth 2
+    ASSERT_TRUE(r.summaries.at("Wrap_Alloc").effs.size() == 1);
+    EXPECT_EQ(r.summaries.at("Wrap_Alloc").effs[0].kind, "ret_new");
+    EXPECT_EQ(r.summaries.at("Wrap_Alloc").effs[0].size.getValueOr("-"), "p0");
+    EXPECT_EQ(r.summaries.at("Wrap_Alloc").effs[0].effDepth.getValueOr(0), 1);
+    ASSERT_TRUE(r.summaries.at("Tbl_Alloc").effs.size() == 1);
+    EXPECT_EQ(r.summaries.at("Tbl_Alloc").effs[0].size.getValueOr("-"), "8");
+    EXPECT_EQ(r.summaries.at("Tbl_Alloc").effs[0].effDepth.getValueOr(0), 2);
+    // 自底向上：被调者先
+    auto pos = [&](const std::string &fn) { return std::find(r.order.begin(), r.order.end(), fn) - r.order.begin(); };
+    EXPECT_TRUE(pos("Wrap_Alloc") < pos("Tbl_Alloc"));
+    EXPECT_TRUE(pos("Tbl_Alloc") < pos("Heap_TP"));
     for (const Decision &d : r.decisions) {
-        if (d.label == Label::Definite) {
+        if (d.label == Label::Definite && d.fn.find("Heap_TP") != std::string::npos) {
+            EXPECT_EQ(d.effDepth, 2u);
+        }
+        if (d.label == Label::Definite && d.fn.find("Top_TP") != std::string::npos) {
             ASSERT_TRUE(d.chain.size() == 4);
             EXPECT_EQ(d.chain[0].fn, "Top_TP");
             EXPECT_EQ(d.chain[3].fn, "Leaf");

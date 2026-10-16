@@ -744,7 +744,9 @@ private:
                 const State &s, const std::vector<LinExpr> &forced = {});
     // ---- 模型（SPEC-0018）----
     void ApplyAccessModel(const fir::Inst &inst, const models::AccessModel &model, const State &s);
-    Value AllocResult(const fir::Inst &inst, const models::AllocModel &model, const State &s);
+    Value HeapResult(const fir::Inst &inst, const std::string &size, int64_t effDepth, const State &s);
+    void RecordReturn(const fir::Inst &inst, const State &s);
+    std::vector<summary::Eff> Effects() const;
     std::vector<State> FlowOut(size_t block, State s);
 
     // ---- 条件边与守卫（SPEC-0016）----
@@ -779,6 +781,7 @@ private:
 
 public:
     std::vector<std::string> *trace = nullptr;
+    const std::map<std::string, summary::Summary> *callees = nullptr;
 
 private:
     const fir::Module &m;
@@ -790,9 +793,10 @@ private:
     std::vector<summary::Call> calls;
     mutable std::map<std::string, summary::FieldInfo> fields;
     mutable std::map<std::string, std::string> globalTypes;  // 读到过的全局标量：g:名 → 类型（Env 用）
-    std::vector<bool> heads;                                 // 循环头（回边的目标），按块下标
-    bool recording = false;     // 只有最后一遍记访问、调用点、账本（SPEC-0017 §2.1）
-    bool edgeFromHead = false;  // 当前 Assume 的边从循环头出发：收窄出来的上界标 loop
+    std::vector<Value> returns;  // 记录那一遍里每个 ret 的值（效果用，SPEC-0024）
+    std::vector<bool> heads;     // 循环头（回边的目标），按块下标
+    bool recording = false;      // 只有最后一遍记访问、调用点、账本（SPEC-0017 §2.1）
+    bool edgeFromHead = false;   // 当前 Assume 的边从循环头出发：收窄出来的上界标 loop
 };
 
 IntVal Analyzer::Bin(const fir::Expr &x, const State &s)
@@ -1248,7 +1252,18 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             result.p = UnknownPtr("call");
             result.i = IntVal::Top("call");
             if (kind == models::Kind::Alloc) {
-                result = AllocResult(inst, *models.Alloc(name), s);
+                result = HeapResult(inst, models.Alloc(name)->size, 0, s);
+            } else if (kind == models::Kind::None && inst.calleeExpr == fir::kNone && callees != nullptr) {
+                // 本 TU 里已算出摘要的被调者：代入它的 ret_new（SPEC-0024 §2.2）
+                auto callee = callees->find(name.str());
+                if (callee != callees->end()) {
+                    for (const summary::Eff &e : callee->second.effs) {
+                        if (e.kind == "ret_new" && e.size) {
+                            result = HeapResult(inst, *e.size, e.effDepth.getValueOr(1), s);
+                            break;
+                        }
+                    }
+                }
             }
             if (kind != models::Kind::Pure && kind != models::Kind::Free) {
                 s.cells.clear();  // 被调者可能经指针 / 全局写内存（效果在 S7d-3）；纯函数、释放函数不改被跟踪的内存
@@ -1267,6 +1282,7 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             return;
         }
         case fir::InstOp::Ret:
+            RecordReturn(inst, s);
             return;
     }
 }
@@ -1534,6 +1550,7 @@ FunctionFacts Analyzer::Run()
     }
     facts.calls = calls;
     facts.fields = fields;
+    facts.effs = Effects();
     facts.opens = opens;
     return facts;
 }
@@ -1571,6 +1588,9 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s)
                     arg.ptr->have = (v.p.size - *hi).Show();  // 偏移是区间时取最小的剩余（多报不少报）
                     if (v.p.kind == BaseKind::Param && v.p.off.IsConst() && v.p.off.value.Constant() == 0) {
                         arg.ptr->alias = v.p.obj.substr(1);  // *p0 → p0
+                    }
+                    if (v.p.kind == BaseKind::Heap && v.p.effDepth > 0) {
+                        arg.ptr->effDepth = v.p.effDepth;  // 经几层 ret_new 得到的对象（D-25，SPEC-0024 §2.2）
                     }
                 } else {
                     arg.ptr->obj = "local:" + unknown;
@@ -2122,8 +2142,8 @@ void Analyzer::ApplyAccessModel(const fir::Inst &inst, const models::AccessModel
     }
 }
 
-// 分配器的返回值（SPEC-0018 §2.3）：新的堆对象 heap@<调用点>，大小取 size 代入实参的下界
-Value Analyzer::AllocResult(const fir::Inst &inst, const models::AllocModel &model, const State &s)
+// 返回新对象（SPEC-0018 §2.3、SPEC-0024 §2.2）：新的堆对象 heap@<调用点>，大小取 size（实参 p0、p1… 的式子）代入实参的下界
+Value Analyzer::HeapResult(const fir::Inst &inst, const std::string &size, int64_t effDepth, const State &s)
 {
     std::vector<IntVal> ints;
     for (ExprId arg : inst.args) {
@@ -2131,13 +2151,50 @@ Value Analyzer::AllocResult(const fir::Inst &inst, const models::AllocModel &mod
     }
     LinExpr sizeExpr;
     std::string error;
-    IntVal size = ParseLin(model.size, sizeExpr, error) ? EvalModelExpr(sizeExpr, ints) : IntVal::Top("model_expr");
-    llvm::Optional<LinExpr> lo = size.Lower();
+    IntVal value = ParseLin(size, sizeExpr, error) ? EvalModelExpr(sizeExpr, ints) : IntVal::Top("model_expr");
+    llvm::Optional<LinExpr> lo = value.Lower();
     std::string site = SiteOf(m, inst.loc);
     Value v;
     v.isPtr = true;
     v.p = Base(BaseKind::Heap, "H" + site, "heap@" + site, lo && !lo->IsUnknown() ? lo : llvm::Optional<LinExpr>());
+    v.p.effDepth = effDepth;
     return v;
+}
+
+// 记录那一遍里每个 ret 的值（SPEC-0024 §2.1）
+void Analyzer::RecordReturn(const fir::Inst &inst, const State &s)
+{
+    if (recording && inst.val != fir::kNone) {
+        returns.push_back(Eval(inst.val, s));
+    }
+}
+
+// 每条返回路径都是同一个堆对象（偏移 0、大小已知）或空指针常量 → ret_new（D-24）
+std::vector<summary::Eff> Analyzer::Effects() const
+{
+    const PtrVal *heap = nullptr;
+    for (const Value &v : returns) {
+        bool null = (!v.isPtr && v.i.IsConst() && v.i.value.Constant() == 0) ||
+                    (v.isPtr && v.p.kind == BaseKind::Unknown && v.p.why == "null");
+        if (null) {
+            continue;
+        }
+        bool fresh =
+            v.isPtr && v.p.kind == BaseKind::Heap && v.p.hasSize && v.p.off.IsConst() && v.p.off.value.Constant() == 0;
+        if (!fresh || (heap != nullptr && heap->id != v.p.id)) {
+            return {};
+        }
+        heap = &v.p;
+    }
+    if (heap == nullptr) {
+        return {};
+    }
+    summary::Eff e;
+    e.kind = "ret_new";
+    e.size = heap->size.Show();
+    e.maybeNull = true;
+    e.effDepth = heap->effDepth + 1;
+    return {e};
 }
 
 std::string Analyzer::ShowState(const fir::Block &b, const State &s) const
@@ -2171,10 +2228,11 @@ std::string Analyzer::ShowState(const fir::Block &b, const State &s) const
 }  // namespace
 
 FunctionFacts AnalyzeFunction(const fir::Module &m, const fir::Function &f, std::vector<std::string> *stateTrace,
-                              const models::ModelTable &models)
+                              const models::ModelTable &models, const std::map<std::string, summary::Summary> *callees)
 {
     Analyzer a(m, f, models);
     a.trace = stateTrace;
+    a.callees = callees;
     return a.Run();
 }
 
@@ -2208,6 +2266,7 @@ summary::Summary BuildSummary(const fir::Module &m, const fir::Function &f, cons
     s.status = facts.status;
     s.reqs = facts.reqs;
     s.calls = facts.calls;
+    s.effs = facts.effs;
     s.opens = facts.opens;
     return s;
 }

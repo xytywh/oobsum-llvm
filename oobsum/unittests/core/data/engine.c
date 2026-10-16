@@ -49,3 +49,29 @@ void Entry(UINT8 *pucIn)
     }
     Ext_Send(aucTmp, 4);
 }
+
+/* 两层封装的分配器（SPEC-0024）：Tbl_Alloc → Wrap_Alloc → VOS_MemAlloc（模型表），对象 8 字节 */
+void *VOS_MemAlloc(UINT32 ulPid, UINT32 ulPtNo, UINT32 ulSize);
+
+static void *Wrap_Alloc(UINT32 ulSize)
+{
+    return VOS_MemAlloc(1, 0, ulSize);
+}
+
+static UINT8 *Tbl_Alloc(void)
+{
+    UINT8 *pucTbl = (UINT8 *)Wrap_Alloc(8);
+    if (pucTbl == 0) {
+        return 0;
+    }
+    return pucTbl;
+}
+
+void Heap_TP(void)
+{
+    UINT8 *pucTbl = Tbl_Alloc();
+    if (pucTbl == 0) {
+        return;
+    }
+    Leaf(pucTbl, 8);
+}

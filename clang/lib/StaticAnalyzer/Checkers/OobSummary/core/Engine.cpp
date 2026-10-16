@@ -12,6 +12,8 @@
 
 #include "llvm/Support/Path.h"
 
+#include <functional>
+
 namespace oobsum {
 namespace engine {
 
@@ -109,14 +111,55 @@ std::string LedgerMessage(const std::string &reason, const std::string &callee)
     return "Cannot prove this access is within bounds: " + phrase;
 }
 
-InlineResult RunInline(const fir::Module &m, const models::ModelTable &models)
+// FIR 的直接调用图上 DFS 后序：被调者先（递归成环的按任意顺序，SPEC-0024 §2.3）
+static std::vector<size_t> BottomUp(const fir::Module &m)
+{
+    std::map<std::string, size_t> byKey;
+    for (size_t i = 0; i < m.funcs.size(); ++i) {
+        byKey[m.funcs[i].key] = i;
+    }
+    std::vector<int> mark(m.funcs.size(), 0);
+    std::vector<size_t> order;
+    std::function<void(size_t)> visit = [&](size_t i) {
+        mark[i] = 1;
+        for (const fir::Block &b : m.funcs[i].blocks) {
+            for (const fir::Inst &inst : b.insts) {
+                if (inst.op != fir::InstOp::Call || inst.calleeExpr != fir::kNone) {
+                    continue;
+                }
+                auto it = byKey.find(inst.callee);
+                if (it != byKey.end() && mark[it->second] == 0) {
+                    visit(it->second);
+                }
+            }
+        }
+        mark[i] = 2;
+        order.push_back(i);
+    };
+    for (size_t i = 0; i < m.funcs.size(); ++i) {
+        if (mark[i] == 0) {
+            visit(i);
+        }
+    }
+    return order;
+}
+
+InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
+                       const std::function<bool(const std::string &)> &traceFilter)
 {
     InlineResult out;
-    // ① 函数内解释 → 摘要（只有局部事实）
-    for (const fir::Function &f : m.funcs) {
-        interp::FunctionFacts facts = interp::AnalyzeFunction(m, f, nullptr, models);
+    // ① 自底向上：函数内解释（代入已算出的被调者的效果）→ 摘要（只有局部事实）
+    for (size_t i : BottomUp(m)) {
+        const fir::Function &f = m.funcs[i];
+        std::vector<std::string> trace;
+        bool traced = traceFilter && traceFilter(f.name);
+        interp::FunctionFacts facts = interp::AnalyzeFunction(m, f, traced ? &trace : nullptr, models, &out.summaries);
         out.summaries[f.name] = interp::BuildSummary(m, f, facts);
         out.facts[f.name] = std::move(facts);
+        out.order.push_back(f.name);
+        if (traced) {
+            out.traces[f.name] = std::move(trace);
+        }
     }
     // ② 推到底
     out.propagate = solver::Propagate(out.summaries);

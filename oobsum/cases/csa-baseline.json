@@ -443,31 +443,31 @@
    "kind": "TP",
    "entry": "Ue_ModuleInit_TP",
    "pa": "L2",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "级别不同"
+   "actual": "POSSIBLE",
+   "verdict": "通过"
   },
   {
    "case": "LV4-01",
    "kind": "TN",
    "entry": "Ue_ModuleInit_TN",
    "pa": "-",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "actual": "SAFE:within(未报出:safe)",
+   "verdict": "通过"
   },
   {
    "case": "LV4-02",
    "kind": "TP",
    "entry": "Ue_CreateSec_TP",
    "pa": "L1",
-   "actual": "SUSPECT:entry_unproven×2",
-   "verdict": "级别不同"
+   "actual": "DEFINITE×2",
+   "verdict": "通过"
   },
   {
    "case": "LV4-02",
    "kind": "TN",
    "entry": "Ue_CreateSec_TN",
    "pa": "-",
-   "actual": "SUSPECT:entry_unproven×2",
+   "actual": "SUSPECT:entry_unproven",
    "verdict": "通过+S"
   },
   {
@@ -731,16 +731,16 @@
    "kind": "TP",
    "entry": "List_Build_TP",
    "pa": "记账",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过"
+   "actual": "DEFINITE",
+   "verdict": "超出预期"
   },
   {
    "case": "LV7-01",
    "kind": "TN",
    "entry": "List_Build_TN",
    "pa": "记账",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "actual": "SAFE:within(未报出:safe)",
+   "verdict": "通过"
   },
   {
    "case": "LV7-02",
@@ -1621,16 +1621,8 @@
    "site": "lv4/lv4_01_wrapper_alloc_spec.c:72:0",
    "kind": "W",
    "fn": "F:Ue_ModuleInit_TP",
-   "label": "suspect",
-   "reason": "entry_unproven"
-  },
-  {
-   "case": "LV4-01",
-   "site": "lv4/lv4_01_wrapper_alloc_spec.c:81:0",
-   "kind": "W",
-   "fn": "F:Ue_ModuleInit_TN",
-   "label": "suspect",
-   "reason": "entry_unproven"
+   "label": "possible",
+   "reason": ""
   },
   {
    "case": "LV4-02",
@@ -1645,21 +1637,13 @@
    "site": "lv4/lv4_02_sizeof_pointer.c:50:0",
    "kind": "W",
    "fn": "F:Ue_CreateSec_TP",
-   "label": "suspect",
-   "reason": "entry_unproven"
+   "label": "definite",
+   "reason": ""
   },
   {
    "case": "LV4-02",
    "site": "lv4/lv4_02_sizeof_pointer.c:54:0",
    "kind": "R",
-   "fn": "F:Ue_CreateSec_TN",
-   "label": "suspect",
-   "reason": "entry_unproven"
-  },
-  {
-   "case": "LV4-02",
-   "site": "lv4/lv4_02_sizeof_pointer.c:60:0",
-   "kind": "W",
    "fn": "F:Ue_CreateSec_TN",
    "label": "suspect",
    "reason": "entry_unproven"
@@ -1962,27 +1946,11 @@
   },
   {
    "case": "LV7-01",
-   "site": "lv7/lv7_01_flexible_array.c:37:0",
-   "kind": "",
-   "fn": "F@18126edf740e90a7:List_New",
-   "label": "suspect",
-   "reason": "untracked_pointer"
-  },
-  {
-   "case": "LV7-01",
    "site": "lv7/lv7_01_flexible_array.c:52:0",
    "kind": "W",
    "fn": "F:List_Build_TP",
-   "label": "suspect",
-   "reason": "entry_unproven"
-  },
-  {
-   "case": "LV7-01",
-   "site": "lv7/lv7_01_flexible_array.c:62:0",
-   "kind": "W",
-   "fn": "F:List_Build_TN",
-   "label": "suspect",
-   "reason": "entry_unproven"
+   "label": "definite",
+   "reason": ""
   },
   {
    "case": "LV7-03",

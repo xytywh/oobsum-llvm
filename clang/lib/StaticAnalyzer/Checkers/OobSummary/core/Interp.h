@@ -67,6 +67,7 @@ struct PtrVal {
     std::string why;                                // Unknown 的原因
     // 形参所指结构体里的成员数组（ParamField）：外层对象（*pK、ext(pK)）与成员在其中的偏移。访问要同时满足成员边界与
     // 外层对象边界（F-02、D-31；SPEC-0022）
+    int64_t effDepth = 0;  // 堆对象经过了几层 ret_new（模型表的分配器本身为 0，SPEC-0024）
     bool hasParent = false;
     std::string parentId;
     std::string parentObj;
@@ -94,13 +95,16 @@ struct FunctionFacts {
     std::vector<summary::Req> safe;  // 本函数里就证明了安全的访问（A-43 / A-44，SPEC-0016 §2.2；判定日志记 SAFE）
     std::vector<summary::Call> calls;                  // 调用点记录（D-25；results 留空，由求解填）
     std::map<std::string, summary::FieldInfo> fields;  // 用到的 pi->字段（D-23 的 fields 表）
+    std::vector<summary::Eff> effs;                    // 对调用方的效果（本步只有 ret_new，SPEC-0024）
     std::vector<summary::Open> opens;
 };
 
 // stateTrace 非空时，每个块入口的状态各一行（Dump=state）；models：库函数的模型表（SPEC-0018）
+// callees：已经算出摘要的被调者（按函数名），调用点代入它们的效果（ret_new，SPEC-0024）
 FunctionFacts AnalyzeFunction(const fir::Module &m, const fir::Function &f,
                               std::vector<std::string> *stateTrace = nullptr,
-                              const models::ModelTable &models = models::ModelTable::Default());
+                              const models::ModelTable &models = models::ModelTable::Default(),
+                              const std::map<std::string, summary::Summary> *callees = nullptr);
 // 局部事实 → 摘要（只有局部事实；上传的 Req、判定、账本由求解补上）
 summary::Summary BuildSummary(const fir::Module &m, const fir::Function &f, const FunctionFacts &facts);
 

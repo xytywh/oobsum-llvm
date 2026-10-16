@@ -875,3 +875,53 @@ TEST(Interp, LoopExitEquality)
     }
     EXPECT_TRUE(exitSeen);
 }
+
+TEST(Interp, RetNewEffect)
+{
+    // 返回模型分配器的结果 → ret_new（size 用本函数的接口符号写，eff_depth 1，SPEC-0024 §2.1）
+    auto ret = [](ExprId v) {
+        Inst i;
+        i.op = InstOp::Ret;
+        i.val = v;
+        return i;
+    };
+    Builder b;
+    uint32_t n = b.Param("ulSize", b.u32);
+    uint32_t p = b.LocalVar("p", b.m.Intern(Type::Ptr(b.u8)));
+    b.Straight({CallOf("F:VOS_MemAlloc", {b.C(1), b.C(0), b.L(n)}, 3, p), ret(b.L(p))});
+    interp::FunctionFacts facts = b.Run();
+    ASSERT_TRUE(facts.effs.size() == 1);
+    EXPECT_EQ(facts.effs[0].kind, "ret_new");
+    EXPECT_EQ(facts.effs[0].size.getValueOr("-"), "p0");
+    EXPECT_EQ(facts.effs[0].effDepth.getValueOr(0), 1);
+    EXPECT_TRUE(facts.effs[0].maybeNull.getValueOr(false));
+    // 一支返回空指针、一支返回堆对象：仍是 ret_new
+    Builder c;
+    uint32_t n2 = c.Param("ulSize", c.u32);
+    uint32_t p2 = c.LocalVar("p", c.m.Intern(Type::Ptr(c.u8)));
+    Diamond d;
+    d.entry.insts = {CallOf("F:malloc", {c.L(n2)}, 3, p2)};
+    d.yes.insts = {ret(c.C(0))};
+    d.yes.succ = {{0, kNone}};
+    d.no.insts = {ret(c.L(p2))};
+    d.no.succ = {{0, kNone}};
+    d.Install(c, c.f.Add(Expr::Cmp(CmpOp::Eq, c.L(n2), c.C(0), false)),
+              c.f.Add(Expr::Cmp(CmpOp::Ne, c.L(n2), c.C(0), false)));
+    interp::FunctionFacts facts2 = c.Run();
+    ASSERT_TRUE(facts2.effs.size() == 1);
+    EXPECT_EQ(facts2.effs[0].size.getValueOr("-"), "p0");
+    // 两支返回不同的对象：没有 ret_new
+    Builder e;
+    uint32_t q1 = e.LocalVar("q1", e.m.Intern(Type::Ptr(e.u8)));
+    uint32_t q2 = e.LocalVar("q2", e.m.Intern(Type::Ptr(e.u8)));
+    uint32_t k = e.Param("k", e.u32);
+    Diamond d2;
+    d2.entry.insts = {CallOf("F:malloc", {e.C(4)}, 3, q1), CallOf("F:malloc", {e.C(8)}, 4, q2)};
+    d2.yes.insts = {ret(e.L(q1))};
+    d2.yes.succ = {{0, kNone}};
+    d2.no.insts = {ret(e.L(q2))};
+    d2.no.succ = {{0, kNone}};
+    d2.Install(e, e.f.Add(Expr::Cmp(CmpOp::Eq, e.L(k), e.C(0), false)),
+               e.f.Add(Expr::Cmp(CmpOp::Ne, e.L(k), e.C(0), false)));
+    EXPECT_TRUE(e.Run().effs.empty());
+}
