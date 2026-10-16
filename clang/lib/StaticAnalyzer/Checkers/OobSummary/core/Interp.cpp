@@ -1286,13 +1286,21 @@ private:
         auto it = globalById.find(id);
         return it != globalById.end() ? it->second : nullptr;
     }
-    // g:名字 → 同名的全局（函数内 static 可能与全局同名，都要）
+    // g:名字（显示名）→ 同名的全局（函数内 static 可能与全局同名，都要）：只给老格式的 mods 兜底，保守（SPEC-0086）
     const std::vector<const fir::Global *> &GlobalsNamed(const std::string &name) const
     {
         static const std::vector<const fir::Global *> none;
         IndexGlobals();
         auto it = globalsByName.find(name);
         return it != globalsByName.end() ? it->second : none;
+    }
+    // 接口符号（GlobalSymbol）→ 全局：精确（SPEC-0086）
+    const std::vector<const fir::Global *> &GlobalsBySym(const std::string &sym) const
+    {
+        static const std::vector<const fir::Global *> none;
+        IndexGlobals();
+        auto it = globalsBySym.find(sym);
+        return it != globalsBySym.end() ? it->second : none;
     }
     void IndexGlobals() const
     {
@@ -1303,11 +1311,13 @@ private:
         for (const fir::Global &g : m.globals) {
             globalById["G" + g.key] = &g;
             globalsByName["g:" + g.name].push_back(&g);
+            globalsBySym[GlobalSymbol(g.key, g.name)].push_back(&g);
         }
     }
     mutable bool indexed = false;
     mutable std::map<std::string, const fir::Global *> globalById;
     mutable std::map<std::string, std::vector<const fir::Global *>> globalsByName;
+    mutable std::map<std::string, std::vector<const fir::Global *>> globalsBySym;
     std::vector<std::map<std::string, FieldAt>> fieldOuts;
     std::vector<llvm::Optional<int64_t>> outRets;  // 与 fieldOuts 对齐：这条路径返回的常数（SPEC-0079）
     std::vector<bool> heads;                       // 循环头（回边的目标），按块下标
@@ -1700,8 +1710,9 @@ Value Analyzer::LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const 
             int64_t gsize = 0;
             if (g.type < m.types.size() && m.types[g.type].kind == fir::TypeKind::Int && TypeSize(m, g.type, gsize) &&
                 gsize == size) {
-                globalTypes["g:" + g.name] = fir::TypeText(m, g.type);
-                v.i = IntVal::Exact(LinExpr::Sym("g:" + g.name));
+                std::string sym = GlobalSymbol(g.key, g.name);  // 带身份（SPEC-0086）
+                globalTypes[sym] = fir::TypeText(m, g.type);
+                v.i = IntVal::Exact(LinExpr::Sym(sym));
                 return v;
             }
         }
@@ -1798,7 +1809,11 @@ void Analyzer::AddMod(const PtrVal &addr, llvm::Optional<int64_t> size)
             AddModText(addr.obj);  // *p0->pucBuf
             return;
         case BaseKind::Global:
-            AddModText(addr.obj);  // g:名字
+            if (const fir::Global *g = GlobalOf(addr.id)) {
+                AddModText(GlobalSymbol(g->key, g->name));  // 带身份的符号（SPEC-0086）
+            } else {
+                AddModText(addr.obj);  // g:名字
+            }
             return;
         case BaseKind::Local:
         case BaseKind::Heap:
@@ -1841,7 +1856,13 @@ void Analyzer::ApplyMods(const fir::Inst &inst, const std::vector<std::string> &
             continue;
         }
         if (text.startswith("g:")) {
-            for (const fir::Global *gp : GlobalsNamed(mod)) {  // 查表（SPEC-0080）
+            // 按符号查；查不到（别的 TU 的 static、本模块没声明的全局、老格式）→ 记进 writtenAll，后面调用点上当"改过"，
+            // 再按显示名兜底多失效一些（SPEC-0086）
+            const std::vector<const fir::Global *> &exact = GlobalsBySym(mod);
+            if (exact.empty()) {
+                s.writtenAll.insert(mod);
+            }
+            for (const fir::Global *gp : !exact.empty() ? exact : GlobalsNamed(mod)) {  // 查表（SPEC-0080）
                 const fir::Global &g = *gp;
                 {
                     std::string id = "G" + g.key;
@@ -2788,6 +2809,12 @@ std::map<std::string, std::string> Analyzer::GlobalsAt(const State &s,
             ids.insert(w);
         }
     }
+    // 被调者写过、本模块看不到的全局（ApplyMods 记在 writtenAll 里的 g:…）：后面调用点上当"改过"（SPEC-0086）
+    for (const std::string &w : s.writtenAll) {
+        if (llvm::StringRef(w).startswith("g:")) {
+            out[w] = "?";
+        }
+    }
     for (const std::string &id : ids) {
         const fir::Global *global = GlobalOf(id);
         int64_t size = 0;
@@ -2796,7 +2823,7 @@ std::map<std::string, std::string> Analyzer::GlobalsAt(const State &s,
             continue;
         }
         const fir::Global &g = *global;
-        std::string name = "g:" + g.name;
+        std::string name = GlobalSymbol(g.key, g.name);  // 带身份（SPEC-0086）
         auto cell = s.cells.find(CellKey(id, 0, size));
         const IntVal *iv = cell != s.cells.end() && !cell->second.isPtr ? &cell->second.i : nullptr;
         if (iv != nullptr && iv->kind == IntVal::Kind::Exact && !iv->value.IsUnknown()) {
@@ -2805,7 +2832,7 @@ std::map<std::string, std::string> Analyzer::GlobalsAt(const State &s,
             }
         } else if (locals != nullptr && iv != nullptr && iv->kind == IntVal::Kind::Range && IsCodeTag(iv->tag) &&
                    iv->Lower() && iv->Upper() && !iv->Lower()->IsUnknown() && !iv->Upper()->IsUnknown()) {
-            std::string local = "_gv_" + g.name;  // 代码给出的区间：调用点局部（SPEC-0077）
+            std::string local = "_gv_" + name.substr(2);  // 代码给出的区间：调用点局部（SPEC-0077）
             (*locals)[local] = {iv->Lower()->Show(), iv->Upper()->Show(), TagName(iv->tag).str()};
             out[name] = local;
         } else if (Changed(s, id, 0, size)) {
@@ -3820,7 +3847,7 @@ std::vector<Analyzer::FieldSlot> Analyzer::FieldSlots() const
         }
     }
     for (const std::string &name : names) {
-        for (const fir::Global *g : GlobalsNamed(name)) {
+        for (const fir::Global *g : GlobalsBySym(name)) {
             picked.insert(g);
         }
     }
@@ -3828,7 +3855,7 @@ std::vector<Analyzer::FieldSlot> Analyzer::FieldSlots() const
         int64_t size = 0;
         if (picked.count(&g) != 0 && g.type < m.types.size() && m.types[g.type].kind == fir::TypeKind::Int &&
             TypeSize(m, g.type, size)) {
-            out.push_back({"g:" + g.name, "G" + g.key, -1, 0, size, g.type});
+            out.push_back({GlobalSymbol(g.key, g.name), "G" + g.key, -1, 0, size, g.type});
         }
     }
     slotsCache = out;
@@ -3946,7 +3973,7 @@ llvm::Optional<LinExpr> Analyzer::CallerExpr(const fir::Inst &inst, const LinExp
         if (!llvm::StringRef(x).startswith("g:") || globalTypes.count(x) != 0) {
             continue;
         }
-        for (const fir::Global *g : GlobalsNamed(x)) {
+        for (const fir::Global *g : GlobalsBySym(x)) {
             if (g->type < m.types.size() && m.types[g->type].kind == fir::TypeKind::Int) {
                 globalTypes[x] = fir::TypeText(m, g->type);
             }
@@ -4060,7 +4087,7 @@ std::vector<std::pair<CellKey, Value>> Analyzer::FieldWrites(
         int64_t size = 0;
         if (e.kind == "global") {
             const fir::Global *global = nullptr;
-            for (const fir::Global *g : GlobalsNamed(*e.target)) {
+            for (const fir::Global *g : GlobalsBySym(*e.target)) {
                 if (g->type < m.types.size() && m.types[g->type].kind == fir::TypeKind::Int &&
                     TypeSize(m, g->type, size)) {
                     global = g;

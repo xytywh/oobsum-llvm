@@ -12,9 +12,10 @@
 # mods：本函数的写、被调者换算过来的（经 p->aucData 的 p0+0:1 → p0+8:1）、全局
 CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Msg_SetType"{{.*}}"mods":["p0+4:4"]
 CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Msg_Zero"{{.*}}"mods":["p0+8:1"]
-CHECK-DAG: [oobsum:summary] {{.*}}"fn":"G_Fill"{{.*}}"mods":["g:g_ulCnt","p0"]
+# static 全局的符号带身份后缀（SPEC-0086）
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"G_Fill"{{.*}}"mods":["g:g_ulCnt__S{{[0-9a-f]+}}","p0"]
 CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Len_SetVia"{{.*}}"mods":["p0+0:4"]
-CHECK-DAG: [oobsum:summary] {{.*}}"fn":"GLen_SetVia"{{.*}}"mods":["g:g_ulLen"]
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"GLen_SetVia"{{.*}}"mods":["g:g_ulLen__S{{[0-9a-f]+}}"]
 # 被调者只写了 ulType / g_ulCnt / aucData：调用后仍用入口值（原来是 SUSPECT type_range_only）
 CHECK-DAG: mods.c:11:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 2-level call chain: up to byte 32 of 'a' (16 bytes) is accessed
 CHECK-DAG: mods.c:18:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 2-level call chain: up to byte 32 of 'a' (16 bytes) may be accessed

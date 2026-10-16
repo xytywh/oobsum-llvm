@@ -57,3 +57,20 @@ TEST(Key, KeyName)
     EXPECT_EQ(KeyName("S@F:Ue_InitOne:s_ulCnt"), "s_ulCnt");
     EXPECT_EQ(KeyName("plain"), "plain");
 }
+
+TEST(Key, GlobalSymbol)
+{
+    // SPEC-0086：外部链接照旧；内部链接（文件内 / 函数内 static）带键的哈希后缀，显示时去掉
+    EXPECT_EQ(GlobalSymbol("G:g_ulLen", "g_ulLen"), "g:g_ulLen");
+    std::string a = GlobalSymbol("G@0123456789abcdef:g_len", "g_len");
+    std::string b = GlobalSymbol("G@fedcba9876543210:g_len", "g_len");
+    std::string l = GlobalSymbol("S@F:Top:n", "n");
+    EXPECT_TRUE(a != b);
+    EXPECT_EQ(a.size(), std::string("g:g_len__S").size() + 16);
+    EXPECT_EQ(a.compare(0, 10, "g:g_len__S"), 0);
+    EXPECT_EQ(StripGlobalSuffix(a + " + 1"), "g:g_len + 1");
+    EXPECT_EQ(StripGlobalSuffix("4*" + l + " - " + b), "4*g:n - g:g_len");
+    // 不是 16 位十六进制、或后面还连着标识符字符的不动
+    EXPECT_EQ(StripGlobalSuffix("g:x__Sabc + 1"), "g:x__Sabc + 1");
+    EXPECT_EQ(StripGlobalSuffix("g:x__S0123456789abcdefz"), "g:x__S0123456789abcdefz");
+}

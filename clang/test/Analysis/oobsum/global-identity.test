@@ -1,0 +1,20 @@
+# 全局符号的身份（oobsum/specs/SPEC-0086）：内部链接的全局带哈希后缀；被调者改了本模块看不到的全局，后面调用点当"改过"。
+# 原来三处都是错误的 SAFE：① b.c 的 static g_len 代进 a.c 的同名 static；② 两个函数内 static n 混了；③ d.c 没声明 g_x，SetX 改过后 PutX 当入口值。
+#
+# RUN: rm -rf %t && mkdir -p %t
+# RUN: for f in a b c d e l; do %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=export -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t %S/Inputs/gident/$f.c; done
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=solve -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t %S/Inputs/gident/stub.c
+# RUN: cat %t/solved/*.json | FileCheck %s
+# 这几处不再有"访问 'a' 证明安全"
+# RUN: not grep -hE '"fn":"F:Top_(B|L|X)".*"label":"safe","msg":"Proven within bounds: up to byte [0-9]+ of .a.' %t/solved/*.json
+
+# ① ② 不知道被调者那个 static 的值 → 入口未证明；正文里不露后缀
+CHECK-DAG: "end":["g:g_len__S{{[0-9a-f]+}} + 1",{{.*}}"fn":"F:Top_B"{{.*}}"label":"suspect","msg":"Cannot prove the write through a 1-level call chain stays within 'a' (4 bytes): up to byte g:g_len + 1 may be accessed"{{.*}}"reason":"entry_unproven"
+CHECK-DAG: "fn":"F:Top_L"{{.*}}"label":"suspect"{{.*}}"reason":"entry_unproven"
+# ③ Mid 里 SetX 改过 g_x：PutX 的 g:g_x 不是 Mid 入口的值 → global_value
+CHECK-DAG: "fn":"F:Mid"{{.*}}"label":"suspect"{{.*}}"reason":"global_value"
+# 对照：同一个 TU 里改的是同一个 static → 照旧按值判
+CHECK-DAG: "fn":"F:TopA_TN"{{.*}}"label":"safe","msg":"Proven within bounds: up to byte 3 of 'a' (4 bytes)"
+CHECK-DAG: "fn":"F:TopA_TP"{{.*}}"label":"definite"

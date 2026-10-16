@@ -33,6 +33,12 @@ std::string StaticLocalKey(llvm::StringRef functionKey, llvm::StringRef name);
 // 从键取回名字：最后一个 ':' 之后、'#' 之前（与 cases/run.py 的 _fn_name 同义）
 llvm::StringRef KeyName(llvm::StringRef key);
 
+// 全局整数标量的接口符号（SPEC-0086）：外部链接（键 G:…）g:<名字>；内部链接（文件内 / 函数内 static）
+// g:<名字>__S<键的哈希前 16 位>——不同 TU、不同函数里的同名 static 不混
+std::string GlobalSymbol(llvm::StringRef key, llvm::StringRef name);
+// 显示用：去掉符号里的 __S<16 位十六进制> 后缀
+std::string StripGlobalSuffix(std::string text);
+
 }  // namespace oobsum
 
 #endif

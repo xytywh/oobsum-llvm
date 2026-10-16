@@ -8,6 +8,7 @@
 
 #include "OobSummary/core/Alert.h"
 #include "OobSummary/core/Fingerprint.h"
+#include "OobSummary/core/Key.h"
 #include "OobSummary/core/Label.h"
 
 #include "llvm/Support/Path.h"
@@ -89,6 +90,7 @@ std::string SizeText(const std::string &have)
 // 调用点上不知道的符号（SPEC-0063 / 0064）显示时去掉内部前缀；给了被调者的形参表时 p<k> 写成被调者的形参名（SPEC-0067）
 std::string Readable(std::string text, const std::vector<summary::Param> *callee = nullptr)
 {
+    text = StripGlobalSuffix(text);  // 内部链接全局符号的身份后缀（SPEC-0086）
     // 伪字段 _0（*pK，SPEC-0071）的未知值没有名字可写
     for (size_t at = text.find("_unknown__0"); at != std::string::npos; at = text.find("_unknown__0", at)) {
         text.replace(at, 11, "an unknown value");
@@ -548,6 +550,10 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
         if (!seen) {
             opens.push_back({"unknown_callee", u.second, llvm::None});
         }
+    }
+    // 告警正文里不露内部链接全局符号的身份后缀（SPEC-0086）
+    for (auto &d : out.decisions) {
+        d.msg = StripGlobalSuffix(d.msg);
     }
     return out;
 }

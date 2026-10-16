@@ -66,7 +66,7 @@ S2 级（符号可疑）输出。
 | 术语 | 含义 |
 |---|---|
 | **FIR** | Function IR：本引擎的函数级中间表示（§5.2），由 checker 从 Clang AST + CFG 降级得到，JSON 可序列化 |
-| **接口符号** | 摘要里允许出现的符号：形参值 `p0`、`p1`…、形参指向对象的剩余字节数 `ext(p0)`、经形参可达的字段（深度 ≤ 2）`p0->ulLen`、全局 `g:g_x`（§5.3） |
+| **接口符号** | 摘要里允许出现的符号：形参值 `p0`、`p1`…、形参指向对象的剩余字节数 `ext(p0)`、经形参可达的字段（深度 ≤ 2）`p0->ulLen`、全局 `g:g_x`（§5.3；〔SPEC-0086：内部链接的全局写成 `g:g_x__S<键的哈希前 16 位>`〕） |
 | **Req / Eff / Rep / Open** | 前置条件 / 效果 / 已判定的越界 / 账本（`05-` §1.1） |
 | **汇合点** | 访问侧条件与大小侧信息都已知、能判定的那个函数（调用点） |
 | **depth / effDepth** | 访问点到汇合点经过的调用层数 / 大小、偏移或长度经效果（返回值、出参、字段）向上传了几层；报告过滤用两者的最大值（§3.3） |
@@ -482,7 +482,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | `absorbed` | 被本条覆盖、不再单列的较弱访问 `[{kind, end, at}]`（A-44） |
 | `doc` | `{text, obj, bytes, code, note}`：用形参名渲染的一句话、对象名、访问字节数、源码原文、说明 |
 
-**D-24 效果**〔由 SPEC-0045 修订：另加摘要字段 `mods`（可能写的位置：`pK`、`pK+off:size`、`*pK->f`、`g:名字`、`g:*`、`*`），调用点按它只让写到的位置失效〕 `effs[].kind`：`ret_new`（`size`、`maybe_null`、`eff_depth`）、`ret_ptr`〔SPEC-0070：`target: "pK" / "pK->f"`、`value`（偏移）、`maybe_null`；每条返回都是同一个形参基址、同一个偏移时记〕、`ret_int`（`range`、`bound`；〔SPEC-0054：不是常数的返回也推出——同一个确切式子取符号区间，否则各条返回在自己路径条件下的常数界取并〕）、
+**D-24 效果**〔SPEC-0086：`mods` 里的全局用带身份的符号，本模块看不到的全局被写过 → 后面调用点当"改过"；由 SPEC-0045 修订：另加摘要字段 `mods`（可能写的位置：`pK`、`pK+off:size`、`*pK->f`、`g:名字`、`g:*`、`*`），调用点按它只让写到的位置失效〕 `effs[].kind`：`ret_new`（`size`、`maybe_null`、`eff_depth`）、`ret_ptr`〔SPEC-0070：`target: "pK" / "pK->f"`、`value`（偏移）、`maybe_null`；每条返回都是同一个形参基址、同一个偏移时记〕、`ret_int`（`range`、`bound`；〔SPEC-0054：不是常数的返回也推出——同一个确切式子取符号区间，否则各条返回在自己路径条件下的常数界取并〕）、
 `ret_cond`（`when: "ret == c"`、`then: [条件…]`，至多 4 条）、`field`〔SPEC-0073：每条返回路径要么写了同一个确切值、要么没碰（`may`）；SPEC-0074：写的是几个常数之一时记区间 `range`；SPEC-0079：可带 `when: "ret == c"`（只在返回 c 时成立）；`*pK` 的出参写回用伪字段 `pK->_0`，不另设 `out_int`〕、`out_new`〔SPEC-0053：`target: "pK"`、`size`、`maybe_null`、`eff_depth`，每条返回路径都把同一个新对象写进 `*pK` 时记；SPEC-0061：`target` 也可以是 `pK->f`（写进所指结构体的指针字段）〕 / `out_int`、`field`（`target: "p0->ulUsed"`、`value`）、`global`〔SPEC-0077：被调者写确切值时带值（`value` / `range` / `may`，同 `field`），调用方写进格〕、`invalidate`。
 `doc.via` 记效果是从哪个分配器 / 封装传上来的（只给人看）。
 
