@@ -167,10 +167,36 @@ struct Eliminated {
     std::vector<LinExpr> ne;
 };
 
+// 同 replay.py 的 has_local：不透明项的内层（递归）是否含调用方局部
+bool HasLocal(const Atom &a, const Locals &locs)
+{
+    if (a.kind == Atom::Kind::Sym) {
+        return locs.count(a.name) != 0;
+    }
+    if (a.kind == Atom::Kind::Ext || a.kind == Atom::Kind::BExt) {
+        return false;
+    }
+    for (const LinExpr *inner : {a.a.get(), a.b.get()}) {
+        if (inner == nullptr) {
+            continue;
+        }
+        for (const auto &term : inner->Terms()) {
+            if (HasLocal(term.first, locs)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 Eliminated EliminateLocals(const LinExpr &l, const Locals &locs, bool upper)
 {
     Eliminated r;
     r.out = LinExpr::Const(l.Constant());
+    auto absorb = [&](const Eliminated &e) {
+        r.tags.insert(e.tags.begin(), e.tags.end());
+        r.ne.insert(r.ne.end(), e.ne.begin(), e.ne.end());
+    };
     for (const auto &term : l.Terms()) {
         const Atom &a = term.first;
         int64_t c = term.second;
@@ -183,6 +209,36 @@ Eliminated EliminateLocals(const LinExpr &l, const Locals &locs, bool upper)
             if (!g.IsConst()) {
                 r.ne.push_back(g);
             }
+            continue;
+        }
+        bool opaque = a.kind == Atom::Kind::Div || a.kind == Atom::Kind::Mod || a.kind == Atom::Kind::Wrap;
+        if (!opaque || !HasLocal(a, locs)) {
+            r.out = r.out + LinExpr::OfAtom(a).Scale(c);
+            continue;
+        }
+        // 不透明项里的局部也换（SPEC-0049）：div 单调代入；mod / wrap 在区间内时等同内层，否则取 [0, n − 1] / 类型范围
+        bool up = (c > 0) == upper;
+        const LinExpr &inner = *a.a;
+        if (a.kind == Atom::Kind::Div) {
+            Eliminated b = EliminateLocals(inner, locs, a.n > 0 ? up : !up);
+            r.out = r.out + LinExpr::Div(b.out, a.n).Scale(c);
+            absorb(b);
+            continue;
+        }
+        if (a.kind == Atom::Kind::Mod && a.n <= 0) {
+            r.out = r.out + LinExpr::OfAtom(a).Scale(c);
+            continue;
+        }
+        Eliminated lo = EliminateLocals(inner, locs, false);
+        Eliminated hi = EliminateLocals(inner, locs, true);
+        int64_t span = a.kind == Atom::Kind::Mod ? a.n : (int64_t(1) << a.n);
+        if (lo.out.IsConst() && hi.out.IsConst() && lo.out.Constant() >= 0 && hi.out.Constant() < span) {
+            r.out = r.out + (up ? hi.out : lo.out).Scale(c);
+            absorb(lo);
+            absorb(hi);
+        } else if (a.kind == Atom::Kind::Wrap || (lo.out.IsConst() && lo.out.Constant() >= 0)) {
+            r.out = r.out + LinExpr::Const(up ? span - 1 : 0).Scale(c);
+            r.tags.insert(a.kind == Atom::Kind::Mod ? "mask" : "type");
         } else {
             r.out = r.out + LinExpr::OfAtom(a).Scale(c);
         }

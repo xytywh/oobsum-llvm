@@ -1,0 +1,15 @@
+# 调用点消去调用方局部时也进入不透明项（oobsum/specs/SPEC-0049）：div 单调代入，mod / wrap 在区间内等同内层，否则取 [0, n − 1] / 类型范围。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=apply %S/Inputs/opaque/opaque.c 2>&1 | FileCheck %s
+
+# 位图 idx / 32（LV2-06 同形）：循环 256 → L2（原来"含调用方局部"记账）、64 → SAFE
+CHECK-DAG: opaque.c:6:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 32 of 'a' (8 bytes) may be accessed; the bound comes from a loop condition
+CHECK-DAG: opaque.c:7:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 8 of 'a' (8 bytes)
+# 环形下标 i % 4
+CHECK-DAG: opaque.c:10:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 4 of 'a' (4 bytes)
+# 回绕减法 ul - 1：ul 在 [1, 16] → SAFE；ul 可以是 0（回绕）→ 只剩类型范围
+CHECK-DAG: opaque.c:13:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+CHECK-DAG: opaque.c:14:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'a' (16 bytes)
+CHECK-DAG: [oobsum:apply] Bits_TP @ opaque.c:6 Bit_Set.opaque.c:5 → L2

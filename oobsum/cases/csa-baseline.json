@@ -219,16 +219,16 @@
    "kind": "TP",
    "entry": "Cell_RefreshActive_TP",
    "pa": "L2",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "级别不同"
+   "actual": "POSSIBLE",
+   "verdict": "通过"
   },
   {
    "case": "LV2-06",
    "kind": "TN",
    "entry": "Cell_RefreshActive_TN",
    "pa": "-",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "actual": "SAFE:local_entailed(未报出:safe)",
+   "verdict": "通过"
   },
   {
    "case": "LV2-07",
@@ -1427,17 +1427,8 @@
    "site": "lv2/lv2_06_bitmap_set_loop.c:39:0",
    "kind": "W",
    "fn": "F:Cell_RefreshActive_TP",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv2/lv2_06_bitmap_set_loop.c:28"
-  },
-  {
-   "case": "LV2-06",
-   "site": "lv2/lv2_06_bitmap_set_loop.c:48:0",
-   "kind": "W",
-   "fn": "F:Cell_RefreshActive_TN",
-   "label": "suspect",
-   "reason": "entry_unproven",
+   "label": "possible",
+   "reason": "",
    "access": "lv2/lv2_06_bitmap_set_loop.c:28"
   },
   {

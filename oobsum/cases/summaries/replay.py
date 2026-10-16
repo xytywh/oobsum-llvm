@@ -725,8 +725,18 @@ def build_map(call, callee):
     return m, effd
 
 
+def has_local(a, locs):
+    """不透明项的内层（递归）是否含调用方局部。"""
+    if a[0] == 's':
+        return a[1] in locs
+    if a[0] in ('ext', 'bext'):
+        return False
+    return any(has_local(x, locs) for x in opaque_atoms(a))
+
+
 def eliminate_locals(l, locs, upper):
-    """把调用方局部换成它在调用点的界（符号界也可以）。返回 (新式, 用到的标签, 非空约束)。"""
+    """把调用方局部换成它在调用点的界（符号界也可以）。返回 (新式, 用到的标签, 非空约束)。
+    不透明项里的局部也换（SPEC-0049）：div 单调代入；mod / wrap 在区间内时等同内层，否则取 [0, n − 1] / 类型范围。"""
     out, tags, ne = Lin(l.k), set(), []
     for a, c in l.t.items():
         if a[0] == 's' and a[1] in locs:
@@ -736,6 +746,29 @@ def eliminate_locals(l, locs, upper):
             g = lo - hi
             if g.const() is None:
                 ne.append(g)
+        elif a[0] in ('div', 'mod', 'wrap') and has_local(a, locs):
+            up = (c > 0) == upper
+            inner = unfreeze(a[2] if a[0] == 'wrap' else a[1])
+            if a[0] == 'div':
+                b, t, n2 = eliminate_locals(inner, locs, up if a[2] > 0 else not up)
+                out = out + mk_opaque(('div', b.key(), a[2])).scale(c)
+                tags |= t
+                ne += n2
+                continue
+            ilo, tlo, nlo = eliminate_locals(inner, locs, False)
+            ihi, thi, nhi = eliminate_locals(inner, locs, True)
+            span = a[2] if a[0] == 'mod' else 1 << a[1]
+            if a[0] == 'mod' and a[2] <= 0:
+                out = out + Lin(0, {a: c})
+            elif ilo.const() is not None and ihi.const() is not None and 0 <= ilo.const() and ihi.const() < span:
+                out = out + (ihi if up else ilo).scale(c)
+                tags |= tlo | thi
+                ne += nlo + nhi
+            elif a[0] == 'wrap' or (ilo.const() is not None and ilo.const() >= 0):
+                out = out + Lin(span - 1 if up else 0).scale(c)
+                tags.add('mask' if a[0] == 'mod' else 'type')
+            else:
+                out = out + Lin(0, {a: c})
         else:
             out = out + Lin(0, {a: c})
     return out, tags, ne
