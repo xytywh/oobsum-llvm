@@ -104,7 +104,9 @@
       由引擎接进 checker 时 `run.py csa` 的对照发现。
 - [x] **S7d-2a `ModelFile`**（SPEC-0033）：YAML 模型表合并进内置表（同名替换、`defaults: false` 清空）；坏条目跳过并提示一行，读不了 / YAML 错是选项错误；
       `Dump=models` 列出实际生效的表；示例 `oobsum/config/oob_models.example.yaml`（= 内置表）。
-- [ ] **S7d-2b**：`strcpy_s` 等其余 securec 函数的目的一侧（destMax 规则）加进内置表。
+- [x] **S7d-2b `strcpy_s` 族**（SPEC-0034）：8 个 securec 字符串函数的目的一侧进内置表——访问条件 `upto`（`bytes` 只是上界，实际 1 … destMax 字节），
+      新来源标签 `model`（代码给出的界）：destMax 超出 → POSSIBLE、偏移已越界 → DEFINITE、证明了 → SAFE。LV7-05 TP 从未判变成 POSSIBLE、TN 证明 SAFE。
+      `run.py` 回退规则加一条：访问在调用链某层证明了 SAFE 且以它为终点的判定都是 SAFE 或报出了（SPEC-0002 §2.4 修订）；基线已存。
 - [x] **S7d-3 `ret_new` 效果**（SPEC-0024）：每条返回路径都是同一个堆对象或空指针 → `ret_new`（`eff_depth` 逐层加 1）；调用方拿到 `heap@<调用点>`、
       实参写 `eff_depth`；`RunInline` 按 FIR 调用图自底向上解释，`Dump=summary` / `state` 取同一份结果。**LV4-01 端到端一致（16 个金标准用例 9 个）**；
       `run.py csa`：LV4-01 TP POSSIBLE、LV4-02 TP DEFINITE、LV7-01（柔性数组）TP DEFINITE / TN SAFE——**通过 72、漏报 14**，回退 0（尺子：账本判定同一处有 SAFE 就算证明）。
@@ -156,12 +158,18 @@
   骨架的 3 条 + 引擎的三层链 `Tc_Engine_TP` 一条 DEFINITE；`Dump=stats` 应为 `decisions=7 emitted=4`）。
 * 公司（可选）：引擎已在默认的 `Phase=inline` 下跑。拿 bxen 跑一个业务子目录，
   带回各标签 / 原因的条数与耗时（`tools/decisions.py` 汇总，只要数字），用来定 `SuspectReasons` 的默认值（`not_in_tu`、`typed_field` 预计很多）。
+* **确认 securec 的 `strcpy_s` 族出错时写多少**（SPEC-0034）：我按 libboundscheck 的实现理解为"最多写实际长度 + 1，出错只写 `dest[0] = '\0'`"，
+  所以 destMax 超过目的大小报 **POSSIBLE**；用例 LV7-05 的注释写的是"出错路径会按 destMax 清零"（`later=L1`）。公司的 securec 版本若真按 destMax 清零，
+  告诉我改成 DEFINITE（内置表去掉 `upto`；在模型文件里覆盖也行，不用改代码）。确认前不改 LV7-05 的 `@expect`。
 * **I5 / I8 / I9 现在写进模型文件即可，不用改代码**（SPEC-0033）：复制 `oobsum/config/oob_models.example.yaml`，改 `VOS_MemAlloc` 的 `size`（I5）、
   加内部封装的拷贝 / 分配函数（I8）、纯函数清单（I9），bxen 命令加 `-analyzer-config rb.enhance.ipa.OobSummary:ModelFile=<路径>`，用 `Dump=models` 确认生效。
   文件留在公司；只带回"哪几类、各多少条"即可（如果想让我把某些通用的放进内置表，告诉我函数原型）。
 * 其余输入见 `HANDOFF.md` §6。
 
 ## 已知问题与注意
+
+* **入口函数自己的访问只在入口记账**：判定只在调用点定级（Apply），没有调用方的函数里、本函数内就越界的访问（`snprintf_s(buf8, 64, …)` 直接写在入口里）
+  报 SUSPECT `entry_unproven`，不是 DEFINITE / POSSIBLE（照样报出，标签偏保守）。深度 0 的越界按 06- 交给现有规则；要不要在入口就地定级，以后另写 SPEC。
 
 * **成员指针当实参会丢外层对象**（SPEC-0022 §2）：`Om_SaveCfg(pstMsg->aucBody, …)` 的调用点记录只写 `{obj: p0->aucBody, have: 1024}`，
   被调者的 Req 代换过来只查成员；外层对象的边界要在实参格式里加"外层对象"才能带上（摘要格式修订，待做）。

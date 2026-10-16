@@ -1,0 +1,18 @@
+# strcpy_s 族（oobsum/specs/SPEC-0034）：目的一侧最多写 destMax 字节（upto），超出是 POSSIBLE（标签 model），偏移已越界是 DEFINITE。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=models+summary -analyzer-config rb.enhance.ipa.OobSummary:DumpFilter=Name_Set \
+# RUN:   %S/Inputs/securec/str.c 2>&1 | FileCheck %s
+
+CHECK: [oobsum:models] access strcpy_s dest_max=p1 W p0[<=p1]
+CHECK: [oobsum:models] access vsnprintf_s dest_max=p1 W p0[<=p1]
+# Name_Set 的局部 Req：末端 1 … p1，标签 model
+CHECK: [oobsum:summary] {{.*}}"fn":"Name_Set"{{.*}}"bound":"model"
+CHECK-DAG: str.c:21:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 2-level call chain: up to byte 32 of 'buf' (16 bytes) may be accessed; the bound comes from a size argument of a library function
+CHECK-DAG: str.c:27:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'buf' (16 bytes)
+CHECK-DAG: str.c:33:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 2-level call chain
+# 入口函数自己的访问只在入口记账（现有设计：只在调用点定级）；照样报出
+CHECK-DAG: str.c:39:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write stays within 'buf' (8 bytes): up to byte 64 may be accessed
+CHECK-DAG: str.c:42:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 2-level call chain stays within '*dst' (size ext(p0)): up to byte 32 may be accessed
+CHECK-NOT: not_in_tu

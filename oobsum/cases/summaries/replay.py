@@ -34,7 +34,7 @@ from fractions import Fraction
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUMS = HERE                       # 摘要从哪里读（--dir 可换成去掉 doc 的那份）
 CASES = os.path.dirname(HERE)
-CODE_TAGS = {'exact', 'const', 'check', 'mask', 'branch', 'loop', 'ret', 'guard'}
+CODE_TAGS = {'exact', 'const', 'check', 'mask', 'branch', 'loop', 'ret', 'guard', 'model'}  # model：SPEC-0034
 INLINE_DEPTH = 2
 TYPE_MAX = {'UINT8': 0xFF, 'UINT16': 0xFFFF, 'UINT32': 0xFFFFFFFF, 'size_t': 0xFFFFFFFF, 'CHAR': 0x7F, 'INT32': 0x7FFFFFFF}
 TYPE_MIN = {'INT32': -0x80000000, 'CHAR': -0x80}
@@ -408,7 +408,7 @@ class Env(object):
             if t:
                 tags.add(t)
         tag = None
-        for t in ('type', 'widen', 'data', 'check', 'guard', 'mask', 'loop', 'branch', 'ret', 'const', 'exact'):
+        for t in ('type', 'widen', 'data', 'model', 'check', 'guard', 'mask', 'loop', 'branch', 'ret', 'const', 'exact'):
             if t in tags:
                 tag = t
                 break
@@ -583,7 +583,8 @@ def obj_name(obj, params=()):
 
 
 BOUND_PHRASE = {'loop': 'a loop condition', 'check': 'a check', 'guard': 'a guard condition', 'mask': 'a bit mask',
-                'branch': 'a branch constant', 'ret': 'a return value range', 'const': 'a constant'}
+                'branch': 'a branch constant', 'ret': 'a return value range', 'const': 'a constant',
+                'model': 'a size argument of a library function'}
 
 
 def alert_msg(rep, params=()):

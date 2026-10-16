@@ -336,6 +336,8 @@ def cmd_csa(a):
     safe_sites, ran, ntu = set(), set(), 0
     reported_accesses = set()  # (用例, 访问点 文件:行)：报出的判定的调用链终点
     safe_accesses = set()      # (用例, 函数, 访问点 文件:行)：在这个函数里证明了安全的访问（SPEC-0025）
+    safe_anywhere = set()      # (用例, 访问点)：有 SAFE 判定的访问（在调用链上哪一层证明的都算，SPEC-0034）
+    silent_accesses = set()    # (用例, 访问点)：有既不是 SAFE、也没报出的判定（被 InlineDepth 等滤掉）
     for lv, name, srcs, head in units(root):
         m = parse(head)
         cid = m.get('id', name)
@@ -381,6 +383,9 @@ def cmd_csa(a):
                 reported_accesses.add((cid, d['access_site']))
             if d['label'] == 'safe' and d.get('access_site'):
                 safe_accesses.add((cid, d['fn'], d['access_site']))
+                safe_anywhere.add((cid, d['access_site']))
+            if d['label'] != 'safe' and not d.get('emitted') and d.get('access_site'):
+                silent_accesses.add((cid, d['access_site']))
             if d.get('emitted'):
                 rec = {'case': cid, 'site': d['site'], 'kind': d['kind'], 'fn': d['fn'], 'label': d['label'],
                        'reason': d.get('reason', '')}
@@ -410,7 +415,8 @@ def cmd_csa(a):
 
     # 召回不回退（SPEC-0002 §2.4）：基线里报出的，这次同一处要么仍报出，要么有 SAFE；
     # 或者这处访问是某条报出的判定的调用链终点（同一次访问改报在了汇合点，SPEC-0023 修订）；
-    # 或者同一个函数里这次访问被证明了安全（SPEC-0025 修订：入口账本记在函数声明处，改判后位置在调用点）
+    # 或者同一个函数里这次访问被证明了安全（SPEC-0025 修订：入口账本记在函数声明处，改判后位置在调用点）；
+    # 或者这次访问在调用链上某层证明了安全、且以它为终点的判定都是 SAFE 或报出了（SPEC-0034 修订：引擎每条路径都有判定）
     regress = []
     if os.path.exists(baseline):
         base = json.load(open(baseline, encoding='utf-8'))
@@ -421,7 +427,8 @@ def cmd_csa(a):
             k = (r['case'], r['site'], r['kind'])
             access = r.get('access', r['site'].rsplit(':', 1)[0])
             moved = (r['case'], r['site'].rsplit(':', 1)[0]) in reported_accesses or \
-                (r['case'], access) in reported_accesses or (r['case'], r['fn'], access) in safe_accesses
+                (r['case'], access) in reported_accesses or (r['case'], r['fn'], access) in safe_accesses or \
+                ((r['case'], access) in safe_anywhere and (r['case'], access) not in silent_accesses)
             if r['case'] in ran and k not in have and k not in safe_sites and not moved:
                 regress.append(r)
         old = {(e['case'], e['kind'], e['entry']): e for e in base.get('entries', [])}

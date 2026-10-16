@@ -91,8 +91,12 @@ TEST(Range, Tags)
     EXPECT_EQ(TagName(Tag::Check), "check");
     EXPECT_TRUE(ParseTag("loop").hasValue());
     EXPECT_FALSE(ParseTag("bogus").hasValue());
-    // 合并时取 type widen data check guard mask loop branch ret const exact 里最靠前的
+    // 合并时取 type widen data model check guard mask loop branch ret const exact 里最靠前的
     EXPECT_EQ(TagName(WorseTag(Tag::Loop, Tag::Check)), "check");
+    EXPECT_EQ(TagName(WorseTag(Tag::Check, Tag::Model)), "model");  // SPEC-0034
+    EXPECT_EQ(TagName(WorseTag(Tag::Type, Tag::Model)), "type");
+    EXPECT_TRUE(ParseTag("model") == Tag::Model);
+    EXPECT_TRUE(IsCodeTag(Tag::Model));
     EXPECT_EQ(TagName(WorseTag(Tag::Exact, Tag::Type)), "type");
     EXPECT_EQ(TagName(WorseTag(Tag::None, Tag::Mask)), "mask");
     EXPECT_TRUE(IsCodeTag(Tag::Guard));

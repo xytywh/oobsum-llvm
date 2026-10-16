@@ -12,7 +12,7 @@ namespace oobsum {
 
 namespace {
 
-const char *const kTagNames[] = {"",     "type", "widen",  "data", "check", "guard",
+const char *const kTagNames[] = {"",     "type", "widen",  "data", "model", "check", "guard",
                                  "mask", "loop", "branch", "ret",  "const", "exact"};
 
 // ⌊a / b⌋（b > 0 或 b < 0），溢出返回 false
@@ -71,6 +71,7 @@ bool IsCodeTag(Tag tag)
         case Tag::Loop:
         case Tag::Ret:
         case Tag::Guard:
+        case Tag::Model:
             return true;
         default:
             return false;

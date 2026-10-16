@@ -2,7 +2,7 @@
 # 用法：复制一份按业务改，-analyzer-config rb.enhance.ipa.OobSummary:ModelFile=<路径>；Dump=models 看实际生效的表。
 # 文件里的条目合并进内置表：同名替换（一个名字只属于一类），新名字追加；defaults: false 先清空内置表。
 # 下面写的就是内置表的内容（不配 ModelFile 时用的就是它）；坏条目跳过并在 stderr 提示一行。
-# 式子：实参写 p0、p1…；bytes / size 是线性式或乘积（"p0*p1"）；when 是比较（"p3 <= p1"）。
+# 式子：实参写 p0、p1…；bytes / size 是线性式或乘积（"p0*p1"）；when 是比较（"p3 <= p1"）；upto: true 表示 bytes 只是上界。
 
 defaults: true
 
@@ -15,6 +15,15 @@ access:                         # 访问类函数：在第 base 个实参指向�
   - { name: memcpy_s,  dest_max: p1, conds: [ { base: p0, bytes: "p1", kind: W }, { base: p2, bytes: "p3", kind: R, when: "p3 <= p1" } ] }
   - { name: memmove_s, dest_max: p1, conds: [ { base: p0, bytes: "p1", kind: W }, { base: p2, bytes: "p3", kind: R, when: "p3 <= p1" } ] }
   - { name: memset_s,  dest_max: p1, conds: [ { base: p0, bytes: "p1", kind: W } ] }
+  # securec 的字符串函数（F-07，SPEC-0034）：最多写 destMax 字节（upto：bytes 只是上界，超出报 POSSIBLE）；源串长度不建模
+  - { name: strcpy_s,    dest_max: p1, conds: [ { base: p0, bytes: "p1", kind: W, upto: true } ] }
+  - { name: strncpy_s,   dest_max: p1, conds: [ { base: p0, bytes: "p1", kind: W, upto: true } ] }
+  - { name: strcat_s,    dest_max: p1, conds: [ { base: p0, bytes: "p1", kind: W, upto: true } ] }
+  - { name: strncat_s,   dest_max: p1, conds: [ { base: p0, bytes: "p1", kind: W, upto: true } ] }
+  - { name: sprintf_s,   dest_max: p1, conds: [ { base: p0, bytes: "p1", kind: W, upto: true } ] }
+  - { name: vsprintf_s,  dest_max: p1, conds: [ { base: p0, bytes: "p1", kind: W, upto: true } ] }
+  - { name: snprintf_s,  dest_max: p1, conds: [ { base: p0, bytes: "p1", kind: W, upto: true } ] }
+  - { name: vsnprintf_s, dest_max: p1, conds: [ { base: p0, bytes: "p1", kind: W, upto: true } ] }
   - { name: memcpy,    conds: [ { base: p0, bytes: "p2", kind: W }, { base: p1, bytes: "p2", kind: R } ] }
   - { name: memmove,   conds: [ { base: p0, bytes: "p2", kind: W }, { base: p1, bytes: "p2", kind: R } ] }
   - { name: memset,    conds: [ { base: p0, bytes: "p2", kind: W } ] }

@@ -123,6 +123,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 | **F-04** | `memset_s(dest, destMax, c, count)` | `destMax ≤ ext(dest)` | 同 F-03 的 `destMax` 规则 |
 | **F-05** | libc `memcpy` / `memmove` / `memset` | `n ≤ ext(dest)`；`n ≤ ext(src)` | 代价很小，顺带支持 |
 | **F-06** | 模型表里配置的其它访问函数（内部封装） | 按配置（§4.4） | 清单由你提供（`07-` 输入 I8） |
+| **F-07** | `strcpy_s` / `strncpy_s` / `strcat_s` / `strncat_s` / `sprintf_s` / `vsprintf_s` / `snprintf_s` / `vsnprintf_s(dest, destMax, …)` | 目的：写 `1 … destMax` 字节（`upto`），`destMax ≤ ext(dest)` 不成立是 L2（`model`），偏移已越界是 L1 | 〔SPEC-0034 新增〕securec 最多写实际长度 + 1、出错只写 `dest[0]`；`destMax` 规则同 F-03；源串长度不建模（`[2027]`） |
 | **F-07** | 循环里的访问 | 下标取循环后的区间（阈值 widening + narrowing） | **任何循环都必须产出结果**，不得 unsupported |
 | **F-08** | 指向数组中间的指针再下标 `p = &a[2]; p[j]`、`p = a + k; p[j]` | 基址 `a`、偏移 `2·elem + j·elem` | CSA 盲区 #21：打 `csaBlindSpot`，不做层数过滤（`01-` §0.1） |
 
@@ -453,7 +454,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 读入时解析成线性式（64 位有符号系数，溢出则整式降为不透明项〔SPEC-0010：实现为整式"未知"；`div` / `mod` 的常数求值向下取整，同 `replay.py`〕）；**比较两条表达式一律比规范形式**：
 形参 → 字段 → `ext(…)` → 全局 → 局部 → 不透明项，常数最后（`16*p1 - 12`）。C++ 侧的解析器约 200 行，Python 侧见 `replay.py`。
 
-**D-22 来源标签** `bound`：`exact`（没有区间）、`const`、`check`、`mask`、`branch`、`loop`、`ret`、`guard`（以上是代码给出的界，可判 L2）；
+**D-22 来源标签** `bound`〔由 SPEC-0034 修订：加 `model`——库函数大小实参给的上界，代码给出的界，优先级在 `data` 之后、`check` 之前〕：`exact`（没有区间）、`const`、`check`、`mask`、`branch`、`loop`、`ret`、`guard`（以上是代码给出的界，可判 L2）；
 `type`、`widen`、`data`（不可判 L2，只能记账）。
 
 **D-23 顶层与 Req**〔由 SPEC-0015、SPEC-0019 修订〕（下表只列机器字段；每个对象都可以另带 `doc`）：

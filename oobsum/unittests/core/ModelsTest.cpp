@@ -25,7 +25,11 @@ TEST(Models, DefaultKinds)
     EXPECT_TRUE(t.KindOf("DIAG_Count") == Kind::Pure);  // ^DIAG_
     EXPECT_TRUE(t.KindOf("Msg_Trace") == Kind::Pure);   // _Trace$
     EXPECT_TRUE(t.KindOf("Msg_TraceX") == Kind::None);
-    EXPECT_TRUE(t.KindOf("strcpy_s") == Kind::None);  // 其余 securec 函数待 I8（S7d-2）
+    EXPECT_TRUE(t.KindOf("strcpy_s") == Kind::Access);  // F-07（SPEC-0034）
+    EXPECT_TRUE(t.Access("snprintf_s")->conds[0].upto);
+    EXPECT_EQ(t.Access("strcat_s")->destMax, 1);
+    EXPECT_FALSE(t.Access("memcpy_s")->conds[0].upto);
+    EXPECT_TRUE(t.KindOf("wcscpy_s") == Kind::None);  // 宽字符版本以后
     EXPECT_TRUE(t.KindOf("Drv_ReadReg") == Kind::None);
     EXPECT_EQ(KindName(Kind::Access).str(), "access");
     EXPECT_EQ(KindName(Kind::None).str(), "");
@@ -61,7 +65,7 @@ allocators:
   - { name: VOS_MemAlloc, result: ret, size: "p1", maybe_null: true }
   - { name: Pool_Get, size: "p0*4" }
 access:
-  - { name: Drv_Copy, dest_max: p1, conds: [ { base: p0, bytes: "p2", kind: W }, { base: p3, bytes: "p2", kind: R, when: "p2 <= p1" } ] }
+  - { name: Drv_Copy, dest_max: p1, conds: [ { base: p0, bytes: "p2", kind: W }, { base: p3, bytes: "p2", kind: R, when: "p2 <= p1", upto: true } ] }
   - { name: memset, conds: [ { base: p0, bytes: "p9x", kind: W } ] }
   - { name: Bad_Kind, conds: [ { base: p0, bytes: "p1", kind: X } ] }
 pure:
@@ -78,6 +82,8 @@ frees: [ Pool_Put ]
     ASSERT_TRUE(m->conds.size() == 2);
     EXPECT_EQ(m->conds[1].base, 3);
     EXPECT_EQ(m->conds[1].when, "p2 <= p1");
+    EXPECT_FALSE(m->conds[0].upto);
+    EXPECT_TRUE(m->conds[1].upto);
     EXPECT_TRUE(t.KindOf("memcpy") == Kind::Pure);  // 跨类别替换：一个名字只属于一类
     EXPECT_TRUE(t.Access("memcpy") == nullptr);
     EXPECT_TRUE(t.KindOf("memset") == Kind::Access);  // 坏条目跳过，内置条目保留
@@ -127,6 +133,7 @@ TEST(Models, Describe)
     std::vector<std::string> lines = DescribeModels(ModelTable::Default());
     ASSERT_TRUE(!lines.empty());
     EXPECT_EQ(lines[0], "access memcpy_s dest_max=p1 W p0[p1] R p2[p3] when p3 <= p1");
+    EXPECT_TRUE(llvm::is_contained(lines, "access strcpy_s dest_max=p1 W p0[<=p1]"));
     EXPECT_TRUE(llvm::is_contained(lines, "alloc calloc size=p0*p1"));
     EXPECT_TRUE(llvm::is_contained(lines, "free VOS_MemFree"));
     EXPECT_TRUE(llvm::is_contained(lines, "pure name LOG_Print"));

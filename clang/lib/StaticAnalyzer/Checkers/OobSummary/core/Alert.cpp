@@ -24,7 +24,7 @@ std::string BoundPhrase(const std::string &bound)
         {"loop", "a loop condition"},    {"check", "a check"},
         {"guard", "a guard condition"},  {"mask", "a bit mask"},
         {"branch", "a branch constant"}, {"ret", "a return value range"},
-        {"const", "a constant"}};
+        {"const", "a constant"},         {"model", "a size argument of a library function"}};
     for (const auto &p : phrases) {
         if (bound == p.first) {
             return p.second;

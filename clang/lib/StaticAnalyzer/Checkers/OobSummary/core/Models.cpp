@@ -31,6 +31,7 @@ struct RawCond {
     std::string bytes;
     std::string kind;
     std::string when;
+    bool upto = false;
 };
 
 struct RawAccess {
@@ -78,6 +79,7 @@ struct MappingTraits<oobsum::models::RawCond> {
         io.mapRequired("bytes", c.bytes);
         io.mapRequired("kind", c.kind);
         io.mapOptional("when", c.when);
+        io.mapOptional("upto", c.upto);
     }
 };
 
@@ -134,15 +136,21 @@ const ModelTable &ModelTable::Default()
     static const ModelTable table = [] {
         ModelTable t;
         // F-03 / F-04：securec——目的一侧总是写 destMax 字节；源一侧只在 count <= destMax 时读
-        AccessCond destMax{0, "p1", "W", ""};
-        AccessCond src{2, "p3", "R", "p3 <= p1"};
+        AccessCond destMax{0, "p1", "W", "", false};
+        AccessCond src{2, "p3", "R", "p3 <= p1", false};
         t.access.push_back({"memcpy_s", {destMax, src}, 1});
         t.access.push_back({"memmove_s", {destMax, src}, 1});
         t.access.push_back({"memset_s", {destMax}, 1});
+        // F-07（SPEC-0034）：securec 的字符串函数最多写 destMax 字节（实际长度 + 1）；destMax 规则同 F-03；源串长度不建模
+        AccessCond uptoDestMax{0, "p1", "W", "", true};
+        for (const char *name : {"strcpy_s", "strncpy_s", "strcat_s", "strncat_s", "sprintf_s", "vsprintf_s",
+                                 "snprintf_s", "vsnprintf_s"}) {
+            t.access.push_back({name, {uptoDestMax}, 1});
+        }
         // F-05：libc
-        t.access.push_back({"memcpy", {{0, "p2", "W", ""}, {1, "p2", "R", ""}}, -1});
-        t.access.push_back({"memmove", {{0, "p2", "W", ""}, {1, "p2", "R", ""}}, -1});
-        t.access.push_back({"memset", {{0, "p2", "W", ""}}, -1});
+        t.access.push_back({"memcpy", {{0, "p2", "W", "", false}, {1, "p2", "R", "", false}}, -1});
+        t.access.push_back({"memmove", {{0, "p2", "W", "", false}, {1, "p2", "R", "", false}}, -1});
+        t.access.push_back({"memset", {{0, "p2", "W", "", false}}, -1});
         // 底层分配器（VOS_MemAlloc 的字节数是第几个形参待用户确认：07- 输入 I5）
         t.allocators.push_back({"VOS_MemAlloc", "p2"});
         t.allocators.push_back({"malloc", "p0"});
@@ -280,6 +288,7 @@ bool ToAccess(const RawAccess &raw, AccessModel &out, std::string &error)
         cond.bytes = c.bytes;
         cond.kind = c.kind;
         cond.when = c.when;
+        cond.upto = c.upto;
         out.conds.push_back(cond);
     }
     return true;
@@ -398,7 +407,7 @@ std::vector<std::string> DescribeModels(const ModelTable &table)
             line += " dest_max=p" + std::to_string(m.destMax);
         }
         for (const AccessCond &c : m.conds) {
-            line += " " + c.kind + " p" + std::to_string(c.base) + "[" + c.bytes + "]";
+            line += " " + c.kind + " p" + std::to_string(c.base) + "[" + (c.upto ? "<=" : "") + c.bytes + "]";
             if (!c.when.empty()) {
                 line += " when " + c.when;
             }

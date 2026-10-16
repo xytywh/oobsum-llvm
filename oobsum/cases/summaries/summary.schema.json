@@ -45,7 +45,7 @@
       "pattern": "^((g|local):\\w+|heap@[\\w./-]+:\\d+|\\*?p\\d+(->\\w+)?)$",
       "description": "对象：g:全局 | local:局部 | heap@分配调用点 | *pK（第 K 个形参所指对象）| *pK->f（形参所指结构体里指针字段 f 所指对象）| pK->f（形参所指结构体里的数组成员 f）"
     },
-    "tag": { "enum": ["exact", "const", "check", "mask", "branch", "loop", "ret", "guard", "type", "widen", "data"],
+    "tag": { "enum": ["exact", "const", "check", "mask", "branch", "loop", "ret", "guard", "model", "type", "widen", "data"],
              "description": "上界的来源；前 8 个是代码给出的，只有它们能判 L2" },
     "param": {
       "type": "object", "additionalProperties": false, "required": ["name", "type"],

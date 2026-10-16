@@ -795,15 +795,15 @@
    "kind": "TP",
    "entry": "Cell_Rename_TP",
    "pa": "-",
-   "actual": "未判",
-   "verdict": "通过"
+   "actual": "POSSIBLE",
+   "verdict": "超出预期"
   },
   {
    "case": "LV7-05",
    "kind": "TN",
    "entry": "Cell_Rename_TN",
    "pa": "-",
-   "actual": "未判",
+   "actual": "SAFE:within(未报出:safe)",
    "verdict": "通过"
   },
   {
@@ -2054,21 +2054,12 @@
   },
   {
    "case": "LV7-05",
-   "site": "lv7/lv7_05_strcpy_destmax.c:26:0",
-   "kind": "",
-   "fn": "F@d98a88bb33497778:Name_Copy",
-   "label": "suspect",
-   "reason": "not_in_tu",
+   "site": "lv7/lv7_05_strcpy_destmax.c:42:0",
+   "kind": "W",
+   "fn": "F:Cell_Rename_TP",
+   "label": "possible",
+   "reason": "",
    "access": "lv7/lv7_05_strcpy_destmax.c:26"
-  },
-  {
-   "case": "LV7-05",
-   "site": "lv7/lv7_05_strcpy_destmax.c:31:0",
-   "kind": "",
-   "fn": "F@d98a88bb33497778:Name_Copy_OK",
-   "label": "suspect",
-   "reason": "not_in_tu",
-   "access": "lv7/lv7_05_strcpy_destmax.c:31"
   },
   {
    "case": "LV7-06",

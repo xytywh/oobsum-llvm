@@ -21,7 +21,8 @@
 namespace oobsum {
 
 // D-22 的来源标签。枚举顺序就是合并时的优先级：多个界合在一起时取最靠前的（type 最"差"，同 replay.py）
-enum class Tag : uint8_t { None, Type, Widen, Data, Check, Guard, Mask, Loop, Branch, Ret, Const, Exact };
+// Model：库函数的大小实参给的上界（访问条件 upto，SPEC-0034）
+enum class Tag : uint8_t { None, Type, Widen, Data, Model, Check, Guard, Mask, Loop, Branch, Ret, Const, Exact };
 
 llvm::StringRef TagName(Tag tag);  // None → ""
 llvm::Optional<Tag> ParseTag(llvm::StringRef name);

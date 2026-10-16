@@ -2256,6 +2256,11 @@ void Analyzer::ApplyAccessModel(const fir::Inst &inst, const models::AccessModel
             const Value &baseValue = values[cond.base];
             PtrVal addr = baseValue.isPtr ? baseValue.p : UnknownPtr("int_as_ptr");
             IntVal bytes = EvalModelExpr(bytesExpr, seg.ints);
+            if (cond.upto && bytes.kind != IntVal::Kind::Top) {
+                // 只是上界：实际 1 … bytes 字节；确切的上界标 model，区间的上界保留更差的标签（SPEC-0034 §2.1）
+                Tag tag = bytes.kind == IntVal::Kind::Exact ? Tag::Model : WorseTag(bytes.tag, Tag::Model);
+                bytes = IntVal::Range(LinExpr::Const(1), bytes.Upper(), tag);
+            }
             State u = seg.t;
             std::vector<LinExpr> forced = seg.forced;
             std::vector<LinExpr> when;

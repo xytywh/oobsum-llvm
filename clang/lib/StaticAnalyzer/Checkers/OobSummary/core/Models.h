@@ -20,8 +20,9 @@ namespace models {
 struct AccessCond {
     int base = 0;
     std::string bytes;
-    std::string kind;  // R / W
-    std::string when;  // 访问发生的条件（如 "p3 <= p1"）；空 = 总是
+    std::string kind;   // R / W
+    std::string when;   // 访问发生的条件（如 "p3 <= p1"）；空 = 总是
+    bool upto = false;  // bytes 只是上界：实际访问 1 … bytes 字节（strcpy_s 族，SPEC-0034）
 };
 
 struct AccessModel {
