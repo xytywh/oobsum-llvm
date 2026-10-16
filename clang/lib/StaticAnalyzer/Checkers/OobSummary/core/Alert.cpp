@@ -66,6 +66,9 @@ std::string ObjName(const std::string &obj, const std::vector<summary::Param> &p
     if (o.startswith("local:_unknown") && !o.drop_front(14).getAsInteger(10, arg)) {
         return "the object passed as argument " + std::to_string(arg + 1);  // 不跟踪的指针实参（SPEC-0062）
     }
+    if (o == "g:__str") {
+        return "a string literal";  // 引擎给字符串常量的内部对象名（SPEC-0068）
+    }
     if (o.startswith("g:") || o.startswith("local:")) {
         return "'" + o.split(':').second.str() + "'";
     }

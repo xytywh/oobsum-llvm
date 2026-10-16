@@ -166,7 +166,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
   ```
 
   **全部占位都取自判定记录的机器字段**（D-26），不读 `doc`：`{N}` = `depth`，`{need}` / `{needHi}` = `end[1]`，`{size}` = `have`，
-  `{object}` 由 `obj` 渲染——`g:` / `local:` 写变量名（`'aucName'`），`heap@位置` 写 `heap object allocated at alm_top.c:42`，
+  `{object}` 由 `obj` 渲染——`g:` / `local:` 写变量名（`'aucName'`；字符串常量写 `a string literal`，SPEC-0068），`heap@位置` 写 `heap object allocated at alm_top.c:42`，
   `*pK->f` 等按形参名渲染（`'pstCtx->aucBuf'`）；有 `via` 时在大小后面加 `; via stCtx.pucBuf`。
   `{source}` = `bound` 的短语（`a loop condition`、`a check`、`a guard condition`、`a bit mask`、`a branch constant`、`a return value range`、`a constant`）。
   调用链跨了文件时，消息末尾附整条链 `[A (a.c:22) -> B (b.c:6) -> …]`（F-33 ③）。`{size}`、`{need}` 可以是符号式（LV2-04：`4*ulNum+4` 对 `4*ulNum`）。

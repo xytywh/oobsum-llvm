@@ -1,0 +1,9 @@
+# 告警文本：字符串常量、调用点上不知道的字段值不再露出内部名字（oobsum/specs/SPEC-0068）。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/textph/t.c 2>&1 | FileCheck %s
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/textph/t.c 2>&1 | not grep -E '__str|_unknown_'
+
+CHECK-DAG: t.c:7:1: warning: [OOB-DEFINITE] Definite out-of-bound read through a 1-level call chain: up to byte 5 of a string literal (4 bytes) is accessed
+CHECK-DAG: t.c:9:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within 'a' (16 bytes): up to byte ulLen may be accessed

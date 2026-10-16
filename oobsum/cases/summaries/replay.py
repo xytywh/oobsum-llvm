@@ -581,6 +581,8 @@ def subst_obj(obj, call):
 
 def obj_name(obj, params=()):
     """告警里对象的写法（F-32 的 {object}）。"""
+    if obj == 'g:__str':                               # 字符串常量（SPEC-0068）
+        return 'a string literal'
     m = re.match(r'local:_unknown(\d+)$', obj)
     if m:                                              # 不跟踪的指针实参（SPEC-0062）
         return 'the object passed as argument %d' % (int(m.group(1)) + 1)
