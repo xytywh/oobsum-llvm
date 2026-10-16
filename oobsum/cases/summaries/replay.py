@@ -798,7 +798,8 @@ def classify(req, call, caller, callee, env_guards):
             return dict(base, outcome='L1', why='最小末端 %s > %s，对所有取值都越界' % (show(elo2), show(have)))
         if bound in CODE_TAGS:
             return dict(base, outcome='L2', why='最大末端 %s > %s（上界来自 %s），最小末端 %s 不越界' % (show(ehi2), show(have), bound, show(elo2)))
-        return dict(base, outcome='open', reason='type_range_only' if bound == 'type' else 'pointer_stepping', why='上界只来自 %s，不算代码给出的界' % bound)
+        # widening 去掉的上界是指针步进（A-45）；type / data 只剩类型范围（SPEC-0038）
+        return dict(base, outcome='open', reason='pointer_stepping' if bound == 'widen' else 'type_range_only', why='上界只来自 %s，不算代码给出的界' % bound)
     if entails_le0(dhi, live + ne + [g for g, _ in env_guards], env):
         return dict(base, outcome='safe', why='守卫蕴含 %s ≤ %s' % (show(ehi2), show(have)))
     # 守卫界判定：对象已知（have 是常数），剩下的符号都被代码给出的界框住

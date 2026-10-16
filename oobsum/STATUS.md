@@ -58,6 +58,8 @@
       去掉 `body_pending`；修正 S4c-1 的赋值表达式取值（`y = (x = x + 1)`）。lit 14 个；67 个用例只剩 `unk(cond_value)`（S5）。
 - [x] **S5 控制流**（SPEC-0009）：条件边 `assume`（后继 0 为真，与 `debug.DumpCFG` 逐个对照）、`switch`（`case` / `default` / 区间）、`?:` / `&&` / `||`
       当值用（汇合块前驱补 `set`）。lit 15 个；67 个用例 1451 条边里 260 条带条件，`unk` / `havoc` 一处都不剩。
+- [x] **调用点记账原因**（SPEC-0038）：上界只来自 `data`（被调者改过的字段、全局）时记 `type_range_only`（原来误记 `pointer_stepping`）；
+      lit `callee-writes.test` 守住"被调者改了字段 / 全局后不再用旧值证明安全"（做 mod-ref 之前的保守做法）。
 - [x] **S5b-1 `MaxBlocks`**（SPEC-0037）：CFG 块数超过 `MaxBlocks`（默认 5000）的函数不降级函数体（`cfg_too_large`），建不出 CFG 的（`no_cfg`，原来悄悄当成空函数）同样
       `skipped:…`；`partial:*` / `skipped:*` 的函数都在声明处报 SUSPECT `unanalyzed:<后缀>`。
 - [ ] **S5b-2**：不支持的构造（`unk(<类名>)`）计入判定日志（SUSPECT:unsupported_construct）。

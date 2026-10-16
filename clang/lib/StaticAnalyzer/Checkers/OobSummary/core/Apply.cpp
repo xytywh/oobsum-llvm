@@ -355,7 +355,8 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
             return o;
         }
         o.outcome = "open";
-        o.reason = o.bound == "type" ? "type_range_only" : "pointer_stepping";
+        // widening 去掉的上界是指针步进（A-45）；type / data 只剩类型范围（SPEC-0038）
+        o.reason = o.bound == "widen" ? "pointer_stepping" : "type_range_only";
         o.why = "上界只来自 " + o.bound + "，不算代码给出的界";
         return o;
     }

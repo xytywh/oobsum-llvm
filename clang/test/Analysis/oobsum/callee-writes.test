@@ -1,0 +1,17 @@
+# 被调者改了调用方的字段 / 全局（oobsum/specs/SPEC-0038）：调用后不再用调用前的值证明安全；调用点记账的原因按标签取。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/modref/modref.c 2>&1 | FileCheck %s
+# 写 auc 的都不能是 SAFE（读 st.ulLen、g_ulLen 本身的 SAFE 是对的）；也没有 pointer_stepping
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/modref/modref.c 2>&1 | not grep -E "OOB-SAFE.*of 'auc'|pointer_stepping"
+
+# Buf_SetLen(&st) 把 ulLen 改成 100：调用后 st.ulLen 只剩类型范围（上界来自 data → type_range_only，原来误记 pointer_stepping）
+CHECK-DAG: modref.c:16:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'auc' (16 bytes)
+# 被调者不在本 TU：调用点记 not_in_tu，之后同样不用旧值
+CHECK-DAG: modref.c:25:1: warning: [OOB-SUSPECT:not_in_tu] Cannot prove this access is within bounds: a pointer is passed to 'Ext_SetLen'
+CHECK-DAG: modref.c:26:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'auc' (16 bytes)
+# G_Set() 改了全局：入口上推不下去
+CHECK-DAG: modref.c:31:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within 'auc' (16 bytes): up to byte g:g_ulLen may be accessed
