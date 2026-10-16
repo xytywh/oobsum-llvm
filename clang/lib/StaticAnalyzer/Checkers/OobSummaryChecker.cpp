@@ -230,6 +230,15 @@ void OobSummaryChecker::solveAll() const
         mods.push_back(m.get());
     }
     oobsum::engine::InlineResult result = oobsum::engine::RunSolve(mods);
+    // Dump=summary：全局求解后的每个函数的摘要（SPEC-0032；engine_check.py 的跨 TU 用例用它）
+    for (const auto &entry : result.summaries) {
+        if (dump.Wants("summary", entry.second.fn)) {
+            std::string text;
+            llvm::raw_string_ostream os(text);
+            os << oobsum::summary::SummaryToJson(entry.second);
+            dump.Line("summary", os.str());
+        }
+    }
     for (const std::string &line : result.applyLines) {
         if (dump.Wants("apply", line.substr(0, line.find(' ')))) {
             dump.Line("apply", line);

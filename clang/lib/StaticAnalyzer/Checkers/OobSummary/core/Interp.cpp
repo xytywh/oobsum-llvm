@@ -865,6 +865,7 @@ private:
 public:
     std::vector<std::string> *trace = nullptr;
     const std::map<std::string, summary::Summary> *callees = nullptr;
+    const std::map<std::string, int64_t> *globalSizes = nullptr;  // 全局键 → 定义处的大小（SPEC-0032）
 
 private:
     const fir::Module &m;
@@ -1052,6 +1053,14 @@ Value Analyzer::Eval(ExprId e, const State &s)
             }
             int64_t size = 0;
             bool known = TypeSize(m, g->type, size);
+            if (!known && globalSizes != nullptr) {
+                // 本 TU 里类型不完整（extern UINT32 g_x[];）：取定义所在 TU 的大小（D-34，SPEC-0032）
+                auto it = globalSizes->find(g->key);
+                if (it != globalSizes->end()) {
+                    size = it->second;
+                    known = true;
+                }
+            }
             v.p = Base(BaseKind::Global, "G" + g->key, "g:" + g->name,
                        known ? llvm::Optional<LinExpr>(LinExpr::Const(size)) : llvm::None);
             return v;
@@ -2640,11 +2649,13 @@ std::string Analyzer::ShowState(const fir::Block &b, const State &s) const
 }  // namespace
 
 FunctionFacts AnalyzeFunction(const fir::Module &m, const fir::Function &f, std::vector<std::string> *stateTrace,
-                              const models::ModelTable &models, const std::map<std::string, summary::Summary> *callees)
+                              const models::ModelTable &models, const std::map<std::string, summary::Summary> *callees,
+                              const std::map<std::string, int64_t> *globalSizes)
 {
     Analyzer a(m, f, models);
     a.trace = stateTrace;
     a.callees = callees;
+    a.globalSizes = globalSizes;
     return a.Run();
 }
 

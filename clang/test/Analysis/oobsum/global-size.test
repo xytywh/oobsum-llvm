@@ -1,0 +1,14 @@
+# 全局大小表（oobsum/specs/SPEC-0032）：extern 不完整数组在 solve 时取定义所在 TU 的大小（D-34）。
+#
+# RUN: rm -rf %t && mkdir -p %t
+# 跨 TU：use.c 里 g_aulStat[16] 越界（定义在 def.c，16 项 64 字节）→ DEFINITE
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --workdir %t/x --clang %clang --config InlineDepth=0 \
+# RUN:   %S/Inputs/xglobal/use.c %S/Inputs/xglobal/def.c | FileCheck %s --check-prefix=XTU
+# RUN: cat %t/x/logs/report.log | FileCheck %s --check-prefix=REPORT
+# 只看 use.c（inline）：大小未知 → 记账
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   %S/Inputs/xglobal/use.c 2>&1 | FileCheck %s --check-prefix=INLINE
+
+XTU: export 2 个 TU；solve 判定 1 条；report 1 个 TU，告警 1 条
+REPORT: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 68 of 'g_aulStat' (64 bytes) is accessed
+INLINE: warning: [OOB-SUSPECT:alloc_size_unknown]

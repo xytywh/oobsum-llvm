@@ -12,6 +12,7 @@
 
 #include "llvm/Support/Path.h"
 
+#include <algorithm>
 #include <functional>
 #include <set>
 
@@ -170,13 +171,26 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
                         const std::function<bool(const std::string &)> &traceFilter, bool linked)
 {
     InlineResult out;
+    // 全局大小表（D-34，SPEC-0032）：类型完整的全局按键记大小，定义优先
+    std::map<std::string, int64_t> globalSizes;
+    for (int pass = 0; pass < 2; ++pass) {
+        for (const fir::Module *mod : mods) {
+            for (const fir::Global &g : mod->globals) {
+                int64_t size = 0;
+                if ((pass == 0) == g.def && interp::TypeSize(*mod, g.type, size)) {
+                    globalSizes.emplace(g.key, size);
+                }
+            }
+        }
+    }
     // ① 自底向上：函数内解释（代入已算出的被调者的效果，被调者可以在别的模块里）→ 摘要（只有局部事实）
     for (const auto &at : BottomUp(mods)) {
         const fir::Module &m = *mods[at.first];
         const fir::Function &f = m.funcs[at.second];
         std::vector<std::string> trace;
         bool traced = traceFilter && traceFilter(f.name);
-        interp::FunctionFacts facts = interp::AnalyzeFunction(m, f, traced ? &trace : nullptr, models, &out.summaries);
+        interp::FunctionFacts facts =
+            interp::AnalyzeFunction(m, f, traced ? &trace : nullptr, models, &out.summaries, &globalSizes);
         out.summaries[f.key] = interp::BuildSummary(m, f, facts);  // 按函数键（SPEC-0027）
         out.facts[f.key] = std::move(facts);
         out.order.push_back(f.key);
@@ -282,6 +296,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             }
         }
     }
+    std::vector<std::pair<std::string, std::string>> unknownCallees;  // (函数键, 调用点)
     for (const auto &entry : out.summaries) {
         const std::string &fn = entry.first;
         const summary::Summary &s = entry.second;
@@ -340,6 +355,19 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.msg = LedgerMessage(reason, c.callee);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, c.site, "", "", reason + ":" + c.callee);
             out.decisions.push_back(std::move(d));
+            if (linked) {
+                unknownCallees.push_back({fn, c.site});
+            }
+        }
+    }
+    // linked 时"整个程序都没有定义"是确定的事实：也写进调用方摘要的本地账本（同金标准，SPEC-0032）
+    for (const auto &u : unknownCallees) {
+        std::vector<summary::Open> &opens = out.summaries[u.first].opens;
+        bool seen = std::any_of(opens.begin(), opens.end(), [&](const summary::Open &o) {
+            return o.reason == "unknown_callee" && o.at == u.second;
+        });
+        if (!seen) {
+            opens.push_back({"unknown_callee", u.second, llvm::None});
         }
     }
     return out;

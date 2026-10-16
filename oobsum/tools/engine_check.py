@@ -29,24 +29,38 @@ spec.loader.exec_module(replay)
 
 
 def run_engine(clang, files, triple):
-    """每个源文件跑一次 cc1（Dump=summary+keys），返回 (摘要列表, 文件 id → 文件名)。"""
+    """返回 (摘要列表, 文件 id → 文件名)。各源文件 Phase=export（Dump=keys），再由桩 TU 跑 Phase=solve（Dump=summary）
+    取全局求解后的摘要（SPEC-0032）。"""
     res = subprocess.run([clang, '-print-resource-dir'], capture_output=True, text=True).stdout.strip()
     sums, names = [], {}
-    for f in files:
+
+    def cc1(src, configs):
         args = [clang, '-cc1', '-triple', triple, '-analyze', '-resource-dir', res, '-internal-isystem',
-                os.path.join(res, 'include'), '-analyzer-checker=' + CHECKER,
-                '-analyzer-config', CHECKER + ':Dump=summary+keys']
+                os.path.join(res, 'include'), '-analyzer-checker=' + CHECKER]
+        for c in configs:
+            args += ['-analyzer-config', CHECKER + ':' + c]
         if triple.startswith(('arm', 'thumb', 'aarch64')):
             args.append('-fno-signed-char')
-        r = subprocess.run(args + [f], capture_output=True, text=True)
+        r = subprocess.run(args + [src], capture_output=True, text=True)
         if r.returncode != 0:
-            raise SystemExit('cc1 失败：%s\n%s' % (f, r.stderr[-2000:]))
+            raise SystemExit('cc1 失败：%s\n%s' % (src, r.stderr[-2000:]))
         for line in r.stderr.splitlines():
             if line.startswith('[oobsum:keys] file '):
                 _, _, fid, path = line.split(' ', 3)
                 names[fid] = os.path.basename(path)
             elif line.startswith('[oobsum:summary] '):
                 sums.append(json.loads(line[len('[oobsum:summary] '):]))
+
+    # 单个文件也走 export + solve：金标准按"用例里的文件就是整个程序"写（unknown_callee、全局大小表，SPEC-0032）
+    work = tempfile.mkdtemp(prefix='oobsum-engine-xtu-')
+    try:
+        for f in files:
+            cc1(f, ['Phase=export', 'WorkDir=' + work, 'Dump=keys'])
+        stub = os.path.join(work, 'stub.c')
+        open(stub, 'w', encoding='utf-8').write('void oobsum_solve_stub(void) {}\n')
+        cc1(stub, ['Phase=solve', 'WorkDir=' + work, 'Dump=summary'])
+    finally:
+        shutil.rmtree(work)
     return sums, names
 
 

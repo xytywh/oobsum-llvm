@@ -107,7 +107,9 @@
       实参写 `eff_depth`；`RunInline` 按 FIR 调用图自底向上解释，`Dump=summary` / `state` 取同一份结果。**LV4-01 端到端一致（16 个金标准用例 9 个）**；
       `run.py csa`：LV4-01 TP POSSIBLE、LV4-02 TP DEFINITE、LV7-01（柔性数组）TP DEFINITE / TN SAFE——**通过 72、漏报 14**，回退 0（尺子：账本判定同一处有 SAFE 就算证明）。
 - [ ] **S7d-4**：条件效应（校验函数的返回值，LV4-06）；局部结构体字段带进调用点（LV5-01 的 `fields`）；偏移与长度的抵消（A-41，LV3-07、LV8-01）。
-- [ ] **S7e** `extern` 不完整数组的大小符号 `ext(g:名)`（LV6-01；全局大小表在 S8c / WP9 接上）。
+- [x] **S7e 全局大小表**（SPEC-0032）：`extern` 不完整数组在 solve 时取定义所在 TU 的大小（D-34）；solve 时"哪里都没有定义"的被调者也写进调用方的本地账本；
+      `Phase=solve` 打 `Dump=summary`；`engine_check.py` 改为把用例的文件走 export + solve（金标准按"用例的文件就是整个程序"写）。
+      **金标准 16 个用例 14 个端到端一致**（只剩 LV3-07、LV8-01：偏移与长度的抵消 A-41）。LV1-07、LV6-01 的"需跨TU"入口在三阶段下报出 DEFINITE（`run.py csa` 仍按 inline 对照）。
 - [x] **S8c-1 引擎接进 checker（`Phase=inline`）**（SPEC-0021）：`core/Engine::RunInline`——每个函数解释 → 摘要 → `Propagate` → 带标签的判定：
       调用点 L1 / L2（DEFINITE / POSSIBLE，F-32 文本、`rep.fp`）、调用点判安全 / 记账（SAFE `guard_false` / `within` / `guard_entailed` / `guard_bounds`，
       SUSPECT）、入口账本（`typed_field` / `type_range_only` / `entry_unproven`）、本函数当场证明安全（SAFE `local_entailed`）、本函数账本、没分析完（`unanalyzed:*`）、
