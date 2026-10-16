@@ -595,6 +595,10 @@ bool SameApply(const llvm::Optional<summary::Apply> &a, const summary::Apply &b)
     if (a->kind == "field") {
         return a->arg == b.arg && a->field == b.field && a->value && b.value && P(*a->value) == P(*b.value);
     }
+    if (a->kind == "out_new") {  // SPEC-0053
+        return a->arg == b.arg && a->size && b.size && P(*a->size) == P(*b.size) &&
+               a->maybeNull.getValueOr(false) == b.maybeNull.getValueOr(false);
+    }
     if (a->kind == "ret_int") {
         std::vector<std::string> x = a->range.getValueOr(std::vector<std::string>());
         std::vector<std::string> y = b.range.getValueOr(std::vector<std::string>());
@@ -626,6 +630,10 @@ std::string FmtApply(const llvm::Optional<summary::Apply> &a)
     if (a->kind == "field") {
         return "实参 " + std::to_string(a->arg.getValueOr(0)) + " 所指对象的 " + a->field.getValueOr("") +
                " := " + a->value.getValueOr("");
+    }
+    if (a->kind == "out_new") {  // 同 replay.py 的 fmt_apply（SPEC-0053）
+        return "*实参 " + std::to_string(a->arg.getValueOr(0)) + " := new(" + a->size.getValueOr("") + ")" +
+               (a->maybeNull.getValueOr(false) ? " 或 NULL" : "");
     }
     std::string out = "{\"kind\": \"" + a->kind + "\"";
     if (a->range) {
@@ -800,6 +808,20 @@ llvm::Optional<summary::Apply> ApplyEff(const summary::Eff &eff, const Call &cal
         a.arg = static_cast<int64_t>(k);
         a.field = groups[2].str();
         a.value = Show(Substitute(P(eff.value.getValueOr("0")), map.m));
+        return a;
+    }
+    if (eff.kind == "out_new") {
+        // 出参写回的新对象（SPEC-0053）：第 arg 个实参所指的格成了新对象
+        static llvm::Regex re("^p([0-9]+)$");
+        llvm::SmallVector<llvm::StringRef, 2> groups;
+        if (!eff.target || !re.match(*eff.target, &groups)) {
+            return llvm::None;
+        }
+        unsigned long long k = 0;
+        groups[1].getAsInteger(10, k);
+        a.arg = static_cast<int64_t>(k);
+        a.size = Show(Substitute(P(eff.size.getValueOr("0")), map.m));
+        a.maybeNull = eff.maybeNull.getValueOr(false);
         return a;
     }
     return llvm::None;

@@ -995,7 +995,9 @@ private:
     mutable std::map<std::string, summary::FieldInfo> fields;
     mutable std::map<std::string, std::string> globalTypes;  // 读到过的全局标量：g:名 → 类型（Env 用）
     std::vector<std::pair<Value, std::vector<LinExpr>>>
-        returns;                // 记录那一遍里每个 ret 的值与当时的守卫（SPEC-0024、0025）
+        returns;  // 记录那一遍里每个 ret 的值与当时的守卫（SPEC-0024、0025）
+    std::vector<std::map<int, Value>>
+        outs;  // 每个 ret 时指针形参 K 所指的格 (PK, 0, 指针字节数) 里的值（出参，SPEC-0053）
     std::vector<bool> heads;    // 循环头（回边的目标），按块下标
     bool recording = false;     // 只有最后一遍记访问、调用点、账本（SPEC-0017 §2.1）
     bool edgeFromHead = false;  // 当前 Assume 的边从循环头出发：收窄出来的上界标 loop
@@ -1770,6 +1772,22 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             }
             if (calleeSummary != nullptr) {
                 ApplyMods(inst, calleeSummary->mods, s);  // 只让被调者可能写的位置失效（mod-ref，SPEC-0045）
+                // 出参写回的新对象：实参所指的格强更新成 heap@调用点（SPEC-0053）
+                for (const summary::Eff &e : calleeSummary->effs) {
+                    llvm::StringRef target = e.target ? llvm::StringRef(*e.target) : llvm::StringRef();
+                    unsigned k = 0;
+                    if (e.kind != "out_new" || !e.size || !target.consume_front("p") || target.getAsInteger(10, k) ||
+                        k >= inst.args.size()) {
+                        continue;
+                    }
+                    Value arg = Eval(inst.args[k], s);
+                    if (!arg.isPtr || arg.p.kind == BaseKind::Unknown || arg.p.kind == BaseKind::Func ||
+                        !arg.p.off.IsConst()) {
+                        continue;
+                    }
+                    s.cells[CellKey(arg.p.id, arg.p.off.value.Constant(), m.target.ptr)] =
+                        HeapResult(inst, *e.size, e.effDepth.getValueOr(1), s);
+                }
             } else if (kind != models::Kind::Pure && kind != models::Kind::Free) {
                 if (kind == models::Kind::None) {
                     s.called = true;  // 被调者可能写全局：之后读全局标量不再是入口值（SPEC-0041）
@@ -2813,9 +2831,24 @@ Value Analyzer::HeapResult(const fir::Inst &inst, const std::string &size, int64
 // 记录那一遍里每个 ret 的值（SPEC-0024 §2.1）
 void Analyzer::RecordReturn(const fir::Inst &inst, const State &s)
 {
-    if (recording && inst.val != fir::kNone) {
+    if (!recording) {
+        return;
+    }
+    if (inst.val != fir::kNone) {
         returns.push_back({Eval(inst.val, s), s.guards});
     }
+    // 出参：指针形参所指位置偏移 0 的指针格（*ppucBuf = …，SPEC-0053）
+    std::map<int, Value> out;
+    for (const fir::Local &l : f.locals) {
+        if (l.param < 0 || !IsPtrLocal(l.id)) {
+            continue;
+        }
+        auto it = s.cells.find(CellKey("P" + std::to_string(l.param), 0, m.target.ptr));
+        if (it != s.cells.end()) {
+            out[l.param] = it->second;
+        }
+    }
+    outs.push_back(std::move(out));
 }
 
 // 每个返回值都是常数（或带情形）→ 按常数分组、组内守卫取交集：ret_cond；再加 ret_int 说明可能的返回值（D-24，SPEC-0025 §2.2）
@@ -2986,16 +3019,13 @@ bool Analyzer::FilterCases(ExprId e, const IntVal &v, fir::CmpOp op, int64_t k, 
 }
 
 // 每条返回路径都是同一个堆对象（偏移 0、大小已知）或空指针常量 → ret_new（D-24）
-std::vector<summary::Eff> Analyzer::Effects() const
+// 一组值都是同一个新对象 + 同一个常数偏移（或空指针）：(新对象, 偏移)；否则 None（SPEC-0024 / 0052 / 0053）
+llvm::Optional<std::pair<const PtrVal *, int64_t>> SameNewObject(const std::vector<const Value *> &values)
 {
-    std::vector<summary::Eff> conds = CondEffects();
-    if (!conds.empty()) {
-        return conds;
-    }
     const PtrVal *heap = nullptr;
-    int64_t off = 0;  // 返回的是新对象 + 常数偏移（带管理头的分配器，SPEC-0052）；各条返回要一样
-    for (const auto &ret : returns) {
-        const Value &v = ret.first;
+    int64_t off = 0;
+    for (const Value *pv : values) {
+        const Value &v = *pv;
         bool null = (!v.isPtr && v.i.IsConst() && v.i.value.Constant() == 0) ||
                     (v.isPtr && v.p.kind == BaseKind::Unknown && v.p.why == "null");
         if (null) {
@@ -3004,20 +3034,64 @@ std::vector<summary::Eff> Analyzer::Effects() const
         bool fresh =
             v.isPtr && v.p.kind == BaseKind::Heap && v.p.hasSize && v.p.off.IsConst() && v.p.off.value.Constant() >= 0;
         if (!fresh || (heap != nullptr && (heap->id != v.p.id || off != v.p.off.value.Constant()))) {
-            return {};
+            return llvm::None;
         }
         heap = &v.p;
         off = v.p.off.value.Constant();
     }
     if (heap == nullptr) {
-        return {};
+        return llvm::None;
     }
-    summary::Eff e;
-    e.kind = "ret_new";
-    e.size = (heap->size - LinExpr::Const(off)).Show();  // 从返回的指针起还剩的字节
-    e.maybeNull = true;
-    e.effDepth = heap->effDepth + 1;
-    return {e};
+    return std::make_pair(heap, off);
+}
+
+std::vector<summary::Eff> Analyzer::Effects() const
+{
+    std::vector<summary::Eff> out = CondEffects();
+    if (out.empty()) {
+        // 返回新对象（可带常数偏移：带管理头的分配器，SPEC-0052）
+        std::vector<const Value *> values;
+        for (const auto &ret : returns) {
+            values.push_back(&ret.first);
+        }
+        if (llvm::Optional<std::pair<const PtrVal *, int64_t>> hit = SameNewObject(values)) {
+            summary::Eff e;
+            e.kind = "ret_new";
+            e.size = (hit->first->size - LinExpr::Const(hit->second)).Show();  // 从返回的指针起还剩的字节
+            e.maybeNull = true;
+            e.effDepth = hit->first->effDepth + 1;
+            out.push_back(e);
+        }
+    }
+    // 出参写回的新对象：每条返回路径都写了 *pK（SPEC-0053）；有一条没写就不记
+    for (const fir::Local &l : f.locals) {
+        if (l.param < 0 || !IsPtrLocal(l.id) || outs.empty()) {
+            continue;
+        }
+        std::vector<const Value *> values;
+        for (const auto &o : outs) {
+            auto it = o.find(l.param);
+            if (it == o.end()) {
+                values.clear();
+                break;
+            }
+            values.push_back(&it->second);
+        }
+        llvm::Optional<std::pair<const PtrVal *, int64_t>> hit;
+        if (!values.empty()) {
+            hit = SameNewObject(values);
+        }
+        if (hit) {
+            summary::Eff e;
+            e.kind = "out_new";
+            e.target = "p" + std::to_string(l.param);
+            e.size = (hit->first->size - LinExpr::Const(hit->second)).Show();
+            e.maybeNull = true;
+            e.effDepth = hit->first->effDepth + 1;
+            out.push_back(e);
+        }
+    }
+    return out;
 }
 
 // 指针实参指向局部 / 全局结构体变量（偏移 0）：内存格里有值的标量 / 指针字段（SPEC-0026）

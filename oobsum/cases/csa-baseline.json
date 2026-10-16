@@ -491,16 +491,16 @@
    "kind": "TP",
    "entry": "Rpt_Send_TP",
    "pa": "L1",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "级别不同"
+   "actual": "DEFINITE",
+   "verdict": "通过"
   },
   {
    "case": "LV4-04",
    "kind": "TN",
    "entry": "Rpt_Send_TN",
    "pa": "-",
-   "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "actual": "SAFE:local_entailed(未报出:safe)",
+   "verdict": "通过"
   },
   {
    "case": "LV4-05",
@@ -1706,17 +1706,8 @@
    "site": "lv4/lv4_04_outparam_alloc.c:47:0",
    "kind": "W",
    "fn": "F:Rpt_Send_TP",
-   "label": "suspect",
-   "reason": "entry_unproven",
-   "access": "lv4/lv4_04_outparam_alloc.c:35"
-  },
-  {
-   "case": "LV4-04",
-   "site": "lv4/lv4_04_outparam_alloc.c:56:0",
-   "kind": "W",
-   "fn": "F:Rpt_Send_TN",
-   "label": "suspect",
-   "reason": "entry_unproven",
+   "label": "definite",
+   "reason": "",
    "access": "lv4/lv4_04_outparam_alloc.c:35"
   },
   {

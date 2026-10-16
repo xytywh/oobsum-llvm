@@ -1,0 +1,14 @@
+# 出参式分配器（oobsum/specs/SPEC-0053）：效果 out_new，调用点把实参所指的格写成新对象；能传递。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Buf_Create|Rpt_Create|Buf_Maybe)$' \
+# RUN:   %S/Inputs/outnew/outp.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{{.*}}{"eff_depth":1,"kind":"out_new","maybe_null":true,"size":"p1","target":"p0"}],"fn":"Buf_Create"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{{.*}}{"eff_depth":2,"kind":"out_new","maybe_null":true,"size":"64","target":"p0"}],"fn":"Rpt_Create"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{{[^]]*}}],"fn":"Buf_Maybe"
+CHECK-DAG: outp.c:14:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 72 of heap object allocated at outp.c:14 (64 bytes) is accessed
+CHECK-DAG: outp.c:15:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 64 of heap object allocated at outp.c:15 (64 bytes)
+# 对照：只有一条路径写出参 → 没有 out_new，调用方是未知指针 → 记账
+CHECK-DAG: outp.c:25:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within '_unknown0'

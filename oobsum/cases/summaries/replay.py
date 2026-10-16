@@ -932,6 +932,9 @@ def apply_eff(eff, call):
     if eff['kind'] == 'field':
         k, f = re.match(r'p(\d+)->(\w+)$', eff['target']).groups()
         return {'kind': 'field', 'arg': int(k), 'field': f, 'value': show(subst(P(eff['value']), m))}
+    if eff['kind'] == 'out_new':                       # 出参写回的新对象（SPEC-0053）
+        k = int(re.match(r'p(\d+)$', eff['target']).group(1))
+        return {'kind': 'out_new', 'arg': k, 'size': show(subst(P(eff['size']), m)), 'maybe_null': bool(eff.get('maybe_null'))}
     return None
 
 
@@ -948,6 +951,8 @@ def same_apply(a, b):
         return a['when'] == b['when'] and sorted(a['then']) == sorted(canon_cond(x) for x in b['then'])
     if a['kind'] == 'field':
         return a['arg'] == b['arg'] and a['field'] == b['field'] and P(a['value']) == P(b['value'])
+    if a['kind'] == 'out_new':                         # SPEC-0053
+        return a['arg'] == b['arg'] and P(a['size']) == P(b['size']) and a['maybe_null'] == b.get('maybe_null', False)
     if a['kind'] == 'ret_int':
         return [P(x) for x in a['range']] == [P(x) for x in b['range']]
     return False
@@ -962,6 +967,8 @@ def fmt_apply(a):
         return '%s ⇒ %s' % (a['when'], ' 且 '.join(a['then']))
     if a['kind'] == 'field':
         return '实参 %d 所指对象的 %s := %s' % (a['arg'], a['field'], a['value'])
+    if a['kind'] == 'out_new':                         # SPEC-0053
+        return '*实参 %d := new(%s)%s' % (a['arg'], a['size'], ' 或 NULL' if a['maybe_null'] else '')
     return json.dumps(a, ensure_ascii=False)
 
 

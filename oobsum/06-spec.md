@@ -483,7 +483,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | `doc` | `{text, obj, bytes, code, note}`：用形参名渲染的一句话、对象名、访问字节数、源码原文、说明 |
 
 **D-24 效果**〔由 SPEC-0045 修订：另加摘要字段 `mods`（可能写的位置：`pK`、`pK+off:size`、`*pK->f`、`g:名字`、`g:*`、`*`），调用点按它只让写到的位置失效〕 `effs[].kind`：`ret_new`（`size`、`maybe_null`、`eff_depth`）、`ret_ptr`、`ret_int`（`range`、`bound`）、
-`ret_cond`（`when: "ret == c"`、`then: [条件…]`，至多 4 条）、`out_new` / `out_int`、`field`（`target: "p0->ulUsed"`、`value`）、`global`、`invalidate`。
+`ret_cond`（`when: "ret == c"`、`then: [条件…]`，至多 4 条）、`out_new`〔SPEC-0053：`target: "pK"`、`size`、`maybe_null`、`eff_depth`，每条返回路径都把同一个新对象写进 `*pK` 时记〕 / `out_int`、`field`（`target: "p0->ulUsed"`、`value`）、`global`、`invalidate`。
 `doc.via` 记效果是从哪个分配器 / 封装传上来的（只给人看）。
 
 **D-25 调用点记录**〔由 SPEC-0015、SPEC-0027、SPEC-0035、SPEC-0039 修订：成员数组实参加 `parent: {obj, have}`，`results[]` 的外层对象那一条标 `parent: true`；指针实参加 `back`（指针前面的字节数）〕 `calls[]`：`site`、`callee`、`model`（`access` / `alloc` / `pure` / `unknown`，被调者是模型或未知时）、

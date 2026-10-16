@@ -95,7 +95,7 @@
         "range": { "type": "array", "items": { "$ref": "#/definitions/expr" }, "minItems": 2, "maxItems": 2 },
         "when": { "$ref": "#/definitions/cond" },
         "then": { "type": "array", "items": { "$ref": "#/definitions/cond" } },
-        "target": { "type": "string", "pattern": "^p\\d+->\\w+$" },
+        "target": { "type": "string", "pattern": "^p\\d+(->\\w+)?$", "description": "field：pK->字段；out_new：pK（出参，SPEC-0053）" },
         "value": { "$ref": "#/definitions/expr" },
         "eff_depth": { "type": "integer", "minimum": 0 },
         "bound": { "$ref": "#/definitions/tag" },
@@ -130,7 +130,7 @@
       "type": "object", "additionalProperties": false, "required": ["kind"],
       "description": "被调者的效果代进本调用点之后的样子（调用方的符号）",
       "properties": {
-        "kind": { "enum": ["ret_new", "ret_int", "ret_cond", "field"] },
+        "kind": { "enum": ["ret_new", "ret_int", "ret_cond", "field", "out_new"] },
         "size": { "$ref": "#/definitions/expr" }, "maybe_null": { "type": "boolean" },
         "range": { "type": "array", "items": { "$ref": "#/definitions/expr" } },
         "when": { "$ref": "#/definitions/cond" }, "then": { "type": "array", "items": { "$ref": "#/definitions/cond" } },
