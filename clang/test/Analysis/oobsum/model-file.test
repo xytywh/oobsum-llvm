@@ -37,7 +37,7 @@ FILE-DAG: use.c:32:1: warning: [OOB-DEFINITE] Definite out-of-bound write throug
 FILE-NOT: OOB-SUSPECT
 
 NOFILE-DAG: use.c:12:1: warning: [OOB-SUSPECT:not_in_tu] Cannot prove this access is within bounds: a pointer is passed to 'Drv_Copy'
-NOFILE-DAG: use.c:32:1: warning: [OOB-SUSPECT:entry_unproven]
+NOFILE-DAG: use.c:32:1: warning: [OOB-SUSPECT:untracked_pointer]
 NOFILE-DAG: use.c:37:1: warning: [OOB-SUSPECT:not_in_tu] Cannot prove this access is within bounds: a pointer is passed to 'Stat_Inc'
 
 MISSING: error: invalid input for checker option 'rb.enhance.ipa.OobSummary:ModelFile', that expects a readable YAML file

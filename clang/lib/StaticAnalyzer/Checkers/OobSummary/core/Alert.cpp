@@ -62,6 +62,10 @@ std::string ChainText(const std::vector<std::string> &chain)
 std::string ObjName(const std::string &obj, const std::vector<summary::Param> &params)
 {
     llvm::StringRef o = obj;
+    unsigned arg = 0;
+    if (o.startswith("local:_unknown") && !o.drop_front(14).getAsInteger(10, arg)) {
+        return "the object passed as argument " + std::to_string(arg + 1);  // 不跟踪的指针实参（SPEC-0062）
+    }
     if (o.startswith("g:") || o.startswith("local:")) {
         return "'" + o.split(':').second.str() + "'";
     }

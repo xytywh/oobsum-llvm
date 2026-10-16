@@ -539,7 +539,7 @@
    "kind": "TP",
    "entry": "Pool_UseBlock_TP",
    "pa": "记账",
-   "actual": "SUSPECT:entry_unproven",
+   "actual": "SUSPECT:untracked_pointer",
    "verdict": "通过"
   },
   {
@@ -547,7 +547,7 @@
    "kind": "TN",
    "entry": "Pool_UseBlock_TN",
    "pa": "-",
-   "actual": "SUSPECT:entry_unproven",
+   "actual": "SUSPECT:untracked_pointer",
    "verdict": "通过+S"
   },
   {
@@ -1734,7 +1734,7 @@
    "kind": "W",
    "fn": "F:Pool_UseBlock_TP",
    "label": "suspect",
-   "reason": "entry_unproven",
+   "reason": "untracked_pointer",
    "access": "lv4/lv4_07_opaque_allocator.c:27"
   },
   {
@@ -1743,7 +1743,7 @@
    "kind": "W",
    "fn": "F:Pool_UseBlock_TN",
    "label": "suspect",
-   "reason": "entry_unproven",
+   "reason": "untracked_pointer",
    "access": "lv4/lv4_07_opaque_allocator.c:27"
   },
   {

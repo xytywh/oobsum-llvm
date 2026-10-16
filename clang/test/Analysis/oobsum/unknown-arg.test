@@ -1,0 +1,10 @@
+# 调用点实参是不跟踪的指针：记 untracked_pointer，告警不再露出内部占位符 _unknownK（oobsum/specs/SPEC-0062）。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:Dump=apply \
+# RUN:   -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Use_Ext$' %S/Inputs/unkarg/ext.c 2>&1 | FileCheck %s
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/unkarg/ext.c 2>&1 | not grep _unknown
+
+CHECK: [oobsum:apply] Use_Ext @ ext.c:8 Blk_Init.ext.c:6 → open (untracked_pointer)
+CHECK: ext.c:8:1: warning: [OOB-SUSPECT:untracked_pointer] Cannot prove the write through a 2-level call chain stays within the object passed as argument 1 (size unknown): up to byte 65 may be accessed

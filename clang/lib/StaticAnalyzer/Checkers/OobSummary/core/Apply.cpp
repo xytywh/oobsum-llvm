@@ -371,6 +371,13 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
         }
         live.push_back(gmax);
     }
+    // 实参是不跟踪的指针（调用点记录的占位符 local:_unknownK / _unknownK）：判不了也传不上去（SPEC-0062）
+    if (llvm::StringRef(o.obj).startswith("local:_unknown") && o.have.Show() == o.obj.substr(6)) {
+        o.outcome = "open";
+        o.reason = "untracked_pointer";
+        o.why = "实参是不跟踪的指针，大小未知";
+        return o;
+    }
     // ② 局部换成区间
     Eliminated hi = EliminateLocals(o.endHi, locs, true);
     Eliminated lo = EliminateLocals(o.endLo, locs, false);

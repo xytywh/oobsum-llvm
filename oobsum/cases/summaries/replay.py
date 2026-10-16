@@ -577,6 +577,9 @@ def subst_obj(obj, call):
 
 def obj_name(obj, params=()):
     """告警里对象的写法（F-32 的 {object}）。"""
+    m = re.match(r'local:_unknown(\d+)$', obj)
+    if m:                                              # 不跟踪的指针实参（SPEC-0062）
+        return 'the object passed as argument %d' % (int(m.group(1)) + 1)
     if obj.startswith(('g:', 'local:')):
         return "'%s'" % obj.split(':', 1)[1]
     if obj.startswith('heap@'):
@@ -826,6 +829,9 @@ def classify(req, call, caller, callee, env_guards):
         if gmax.const() is not None and gmax.const() <= 0:
             continue
         live.append(gmax)
+    # 实参是不跟踪的指针（调用点记录的占位符 local:_unknownK / _unknownK）：判不了也传不上去（SPEC-0062）
+    if obj2.startswith('local:_unknown') and show(have) == obj2[6:]:
+        return dict(trace, outcome='open', reason='untracked_pointer', why='实参是不跟踪的指针，大小未知')
     # ② 局部换成区间
     ehi2, tags_hi, ne = eliminate_locals(ehi, locs, True)
     elo2, _, _ = eliminate_locals(elo, locs, False)
