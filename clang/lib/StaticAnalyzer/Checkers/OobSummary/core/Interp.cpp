@@ -982,6 +982,8 @@ private:
     void MarkWritten(State &s, const std::string &id) const;
     void AliasWritten(State &s, const std::string &id) const;
     llvm::Optional<uint32_t> PointeeRecord(int param) const;
+    // 形参所指的类型（别名判断用）：结构体按记录号，整数按宽度与符号；别的 → None（SPEC-0040 §2.2、SPEC-0071）
+    llvm::Optional<std::string> PointeeKey(int param) const;
     // ---- 模型（SPEC-0018）----
     void ApplyAccessModel(const fir::Inst &inst, const models::AccessModel &model, const State &s);
     Value HeapResult(const fir::Inst &inst, const std::string &size, int64_t effDepth, const State &s);
@@ -1346,20 +1348,38 @@ void Analyzer::MarkWritten(State &s, const std::string &id) const
     AliasWritten(s, id);
 }
 
-// 经形参 pK（或它所指结构体里的成员数组）写：所指结构体类型相同的其它形参 pJ 可能就是同一个对象——清掉它的格、记进 writtenAll。
-// 只看结构体形参（char / void 缓冲区的写不算，SPEC-0040 §2 的取舍）
+llvm::Optional<std::string> Analyzer::PointeeKey(int param) const
+{
+    if (llvm::Optional<uint32_t> record = PointeeRecord(param)) {
+        return "rec#" + std::to_string(*record);
+    }
+    for (const fir::Local &l : f.locals) {
+        if (l.param != param || l.type >= m.types.size() || m.types[l.type].kind != fir::TypeKind::Ptr) {
+            continue;
+        }
+        fir::TypeId pointee = m.types[l.type].to;
+        // 整数（char 不算：char 缓冲区的写不当成改了别的形参，SPEC-0040 §2 的取舍）
+        if (pointee < m.types.size() && m.types[pointee].kind == fir::TypeKind::Int && m.types[pointee].width > 8) {
+            return fir::TypeText(m, pointee);
+        }
+    }
+    return llvm::None;
+}
+
+// 经形参 pK（或它所指结构体里的成员数组）写：所指类型相同的其它形参 pJ 可能就是同一个对象——清掉它的格、记进 writtenAll。
+// 只看结构体与（宽于 char 的）整数形参（char / void 缓冲区的写不算，SPEC-0040 §2 的取舍；整数：SPEC-0071）
 void Analyzer::AliasWritten(State &s, const std::string &id) const
 {
     if (id.size() < 2 || id[0] != 'P' || !std::isdigit(static_cast<unsigned char>(id[1]))) {
         return;  // 不是形参（PP… 是形参结构体里的指针字段所指的对象，不算）
     }
     int k = static_cast<int>(std::strtol(id.c_str() + 1, nullptr, 10));
-    llvm::Optional<uint32_t> record = PointeeRecord(k);
-    if (!record) {
+    llvm::Optional<std::string> pointee = PointeeKey(k);
+    if (!pointee) {
         return;
     }
     for (const fir::Local &l : f.locals) {
-        if (l.param < 0 || l.param == k || PointeeRecord(l.param) != record) {
+        if (l.param < 0 || l.param == k || PointeeKey(l.param) != pointee) {
             continue;
         }
         std::string other = "P" + std::to_string(l.param);
@@ -1394,6 +1414,19 @@ Value Analyzer::LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const 
                 continue;
             }
             fir::TypeId pointee = m.types[l.type].to;
+            // 指向（宽于 char 的）整数的形参：*pK 是伪字段 pK->_0（经指针传进来的长度，SPEC-0071）；字节缓冲区不算
+            int64_t scalarSize = 0;
+            if (pointee < m.types.size() && m.types[pointee].kind == fir::TypeKind::Int && m.types[pointee].width > 8 &&
+                *off == 0 && !v.isPtr && TypeSize(m, pointee, scalarSize) && scalarSize == size) {
+                std::string name = "p" + std::to_string(param) + "->_0";
+                summary::FieldInfo info;
+                info.off = 0;
+                info.size = scalarSize;
+                info.type = fir::TypeText(m, pointee);
+                fields[name] = info;
+                v.i = IntVal::Exact(LinExpr::Sym(name));
+                return v;
+            }
             if (pointee >= m.types.size() || m.types[pointee].kind != fir::TypeKind::Rec) {
                 break;
             }
@@ -3640,11 +3673,24 @@ std::map<std::string, summary::ArgValue> Analyzer::ArgFields(const PtrVal &p, co
             }
         }
     }
-    if (type >= m.types.size() || m.types[type].kind != fir::TypeKind::Rec) {
-        return out;
+    // 结构体：各字段；整数（或整数数组的第 0 个元素）：伪字段 _0（*pK，SPEC-0071）
+    std::vector<fir::Field> list;
+    if (type < m.types.size() && m.types[type].kind == fir::TypeKind::Rec) {
+        const fir::Record *r = m.FindRecord(m.types[type].record);
+        if (r != nullptr) {
+            list = r->fields;
+        }
+    } else if (type < m.types.size()) {
+        fir::TypeId elem = m.types[type].kind == fir::TypeKind::Arr ? m.types[type].to : type;
+        if (elem < m.types.size() && m.types[elem].kind == fir::TypeKind::Int && m.types[elem].width > 8) {
+            fir::Field scalar;
+            scalar.name = "_0";
+            scalar.off = 0;
+            scalar.type = elem;
+            list.push_back(scalar);
+        }
     }
-    const fir::Record *r = m.FindRecord(m.types[type].record);
-    for (const fir::Field &field : r != nullptr ? r->fields : std::vector<fir::Field>()) {
+    for (const fir::Field &field : list) {
         int64_t size = 0;
         if (field.type >= m.types.size() || !TypeSize(m, field.type, size)) {
             continue;

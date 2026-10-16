@@ -89,9 +89,17 @@ std::string SizeText(const std::string &have)
 // 调用点上不知道的符号（SPEC-0063 / 0064）显示时去掉内部前缀；给了被调者的形参表时 p<k> 写成被调者的形参名（SPEC-0067）
 std::string Readable(std::string text, const std::vector<summary::Param> *callee = nullptr)
 {
+    // 伪字段 _0（*pK，SPEC-0071）的未知值没有名字可写
+    for (size_t at = text.find("_unknown__0"); at != std::string::npos; at = text.find("_unknown__0", at)) {
+        text.replace(at, 11, "an unknown value");
+    }
     // 调用点记录里不知道的字段值的占位符 _unknown_<字段>：写成字段名（SPEC-0068）
     for (size_t at = text.find("_unknown_"); at != std::string::npos; at = text.find("_unknown_", at)) {
         text.erase(at, 9);
+    }
+    // 指向整数的形参的伪字段：pK->_0 写成 pK[0]（SPEC-0071）
+    for (size_t at = text.find("->_0"); at != std::string::npos; at = text.find("->_0", at)) {
+        text.replace(at, 4, "[0]");
     }
     for (size_t at = text.find("_unmapped:"); at != std::string::npos; at = text.find("_unmapped:", at)) {
         text.erase(at, 10);

@@ -1287,3 +1287,31 @@ TEST(Interp, CalleeFieldResult)
     EXPECT_EQ(Reqs(facts), "W have=16 obj=local:a end=[101, 101] bound=exact at=t.c:5");
     (void)mine;
 }
+
+TEST(Interp, ScalarPointee)
+{
+    // SPEC-0071：*pLen（指向整数的形参）读成伪字段 p1->_0；经同类型的另一个整数指针形参写过之后不再是入口值
+    Builder b;
+    TypeId pu32 = b.m.Intern(Type::Ptr(b.u32));
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t len = b.Param("pLen", pu32);
+    uint32_t t = b.LocalVar("t0", b.u32);
+    b.Straight({b.Load(t, b.L(len), 4, 3), b.Store(b.PAdd(b.L(p), b.L(t)), 1, b.C(0), 4)});
+    interp::FunctionFacts facts = b.Run();
+    EXPECT_EQ(Reqs(facts),
+              "R have=ext(p1) obj=*p1 end=[4, 4] bound=exact at=t.c:3 | "
+              "W have=ext(p0) obj=*p0 end=[p1->_0 + 1, p1->_0 + 1] bound=exact at=t.c:4");
+    ASSERT_TRUE(facts.fields.count("p1->_0") == 1);
+    EXPECT_EQ(facts.fields.at("p1->_0").type.getValueOr(""), "u32");
+    Builder c;
+    TypeId q32 = c.m.Intern(Type::Ptr(c.u32));
+    uint32_t q = c.Param("p", c.m.Intern(Type::Ptr(c.u8)));
+    uint32_t out = c.Param("pOut", q32);
+    uint32_t len2 = c.Param("pLen", q32);
+    uint32_t t2 = c.LocalVar("t0", c.u32);
+    c.Straight({c.Store(c.L(out), 4, c.C(100), 3), c.Load(t2, c.L(len2), 4, 4),
+                c.Store(c.PAdd(c.L(q), c.L(t2)), 1, c.C(0), 5)});
+    interp::FunctionFacts facts2 = c.Run();
+    EXPECT_EQ(facts2.fields.count("p2->_0"), size_t(0));  // 可能就是 *pOut：不是入口值
+    EXPECT_EQ(Reqs(facts2).find("p2->_0"), std::string::npos);
+}

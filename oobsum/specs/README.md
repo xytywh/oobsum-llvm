@@ -103,4 +103,5 @@
 | [SPEC-0069](SPEC-0069-range-field-args.md) | 实参所指结构体的字段值是区间时也带进调用点（经 `locals`） | 已实现 |
 | [SPEC-0070](SPEC-0070-ret-ptr.md) | 效果 `ret_ptr`：被调者返回实参指针（或它所指结构体的指针字段）加偏移 | 已实现 |
 | [SPEC-0072](SPEC-0072-callee-expr-fields.md) | 代入被调者的式子：字段符号按实参所指对象的当前值换，换不了算未知（错误的 SAFE） | 已实现 |
+| [SPEC-0071](SPEC-0071-scalar-pointee.md) | 经指针传进来的整数：`*pK` 当成形参符号 `pK->_0` | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

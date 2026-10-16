@@ -1,0 +1,16 @@
+# 经指针传进来的整数：*pK 当成形参符号 pK->_0（oobsum/specs/SPEC-0071）。原来 *pLen 读成 data，只在被调者里记 type_range_only。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Fill$' \
+# RUN:   %S/Inputs/scalarptr/s.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}"fields":{"p1->_0":{"off":0,"size":4,"type":"u32"}},"fn":"Fill"
+CHECK-DAG: s.c:5:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 20 of 'a' (16 bytes) may be accessed; the bound comes from a loop condition
+CHECK-DAG: s.c:6:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+# 调用方把自己的形参原样传下去：上传成调用方的 p1->_0，上一层判
+CHECK-DAG: s.c:9:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 2-level call chain: up to byte 17 of 'a' (16 bytes) may be accessed
+# 调用前被改过 → 记账（文本写成 pLen[0]）
+CHECK-DAG: s.c:12:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within 'a' (16 bytes): up to byte pLen[0] may be accessed
+# 同类型的两个整数指针形参：经 pulOut 写过之后 pulLen 不当入口值
+CHECK-DAG: s.c:14:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within '*p' (size ext(p0)): up to byte an unknown value may be accessed
