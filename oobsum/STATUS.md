@@ -123,8 +123,9 @@
   （D16 召回优先的直接推论；不点头的话，G2 时 TN 上的 SUSPECT 都算不通过）。
 * 公司（可选，很快）：bxen 命令加 `-analyzer-config rb.enhance.ipa.OobSummary:Dump=fir` 跑 TestCase，看 `module` 行是否 `ptr=4 long=4 big-endian`
   （fork 是否按 ILP32 分析，对应探针 R2），以及 `char` 字段是否 `u8`。只带回"是/否"。
-* 公司：`oobsum/devenv/fork-facts.sh` 的输出；I0 探针 R1–R3；本骨架在 bxen 下的 TestCase 结果（预期 3 条告警 + 判定日志 5 条）。
-* 公司（可选）：引擎已在默认的 `Phase=inline` 下跑。拿 bxen 跑 TestCase（应仍是 3 条告警、判定日志 5 条）和一个业务子目录，
+* 公司：`oobsum/devenv/fork-facts.sh` 的输出；I0 探针 R1–R3；TestCase 在 bxen 下的结果（**现在预期 4 条告警 + 判定日志 7 条**：
+  骨架的 3 条 + 引擎的三层链 `Tc_Engine_TP` 一条 DEFINITE；`Dump=stats` 应为 `decisions=7 emitted=4`）。
+* 公司（可选）：引擎已在默认的 `Phase=inline` 下跑。拿 bxen 跑一个业务子目录，
   带回各标签 / 原因的条数与耗时（`tools/decisions.py` 汇总，只要数字），用来定 `SuspectReasons` 的默认值（`not_in_tu`、`typed_field` 预计很多）。
 * 其余输入见 `HANDOFF.md` §6。
 

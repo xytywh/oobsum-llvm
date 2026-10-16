@@ -57,7 +57,8 @@ python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /tmp/oobsum-tc
 ```
 
 预期（v4.0 骨架）：3 条告警 `[OOB-DEFINITE]`、`[OOB-POSSIBLE]`、`[OOB-SUSPECT:entry_unproven]`；`decisions.py` 显示 5 条判定，
-其中 2 条没报（`safe`、`inline_depth`）。每个版本的预期写在 `TC_OobSummaryChecker.c` 的文件头与对应 SPEC 的"公司侧验证"一节。
+其中 2 条没报（`safe`、`inline_depth`）。引擎接上之后（SPEC-0021，默认 `Phase=inline`）：多一条 `Tc_Engine_TP` 处的
+`[OOB-DEFINITE] Definite out-of-bound write through a 3-level call chain`，共 4 条告警、7 条判定（`Dump=stats`：`decisions=7 emitted=4`）。每个版本的预期写在 `TC_OobSummaryChecker.c` 的文件头与对应 SPEC 的"公司侧验证"一节。
 
 * rb.enhance.ipa 规则：`-extra_args` 里**不加** `-analyzer-config ipa=none`（它不走 CSA 的 inline，只挂 TU 级回调）。
 * `-analyzer-config` 的列表值用 `+` 连接（`Dump=options+stats`），逗号会被当成分隔符。

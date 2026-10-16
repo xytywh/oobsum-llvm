@@ -1,10 +1,10 @@
 /*
  * Author : g00586360
  * Date   : 2026-10-14
- * Desc   : Test cases for rb.enhance.ipa.OobSummary (skeleton, SPEC-0001) --
- *          verifies registration, options, verdict labels, report policy and the decision log in bxen.
- *          The engine (FIR, summaries, call-site decisions) is not wired in yet; decisions here come from the
- *          debug intrinsic oobsum_debug_emit(label, reason, depth), which only test sources declare.
+ * Desc   : Test cases for rb.enhance.ipa.OobSummary --
+ *          verifies registration, options, verdict labels, report policy and the decision log in bxen (SPEC-0001,
+ *          decisions from the debug intrinsic oobsum_debug_emit(label, reason, depth), which only test sources declare),
+ *          and the engine in the default Phase=inline on a real 3-level call chain (SPEC-0021).
  *
  * Run (single file):
  *   /usr1/BXPlugin/cmake-build-release-release/bxen \
@@ -25,7 +25,11 @@
  *   TP3 - suspect decision, entry_unproven      (expect: report, key substr: "[OOB-SUSPECT:entry_unproven]")
  *   TN1 - proven safe decision (guard_false)    (expect: no report; decision log: "label":"safe","emitted":false)
  *   B1  - definite decision at depth 2          (expect: no report with default InlineDepth=2; logged as inline_depth)
- *   Total with default options: 3 reports.
+ *   E1  - engine, 3-level chain, index 16 into a 16-byte array
+ *                                               (expect: report at the call in Tc_Engine_TP, key substr:
+ *                                                "[OOB-DEFINITE] Definite out-of-bound write through a 3-level call chain")
+ *   E2  - engine, same chain with index 15      (expect: no report; decision log: "label":"safe","reason":"within")
+ *   Total with default options: 4 reports, 7 decisions (Dump=stats: "decisions=7 emitted=4").
  */
 
 void oobsum_debug_emit(const char *label, const char *reason, int depth);
@@ -48,4 +52,35 @@ void Tn_Safe(void)
 void Boundary_Shallow(void)
 {
     oobsum_debug_emit("definite", "", 2);
+}
+
+/* ---- E1/E2: the engine (Phase=inline, SPEC-0021) on a real 3-level call chain ---- */
+typedef unsigned char TC_UINT8;
+typedef unsigned int TC_UINT32;
+
+static void Tc_Leaf(TC_UINT8 *pucBuf, TC_UINT32 ulIdx)
+{
+    pucBuf[ulIdx] = 0;
+}
+
+static void Tc_Mid(TC_UINT8 *pucBuf, TC_UINT32 ulIdx)
+{
+    Tc_Leaf(pucBuf, ulIdx);
+}
+
+static void Tc_Up(TC_UINT8 *pucBuf, TC_UINT32 ulIdx)
+{
+    Tc_Mid(pucBuf, ulIdx);
+}
+
+void Tc_Engine_TP(void)
+{
+    TC_UINT8 aucBuf[16];
+    Tc_Up(aucBuf, 16); /* E1：越界 1 字节，三层 → DEFINITE */
+}
+
+void Tc_Engine_TN(void)
+{
+    TC_UINT8 aucBuf[16];
+    Tc_Up(aucBuf, 15); /* E2：在调用点证明安全，只进判定日志 */
 }
