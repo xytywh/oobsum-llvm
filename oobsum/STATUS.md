@@ -201,6 +201,10 @@
 - [x] **局部结构体的字段值带进调用点**（SPEC-0026）：实参 `fields`；常数偏移的写只失效重叠的内存格；**修了别名实参的旧值问题**——形参所指结构体的字段
       在本函数里改过（或指针交给过被调者）时，别名代换会用入口时的旧值，链顶代入字段值后能把越界证明成安全（LV5-04 TP 一度变成 SAFE，已修、单测守住）。
       **LV5-01 端到端一致（金标准 11 个）**；`run.py csa`：LV5-01、LV5-04 TP → DEFINITE——**通过 78、漏报 14**，回退 0。
+- [x] **三阶段规模压测**（2026-10-16，无代码改动）：`compiler-rt/lib/builtins`、`compiler-rt/lib/profile`、`llvm/lib/Support/reg*.c` 里 cc1 能编的 177 个 C 文件当一个整程序，
+      `oobsum_run.py local`（x86_64）：solve `tus=177 functions=342 decisions=1493`，**无崩溃**，三阶段合计约 4 秒。报出的全是 SUSPECT：`untracked_pointer` 153
+      （125 条在 `regengine.inc`，超过两层的字段指针，按 D-27 不跟踪）、`type_range_only` 53、`unknown_callee` 43、`entry_unproven` 33、`typed_field` 22、`pointer_stepping` 17、
+      `recursion` 13、`alloc_size_unknown` 3。
 - [x] **健壮性**（2026-10-16，无代码改动）：上游 `clang/test/Analysis/*.c` 234 个文件（x86_64）跑引擎：213 个正常、21 个本身编译不过（不加本规则也一样），
       **无崩溃、无超时**，最慢 0.5 秒。
 - [x] **S9-1 调用点记被调者的函数键**（SPEC-0027）：`callee_key`；引擎的摘要表、`Propagate`、`TopoOrder`、效果代入、`not_in_tu` 按键找被调者（金标准没有
