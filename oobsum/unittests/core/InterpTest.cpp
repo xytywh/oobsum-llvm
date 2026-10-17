@@ -1816,3 +1816,17 @@ TEST(Interp, UnrelatedGuardKept)
               b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(c), b.C(0), false)));
     EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[p1 + 1, p1 + 1] bound=exact at=t.c:7 guard=p2 >= 1");
 }
+
+TEST(Interp, SingleBitMask)
+{
+    // SPEC-0097：if (f & 4) p[10] = 0; → 守卫 4·mod(div(p1, 4), 2) >= 1（原来 f & 4 只是区间，推不出守卫）
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t f = b.Param("f", b.u32);
+    ExprId bit = b.f.Add(Expr::Bin(BinOp::And, b.L(f), b.C(4), 32, false));
+    Diamond d;
+    d.yes.insts = {b.Store(b.PAdd(b.L(p), b.C(10)), 1, b.C(0), 7)};
+    d.Install(b, b.f.Add(Expr::Cmp(CmpOp::Ne, bit, b.C(0), false)), b.f.Add(Expr::Cmp(CmpOp::Eq, bit, b.C(0), false)));
+    EXPECT_EQ(Reqs(b.Run()),
+              "W have=ext(p0) obj=*p0 end=[11, 11] bound=exact at=t.c:7 guard=4*mod(div(p1, 4), 2) >= 1");
+}

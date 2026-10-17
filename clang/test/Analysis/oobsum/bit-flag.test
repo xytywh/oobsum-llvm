@@ -1,0 +1,17 @@
+# 单个位的掩码 x & 2^k 写成 2^k·mod(div(x, 2^k), 2)（oobsum/specs/SPEC-0097）：标志位判断产生守卫。
+# 原来 f & 0x4 只是区间 [0, 4]，if (f & 0x4) 推不出守卫，传 f = 3 的调用方也报 DEFINITE。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Bit$' \
+# RUN:   %S/Inputs/bitflag/b.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}"guard":["4*mod(div(p1, 4), 2) >= 1"]
+CHECK-DAG: b.c:5:1: warning: [OOB-SAFE:guard_false] Proven within bounds: up to byte 11 of 'a' (4 bytes)
+CHECK-DAG: b.c:6:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 11 of 'a' (4 bytes) is accessed
+CHECK-DAG: b.c:8:1: warning: [OOB-SAFE:guard_false] Proven within bounds: up to byte 11 of 'a' (4 bytes)
+CHECK-DAG: b.c:9:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 11 of 'a' (4 bytes) is accessed
+CHECK-DAG: b.c:11:1: warning: [OOB-SAFE:guard_false] Proven within bounds: up to byte 11 of 'a' (4 bytes)
+CHECK-DAG: b.c:12:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 11 of 'a' (4 bytes) is accessed
+# 对照：多位掩码照旧没有守卫
+CHECK-DAG: b.c:14:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 11 of 'a' (4 bytes) is accessed

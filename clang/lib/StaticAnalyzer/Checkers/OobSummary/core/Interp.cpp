@@ -455,6 +455,14 @@ IntVal AndConst(const IntVal &a, int64_t m)
     if (lowMask && m < (int64_t(1) << 62)) {
         return ModConst(a, m + 1);
     }
+    // 单个位 m = 2^k、x 确切：x & m = m·mod(div(x, m), 2)（向下取整、非负余数，补码的负数也成立；标志位判断才推得出守卫，SPEC-0097）
+    bool singleBit = m > 0 && (m & (m - 1)) == 0;
+    if (singleBit && a.kind == IntVal::Kind::Exact && !a.value.IsUnknown() && m < (int64_t(1) << 62)) {
+        LinExpr bit = LinExpr::Mod(LinExpr::Div(a.value, m), 2);
+        if (!bit.IsUnknown()) {
+            return IntVal::Exact(bit.Scale(m));
+        }
+    }
     return IntVal::Range(LinExpr::Const(0), LinExpr::Const(m), Tag::Mask);
 }
 
