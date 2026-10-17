@@ -154,6 +154,15 @@ Expr Expr::PAdd(ExprId pointer, ExprId offset)
     return e;
 }
 
+Expr Expr::SubObj(ExprId pointer, int64_t size)
+{
+    Expr e;
+    e.op = ExprOp::SubObj;
+    e.a = pointer;
+    e.size = size;
+    return e;
+}
+
 Expr Expr::Fld(ExprId pointer, int64_t off, int64_t size, llvm::StringRef name)
 {
     Expr e;

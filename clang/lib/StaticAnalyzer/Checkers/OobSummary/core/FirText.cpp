@@ -111,6 +111,8 @@ std::string ExprText(const Function &f, ExprId expr)
             return "psub(" + ExprText(f, e.a) + ", " + ExprText(f, e.b) + ", " + std::to_string(e.value) + ")";
         case ExprOp::Unk:
             return "unk(" + e.text + ")";
+        case ExprOp::SubObj:
+            return "subobj(" + ExprText(f, e.a) + ", " + std::to_string(e.size) + ")";
     }
     return "?";
 }

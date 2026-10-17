@@ -738,8 +738,19 @@ private:
                 Emit(std::move(load), op);
                 return to->isRecordType() ? R(Unknown("struct_by_value")) : R(Local(dst));
             }
-            case CK_ArrayToPointerDecay:
-                return R(AddrOf(ValueOf(op), op));
+            case CK_ArrayToPointerDecay: {
+                fir::ExprId addr = AddrOf(ValueOf(op), op);
+                // 成员数组、多维数组的一行：记下子对象的大小，访问时多查一道内层界（SPEC-0104，用户决定 D22）。
+                // 整个对象（局部 / 全局数组本身）不包；柔性 / 零长数组大小是 0，也不包
+                const Expr *array = op->IgnoreParens();
+                if (isa<MemberExpr>(array) || isa<ArraySubscriptExpr>(array)) {
+                    int64_t size = SizeOf(array->getType());
+                    if (size > 0) {
+                        return R(Add(fir::Expr::SubObj(addr, size)));
+                    }
+                }
+                return R(addr);
+            }
             case CK_FunctionToPointerDecay:
             case CK_BuiltinFnToFnPtr:
                 return ValueOf(op);

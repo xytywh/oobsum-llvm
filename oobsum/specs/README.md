@@ -126,6 +126,7 @@
 | [SPEC-0092](SPEC-0092-caller-param-passthrough.md) | 调用方把自己的形参传给被调者时，返回值式子照样代换；文本不露 `_unknown<k>` | 已实现 |
 | [SPEC-0093](SPEC-0093-effect-param-passthrough.md) | 写效应的值就是被调者的形参时，按实参的值写（实参是区间也行） | 已实现 |
 | [SPEC-0094](SPEC-0094-ret-ptr-range.md) | `ret_ptr` 的多条返回偏移不同：记常数区间 | 已实现 |
+| [SPEC-0104](SPEC-0104-subobject-bounds.md) | 多维数组每一维、成员数组都查内层界（越出内层没越出外层 → SUSPECT `subobject_overflow`） | 第 1 步已实现 |
 | [SPEC-0103](SPEC-0103-char-alias-option.md) | 选项 `CharAlias`：`char *` / `void *` 的写当成可能改了任何外部内存（默认先关，等确认） | 已实现 |
 | [SPEC-0102](SPEC-0102-g2-criterion.md) | G2 验收口径：TN 入口零 DEFINITE / POSSIBLE，SUSPECT 单列（用户确认） | 已实现 |
 | [SPEC-0101](SPEC-0101-field-nonnull-guard.md) | 指针字段判空产生守卫：`nn:p<k>-><f>`（上下文结构体里的可选缓冲区置 `NULL`） | 已实现 |

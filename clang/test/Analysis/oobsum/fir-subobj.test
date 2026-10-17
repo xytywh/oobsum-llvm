@@ -1,0 +1,22 @@
+# 数组子对象（oobsum/specs/SPEC-0104，用户决定 D22）：成员数组、多维数组的一行退化成指针时，地址外面包 subobj(…, 子对象大小)，
+# 以后访问时多查一道内层界。整个数组、柔性数组不包。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=fir %S/Inputs/subobj/s.c 2>&1 | FileCheck %s
+
+# 二维数组 a[2][4]：a[0]、a[j] 都是 4 字节的一行
+CHECK-LABEL: [oobsum:fir] fn F:Grid
+CHECK:       store1 [padd(subobj(&l1, 4), l0)] = 0 sub  @7:38
+CHECK-NEXT:  store1 [padd(subobj(padd(&l1, l0 * 4), 4), 1)] = 1 sub  @7:51
+# 局部结构体、形参所指结构体的成员数组
+CHECK-LABEL: [oobsum:fir] fn F:Member
+CHECK:       store1 [padd(subobj(fld(&l2, aucBuf@4:16), 16), l1)] = 0 sub  @8:47
+CHECK-NEXT:  store1 [padd(subobj(fld(l0, aucPad@20:12), 12), l1)] = 0 sub  @8:65
+# 结构体数组元素的成员数组
+CHECK-LABEL: [oobsum:fir] fn F:Ents
+CHECK:       store1 [padd(subobj(fld(&l1, aucName@0:8), 8), l0)] = 0 sub  @9:40
+# 整个数组、柔性数组：不包
+CHECK-LABEL: [oobsum:fir] fn F:Whole
+CHECK:       store1 [padd(&l2, l1)] = 0 sub  @10:48
+CHECK-NEXT:  store1 [padd(padd(l0, 4), l1)] = 0 sub  @10:58
+CHECK-NOT:   subobj(

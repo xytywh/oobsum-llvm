@@ -111,7 +111,8 @@ enum class ExprOp : uint8_t {
     PAdd,
     Fld,
     PSub,
-    Unk
+    Unk,
+    SubObj  // 数组子对象的起点：a 是指针，size 是子对象的字节数（成员数组、多维数组的一行，SPEC-0104）
 };
 enum class BinOp : uint8_t { Add, Sub, Mul, Div, Rem, Shl, Shr, And, Or, Xor };
 enum class CmpOp : uint8_t { Eq, Ne, Lt, Le, Gt, Ge };
@@ -122,7 +123,7 @@ struct Expr {
     unsigned width = 0;     // Bin：0 = 数学整数、不回绕（SPEC-0005 §2.3 #1）；Cast：目标位宽
     bool isSigned = false;  // Bin（width > 0 时）/ Cmp / Cast
     int64_t value = 0;  // Const：值；Local / LAddr：局部号；Str：字符串长度；Fld：成员偏移；PSub：元素大小
-    int64_t size = 0;  // Fld：成员大小
+    int64_t size = 0;  // Fld：成员大小；SubObj：子对象大小（SPEC-0104）
     ExprId a = kNone;  // Bin / Cmp / LNot / Neg / BNot / Cast / PAdd / Fld / PSub 的第一个操作数
     ExprId b = kNone;  // Bin / Cmp / PAdd / PSub 的第二个操作数
     std::string text;  // GAddr / FAddr：键；Fld：成员名；Unk：原因
@@ -140,6 +141,7 @@ struct Expr {
     static Expr PAdd(ExprId pointer, ExprId offset);
     static Expr Fld(ExprId pointer, int64_t off, int64_t size, llvm::StringRef name);
     static Expr PSub(ExprId p1, ExprId p2, int64_t elem);
+    static Expr SubObj(ExprId pointer, int64_t size);  // SPEC-0104
     static Expr Unknown(llvm::StringRef why);
 };
 

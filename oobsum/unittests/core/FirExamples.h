@@ -102,6 +102,7 @@ inline Module BuildEverything()
     ExprId fld = f.Add(Expr::Fld(l0, 0, 4, "lVal"));
     ExprId psub = f.Add(Expr::PSub(padd, laddr, 4));
     ExprId unk = f.Add(Expr::Unknown("float"));
+    ExprId subobj = f.Add(Expr::SubObj(fld, 4));  // SPEC-0104
 
     Block entry;
     entry.id = 3;
@@ -127,7 +128,7 @@ inline Module BuildEverything()
     call.op = InstOp::Call;
     call.dst = 2;
     call.callee = "F:Callee";
-    call.args = {gaddr, str, cast, lnot, negx, bnot, unk};
+    call.args = {gaddr, str, cast, lnot, negx, bnot, unk, subobj};
     call.ord = 0;
     call.loc = {1, 2, 3};
     Inst ind;

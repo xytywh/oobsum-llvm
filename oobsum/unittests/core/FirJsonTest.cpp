@@ -90,6 +90,12 @@ TEST(FirJson, EverythingRoundTrips)
     EXPECT_TRUE(llvm::StringRef(first).contains(R"("tmp":true)"));
     EXPECT_TRUE(llvm::StringRef(first).contains(R"("flags":["cfg_too_large"])"));
     EXPECT_FALSE(llvm::StringRef(first).contains(R"("obj":false)"));  // 默认值省略（§2.3 #6）
+    // 数组子对象的起点（SPEC-0104）：["subobj", 指针, 大小]；大小须 ≥ 1
+    std::string subobj = R"(["subobj",["fld",["l",0],0,4,"lVal"],4])";
+    ASSERT_TRUE(llvm::StringRef(first).contains(subobj));
+    std::string zero = first;
+    zero.replace(zero.find(subobj), subobj.size(), R"(["subobj",["fld",["l",0],0,4,"lVal"],0])");
+    EXPECT_TRUE(ErrorOf(zero) != "<ok>");
 }
 
 TEST(FirJson, ErrorsCarryLocation)

@@ -28,8 +28,8 @@ namespace {
 
 const char *const kTypeKinds[] = {"int", "ptr", "arr", "rec", "void", "other"};
 const char *const kInstOps[] = {"set", "load", "store", "call", "havoc", "ret"};
-const char *const kExprOps[] = {"c",     "l",     "bin", "cmp",   "lnot", "neg", "bnot", "cast",
-                                "laddr", "gaddr", "str", "faddr", "padd", "fld", "psub", "unk"};
+const char *const kExprOps[] = {"c",     "l",   "bin",   "cmp",  "lnot", "neg",  "bnot", "cast",  "laddr",
+                                "gaddr", "str", "faddr", "padd", "fld",  "psub", "unk",  "subobj"};
 constexpr unsigned kMaxExprDepth = 256;  // FIR 的表达式很浅（D-13）；防异常输入把栈打穿（A-96）
 
 // ---- 写出 ----
@@ -122,6 +122,10 @@ Value ExprToJson(const Function &f, ExprId id)
             a.push_back(ExprToJson(f, e.a));
             a.push_back(ExprToJson(f, e.b));
             a.push_back(e.value);
+            break;
+        case ExprOp::SubObj:
+            a.push_back(ExprToJson(f, e.a));
+            a.push_back(e.size);
             break;
     }
     return std::move(a);
@@ -510,7 +514,7 @@ bool Reader::ReadExpr(const Value &v, Function &f, ExprId &out, unsigned depth)
         return Fail("expected [op, ...] with a string op");
     }
     // 元素个数（含 op）；bin 是 4（数学整数）或 6（带宽度与符号，SPEC-0005 §2.3 #1）
-    static const size_t arity[] = {2, 2, 4, 5, 2, 2, 2, 4, 2, 2, 2, 2, 3, 5, 4, 2};
+    static const size_t arity[] = {2, 2, 4, 5, 2, 2, 2, 4, 2, 2, 2, 2, 3, 5, 4, 2, 3};
     size_t index = 0;
     while (index < llvm::array_lengthof(kExprOps) && *name != kExprOps[index]) {
         ++index;
@@ -595,6 +599,9 @@ bool Reader::ReadExpr(const Value &v, Function &f, ExprId &out, unsigned depth)
             break;
         case ExprOp::PSub:
             ok = expr(1, e.a) && expr(2, e.b) && integer(3, e.value, 1);
+            break;
+        case ExprOp::SubObj:
+            ok = expr(1, e.a) && integer(2, e.size, 1);
             break;
     }
     if (!ok) {

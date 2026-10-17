@@ -156,8 +156,9 @@ void Asm(UINT32 *p)
 // CHECK-NEXT: store4 [padd(l0, 12)] = 2 sub  @69:5
 // 数组成员以成员为界（fld，D-31）；嵌套成员；柔性数组成员不收窄（D-37）；位域写它跨的字节数
 // CHECK: [oobsum:fir] fn F:Members
-// CHECK:      store1 [padd(fld(l0, aucBuf@4:16), l2)] = 0 sub  @75:5
-// CHECK-NEXT: store2 [padd(fld(padd(&l3, 20), ausY@2:4), l2 * 2)] = 1 sub  @76:5
+// 成员数组退化成指针：外面包 subobj(…, 大小)（SPEC-0104）；柔性数组 aulItem 不包
+// CHECK:      store1 [padd(subobj(fld(l0, aucBuf@4:16), 16), l2)] = 0 sub  @75:5
+// CHECK-NEXT: store2 [padd(subobj(fld(padd(&l3, 20), ausY@2:4), 4), l2 * 2)] = 1 sub  @76:5
 // CHECK-NEXT: store2 [padd(l0, 20)] = 2  @77:5
 // CHECK-NEXT: store4 [padd(padd(l1, 4), l2 * 4)] = 3 sub  @78:5
 // CHECK-NEXT: store1 [padd(l0, 26)] = 4  @79:5

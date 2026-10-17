@@ -1623,6 +1623,8 @@ Value Analyzer::Eval(ExprId e, const State &s)
             v.i = IntVal::Top(x.text);
             v.p = UnknownPtr(x.text);
             return v;
+        case ExprOp::SubObj:
+            return Eval(x.a, s);  // 子对象的起点（SPEC-0104）；内层界的检查在第 2 步
     }
     v.i = IntVal::Top("expr");
     return v;
