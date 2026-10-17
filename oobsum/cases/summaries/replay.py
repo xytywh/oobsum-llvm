@@ -614,7 +614,7 @@ def alert_msg(rep, params=()):
     w = 'write' if rep['kind'] == 'W' else 'read'
     name = obj_name(rep['obj'], params)
     size = '%s bytes' % rep['have'] + ('; via %s' % rep['via'].split(':', 1)[1] if rep.get('via') else '')
-    if rep.get('dir'):                                 # 负偏移：越到指针前面的字节数（SPEC-0039 §2.3）
+    if rep.get('dir') == 'back':                       # 负偏移：越到指针前面的字节数（SPEC-0039 §2.3）
         s = '%s out-of-bound %s through a %d-level call chain: up to %s bytes before %s (%s available before the pointer) %s' % (
             'Definite' if rep['level'] == 'L1' else 'Possible', w, rep['depth'], rep['end'][1], name, size,
             'are accessed' if rep['level'] == 'L1' else 'may be accessed')
@@ -863,6 +863,15 @@ def worse_tag(a, b):
 
 
 def classify(req, call, caller, callee, env_guards):
+    """调用点判定（同 apply::Classify）。内层 Req（dir sub，SPEC-0104 §2.3 3a、D22）：越出内层、没越出外层只记 SUSPECT——
+    L1 / L2 改判 open，账本原因一律 subobject_overflow；safe / up 不变。"""
+    o = classify_plain(req, call, caller, callee, env_guards)
+    if req.get('dir') == 'sub' and o['outcome'] in ('L1', 'L2', 'open'):
+        o = dict(o, outcome='open', reason='subobject_overflow', why='%s → 内层只记 SUSPECT' % o['outcome'])
+    return o
+
+
+def classify_plain(req, call, caller, callee, env_guards):
     m, effd = build_map(call, callee)
     have = subst(P(req['have']), m)
     elo, ehi = [subst(P(x), m) for x in req['end']]
@@ -1299,6 +1308,8 @@ def derive(cid):
                 reason = 'type_range_only' if r['have'].const() is not None and tag == 'type' else 'entry_unproven'
                 if typed_field(r, s.get('params', [])):
                     reason = 'typed_field'
+                if r.get('dir') == 'sub':
+                    reason = 'subobject_overflow'               # 内层 Req（SPEC-0104）
                 stat['entry'] += 1
                 if reason not in [o['reason'] for o in s['opens'] if o.get('req')]:
                     probs.append('%s %s：入口账本应为 %s' % (cid, fn, reason))

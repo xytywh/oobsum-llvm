@@ -271,8 +271,9 @@ bool Reader::ReadReq(const Value &v, Req &r)
             {"start", "absorbed", "dir"});
     auto kind = [&](const Value &x, std::string &y) { return OneOf(x, y, {"R", "W"}); };
     llvm::Optional<std::string> dir;  // SPEC-0039
-    if (o != nullptr &&
-        !OptKey(*o, "dir", dir, [&](const Value &x, std::string &y) { return OneOf(x, y, {"back"}); })) {
+    if (o != nullptr && !OptKey(*o, "dir", dir, [&](const Value &x, std::string &y) {
+            return OneOf(x, y, {"back", "sub"});
+        })) {
         return false;
     }
     r.dir = dir.getValueOr("");
@@ -510,8 +511,9 @@ bool Reader::ReadRep(const Value &v, Rep &r)
                           {"via", "dir"});
     auto via = [&](const Value &x, std::string &y) { return Str(x, y) && (IsVia(y) || Fail("bad via '" + y + "'")); };
     llvm::Optional<std::string> dir;  // SPEC-0039
-    if (o != nullptr &&
-        !OptKey(*o, "dir", dir, [&](const Value &x, std::string &y) { return OneOf(x, y, {"back"}); })) {
+    if (o != nullptr && !OptKey(*o, "dir", dir, [&](const Value &x, std::string &y) {
+            return OneOf(x, y, {"back", "sub"});
+        })) {
         return false;
     }
     r.dir = dir.getValueOr("");

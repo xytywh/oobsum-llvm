@@ -293,8 +293,10 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns)
             for (const DerivedReq &r : result.reqs) {
                 Limit l = env.RangeOf(r.hi - r.have, true);
                 bool typeOnly = r.have.IsConst() && l.known && l.tag == Tag::Type;
-                result.entryOpens.push_back(TypedField(r, s) ? "typed_field"
-                                                             : (typeOnly ? "type_range_only" : "entry_unproven"));
+                // 内层 Req（SPEC-0104 §2.3 3a）：入口账本原因 subobject_overflow
+                result.entryOpens.push_back(r.dir == "sub"     ? "subobject_overflow"
+                                            : TypedField(r, s) ? "typed_field"
+                                                               : (typeOnly ? "type_range_only" : "entry_unproven"));
                 ++out.entry;
             }
         }

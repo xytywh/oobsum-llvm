@@ -174,3 +174,45 @@ TEST(Apply, OutNewTargets)
     eff.target = "p0->a.b";  // 两层字段以后（SPEC-0061 §9）
     EXPECT_FALSE(apply::ApplyEff(eff, call).hasValue());
 }
+
+TEST(Apply, SubObjectReqIsSuspectOnly)
+{
+    // 内层 Req（SPEC-0104 §2.3 3a）：一行 8 字节，末端 p0 + 1。实参 8 → 末端 9 > 8：原规则是 L1，内层只记 SUSPECT（open subobject_overflow）；
+    // 实参 i ∈ [0, 8]（循环界）→ 原规则 L2，同样改判；实参 7 → safe；实参是调用方形参 → 上传
+    summary::Req req;
+    req.id = "R1";
+    req.kind = "W";
+    req.dir = "sub";
+    req.have = "8";
+    req.obj = "g:tbl";
+    req.endLo = "p0 + 1";
+    req.endHi = "p0 + 1";
+    req.bound = "exact";
+    req.access = {"Leaf", "F:Leaf", "a.c:3", "p0 + 1"};
+    req.path = {"Leaf@a.c:3"};
+    summary::Call call;
+    call.site = "a.c:9";
+    call.callee = "Leaf";
+    summary::ArgValue arg;
+    arg.kind = summary::ArgValue::Kind::Expr;
+    arg.expr = "8";
+    call.args.push_back(arg);
+    summary::Summary caller;
+    caller.fn = "Top";
+    caller.key = "F:Top";
+    apply::Outcome o = apply::Classify(req, call, caller, {});
+    EXPECT_EQ(o.outcome + ":" + o.reason, "open:subobject_overflow");
+    EXPECT_EQ(o.end2Hi.Show(), "9");
+    call.args[0].expr = "i";
+    call.locals = std::map<std::string, summary::Local>{{"i", {"0", "8", "loop"}}};
+    EXPECT_EQ(apply::Classify(req, call, caller, {}).outcome, "open");
+    call.locals.reset();
+    call.args[0].expr = "7";
+    EXPECT_EQ(apply::Classify(req, call, caller, {}).outcome, "safe");
+    call.args[0].expr = "p1";
+    EXPECT_EQ(apply::Classify(req, call, caller, {}).outcome, "up");
+    // 正向 Req 照旧判 L1
+    req.dir.clear();
+    call.args[0].expr = "8";
+    EXPECT_EQ(apply::Classify(req, call, caller, {}).outcome, "L1");
+}

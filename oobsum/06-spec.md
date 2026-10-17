@@ -459,7 +459,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 **D-22 来源标签** `bound`〔由 SPEC-0034 修订：加 `model`——库函数大小实参给的上界，代码给出的界，优先级在 `data` 之后、`check` 之前〕：`exact`（没有区间）、`const`、`check`、`mask`、`branch`、`loop`、`ret`、`guard`（以上是代码给出的界，可判 L2）；
 `type`、`widen`、`data`（不可判 L2，只能记账）。
 
-**D-23 顶层与 Req**〔由 SPEC-0015、SPEC-0019、SPEC-0039 修订：负偏移用反向 Req（`dir: back`，`have` 是 `bext(…)` / 0）判〕（下表只列机器字段；每个对象都可以另带 `doc`）：
+**D-23 顶层与 Req**〔由 SPEC-0015、SPEC-0019、SPEC-0039 修订：负偏移用反向 Req（`dir: back`，`have` 是 `bext(…)` / 0）判；SPEC-0104：内层 Req（`dir: sub`，`have` 是成员数组 / 多维数组一行的大小、`end` 从子对象起点算，违反只判 SUSPECT `subobject_overflow`）〕（下表只列机器字段；每个对象都可以另带 `doc`）：
 
 | 顶层字段 | 含义 |
 |---|---|

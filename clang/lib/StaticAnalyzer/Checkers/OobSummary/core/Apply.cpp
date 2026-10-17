@@ -382,7 +382,9 @@ EnvGuards EnvGuardsOf(const Call &call)
     return out;
 }
 
-Outcome Classify(const summary::Req &req, const Call &call, const Summary &caller, const EnvGuards &envGuards)
+namespace {
+
+Outcome ClassifyPlain(const summary::Req &req, const Call &call, const Summary &caller, const EnvGuards &envGuards)
 {
     Map map = BuildMap(call);
     Outcome o;
@@ -570,6 +572,21 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
     o.reason = (o.end2Hi.Show() + " " + o.end2Lo.Show()).find("_unmapped:g:") != std::string::npos ? "global_value"
                                                                                                    : "entry_unproven";
     o.why = "含调用方局部且没有界";
+    return o;
+}
+
+}  // namespace
+
+Outcome Classify(const summary::Req &req, const Call &call, const Summary &caller, const EnvGuards &envGuards)
+{
+    Outcome o = ClassifyPlain(req, call, caller, envGuards);
+    // 内层 Req（成员数组、多维数组的一行，SPEC-0104 §2.3 3a、用户决定 D22）：越出内层、没越出外层只记 SUSPECT——
+    // L1 / L2 改判 open，账本原因一律 subobject_overflow；safe / up 不变（同 replay.py 的 classify）
+    if (req.dir == "sub" && (o.outcome == "L1" || o.outcome == "L2" || o.outcome == "open")) {
+        o.why = o.outcome + "（" + (o.reason.empty() ? o.why : o.reason) + "）→ 内层只记 SUSPECT";
+        o.outcome = "open";
+        o.reason = "subobject_overflow";
+    }
     return o;
 }
 

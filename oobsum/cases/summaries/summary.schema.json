@@ -65,7 +65,7 @@
       "properties": {
         "id": { "type": "string" },
         "kind": { "enum": ["R", "W"] },
-        "dir": { "const": "back", "description": "反向 Req：have 是基址前面的字节数 bext(…) / 0，end 是越到基址前面的字节数（负偏移，SPEC-0039）；不写 = 正向" },
+        "dir": { "enum": ["back", "sub"], "description": "sub：内层 Req（成员数组 / 多维数组的一行，have 是子对象大小、end 从子对象起点算，违反只判 SUSPECT，SPEC-0104）；back：反向 Req：have 是基址前面的字节数 bext(…) / 0，end 是越到基址前面的字节数（负偏移，SPEC-0039）；不写 = 正向" },
         "have": { "$ref": "#/definitions/expr", "description": "从基址起对象还剩多少字节：常数、ext(…)" },
         "obj": { "$ref": "#/definitions/obj" },
         "end": { "type": "array", "items": { "$ref": "#/definitions/expr" }, "minItems": 2, "maxItems": 2,
@@ -193,7 +193,7 @@
       "properties": {
         "id": { "type": "string" },
         "level": { "enum": ["L1", "L2"] },
-        "dir": { "const": "back", "description": "负偏移的判定（SPEC-0039）" },
+        "dir": { "enum": ["back", "sub"], "description": "sub：内层 Req（成员数组 / 多维数组的一行，have 是子对象大小、end 从子对象起点算，违反只判 SUSPECT，SPEC-0104）；back：负偏移的判定（SPEC-0039）" },
         "reported": { "type": "boolean", "description": "max(depth, eff_depth) > InlineDepth 或盲区 / 评估模式" },
         "site": { "$ref": "#/definitions/site", "description": "告警位置：汇合点那次调用（F-30）" },
         "access": { "$ref": "#/definitions/access" },

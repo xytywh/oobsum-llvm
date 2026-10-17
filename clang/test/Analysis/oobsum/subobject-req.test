@@ -1,0 +1,25 @@
+# 内层 Req（oobsum/specs/SPEC-0104 §2.3 3a，用户决定 D22）：下标是形参、函数里证明不了内层界时，记一条 dir "sub" 的 Req
+# （have 是子对象大小、end 从子对象起点算）往调用方传；调用方给的值越出内层 → SUSPECT subobject_overflow（不判 DEFINITE / POSSIBLE），
+# 在界内 → SAFE。外层（整个对象）照常判。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Mark|SetY)$' \
+# RUN:   -w %S/Inputs/subobj/u.c 2>&1 | FileCheck %s
+
+# 摘要：g_aucTbl[s][r] 的内层 Req（一行 8 字节，末端 r + 1）与外层 Req；ausY[i] 的内层 Req（4 字节，末端 2i + 2）
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Mark"{{.*}}"dir":"sub","eff_depth":0,"end":["p1 + 1","p1 + 1"],"guard":[],"have":"8","id":"R1","kind":"W","obj":"g:g_aucTbl"{{.*}}"have":"32"
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"SetY"{{.*}}"dir":"sub","eff_depth":0,"end":["2*p1 + 2","2*p1 + 2"],"guard":[],"have":"4",
+# Mark(1, 8)：越出一行、没越出整个表 → SUSPECT；Mark(1, 7) → 两边都 SAFE
+CHECK-DAG: u.c:10:1: warning: [OOB-SUSPECT:subobject_overflow] Cannot prove the write through a 1-level call chain stays within the array member or row (8 bytes) of 'g_aucTbl': up to byte 9 of it may be accessed
+CHECK-DAG: u.c:10:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 17 of 'g_aucTbl' (32 bytes)
+CHECK-DAG: u.c:11:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 8 of the array member or row (8 bytes) of 'g_aucTbl'
+# Mark(4, 0)：第一维越界——外层 DEFINITE，行内不越出
+CHECK-DAG: u.c:12:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 33 of 'g_aucTbl' (32 bytes) is accessed
+CHECK-DAG: u.c:12:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 1 of the array member or row (8 bytes) of 'g_aucTbl'
+# 形参所指结构体里的成员数组 pst->stIn.ausY[i]
+CHECK-DAG: u.c:13:1: warning: [OOB-SUSPECT:subobject_overflow] Cannot prove the write through a 1-level call chain stays within the array member or row (4 bytes) of 'st': up to byte 6 of it may be accessed
+CHECK-DAG: u.c:14:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 4 of the array member or row (4 bytes) of 'st'
+# 入口函数自己的形参下标：推不下去 → 入口账本 subobject_overflow
+CHECK-DAG: u.c:15:1: warning: [OOB-SUSPECT:subobject_overflow] Cannot prove the write stays within the array member or row (8 bytes) of 'g_aucTbl': up to byte p0 + 1 of it may be accessed
+CHECK-NOT: [OOB-POSSIBLE]

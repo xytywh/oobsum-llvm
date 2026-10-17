@@ -1170,7 +1170,8 @@ private:
     Value LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const State &s) const;
     void Access(const char *kind, const PtrVal &addr, ExprId addrExpr, const IntVal &bytes, const fir::Loc &loc,
                 const State &s, const std::vector<LinExpr> &forced = {}, bool checkBack = true);
-    void CheckSubs(const char *kind, const PtrVal &addr, const IntVal &bytes, const std::string &at, const State &s);
+    void CheckSubs(const char *kind, const PtrVal &addr, const IntVal &bytes, const std::string &at, const State &s,
+                   const std::vector<LinExpr> &forced);
     void BackAccess(const char *kind, const PtrVal &addr, ExprId addrExpr, const std::string &at, const State &s,
                     const std::vector<LinExpr> &forced);
     void Record(RawAccess a, const State &s, const std::vector<LinExpr> &forced);
@@ -2189,7 +2190,7 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
         return;
     }
     if (!addr.subs.empty()) {
-        CheckSubs(kind, addr, bytes, at, s);  // 成员数组、多维数组的一行（SPEC-0104）
+        CheckSubs(kind, addr, bytes, at, s, forced);  // 成员数组、多维数组的一行（SPEC-0104）
     }
     if (checkBack) {
         BackAccess(kind, addr, addrExpr, at, s, forced);  // 负偏移（SPEC-0039）
@@ -2234,9 +2235,9 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
 
 // 内层窗口（SPEC-0104 §2.2，用户决定 D22）：访问还要落在每个子对象（成员数组、多维数组的一行）里。证明不了 → 账本
 // subobject_overflow（SUSPECT）；越没越出整个对象由外层的检查照常判。窗口的偏移没有界而外层有 → 也记（可靠）；
-// 都没有 → 外层自己记账，不重复记
+// 都没有 → 外层自己记账，不重复记。上界证明不了、式子里有接口符号（下标是形参…）→ 记内层 Req（dir "sub"）往调用方传（SPEC-0104 §2.3 3a）
 void Analyzer::CheckSubs(const char *kind, const PtrVal &addr, const IntVal &bytes, const std::string &at,
-                         const State &s)
+                         const State &s, const std::vector<LinExpr> &forced)
 {
     llvm::Optional<LinExpr> bytesHi = bytes.Upper();
     if (!bytesHi || bytesHi->IsUnknown()) {
@@ -2246,6 +2247,7 @@ void Analyzer::CheckSubs(const char *kind, const PtrVal &addr, const IntVal &byt
     llvm::Optional<LinExpr> outerLo = addr.off.Lower();
     bool outerHasHi = outerHi && !outerHi->IsUnknown();
     bool outerHasLo = outerLo && !outerLo->IsUnknown();
+    std::vector<RawAccess> up;
     for (const SubWindow &w : addr.subs) {
         bool bad = false;
         if (!w.tail) {
@@ -2255,6 +2257,29 @@ void Analyzer::CheckSubs(const char *kind, const PtrVal &addr, const IntVal &byt
             } else {
                 LinExpr need = *hi + *bytesHi - LinExpr::Const(w.size);
                 bad = need.IsUnknown() || !EntailsLe0(need, s.guards, Env(s));
+                std::set<std::string> syms;
+                if (bad && !need.IsUnknown()) {
+                    CollectSyms(need, syms);
+                }
+                llvm::Optional<LinExpr> wlo = w.off.Lower();
+                llvm::Optional<LinExpr> bytesLo = bytes.Lower();
+                LinExpr lo = (wlo ? *wlo : LinExpr::Const(0)) + (bytesLo ? *bytesLo : LinExpr::Const(0));
+                if (!syms.empty() && !lo.IsUnknown()) {
+                    // 结论取决于调用方给的值：记内层 Req，调用点再判（违反只判 SUSPECT，apply::Classify）
+                    RawAccess a;
+                    a.kind = kind;
+                    a.dir = "sub";
+                    a.have = LinExpr::Const(w.size);
+                    a.obj = addr.obj;
+                    a.hi = *hi + *bytesHi;
+                    a.lo = lo;
+                    a.start = wlo;
+                    Tag offTag = w.off.kind == IntVal::Kind::Exact ? Tag::Exact : w.off.tag;
+                    a.tag = WorseTag(offTag, bytes.kind == IntVal::Kind::Exact ? Tag::Exact : bytes.tag);
+                    a.at = at;
+                    up.push_back(std::move(a));
+                    bad = false;
+                }
             }
         }
         if (!bad && !w.head) {
@@ -2273,6 +2298,9 @@ void Analyzer::CheckSubs(const char *kind, const PtrVal &addr, const IntVal &byt
             AddOpen("subobject_overflow", at);
             return;
         }
+    }
+    for (RawAccess &a : up) {
+        Record(std::move(a), s, forced);
     }
 }
 

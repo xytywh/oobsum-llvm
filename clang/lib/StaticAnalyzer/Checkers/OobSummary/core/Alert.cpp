@@ -106,7 +106,7 @@ std::string AlertMessage(const summary::Rep &rep, const std::vector<summary::Par
     std::string s;
     // 深度 0（入口函数里自己的访问，SPEC-0087）不写调用链
     std::string levels = rep.depth > 0 ? " through a " + std::to_string(rep.depth) + "-level call chain" : "";
-    if (!rep.dir.empty()) {  // 负偏移：越到指针前面的字节数（SPEC-0039 §2.3，同 replay.py 的 alert_msg）
+    if (rep.dir == "back") {  // 负偏移：越到指针前面的字节数（SPEC-0039 §2.3，同 replay.py 的 alert_msg）
         s = std::string(rep.level == "L1" ? "Definite" : "Possible") + " out-of-bound " + w + levels + ": up to " +
             rep.endHi + " bytes before " + name + " (" + size + " available before the pointer) " +
             (rep.level == "L1" ? "are accessed" : "may be accessed");

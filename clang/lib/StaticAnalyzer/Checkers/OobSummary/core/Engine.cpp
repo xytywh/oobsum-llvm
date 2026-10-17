@@ -140,6 +140,10 @@ std::string SuspectMessage(const std::string &kind, int64_t depth, const std::st
 {
     std::string endHi = Readable(rawEndHi);
     std::string levels = depth > 0 ? " through a " + std::to_string(depth) + "-level call chain" : "";
+    if (dir == "sub") {  // 内层：成员数组 / 多维数组的一行（SPEC-0104 §2.3 3a），末端从子对象起点算
+        return "Cannot prove the " + Word(kind) + levels + " stays within the array member or row (" + SizeText(have) +
+               ") of " + object + ": up to byte " + endHi + " of it may be accessed";
+    }
     if (!dir.empty()) {  // 负偏移（SPEC-0039 §2.3）
         return "Cannot prove the " + Word(kind) + levels + " stays within " + object + " (" + SizeText(have) +
                " before the pointer): up to " + endHi + " bytes before it may be accessed";
@@ -151,6 +155,10 @@ std::string SuspectMessage(const std::string &kind, int64_t depth, const std::st
 std::string SafeMessage(const std::string &object, const std::string &have, const std::string &endHi,
                         const std::string &dir)
 {
+    if (dir == "sub") {  // SPEC-0104
+        return "Proven within bounds: up to byte " + endHi + " of the array member or row (" + SizeText(have) +
+               ") of " + object;
+    }
     if (!dir.empty()) {
         return "Proven within bounds: up to " + endHi + " bytes before " + object + " (" + SizeText(have) +
                " before the pointer)";

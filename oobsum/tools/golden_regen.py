@@ -168,6 +168,8 @@ def regen(cid):
                 reason = 'type_range_only' if k['have'].const() is not None and tag == 'type' else 'entry_unproven'
                 if R.typed_field(k, s.get('params', [])):
                     reason = 'typed_field'
+                if k.get('dir') == 'sub':
+                    reason = 'subobject_overflow'  # 内层 Req（SPEC-0104）
                 o = old_opens.get((j['id'], reason))
                 if o is None:
                     o = {'reason': reason, 'at': j['access']['at'] if j['depth'] == 0 else d['loc'], 'req': j['id']}
