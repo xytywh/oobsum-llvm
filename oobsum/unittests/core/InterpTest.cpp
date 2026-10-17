@@ -1692,3 +1692,24 @@ TEST(Interp, AccessModelKeepsOtherCells)
     std::string reqs = Reqs(b.Run());
     EXPECT_TRUE(reqs.find("W have=ext(p0) obj=*p0 end=[101, 101] bound=exact at=t.c:8") != std::string::npos);
 }
+
+TEST(Interp, MemberAliasStore)
+{
+    // SPEC-0090：pc->idx[1] = 2;（基址 P0.idx）((UINT8 *)pc)[5] = 200;（基址 P0）t = pc->idx[1]; q[t] = 0 → t 不能还是 2
+    Builder b;
+    Record r;
+    r.id = 0;
+    r.name = "CFG_S";
+    r.size = 8;
+    r.fields = {{"n", 0, b.u32}, {"idx", 4, b.m.Intern(Type::Arr(b.u8, 4))}};
+    b.m.records.push_back(r);
+    uint32_t pc = b.Param("pc", b.m.Intern(Type::Ptr(b.m.Intern(Type::Rec(0)))));
+    uint32_t q = b.Param("q", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t t = b.LocalVar("t", b.u8);
+    ExprId member = b.f.Add(Expr::Fld(b.L(pc), 4, 4, "idx"));
+    b.Straight({b.Store(b.PAdd(member, b.C(1)), 1, b.C(2), 5), b.Store(b.PAdd(b.L(pc), b.C(5)), 1, b.C(200), 6),
+                b.Load(t, b.PAdd(member, b.C(1)), 1, 7), b.Store(b.PAdd(b.L(q), b.L(t)), 1, b.C(0), 8)});
+    std::string reqs = Reqs(b.Run());
+    EXPECT_TRUE(reqs.find("obj=*p1 end=[3, 3]") == std::string::npos);
+    EXPECT_TRUE(reqs.find("obj=*p1") != std::string::npos);
+}

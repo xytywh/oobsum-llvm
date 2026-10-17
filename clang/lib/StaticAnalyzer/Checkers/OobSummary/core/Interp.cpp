@@ -1226,6 +1226,9 @@ private:
                                                  std::map<std::string, summary::Local> *locals = nullptr) const;
     // 没有摘要可用的被调者：保守失效（清格、指针实参整块、可能写全局，SPEC-0026 / 0041 / 0045）
     void Clobber(const fir::Inst &inst, models::Kind kind, llvm::StringRef name, State &s);
+    // 形参结构体的成员数组与外层对象是同一块内存（SPEC-0090）：写 addr 的 [off, off + size)（off 为 None：偏移不定）时，
+    // 另一种写法上重叠的格失效
+    void InvalidateFamily(State &s, const PtrVal &addr, llvm::Optional<int64_t> off, int64_t size) const;
     // 对象 p 所在的整块内存的格全部失效：同一基址、它的成员数组（id.成员）、成员数组的外层对象及其成员（SPEC-0089）
     void EraseObject(State &s, const PtrVal &p) const
     {
@@ -2116,6 +2119,7 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                 bool overlap = !exact || (o < off + inst.size && off < o + sz);
                 it = same && overlap ? s.cells.erase(it) : std::next(it);
             }
+            InvalidateFamily(s, addr, exact ? llvm::Optional<int64_t>(off) : llvm::None, inst.size);  // SPEC-0090
             if (addr.off.IsConst() && inst.val != fir::kNone) {
                 s.cells[CellKey(addr.id, addr.off.value.Constant(), inst.size)] = Eval(inst.val, s);
             }
@@ -2798,6 +2802,45 @@ void ScalarLeaves(const fir::Module &m, fir::TypeId t, int64_t base, int depth, 
     }
 }
 
+void Analyzer::InvalidateFamily(State &s, const PtrVal &addr, llvm::Optional<int64_t> off, int64_t size) const
+{
+    auto overlap = [](int64_t a, int64_t alen, int64_t b, int64_t blen) { return a < b + blen && b < a + alen; };
+    // 写成员数组：外层对象上与它重叠的格（偏移不定时整个成员的范围；成员大小不知道时外层整块）
+    if (addr.hasParent) {
+        bool all = !off && !addr.size.IsConst();
+        int64_t lo = addr.parentOff + (off ? *off : 0);
+        int64_t len = off ? size : (addr.size.IsConst() ? addr.size.Constant() : 0);
+        for (auto it = s.cells.begin(); it != s.cells.end();) {
+            bool hit = std::get<0>(it->first) == addr.parentId &&
+                       (all || overlap(std::get<1>(it->first), std::get<2>(it->first), lo, len));
+            it = hit ? s.cells.erase(it) : std::next(it);
+        }
+    }
+    // 写外层形参对象：与写的范围重叠的数组成员（找不到记录 / 成员、或偏移不定时全部）
+    if (addr.kind == BaseKind::Param && addr.id.size() >= 2 && addr.id[0] == 'P' &&
+        std::isdigit(static_cast<unsigned char>(addr.id[1]))) {
+        std::string prefix = addr.id + ".";
+        int k = static_cast<int>(std::strtol(addr.id.c_str() + 1, nullptr, 10));
+        llvm::Optional<uint32_t> rec = PointeeRecord(k);
+        const fir::Record *r = rec ? m.FindRecord(*rec) : nullptr;
+        for (auto it = s.cells.begin(); it != s.cells.end();) {
+            llvm::StringRef base = std::get<0>(it->first);
+            bool hit = false;
+            if (base.startswith(prefix)) {
+                hit = true;
+                llvm::StringRef member = base.drop_front(prefix.size());
+                for (const fir::Field &field : off &&r != nullptr ? r->fields : std::vector<fir::Field>()) {
+                    int64_t fs = 0;
+                    if (field.name == member && TypeSize(m, field.type, fs)) {
+                        hit = overlap(field.off, fs, *off, size);
+                    }
+                }
+            }
+            it = hit ? s.cells.erase(it) : std::next(it);
+        }
+    }
+}
+
 bool Analyzer::CopyStruct(const fir::Inst &inst, State &s)
 {
     if (inst.args.size() < 3) {
@@ -2872,6 +2915,7 @@ bool Analyzer::CopyStruct(const fir::Inst &inst, State &s)
                        dOff < std::get<1>(it->first) + std::get<2>(it->first);
         it = overlap ? s.cells.erase(it) : std::next(it);
     }
+    InvalidateFamily(s, dst, dOff, size);  // SPEC-0090
     s.written.insert(CellKey(dst.id, dOff, size));
     AliasWritten(s, dst.id);
     AddMod(dst, size);

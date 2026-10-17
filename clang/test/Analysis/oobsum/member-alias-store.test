@@ -1,0 +1,16 @@
+# 形参结构体的成员数组（P0.idx）与外层对象（P0）是同一块内存：写一边要失效另一边重叠的格（oobsum/specs/SPEC-0090）。
+# 原来 S1 / S2 判 SAFE（错误）：经另一种写法写成 200 后，旧的 2 还在格里。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/malias/s.c 2>&1 | FileCheck %s
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/malias/s.c 2>&1 | not grep -E "s.c:(7|9):1: warning: \[OOB-SAFE:within\] Proven within bounds: up to byte [0-9]+ of 'a'"
+
+CHECK-DAG: s.c:7:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'a' (4 bytes)
+CHECK-DAG: s.c:9:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'a' (4 bytes)
+# 局部结构体：同一基址，照旧按值判
+CHECK-DAG: s.c:11:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 201 of 'a' (4 bytes) is accessed
+# 写标量字段不碰成员数组的格
+CHECK-DAG: s.c:13:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 3 of 'a' (4 bytes)
