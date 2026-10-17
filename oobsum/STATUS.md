@@ -155,8 +155,10 @@
       区间与确切值的比较也推出原子（`i < X`、`i ∈ [0, +∞)` → `X >= 1`），已成立的原子不加；忠实判断放宽到"盖住整个类型范围的区间"、
       `div` / `mod` 内层要忠实、无符号单调表达式可当"大的一边"（`(n + 31) / 32`）；无符号区间运算回绕感知；`*p++` → `pointer_stepping`；账本按（原因, 位置）去重。
       **LV2-05、LV7-04 对上，16 个用例 7 个一致**；506 个函数全部 `analyzed`。
-- [ ] **S7c-2**（以后按需要）：阈值 widening、存进局部的"可当上界"的值（来源标记）、带 `min` / `max` 的界（A-10、A-15、A-17）。
-      递减循环已做：`while (n--)`（SPEC-0075）、有符号 `for (i = n − 1; i >= 0; i--)`（SPEC-0076）。
+- [ ] **S7c-2**（以后按需要）：存进局部的"可当上界"的值（来源标记）、带 `min` / `max` 的界（A-10、A-15、A-17）、`do { p[i] … } while (i < n)`（先访问后检查，
+      头上的不变式是 `i ≤ max(n − 1, 0)`，线性界表示不了）。
+      已做：递减循环 `while (n--)`（SPEC-0075）、有符号 `for (i = n − 1; i >= 0; i--)`（SPEC-0076）、`!=` 结束的符号阈值（SPEC-0082 / 0085）、同余（SPEC-0084）、
+      指针比较（SPEC-0081 / 0083）。
 - [x] **S7d-1 模型表第一步**（SPEC-0018）：`core/Models`（内置默认表：`memcpy_s` / `memmove_s` / `memset_s` / libc 的访问条件、分配器、纯函数名字与正则、释放函数；
       模型表优先）；调用点按 F-03 / F-04 / F-05 生成访问（securec 的 destMax 规则：0 或过大不写、回绕的减法 → 守卫 `E >= 0`；源只在 `count <= destMax` 时读）；
       `Access` 的字节数可以是区间 / 符号；守卫挑选把 `start` 也算进去；分配器的返回值是 `heap@<调用点>`；函数指针实参写 null；纯函数、释放函数不清内存格。
@@ -269,6 +271,8 @@
       `oobsum_run.py local`（x86_64）：solve `tus=177 functions=342 decisions=1493`，**无崩溃**，三阶段合计约 4 秒。报出的全是 SUSPECT：`untracked_pointer` 153
       （125 条在 `regengine.inc`，超过两层的字段指针，按 D-27 不跟踪）、`type_range_only` 53、`unknown_callee` 43、`entry_unproven` 33、`typed_field` 22、`pointer_stepping` 17、
       `recursion` 13、`alloc_size_unknown` 3。
+- [x] **健壮性复查**（2026-10-17，SPEC-0080…0092 之后）：上游 `clang/test/Analysis/*.c` 234 个文件：213 正常、21 本身编译不过、**0 崩溃、0 超时**，最慢 54 ms；
+      compiler-rt 三阶段压测判定与 SPEC-0080 时完全相同（989 SAFE、503 SUSPECT）。
 - [x] **健壮性**（2026-10-16，无代码改动）：上游 `clang/test/Analysis/*.c` 234 个文件（x86_64）跑引擎：213 个正常、21 个本身编译不过（不加本规则也一样），
       **无崩溃、无超时**，最慢 0.5 秒。
 - [x] **S9-1 调用点记被调者的函数键**（SPEC-0027）：`callee_key`；引擎的摘要表、`Propagate`、`TopoOrder`、效果代入、`not_in_tu` 按键找被调者（金标准没有
