@@ -14,6 +14,7 @@
 #include "OobSummary/core/Summary.h"
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -45,12 +46,24 @@ struct SiteOutcome {
     DerivedReq req;  // 被调者的那条
 };
 
+// CharAlias=verify 的一条假设在调用点（或入口）的核对结论（SPEC-0106 §2.3）
+struct AliasCheck {
+    std::string site;                            // 调用点；入口的为空
+    std::string callee;                          // 入口的为空
+    std::pair<std::string, std::string> assume;  // 被调者（入口：本函数）说法的两个根
+    std::string verdict;                         // ok / same / unknown / up / entry
+    std::string detail;                          // same：那个对象；up：换成调用方的那一对
+};
+
 struct FunctionResult {
     std::vector<DerivedReq> reqs;  // 覆盖合并之后
     std::vector<SiteOutcome> sites;  // 调用点上的每个结局（判出 L1 / L2 的另在 reps，上传的并进 reqs）
     std::vector<summary::Rep> reps;       // 本函数判出的（L1 / L2）
     std::vector<std::string> entryOpens;  // 入口函数：每条推出的 Req 的账本原因
     bool entry = false;                   // 没有调用方
+    // CharAlias=verify（SPEC-0106）：本函数的不别名假设（自己的 + 被调者传上来的）与各调用点 / 入口的核对结论
+    std::set<std::pair<std::string, std::string>> assumes;
+    std::vector<AliasCheck> aliasChecks;
 };
 
 struct PropagateResult {

@@ -207,7 +207,8 @@
       在本函数里改过（或指针交给过被调者）时，别名代换会用入口时的旧值，链顶代入字段值后能把越界证明成安全（LV5-04 TP 一度变成 SAFE，已修、单测守住）。
       **LV5-01 端到端一致（金标准 11 个）**；`run.py csa`：LV5-01、LV5-04 TP → DEFINITE——**通过 78、漏报 14**，回退 0。
 - [ ] **内层界补漏**（D24）：被调者里负偏移越到成员前面（实参另记内层前面的字节数）、结构体字段里存的指针也记 `sub`、汇合时窗口对不上不丢（保留两边的窗口）。
-- [ ] **`CharAlias=verify` 第 2 步**（SPEC-0106 §2.3）：Solver 在调用点核对假设（成立 / 不成立 → SUSPECT `alias_unverified` / 换成调用方的往上传），入口剩下的各报一条。
+- [x] **`CharAlias=verify` 第 2 步**（SPEC-0106 §2.3）：Solver 在调用点核对假设（成立 / 不成立 → SUSPECT `alias_unverified` / 换成调用方的往上传），入口剩下的各报一条；
+      只留起作用的假设（按 true 再分析一遍、摘要相同就丢掉）；一个调用点只报一条。compiler-rt：false 516 / true 535 / verify 563 条 SUSPECT（verify 里 47 条 alias_unverified）。
 - [x] **`CharAlias=verify` 第 1 步**（SPEC-0106，D25）：`CharAlias` 改成字符串（`false` / `true` / `verify`）；verify 照 false 推，记下不别名假设
       （摘要顶层 `assumes`、`Dump=state` 的 `char-written:`）；判定暂与 false 相同。
 - [x] **选项 `Subobject`**（SPEC-0105，D24 / D25）：`suspect`（默认）/ `label`（内层按常规判 DEFINITE / POSSIBLE）/ `off`（只查整个对象）；
@@ -327,7 +328,8 @@
 ## 等用户提供 / 在公司做的
 
 * **用户决定（2026-10-17，D25）**：取舍做成选项，用户在公司按参数实测再选。`CharAlias` 加第三个值 `verify`（假设不别名、在调用点核对，开发中）；
-  内层界加选项（每一维都报 / 标签按常规判 / 只在越出整个对象时报）。**公司实测**：各取值各跑一遍，比条数与抽查。
+  内层界加选项（每一维都报 / 标签按常规判 / 只在越出整个对象时报）。**公司实测**：`CharAlias=false / true / verify`、`Subobject=suspect / label / off`
+  各跑一遍，比 SUSPECT / alias_unverified / subobject_overflow 的条数并抽查（本地 compiler-rt 的对照见 SPEC-0106 §3）。
 * **已决定（2026-10-17，HANDOFF D20…D23）**：① `char *` 写当成可能改了任何外部内存，选项 `CharAlias` 控制（SPEC-0103，默认先关）——**公司实测**：业务子目录上
   `CharAlias=true` / `false` 各跑一遍，带回 SUSPECT 条数差，再定默认；② G2 口径改为 TN 零 DEFINITE / POSSIBLE、SUSPECT 单列（SPEC-0102，已改）；
   ③ 多维数组每一维、成员数组都查内层界，越出内层没越出外层记 SUSPECT（新原因；D24：每个越界都报，不加关掉的选项）；④ `strcpy_s` 族出错时写多少：公司确认后在模型文件里按需配置

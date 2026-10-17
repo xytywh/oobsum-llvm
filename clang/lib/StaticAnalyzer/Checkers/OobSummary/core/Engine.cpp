@@ -500,6 +500,58 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
                 out.decisions.push_back(std::move(d));
             }
         }
+        // CharAlias=verify 的不别名假设（SPEC-0106 §2.3）：核对不成立 / 不知道 / 到了入口 → SUSPECT alias_unverified。
+        // 一个调用点（入口）只报一条：同一个对象的优先写，其余几对写个数
+        std::map<std::string, std::vector<const solver::AliasCheck *>> failed;
+        std::vector<std::string> failedOrder;
+        for (const solver::AliasCheck &c : result.aliasChecks) {
+            std::string name =
+                c.callee.empty() || out.summaries.count(c.callee) == 0 ? c.callee : out.summaries.at(c.callee).fn;
+            out.applyLines.push_back(s.fn + " @ " + (c.site.empty() ? s.loc : c.site) + " " +
+                                     (c.callee.empty() ? "(entry)" : name) + " assume " + c.assume.first + "&" +
+                                     c.assume.second + " → " + c.verdict +
+                                     (c.detail.empty() ? "" : " (" + c.detail + ")"));
+            if (c.verdict == "same" || c.verdict == "unknown" || c.verdict == "entry") {
+                std::string key = c.site + "|" + c.callee;
+                if (failed.count(key) == 0) {
+                    failedOrder.push_back(key);
+                }
+                failed[key].push_back(&c);
+            }
+        }
+        for (const std::string &key : failedOrder) {
+            const std::vector<const solver::AliasCheck *> &group = failed[key];
+            auto same = std::find_if(group.begin(), group.end(),
+                                     [](const solver::AliasCheck *x) { return x->verdict == "same"; });
+            const solver::AliasCheck &c = same != group.end() ? **same : *group.front();
+            std::string calleeName = c.callee;
+            const std::vector<summary::Param> *calleeParams = &s.params;
+            if (!c.callee.empty() && out.summaries.count(c.callee) != 0) {
+                calleeName = out.summaries.at(c.callee).fn;
+                calleeParams = &out.summaries.at(c.callee).params;
+            }
+            auto rootName = [&](const std::string &root) {
+                return alert::ObjName(llvm::StringRef(root).startswith("g:") ? root : "*" + root, *calleeParams);
+            };
+            std::string pair =
+                "they assume " + rootName(c.assume.first) + " and " + rootName(c.assume.second) + " do not overlap";
+            std::string more = group.size() > 1 ? " (and " + std::to_string(group.size() - 1) + " more pairs)" : "";
+            std::string at = c.site.empty() ? s.loc : c.site;
+            Decision d = base(Label::Suspect, "alias_unverified", fn);
+            d.site = sitesOf(fn).Of(at);
+            d.chain = {allSites.HopOf(s.fn + "@" + at)};
+            if (c.verdict == "entry") {
+                d.msg = "Cannot prove the accesses stay within bounds: " + pair +
+                        ", which cannot be checked at an entry function" + more;
+            } else {
+                d.msg = "Cannot prove the accesses in '" + calleeName + "' stay within bounds: " + pair +
+                        (c.verdict == "same" ? ", but here both are " + alert::ObjName(c.detail, s.params)
+                                             : ", which is not known here") +
+                        more;
+            }
+            d.fp = DecisionFingerprint(LabelName(d.label), s.key, at, "", "", "alias_unverified:" + c.callee);
+            out.decisions.push_back(std::move(d));
+        }
     }
     std::vector<std::pair<std::string, std::string>> unknownCallees;  // (函数键, 调用点)
     for (const auto &entry : out.summaries) {

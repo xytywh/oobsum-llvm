@@ -13,6 +13,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 #include <cctype>
@@ -5436,7 +5437,32 @@ FunctionFacts AnalyzeFunction(const fir::Module &m, const fir::Function &f, std:
     a.trace = stateTrace;
     a.callees = callees;
     a.globalSizes = globalSizes;
-    return a.Run();
+    FunctionFacts facts = a.Run();
+    // CharAlias=verify（SPEC-0106 §2.2）：假设只在起作用时保留——按 true 再分析一遍，摘要相同（别名改变不了任何结果）就丢掉。
+    // 不比"用到了哪些形参字段"（fields）：它只是符号的类型登记，按 true 读到的不是入口值就不登记
+    if (options.charVerify && !facts.assumes.empty()) {
+        Analyzer b(m, f, models);
+        b.options = options;
+        b.options.charVerify = false;
+        b.options.charAlias = true;
+        b.callees = callees;
+        b.globalSizes = globalSizes;
+        summary::Summary mine = BuildSummary(m, f, facts);
+        mine.assumes.clear();
+        mine.fields.reset();
+        summary::Summary aliased = BuildSummary(m, f, b.Run());
+        aliased.fields.reset();
+        std::string x;
+        std::string y;
+        llvm::raw_string_ostream xs(x);
+        llvm::raw_string_ostream ys(y);
+        xs << summary::SummaryToJson(mine);
+        ys << summary::SummaryToJson(aliased);
+        if (xs.str() == ys.str()) {
+            facts.assumes.clear();
+        }
+    }
+    return facts;
 }
 
 summary::Summary BuildSummary(const fir::Module &m, const fir::Function &f, const FunctionFacts &facts)

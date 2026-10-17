@@ -7,6 +7,7 @@
 #include "OobSummary/core/Apply.h"
 
 #include "OobSummary/core/Fingerprint.h"
+#include "OobSummary/core/Key.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -649,6 +650,89 @@ llvm::Optional<Call> SubCall(const summary::Req &req, const Call &call)
     inner->effDepth = arg.ptr->effDepth;
     inner->fields = arg.ptr->fields;
     out.args[k].ptr = inner;
+    return out;
+}
+
+namespace {
+
+// 一个根换成调用方的说法（SPEC-0106 §2.3）：具体对象（local: / g: / heap@，kind 'c'）、调用方的根（p<j>、p<j>->f，kind 'r'）、不知道（kind '?'）
+std::pair<char, std::string> CallerRoot(const std::string &obj)
+{
+    llvm::StringRef o = obj;
+    if ((o.startswith("local:") && !o.startswith("local:_unknown")) || o.startswith("heap@")) {
+        return {'c', obj};
+    }
+    if (o.startswith("g:")) {
+        return {'c', StripGlobalSuffix(obj)};
+    }
+    static llvm::Regex param("^\\*?p([0-9]+)(->([A-Za-z0-9_]+))?$");
+    llvm::SmallVector<llvm::StringRef, 4> m;
+    if (param.match(o, &m)) {
+        // *p<j> → p<j>；*p<j>->f（指针字段所指）→ p<j>->f；p<j>->m（形参所指结构体里的成员数组）→ p<j>
+        bool pointee = o.startswith("*") && !m[3].empty();
+        return {'r', "p" + m[1].str() + (pointee ? "->" + m[3].str() : "")};
+    }
+    return {'?', obj};
+}
+
+std::pair<char, std::string> MapRoot(const std::string &root, const Call &call)
+{
+    if (llvm::StringRef(root).startswith("g:")) {
+        return {'c', StripGlobalSuffix(root)};
+    }
+    static llvm::Regex re("^p([0-9]+)(->([A-Za-z0-9_]+))?$");
+    llvm::SmallVector<llvm::StringRef, 4> m;
+    unsigned long long k = 0;
+    if (!re.match(root, &m) || m[1].getAsInteger(10, k) || k >= call.args.size() ||
+        call.args[k].kind != ArgValue::Kind::Ptr) {
+        return {'?', root};
+    }
+    const summary::PtrArg &arg = *call.args[k].ptr;
+    if (m[3].empty()) {
+        return CallerRoot(arg.obj);
+    }
+    // 指针字段所指：实参记着的字段值；实参就是调用方形参所指 → 调用方的 p<j>->f
+    std::string field = m[3].str();
+    if (arg.fields && arg.fields->count(field) != 0 && arg.fields->at(field).kind == ArgValue::Kind::Ptr) {
+        return CallerRoot(arg.fields->at(field).ptr->obj);
+    }
+    std::pair<char, std::string> base = CallerRoot(arg.obj);
+    if (base.first == 'r' && llvm::StringRef(arg.obj).startswith("*") && base.second.find("->") == std::string::npos) {
+        return {'r', base.second + "->" + field};
+    }
+    return {'?', root};
+}
+
+}  // namespace
+
+AssumeCheck CheckAssume(const std::pair<std::string, std::string> &assume, const Call &call)
+{
+    std::pair<char, std::string> a = MapRoot(assume.first, call);
+    std::pair<char, std::string> b = MapRoot(assume.second, call);
+    AssumeCheck out;
+    if (a.first == '?' || b.first == '?') {
+        out.verdict = "unknown";
+        out.detail = a.first == '?' ? a.second : b.second;
+        return out;
+    }
+    if (a.second == b.second) {
+        out.verdict = "same";
+        out.detail = a.second;
+        return out;
+    }
+    if (a.first == 'c' && b.first == 'c') {
+        out.verdict = "ok";  // 两个不同的具体对象
+        return out;
+    }
+    // 一边是调用方的根：另一边是调用方的局部 / 堆 → 不可能重叠（形参进函数时就定了）；是全局 → 往上传
+    const std::pair<char, std::string> &other = a.first == 'c' ? a : b;
+    if (other.first == 'c' && !llvm::StringRef(other.second).startswith("g:")) {
+        out.verdict = "ok";
+        return out;
+    }
+    out.verdict = "up";
+    out.up = a.second < b.second ? std::make_pair(a.second, b.second) : std::make_pair(b.second, a.second);
+    out.detail = out.up.first + "&" + out.up.second;
     return out;
 }
 

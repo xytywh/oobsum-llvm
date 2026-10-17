@@ -1,6 +1,6 @@
 # SPEC-0106 `CharAlias=verify`：经 char 写外部内存时假设不别名，在调用点核对（用户决定 D25）
 
-状态：第 1 步（选项、记假设）已实现；第 2 步（调用点核对）见 §2.3
+状态：已实现（第 1 步：选项、记假设；第 2 步：调用点核对）
 来源：SPEC-0103 的两个取值各有缺点——`false` 漏掉真别名（`F((UINT8 *)&st, &st)` 错判 SAFE），`true` 让无别名时的循环界也丢掉
 （`for (i < pst->ulLen) pucBuf[i]` 真越界从 POSSIBLE 降成 SUSPECT、安全的也报 SUSPECT）。用户 2026-10-17 决定做第三个取值
 （D25：取舍做成选项，`false` / `true` 照留）。
@@ -33,6 +33,9 @@
 * 只在 `recording` 那一遍记，记进 `FunctionFacts::assumes`（无序对 `(X, Y)`，`X < Y`）：
   * load 外部内存（基址是形参所指 / 指针字段所指 / 全局）、根 `Y`：对 `charRoots` 里每个 `X ≠ Y` 记 `(X, Y)`。
   * 调用点（含模型函数）：每个指向外部内存的指针实参（根 `Y`）、以及交给被调者的全局值（`GlobalsAt` 里的每个全局 `Y`）：同上。
+* **只留起作用的假设**（第 2 步加）：记下了假设的函数再按 `true` 分析一遍，摘要（去掉 `assumes` 与只是类型登记的 `fields`）与 `verify` 的相同
+  ——别名改变不了这个函数的任何结果——就把假设丢掉。可靠：两种分析结果一样，有没有别名都对。
+  （第 1 步只按"读到 / 交出了别的外部内存"记，compiler-rt 上 329 条 `alias_unverified`，绝大多数不影响任何界。）
 * 摘要顶层 `assumes`：`[["p0", "p1"], ["p0", "g:g_stCtx"]]`（没有时不写；`summary.schema.json`、`core/Summary.cpp`）。
 * `Dump=state`：行尾 ` char-written:p0,…`；`Dump=summary` 带 `assumes`。
 
@@ -45,7 +48,8 @@
   * `g:<名>` → 它自己（具体对象）。
 * 结论：成立 → 不记；不成立 → `result.aliasOpens`（调用点、被调者、两个根、原因 `same` / `unknown`）；往上传 → 加进调用方的假设。
   入口（没有调用方）：剩下的假设各记一条（原因 `entry`）。
-* `engine`：每条 → SUSPECT `alias_unverified`，位置是调用点（入口的在函数声明处），文字：
+* `engine`：核对不成立的 → SUSPECT `alias_unverified`，**一个调用点（入口）只报一条**（同一个对象的那对优先写，其余写 `(and N more pairs)`），
+  位置是调用点（入口的在函数声明处），文字：
   `Cannot prove the accesses in 'F' stay within bounds: they assume '*p' and '*pst' do not overlap, but here both point to 'st'`
   （`unknown`：`…, which is not known here`；入口：`Cannot prove the accesses stay within bounds: they assume '*p' and '*pst' do not overlap, which cannot be checked at an entry function`）。
 * `Dump=apply`：`T @ t.c:7 F assume p0&p1 → same (local:st)`。
@@ -57,6 +61,18 @@
 与 `true` 一样不漏真别名（不成立时在调用点报 SUSPECT）；与 `false` 一样不丢无别名时的界（POSSIBLE / SAFE 照旧）。
 入口函数上核对不了的假设各报一条 SUSPECT（`true` 下这些函数的界整个丢掉、报得更多）。
 
+实测（三个取值的对照，判定条数 / 其中 SUSPECT）：
+
+| | `false` | `true` | `verify` |
+|---|---|---|---|
+| compiler-rt builtins（177 个文件） | 1559 / 516 | 1574 / 535 | 1606 / 563（其中 `alias_unverified` 47） |
+| 上游 `clang/test/Analysis`：`alias_unverified` | — | — | 3 条（只留起作用的假设之前 16 条） |
+| `run.py csa`（67 个用例） | 回退 0 | 回退 0 | 回退 0（与 false 相同） |
+
+compiler-rt 上 `verify` 的 47 条大多在 regex 引擎：`lfast(m, …)` 里经 `m->fresh`、`m->empty` 等指针字段所指的 char 数组写，之后读 `*m`——调用方
+`m = &mv`，这些字段的值没记下来，核对不了，按语义报 SUSPECT。三个取值报出的位置都没有"原来报、现在不报"（判定键 1370 → 1397，消失 0）。
+**这类"结构体里一堆指针字段"的代码上 `verify` 不一定比 `true` 少报**；公司业务代码（上下文结构体 + 一两个 char 缓冲区）上以实测为准。
+
 ## 4. 实现位置
 
 第 1 步：`Checkers.td`（rb.enhance 块）、`OobSummaryChecker.cpp`；`core/Interp.{h,cpp}`（`Options::charVerify`、`State::charRoots`、`RootOf`、`NoteAssume`、
@@ -67,7 +83,7 @@
 
 * 第 1 步：lit `char-alias-verify.test`（`Dump=summary` 的 `assumes`：`F` 有 `["p0","p1"]`、`Fill` 有 `["p0","p1"]`、`Enc` 有 `["p0","p1"]`、
   经全局的 `["p0","g:g_stCtx"]`；`Dump=state` 的 `char-written:p0`；判定与 `false` 相同）；单测 `Interp.CharAliasVerifyAssumes`；`Summary` 往返带 `assumes`。
-* 第 2 步：同一 lit 加判定——`T`（同一个 `st`）→ SUSPECT `alias_unverified`；`F(b, &st)` → 照 `false`；`L_TP` → POSSIBLE（不降级）；
+* 第 2 步：单测 `Apply.CheckAssume`（各种实参组合的结论）、`Interp.CharAliasVerifyDropsIneffective`（读了却没用到 → 假设丢掉）；同一 lit 加判定——`T`（同一个 `st`）→ SUSPECT `alias_unverified`；`F(b, &st)` → 照 `false`；`L_TP` → POSSIBLE（不降级）；
   经中间函数 `Mid` 往上传：`Mid(b, &st)` 不报、`Mid((UINT8 *)&st, &st)` 报；全局：`H(b)` 不报、`H((UINT8 *)&g_stCtx)` 报；入口 `G(p, pst)` 报一条。
   单测 `Propagate.AliasAssumptions`。
 

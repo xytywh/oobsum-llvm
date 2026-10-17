@@ -5,6 +5,14 @@
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=options+summary+state \
 # RUN:   -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(F|Fill|H|G)$' \
 # RUN:   -w %S/Inputs/charalias/v.c 2>&1 | FileCheck %s
+# 调用点核对（SPEC-0106 §2.3）：Dump=apply 打出每条结论
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:CharAlias=verify \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=apply -w %S/Inputs/charalias/v.c 2>&1 | FileCheck %s --check-prefix=CHK
+# 同一份输入用 false：一条 alias_unverified 都没有
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -w %S/Inputs/charalias/v.c 2>&1 \
+# RUN:   | FileCheck %s --check-prefix=OFF --implicit-check-not=alias_unverified
 # 取值不对：选项错误
 # RUN: not %clang_analyze_cc1 -analyzer-checker=rb.enhance.ipa.OobSummary -analyzer-config rb.enhance.ipa.OobSummary:CharAlias=maybe \
 # RUN:   -w %S/Inputs/charalias/v.c 2>&1 | FileCheck %s --check-prefix=BAD
@@ -22,3 +30,20 @@ CHECK-DAG: v.c:13:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through
 CHECK-NOT: v.c:14:1: warning: [OOB-
 
 BAD: error: {{.*}}rb.enhance.ipa.OobSummary:CharAlias{{.*}}one of 'false', 'true', 'verify'
+
+# 两个不同的对象 → 成立；同一个对象 → SUSPECT；经中间函数换成 Mid 的形参往上传；入口核对不了
+CHK-DAG: [oobsum:apply] T_Diff @ v.c:10 F assume p0&p1 → ok
+CHK-DAG: [oobsum:apply] T_Same @ v.c:9 F assume p0&p1 → same (local:st)
+CHK-DAG: [oobsum:apply] Mid @ v.c:16 F assume p0&p1 → up (p0&p1)
+CHK-DAG: [oobsum:apply] M_Diff @ v.c:17 Mid assume p0&p1 → ok
+CHK-DAG: [oobsum:apply] H_Diff @ v.c:21 H assume g:g_stCtx&p0 → ok
+CHK-DAG: [oobsum:apply] G @ v.c:24 (entry) assume p0&p1 → entry
+CHK-DAG: v.c:9:1: warning: [OOB-SUSPECT:alias_unverified] Cannot prove the accesses in 'F' stay within bounds: they assume '*p' and '*pst' do not overlap, but here both are 'st'
+CHK-DAG: v.c:18:1: warning: [OOB-SUSPECT:alias_unverified] Cannot prove the accesses in 'Mid' stay within bounds: they assume '*p' and '*pst' do not overlap, but here both are 'st'
+CHK-DAG: v.c:22:1: warning: [OOB-SUSPECT:alias_unverified] Cannot prove the accesses in 'H' stay within bounds: they assume 'g_stCtx' and '*p' do not overlap, but here both are 'g_stCtx'
+CHK-DAG: v.c:24:1: warning: [OOB-SUSPECT:alias_unverified] Cannot prove the accesses stay within bounds: they assume '*p' and '*pst' do not overlap, which cannot be checked at an entry function
+# 无别名时照 false：真越界仍是 POSSIBLE
+CHK-DAG: v.c:13:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 64 of 'a' (16 bytes) may be accessed
+CHK-NOT: v.c:{{(10|14|17|21)}}:1: warning: [OOB-SUSPECT:alias_unverified]
+
+OFF: v.c:13:1: warning: [OOB-POSSIBLE]

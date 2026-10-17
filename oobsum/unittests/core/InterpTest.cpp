@@ -1950,3 +1950,25 @@ TEST(Interp, CharAliasVerifyAssumes)
     // q 的写（也是 char）在读 pst 之后：不影响这条假设；写过的根不读自己不记
     EXPECT_EQ(interp::BuildSummary(b.m, b.f, facts).assumes.size(), size_t(1));
 }
+
+TEST(Interp, CharAliasVerifyDropsIneffective)
+{
+    // SPEC-0106 §2.2：经 p（char）写之后读了 pst->len，但读到的值没用到任何访问 / 调用——按 true 再分析一遍摘要相同，假设丢掉
+    Builder b;
+    Record r;
+    r.id = 0;
+    r.name = "CTX_S";
+    r.size = 4;
+    r.fields = {{"len", 0, b.u32}};
+    b.m.records.push_back(r);
+    TypeId pu8 = b.m.Intern(Type::Ptr(b.u8));
+    uint32_t p = b.Param("p", pu8);
+    uint32_t pst = b.Param("pst", b.m.Intern(Type::Ptr(b.m.Intern(Type::Rec(0)))));
+    uint32_t t = b.LocalVar("t", b.u32);
+    b.Straight({b.Store(b.L(p), 1, b.C(200), 6), b.Load(t, b.L(pst), 4, 7)});
+    interp::Options verify;
+    verify.charVerify = true;
+    interp::FunctionFacts facts =
+        interp::AnalyzeFunction(b.m, b.f, nullptr, models::ModelTable::Default(), nullptr, nullptr, verify);
+    EXPECT_TRUE(facts.assumes.empty());
+}

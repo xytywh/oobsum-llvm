@@ -196,6 +196,7 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bo
     for (const std::string &fn : out.order) {
         const summary::Summary &s = fns.at(fn);
         FunctionResult &result = out.fns[fn];
+        result.assumes.insert(s.assumes.begin(), s.assumes.end());  // 本函数自己的不别名假设（SPEC-0106）
         std::vector<DerivedReq> cand;
         // 本函数访问点当场生成的 Req（depth 0，含被覆盖的 absorbed：每个访问各一条）
         for (const summary::Req &r : s.reqs) {
@@ -276,11 +277,22 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bo
                     result.sites.push_back({call.site, callee, mine, r});
                 }
             }
+            // CharAlias=verify（SPEC-0106 §2.3）：被调者的不别名假设在这里核对；换成本函数说法的往上传
+            for (const auto &assume : calleeIt->second.assumes) {
+                apply::AssumeCheck c = apply::CheckAssume(assume, call);
+                result.aliasChecks.push_back({call.site, callee, assume, c.verdict, c.detail});
+                if (c.verdict == "up") {
+                    result.assumes.insert(c.up);
+                }
+            }
         }
         result.reqs = Absorb(cand);
         // 入口（没有调用方）：每条推出的 Req 到此为止——深度 0 的常数 Req 先按 F-10 / F-11 / F-12 判（SPEC-0087），其余记账
         if (callees.count(fn) == 0) {
             result.entry = true;
+            for (const auto &assume : result.assumes) {
+                result.aliasChecks.push_back({"", "", assume, "entry", ""});  // 入口：核对不了（SPEC-0106）
+            }
             SymEnv env = apply::CallerEnv(s);
             std::vector<DerivedReq> open;
             for (const DerivedReq &r : result.reqs) {

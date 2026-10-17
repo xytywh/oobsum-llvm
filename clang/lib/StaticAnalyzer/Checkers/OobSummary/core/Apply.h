@@ -73,6 +73,15 @@ Outcome Classify(const summary::Req &req, const summary::Call &call, const summa
 llvm::Optional<summary::Call> ParentCall(const summary::Req &req, const summary::Call &call);
 // 带窗口的实参（SPEC-0104 §2.3 3b）：第 K 个实参换成只剩内层（sub）的调用点；不适用时 None
 llvm::Optional<summary::Call> SubCall(const summary::Req &req, const summary::Call &call);
+// CharAlias=verify 的一条不别名假设在调用点核对（SPEC-0106 §2.3）：两个根各换成调用方的说法——
+// ok（两个不同的具体对象、或调用方的局部 / 堆对调用方的形参所指）/ same（同一个对象，detail 是它）/ unknown（有一边不知道指向哪）/
+// up（换成调用方的一对 up，往上传）
+struct AssumeCheck {
+    std::string verdict;
+    std::string detail;
+    std::pair<std::string, std::string> up;
+};
+AssumeCheck CheckAssume(const std::pair<std::string, std::string> &assume, const summary::Call &call);
 // 调用点判定的全部结局（SPEC-0035 §2.2）：(结局, 调用点（外层那一条是换过实参的）, 是不是外层对象那一条)
 struct SiteClass {
     Outcome mine;

@@ -270,3 +270,40 @@ TEST(Apply, SubObjectArg)
     ASSERT_TRUE(all.size() == 2);
     EXPECT_EQ(all[1].mine.outcome + ":" + all[1].mine.dir, "up:sub");
 }
+
+TEST(Apply, CheckAssume)
+{
+    // CharAlias=verify 的不别名假设在调用点核对（SPEC-0106 §2.3）
+    auto ptr = [](const std::string &obj) {
+        summary::ArgValue a;
+        a.kind = summary::ArgValue::Kind::Ptr;
+        a.ptr = std::make_shared<summary::PtrArg>();
+        a.ptr->obj = obj;
+        a.ptr->have = "4";
+        return a;
+    };
+    auto check = [&](const std::string &a0, const std::string &a1, const std::pair<std::string, std::string> &as) {
+        summary::Call call;
+        call.site = "a.c:9";
+        call.callee = "F";
+        call.args = {ptr(a0), ptr(a1)};
+        apply::AssumeCheck c = apply::CheckAssume(as, call);
+        return c.verdict + (c.detail.empty() ? "" : ":" + c.detail);
+    };
+    std::pair<std::string, std::string> pp{"p0", "p1"};
+    EXPECT_EQ(check("local:b", "local:st", pp), "ok");              // 两个不同的局部
+    EXPECT_EQ(check("local:st", "local:st", pp), "same:local:st");  // 同一个
+    EXPECT_EQ(check("local:b", "*p0", pp), "ok");                   // 调用方的局部对调用方的形参所指
+    EXPECT_EQ(check("g:g_x", "*p0", pp), "up:g:g_x&p0");            // 全局对形参所指：往上传
+    EXPECT_EQ(check("*p1", "*p0", pp), "up:p0&p1");                 // 两个形参所指
+    EXPECT_EQ(check("*p0", "p0->aucBuf", pp), "same:p0");           // 形参所指与它的成员数组
+    EXPECT_EQ(check("local:_unknown0", "local:st", pp), "unknown:local:_unknown0");
+    EXPECT_EQ(check("local:b", "heap@a.c:3", pp), "ok");
+    // 全局对实参：去掉内部链接的后缀再比
+    EXPECT_EQ(check("g:g_x__S0123456789abcdef", "local:b", {"g:g_x", "p0"}), "same:g:g_x");
+    EXPECT_EQ(check("local:b", "local:st", {"g:g_x", "p1"}), "ok");
+    // 指针字段所指：实参是调用方形参所指 → 调用方的 p<j>->f；记着的字段值 → 它的对象；都没有 → 不知道
+    EXPECT_EQ(check("local:b", "*p2", {"p0", "p1->pucBuf"}), "ok");
+    EXPECT_EQ(check("g:g_x", "*p2", {"p0", "p1->pucBuf"}), "up:g:g_x&p2->pucBuf");
+    EXPECT_EQ(check("local:b", "local:st", {"p0", "p1->pucBuf"}), "unknown:p1->pucBuf");
+}

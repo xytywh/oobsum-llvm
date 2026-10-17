@@ -516,6 +516,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
   加运行类 11 个：`ambiguous_callee`、`not_exported`（被调者不在 cdb 里）、`not_in_tu`（inline 模式下的跨 TU 被调者）、`cfg_too_large`、`timeout`、
   `iter_limit`、`unsupported_construct`、`struct_by_value`、`inline_asm`、`imprecise_join`（两个不可比的符号界合并后丢失）、
   `untracked_pointer`（指针来自数组元素或超过两层的字段，不跟踪它指向多大）。
+  〔SPEC-0106〕加 `alias_unverified`：`CharAlias=verify` 的不别名假设在调用点不成立 / 不知道 / 到了入口。
   〔SPEC-0104〕加 `subobject_overflow`：访问可能越出成员数组 / 多维数组的一行（整个对象没越出时由它报 SUSPECT，D22）。
 * **D-28 状态**〔由 SPEC-0037 修订：加 `skipped:no_cfg`；`partial:*` / `skipped:*` 在声明处报 SUSPECT `unanalyzed:<后缀>`〕 `status`：`analyzed`；`partial:iter_limit|cond_truncated`；`skipped:cfg_too_large|timeout|no_body`。
 
