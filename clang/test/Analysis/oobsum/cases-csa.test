@@ -28,6 +28,8 @@ FIRST-NEXT: MINI-05 TP E_Xtu_TP L1 未判 需跨TU
 FIRST-NEXT: MINI-05 TN E_Xtu_TN - 未判 通过
 FIRST-NEXT: 其它报出：MINI-04 lv2/mini_04.c:13:23 W SUSPECT:unknown_callee fn=F:D_Helper
 FIRST-NEXT: 合计 11 个入口：通过 5，通过+S 1，级别不同 1，漏报 1，误报 1，超出预期 1，需跨TU 1；其它报出 1 条
+# G2 口径（SPEC-0102）：TN 入口零 DEFINITE / POSSIBLE（这里的 B_TN_Fp 是故意造的误报），SUSPECT 单列
+FIRST-NEXT: G2：TN 5 个入口，报出 DEFINITE / POSSIBLE 1 个（须为 0）；带 SUSPECT 的 {{[0-9]+}} 个、共 {{[0-9]+}} 条（单列）
 FIRST-NEXT: 基线 {{.*}}base.json 不存在，不比（用 --save 生成）
 FIRST-NEXT: 已写基线 {{.*}}base.json
 
