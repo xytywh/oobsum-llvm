@@ -561,6 +561,15 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
     chk->maxBlocks = static_cast<unsigned>(maxBlocks);
     // CharAlias（SPEC-0103，用户决定 D20）：char / void 的写当成可能改了任何外部内存
     chk->interpOptions.charAlias = opts.getCheckerBooleanOption(chk, "CharAlias");
+    // Subobject（SPEC-0105，用户决定 D24 / D25）：内层界（成员数组、多维数组的一行）怎么报
+    std::string subobject = opts.getCheckerStringOption(chk, "Subobject").str();
+    if (subobject == "label") {
+        chk->interpOptions.subobject = oobsum::interp::SubMode::Label;
+    } else if (subobject == "off") {
+        chk->interpOptions.subobject = oobsum::interp::SubMode::Off;
+    } else if (subobject != "suspect") {
+        mgr.reportInvalidCheckerOptionValue(chk, "Subobject", "one of 'suspect', 'label', 'off'");
+    }
     // ModelFile（SPEC-0033 §2.1）：读不了、YAML 错 → 选项错误；坏条目跳过并提示
     chk->modelFile = opts.getCheckerStringOption(chk, "ModelFile").str();
     if (!chk->modelFile.empty()) {
@@ -585,7 +594,7 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
                        opts.getCheckerStringOption(chk, "SuspectReasons").str() + "\" Dump=\"" + chk->dumpKinds +
                        "\" DumpFilter=\"" + chk->dumpFilter + "\" ModelFile=\"" + chk->modelFile +
                        "\" MaxBlocks=" + std::to_string(chk->maxBlocks) +
-                       " CharAlias=" + (chk->interpOptions.charAlias ? "true" : "false");
+                       " CharAlias=" + (chk->interpOptions.charAlias ? "true" : "false") + " Subobject=" + subobject;
 }
 
 bool ento::shouldRegisterOobSummaryChecker(const CheckerManager &mgr)

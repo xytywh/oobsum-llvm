@@ -147,7 +147,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 
 ### 3.3 只报现有规则看不到的（通道分工）
 
-* **F-20**：每条判定带两个层数：`depth`（访问点到汇合点经过的调用边数）与 `effDepth`（判定用到的大小、偏移、长度里，经效果向上传得最远的层数）。
+* **F-20**〔SPEC-0105：内层的判定（`dir: sub`）不按层数过滤——现有规则不查子对象〕：每条判定带两个层数：`depth`（访问点到汇合点经过的调用边数）与 `effDepth`（判定用到的大小、偏移、长度里，经效果向上传得最远的层数）。
   报告条件：`max(depth, effDepth) > InlineDepth`（默认 2，取你们现有规则的 inline 上限，`07-` 输入 I6）。
   理由：现有规则要 inline 到大小和访问**两侧**才能判，任何一侧超出 inline 深度它就看不到【推断】。
 * **F-21**：`csaBlindSpot` 的判定（F-08、二维数组字段 `[P1]`）**不做层数过滤**。
@@ -225,6 +225,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 | I-24 | `CallTrace` | string | `full` | 摘要里 `calls[]` 调用点记录的详细程度：`full`（实参、局部区间、守卫、结局，调试用）/ `results`（只留结局）/ `none`。全量跑出来体积过大时降级 |
 | I-25 | `Emit` | string | `machine` | 摘要里写不写说明：`machine`（只写机器字段，D-30）/ `doc`（另生成 `doc`：形参名渲染的一句话、源码原文、宏值，调试与评审用；判定结果不变） |
 | I-26 | `CharAlias` | bool | `false` | 〔SPEC-0103〕`char *` / `void *` 的写当成可能改了任何外部内存（结构体形参、全局）；默认值等公司实测后定（D20） |
+| I-27 | `Subobject` | string | `suspect` | 〔SPEC-0105〕只越出成员数组 / 多维数组的一行、没越出整个对象的访问：`suspect`（SUSPECT `subobject_overflow`）/ `label`（按常规判 DEFINITE / POSSIBLE）/ `off`（只查整个对象）（D24、D25） |
 
 ### 4.3 运行命令
 

@@ -19,9 +19,11 @@ namespace solver {
 namespace {
 
 // 入口函数上深度 0 的常数 Req（SPEC-0087）：末端下界 > 大小 → L1（F-11）；末端上界 > 大小且来源是代码给出的界 → L2（F-12）；其余不判
-llvm::Optional<std::string> EntryLevel(const DerivedReq &r)
+// subLabel：Subobject=label 时内层 Req（dir sub）也按常规判（SPEC-0105）
+llvm::Optional<std::string> EntryLevel(const DerivedReq &r, bool subLabel)
 {
-    if (r.depth != 0 || !r.dir.empty() || !r.have.IsConst() || !r.lo.IsConst() || !r.hi.IsConst()) {
+    bool plain = r.dir.empty() || (subLabel && r.dir == "sub");
+    if (r.depth != 0 || !plain || !r.have.IsConst() || !r.lo.IsConst() || !r.hi.IsConst()) {
         return llvm::None;
     }
     for (const LinExpr &g : r.guards) {
@@ -181,7 +183,7 @@ std::vector<DerivedReq> Absorb(const std::vector<DerivedReq> &cand)
     return keep;
 }
 
-PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns)
+PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bool subLabel)
 {
     PropagateResult out;
     std::set<std::string> callees;
@@ -248,7 +250,7 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns)
                 std::vector<std::string> path{s.fn + "@" + call.site};  // 写函数名（表的索引可能是函数键，SPEC-0027）
                 path.insert(path.end(), r.path.begin(), r.path.end());
                 // 成员数组实参：外层对象也查，可能有两条结局（SPEC-0035 §2.2）
-                for (const apply::SiteClass &sc : apply::ClassifyAll(rj, call, s, envGuards)) {
+                for (const apply::SiteClass &sc : apply::ClassifyAll(rj, call, s, envGuards, subLabel)) {
                     const apply::Outcome &mine = sc.mine;
                     if (mine.outcome == "up") {
                         DerivedReq d;
@@ -282,7 +284,7 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns)
             SymEnv env = apply::CallerEnv(s);
             std::vector<DerivedReq> open;
             for (const DerivedReq &r : result.reqs) {
-                if (llvm::Optional<std::string> level = EntryLevel(r)) {
+                if (llvm::Optional<std::string> level = EntryLevel(r, subLabel)) {
                     result.reps.push_back(EntryRep(*level, r, s));
                     ++out.rep;
                     continue;

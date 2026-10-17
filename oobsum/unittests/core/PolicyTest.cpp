@@ -130,3 +130,19 @@ TEST(Label, NamesRoundTrip)
     EXPECT_EQ(LabelTag(Label::Definite), "OOB-DEFINITE");
     EXPECT_FALSE(ParseLabel("L1").hasValue());
 }
+
+TEST(Policy, SubobjectNotFilteredByDepth)
+{
+    // SPEC-0105：内层的判定（dir sub）不按 InlineDepth 过滤——现有规则不查成员数组 / 多维数组的一行
+    PolicyOptions recall;
+    Decision inner = Make(Label::Definite, 1);
+    inner.dir = "sub";
+    EXPECT_EQ(Why(inner, recall), "emit");
+    inner.depth = 0;
+    EXPECT_EQ(Why(inner, recall), "emit");
+    Decision outer = Make(Label::Definite, 1);
+    EXPECT_EQ(Why(outer, recall), "drop:inline_depth");
+    Decision back = Make(Label::Possible, 1);
+    back.dir = "back";
+    EXPECT_EQ(Why(back, recall), "drop:inline_depth");
+}

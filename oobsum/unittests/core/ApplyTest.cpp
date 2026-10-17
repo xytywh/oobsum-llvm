@@ -215,6 +215,12 @@ TEST(Apply, SubObjectReqIsSuspectOnly)
     req.dir.clear();
     call.args[0].expr = "8";
     EXPECT_EQ(apply::Classify(req, call, caller, {}).outcome, "L1");
+    // Subobject=label（SPEC-0105）：内层 Req 的 L1 / L2 照常
+    req.dir = "sub";
+    EXPECT_EQ(apply::Classify(req, call, caller, {}, true).outcome, "L1");
+    call.args[0].expr = "i";
+    call.locals = std::map<std::string, summary::Local>{{"i", {"0", "8", "loop"}}};
+    EXPECT_EQ(apply::Classify(req, call, caller, {}, true).outcome, "L2");
 }
 
 TEST(Apply, SubObjectArg)

@@ -364,7 +364,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
     }
     RecursionLedger(out);  // SPEC-0066
     // ② 推到底
-    out.propagate = solver::Propagate(out.summaries);
+    out.propagate = solver::Propagate(out.summaries, options.subobject == interp::SubMode::Label);  // SPEC-0105
     std::vector<SiteMap> siteMaps;
     for (const fir::Module *mod : mods) {
         siteMaps.emplace_back(std::vector<const fir::Module *>{mod});

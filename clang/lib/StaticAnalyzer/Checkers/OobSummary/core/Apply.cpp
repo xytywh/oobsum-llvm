@@ -577,12 +577,15 @@ Outcome ClassifyPlain(const summary::Req &req, const Call &call, const Summary &
 
 }  // namespace
 
-Outcome Classify(const summary::Req &req, const Call &call, const Summary &caller, const EnvGuards &envGuards)
+Outcome Classify(const summary::Req &req, const Call &call, const Summary &caller, const EnvGuards &envGuards,
+                 bool subLabel)
 {
     Outcome o = ClassifyPlain(req, call, caller, envGuards);
     // 内层 Req（成员数组、多维数组的一行，SPEC-0104 §2.3 3a、用户决定 D22）：越出内层、没越出外层只记 SUSPECT——
-    // L1 / L2 改判 open，账本原因一律 subobject_overflow；safe / up 不变（同 replay.py 的 classify）
-    if (req.dir == "sub" && (o.outcome == "L1" || o.outcome == "L2" || o.outcome == "open")) {
+    // L1 / L2 改判 open，账本原因一律 subobject_overflow；safe / up 不变（同 replay.py 的 classify）。
+    // Subobject=label（SPEC-0105）：L1 / L2 照常，只有 open 的原因换成 subobject_overflow
+    bool relabel = o.outcome == "open" || (!subLabel && (o.outcome == "L1" || o.outcome == "L2"));
+    if (req.dir == "sub" && relabel) {
         o.why = o.outcome + "（" + (o.reason.empty() ? o.why : o.reason) + "）→ 内层只记 SUSPECT";
         o.outcome = "open";
         o.reason = "subobject_overflow";
@@ -652,13 +655,13 @@ llvm::Optional<Call> SubCall(const summary::Req &req, const Call &call)
 // 同 replay.py 的 classify_all：成员已经报 / 记账 → 只有它；成员 safe → 外层不 safe 就换成外层的；成员 up → 外层不 safe 时两条都要。
 // 带窗口的实参：前面的结局都是 safe / up 时内层另判一次，不是 safe 就加上（dir "sub"，SPEC-0104 §2.3 3b）
 std::vector<SiteClass> ClassifyAll(const summary::Req &req, const Call &call, const Summary &caller,
-                                   const EnvGuards &envGuards)
+                                   const EnvGuards &envGuards, bool subLabel)
 {
-    std::vector<SiteClass> out{{Classify(req, call, caller, envGuards), call, false}};
+    std::vector<SiteClass> out{{Classify(req, call, caller, envGuards, subLabel), call, false}};
     llvm::Optional<Call> outer = ParentCall(req, call);
     const std::string first = out[0].mine.outcome;
     if (outer && (first == "safe" || first == "up")) {
-        SiteClass o{Classify(req, *outer, caller, envGuards), *outer, true};
+        SiteClass o{Classify(req, *outer, caller, envGuards, subLabel), *outer, true};
         if (o.mine.outcome != "safe") {
             if (first == "safe") {
                 out.clear();
@@ -672,7 +675,7 @@ std::vector<SiteClass> ClassifyAll(const summary::Req &req, const Call &call, co
     if (inner && clean) {
         summary::Req rs = req;
         rs.dir = "sub";
-        SiteClass i{Classify(rs, *inner, caller, envGuards), *inner, false};
+        SiteClass i{Classify(rs, *inner, caller, envGuards, subLabel), *inner, false};
         if (i.mine.outcome != "safe") {
             i.mine.dir = "sub";
             out.push_back(std::move(i));
@@ -690,7 +693,7 @@ summary::Rep RepOf(const Outcome &mine, const Call &call, const std::string &fn,
     rep.site = call.site;
     rep.access = calleeReq.access;
     rep.kind = calleeReq.kind;
-    rep.dir = calleeReq.dir;
+    rep.dir = mine.dir.empty() ? calleeReq.dir : mine.dir;  // 带窗口实参的内层那条（SPEC-0104 3b / SPEC-0105）
     rep.obj = mine.obj;
     rep.via = mine.via;
     LinExpr lo = mine.end2Lo;

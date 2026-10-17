@@ -1753,7 +1753,12 @@ def OobSummaryChecker : Checker<"OobSummary">,
     CmdLineOption<Boolean, "CharAlias",
                   "Treat writes through char / void pointers as possibly modifying any external object "
                   "(struct parameters, globals)",
-                  "false", Released>
+                  "false", Released>,
+    CmdLineOption<String, "Subobject",
+                  "How an access that leaves an array member or a row of a multi-dimensional array but stays "
+                  "inside the whole object is reported: 'suspect' (SUSPECT subobject_overflow), 'label' (judged "
+                  "like any other bound: DEFINITE / POSSIBLE / SUSPECT), 'off' (only the whole object is checked)",
+                  "suspect", Released>
   ]>,
   Documentation<NotDocumented>;
 

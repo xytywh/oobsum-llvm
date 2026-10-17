@@ -1904,4 +1904,20 @@ TEST(Interp, SubObjectWindow)
     interp::FunctionFacts facts = b.Run();
     EXPECT_EQ(Reqs(facts), "open subobject_overflow at=t.c:7 | open subobject_overflow at=t.c:9");
     EXPECT_TRUE(facts.safe.size() == 4);  // 整个 a 的检查照旧：4 处都在 a 里
+    // Subobject=off（SPEC-0105）：不推窗口，只查整个 a
+    interp::Options off;
+    off.subobject = interp::SubMode::Off;
+    interp::FunctionFacts plain =
+        interp::AnalyzeFunction(b.m, b.f, nullptr, models::ModelTable::Default(), nullptr, nullptr, off);
+    EXPECT_EQ(Reqs(plain), "");
+    EXPECT_TRUE(plain.safe.size() == 4);
+    // Subobject=label：本函数里就定了的也记内层 Req（dir sub、have 4），由入口 / 调用点按常规判
+    interp::Options label;
+    label.subobject = interp::SubMode::Label;
+    interp::FunctionFacts labeled =
+        interp::AnalyzeFunction(b.m, b.f, nullptr, models::ModelTable::Default(), nullptr, nullptr, label);
+    // 两处（末端 6、5）按 A-44 覆盖合并成一条
+    ASSERT_TRUE(labeled.reqs.size() == 1);
+    EXPECT_EQ(labeled.reqs[0].dir + " " + labeled.reqs[0].have + " " + labeled.reqs[0].endHi, "sub 4 6");
+    EXPECT_EQ(Reqs(labeled), "W have=4 obj=local:a end=[6, 6] bound=exact at=t.c:7 +W[5, 5]");
 }

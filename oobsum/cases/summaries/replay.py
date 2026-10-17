@@ -614,7 +614,11 @@ def alert_msg(rep, params=()):
     w = 'write' if rep['kind'] == 'W' else 'read'
     name = obj_name(rep['obj'], params)
     size = '%s bytes' % rep['have'] + ('; via %s' % rep['via'].split(':', 1)[1] if rep.get('via') else '')
-    if rep.get('dir') == 'back':                       # 负偏移：越到指针前面的字节数（SPEC-0039 §2.3）
+    if rep.get('dir') == 'sub':                        # 内层（Subobject=label，SPEC-0105）
+        s = '%s out-of-bound %s through a %d-level call chain: up to byte %s of the array member or row (%s) of %s %s' % (
+            'Definite' if rep['level'] == 'L1' else 'Possible', w, rep['depth'], rep['end'][1], size, name,
+            'is accessed' if rep['level'] == 'L1' else 'may be accessed; the bound comes from %s' % BOUND_PHRASE.get(rep['bound'], rep['bound']))
+    elif rep.get('dir') == 'back':                     # 负偏移：越到指针前面的字节数（SPEC-0039 §2.3）
         s = '%s out-of-bound %s through a %d-level call chain: up to %s bytes before %s (%s available before the pointer) %s' % (
             'Definite' if rep['level'] == 'L1' else 'Possible', w, rep['depth'], rep['end'][1], name, size,
             'are accessed' if rep['level'] == 'L1' else 'may be accessed')
@@ -887,11 +891,15 @@ def worse_tag(a, b):
     return a if ia <= ib else b
 
 
+SUBOBJECT = 'suspect'   # 同选项 Subobject（SPEC-0105）：suspect / label / off（off 在局部事实里就没有内层 Req）
+
+
 def classify(req, call, caller, callee, env_guards):
     """调用点判定（同 apply::Classify）。内层 Req（dir sub，SPEC-0104 §2.3 3a、D22）：越出内层、没越出外层只记 SUSPECT——
     L1 / L2 改判 open，账本原因一律 subobject_overflow；safe / up 不变。"""
     o = classify_plain(req, call, caller, callee, env_guards)
-    if req.get('dir') == 'sub' and o['outcome'] in ('L1', 'L2', 'open'):
+    relabel = o['outcome'] == 'open' or (SUBOBJECT != 'label' and o['outcome'] in ('L1', 'L2'))   # Subobject=label：L1 / L2 照常（SPEC-0105）
+    if req.get('dir') == 'sub' and relabel:
         o = dict(o, outcome='open', reason='subobject_overflow', why='%s → 内层只记 SUSPECT' % o['outcome'])
     return o
 
@@ -1012,8 +1020,8 @@ def rep_of(mine, call, fn, s, r_callee):
     """调用点判出 L1 / L2 时，按机器字段组装判定记录（与 JSON reps[] 同形，不含 id / doc）。"""
     rep = {'level': mine['outcome'], 'reported': max(mine['depth'], mine['eff_depth']) > INLINE_DEPTH, 'site': call['site'],
            'access': r_callee['access'], 'kind': r_callee['kind'], 'obj': mine['obj']}
-    if r_callee.get('dir'):
-        rep['dir'] = r_callee['dir']                   # 负偏移（SPEC-0039）
+    if mine.get('dir') or r_callee.get('dir'):
+        rep['dir'] = mine.get('dir') or r_callee['dir']   # 负偏移（SPEC-0039）；带窗口实参的内层那条（SPEC-0104 3b）
     if mine.get('via'):
         rep['via'] = mine['via']
     lo, hi = mine['end2']

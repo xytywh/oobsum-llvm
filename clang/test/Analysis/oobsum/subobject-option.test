@@ -1,0 +1,37 @@
+# 选项 Subobject（oobsum/specs/SPEC-0105，用户决定 D24 / D25）：只越出内层（成员数组 / 多维数组的一行）、没越出整个对象的访问怎么报。
+# 默认 suspect（SUSPECT subobject_overflow，见 subobject-overflow.test / subobject-req.test / subobject-arg.test）；
+# label：内层按常规判 DEFINITE / POSSIBLE；off：只查整个对象。内层的 DEFINITE / POSSIBLE 不按 InlineDepth 过滤（现有规则不查子对象）。
+#
+# label（用默认的 InlineDepth=2：内层的照样报）
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Subobject=label -w %S/Inputs/subobj/o.c 2>&1 | FileCheck %s --check-prefix=LABEL-O
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Subobject=label -w %S/Inputs/subobj/u.c 2>&1 | FileCheck %s --check-prefix=LABEL-U
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Subobject=label -w %S/Inputs/subobj/a.c 2>&1 | FileCheck %s --check-prefix=LABEL-A
+# off：一条 subobject_overflow / 内层判定都没有
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:Subobject=off \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=options \
+# RUN:   -w %S/Inputs/subobj/o.c %S/Inputs/subobj/u.c 2>&1 | FileCheck %s --check-prefix=OFF --implicit-check-not='array member or row'
+# 取值不对：选项错误
+# RUN: not %clang_analyze_cc1 -analyzer-checker=rb.enhance.ipa.OobSummary -analyzer-config rb.enhance.ipa.OobSummary:Subobject=all \
+# RUN:   -w %S/Inputs/subobj/o.c 2>&1 | FileCheck %s --check-prefix=BAD
+
+LABEL-O-DAG: o.c:7:1: warning: [OOB-DEFINITE] Definite out-of-bound write: up to byte 6 of the array member or row (4 bytes) of 'a' is accessed
+LABEL-O-DAG: o.c:8:1: warning: [OOB-DEFINITE] Definite out-of-bound write: up to byte 21 of the array member or row (16 bytes) of 'st' is accessed
+LABEL-O-DAG: o.c:10:1: warning: [OOB-POSSIBLE] Possible out-of-bound write: up to byte 8 of the array member or row (4 bytes) of 'a' may be accessed; the bound comes from a loop condition
+# 负下标越到成员前面：仍是 SUSPECT（label 只管上界）
+LABEL-O-DAG: o.c:12:1: warning: [OOB-SUSPECT:subobject_overflow]
+LABEL-U-DAG: u.c:10:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 9 of the array member or row (8 bytes) of 'g_aucTbl' is accessed
+LABEL-U-DAG: u.c:13:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 6 of the array member or row (4 bytes) of 'st' is accessed
+LABEL-U-DAG: u.c:15:1: warning: [OOB-SUSPECT:subobject_overflow]
+LABEL-A-DAG: a.c:7:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 20 of the array member or row (16 bytes) of 'st' may be accessed; the bound comes from a loop condition
+LABEL-A-DAG: a.c:11:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 2-level call chain: up to byte 20 of the array member or row (16 bytes) of 'st' may be accessed
+
+OFF-DAG: [oobsum:options] {{.*}} Subobject=off
+OFF-DAG: o.c:19:1: warning: [OOB-DEFINITE] Definite out-of-bound write: up to byte 9 of 'a' (8 bytes) is accessed
+OFF-DAG: u.c:12:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 33 of 'g_aucTbl' (32 bytes) is accessed
+OFF-NOT: subobject_overflow
+
+BAD: error: {{.*}}rb.enhance.ipa.OobSummary:Subobject{{.*}}one of 'suspect', 'label', 'off'

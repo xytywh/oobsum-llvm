@@ -61,7 +61,8 @@ struct PropagateResult {
     unsigned entry = 0;  // 入口账本条数
 };
 
-PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns);
+// subLabel：Subobject=label（SPEC-0105），内层 Req 按常规判
+PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bool subLabel = false);
 // A-44：同一 have、对象、守卫，end 上界恒不大于另一条的那条并掉（相等时留前面的）
 std::vector<DerivedReq> Absorb(const std::vector<DerivedReq> &cand);
 // 比较用的键（同 replay.py 的 req_key：have、对象、末端、守卫集合、depth）

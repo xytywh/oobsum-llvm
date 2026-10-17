@@ -51,8 +51,10 @@ Disposition Classify(const Decision &decision, const PolicyOptions &options)
     }
     // 层数过滤只用于已判定的 DEFINITE / POSSIBLE（与现有规则分工，F-20）；SUSPECT
     // 不过滤：它们本来就是现有规则也没判出来的
+    // 内层的判定（dir sub，成员数组 / 多维数组的一行）不过滤：现有规则不查子对象（SPEC-0105，检出优先）
     unsigned depth = std::max(decision.depth, decision.effDepth);
-    if (decision.label != Label::Suspect && options.inlineDepth > 0 && depth <= options.inlineDepth) {
+    if (decision.label != Label::Suspect && decision.dir != "sub" && options.inlineDepth > 0 &&
+        depth <= options.inlineDepth) {
         result.why = "inline_depth";
         return result;
     }

@@ -147,10 +147,14 @@ struct FunctionFacts {
 // stateTrace 非空时，每个块入口的状态各一行（Dump=state）；models：库函数的模型表（SPEC-0018）
 // callees：已经算出摘要的被调者（按函数名），调用点代入它们的效果（ret_new，SPEC-0024）
 // 解释的选项（checker 的 -analyzer-config 传进来）
+// 内层界（成员数组、多维数组的一行）怎么报（SPEC-0105）：只越出内层的记 SUSPECT / 按常规判 / 不查
+enum class SubMode : uint8_t { Suspect, Label, Off };
+
 struct Options {
     // char / void 的写当成可能改了任何外部内存（SPEC-0103，用户决定 D20）。默认先关：打开后
     // for (i < pst->ulLen) pucBuf[i] = … 这类循环的界都丢掉、真报降成 SUSPECT，默认值等用户按实测确认
     bool charAlias = false;
+    SubMode subobject = SubMode::Suspect;  // SPEC-0105，用户决定 D24 / D25
 };
 
 FunctionFacts AnalyzeFunction(

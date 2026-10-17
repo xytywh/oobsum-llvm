@@ -1664,8 +1664,9 @@ Value Analyzer::Eval(ExprId e, const State &s)
         case ExprOp::SubObj: {
             // 子对象的起点（SPEC-0104 §2.2）：推一个内层窗口
             v = Eval(x.a, s);
-            if (!v.isPtr || v.p.kind == BaseKind::Unknown || v.p.kind == BaseKind::Func || x.size <= 0) {
-                return v;
+            if (!v.isPtr || v.p.kind == BaseKind::Unknown || v.p.kind == BaseKind::Func || x.size <= 0 ||
+                options.subobject == SubMode::Off) {
+                return v;  // Subobject=off：只查整个对象（SPEC-0105）
             }
             SubWindow w;
             w.size = x.size;
@@ -2264,7 +2265,9 @@ void Analyzer::CheckSubs(const char *kind, const PtrVal &addr, const IntVal &byt
                 llvm::Optional<LinExpr> wlo = w.off.Lower();
                 llvm::Optional<LinExpr> bytesLo = bytes.Lower();
                 LinExpr lo = (wlo ? *wlo : LinExpr::Const(0)) + (bytesLo ? *bytesLo : LinExpr::Const(0));
-                if (!syms.empty() && !lo.IsUnknown()) {
+                // Subobject=label：本函数里就定了的也记内层 Req，由入口 / 调用点按常规判（SPEC-0105）
+                bool asReq = !syms.empty() || (bad && options.subobject == SubMode::Label);
+                if (asReq && !need.IsUnknown() && !lo.IsUnknown()) {
                     // 结论取决于调用方给的值：记内层 Req，调用点再判（违反只判 SUSPECT，apply::Classify）
                     RawAccess a;
                     a.kind = kind;

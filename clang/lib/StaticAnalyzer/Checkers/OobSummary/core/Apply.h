@@ -66,8 +66,9 @@ std::vector<std::string> DiffRep(const summary::Rep &want, const summary::Rep &g
 using EnvGuards = std::vector<std::pair<LinExpr, Tag>>;
 EnvGuards EnvGuardsOf(const summary::Call &call);
 
+// subLabel：Subobject=label（SPEC-0105）——内层 Req 的 L1 / L2 不改判
 Outcome Classify(const summary::Req &req, const summary::Call &call, const summary::Summary &caller,
-                 const EnvGuards &envGuards);
+                 const EnvGuards &envGuards, bool subLabel = false);
 // 成员数组实参的外层对象（SPEC-0035）：req 的对象是 *pK、第 K 个实参带 parent → 把它换成外层对象的调用点；否则 None
 llvm::Optional<summary::Call> ParentCall(const summary::Req &req, const summary::Call &call);
 // 带窗口的实参（SPEC-0104 §2.3 3b）：第 K 个实参换成只剩内层（sub）的调用点；不适用时 None
@@ -79,7 +80,7 @@ struct SiteClass {
     bool parent = false;
 };
 std::vector<SiteClass> ClassifyAll(const summary::Req &req, const summary::Call &call, const summary::Summary &caller,
-                                   const EnvGuards &envGuards);
+                                   const EnvGuards &envGuards, bool subLabel = false);
 // 指纹里的对象：反向 Req 加 "#back"，与同一次访问的正向区分（SPEC-0039）；正向不变
 std::string FingerprintObj(const std::string &obj, const std::string &dir);
 // 判出 L1 / L2 时的判定记录（与 JSON reps[] 同形，不含 id）
