@@ -224,7 +224,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 | I-23 | `Verbose` | int | `0` | `1`：每 TU 一行统计；`2`：每函数一行 |
 | I-24 | `CallTrace` | string | `full` | 摘要里 `calls[]` 调用点记录的详细程度：`full`（实参、局部区间、守卫、结局，调试用）/ `results`（只留结局）/ `none`。全量跑出来体积过大时降级 |
 | I-25 | `Emit` | string | `machine` | 摘要里写不写说明：`machine`（只写机器字段，D-30）/ `doc`（另生成 `doc`：形参名渲染的一句话、源码原文、宏值，调试与评审用；判定结果不变） |
-| I-26 | `CharAlias` | bool | `false` | 〔SPEC-0103〕`char *` / `void *` 的写当成可能改了任何外部内存（结构体形参、全局）；默认值等公司实测后定（D20） |
+| I-26 | `CharAlias` | string | `false` | 〔SPEC-0103；SPEC-0106 改成字符串、加 `verify`：照 `false` 推，记不别名假设，调用点核对〕`char *` / `void *` 的写当成可能改了任何外部内存（结构体形参、全局）；默认值等公司实测后定（D20） |
 | I-27 | `Subobject` | string | `suspect` | 〔SPEC-0105〕只越出成员数组 / 多维数组的一行、没越出整个对象的访问：`suspect`（SUSPECT `subobject_overflow`）/ `label`（按常规判 DEFINITE / POSSIBLE）/ `off`（只查整个对象）（D24、D25） |
 
 ### 4.3 运行命令
@@ -460,7 +460,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 **D-22 来源标签** `bound`〔由 SPEC-0034 修订：加 `model`——库函数大小实参给的上界，代码给出的界，优先级在 `data` 之后、`check` 之前〕：`exact`（没有区间）、`const`、`check`、`mask`、`branch`、`loop`、`ret`、`guard`（以上是代码给出的界，可判 L2）；
 `type`、`widen`、`data`（不可判 L2，只能记账）。
 
-**D-23 顶层与 Req**〔由 SPEC-0015、SPEC-0019、SPEC-0039 修订：负偏移用反向 Req（`dir: back`，`have` 是 `bext(…)` / 0）判；SPEC-0104：内层 Req（`dir: sub`，`have` 是成员数组 / 多维数组一行的大小、`end` 从子对象起点算，违反只判 SUSPECT `subobject_overflow`）〕（下表只列机器字段；每个对象都可以另带 `doc`）：
+**D-23 顶层与 Req**〔由 SPEC-0015、SPEC-0019、SPEC-0039 修订：负偏移用反向 Req（`dir: back`，`have` 是 `bext(…)` / 0）判；SPEC-0106：顶层 `assumes`（CharAlias=verify 的不别名假设）；SPEC-0104：内层 Req（`dir: sub`，`have` 是成员数组 / 多维数组一行的大小、`end` 从子对象起点算，违反只判 SUSPECT `subobject_overflow`）〕（下表只列机器字段；每个对象都可以另带 `doc`）：
 
 | 顶层字段 | 含义 |
 |---|---|

@@ -1,0 +1,24 @@
+# CharAlias=verify（oobsum/specs/SPEC-0106，用户决定 D25）：经 char / void 写外部内存时照 false 推（界不丢），记下不别名假设，调用点核对。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:CharAlias=verify \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=options+summary+state \
+# RUN:   -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(F|Fill|H|G)$' \
+# RUN:   -w %S/Inputs/charalias/v.c 2>&1 | FileCheck %s
+# 取值不对：选项错误
+# RUN: not %clang_analyze_cc1 -analyzer-checker=rb.enhance.ipa.OobSummary -analyzer-config rb.enhance.ipa.OobSummary:CharAlias=maybe \
+# RUN:   -w %S/Inputs/charalias/v.c 2>&1 | FileCheck %s --check-prefix=BAD
+
+CHECK-DAG: [oobsum:options] {{.*}} CharAlias=verify
+# 记下的假设（根的无序对）：经 p 写之后读 pst->ulLen / g_stCtx.ulLen
+CHECK-DAG: [oobsum:summary] {"assumes":{{\[\["p0","p1"\]\]}},{{.*}}"fn":"F"
+CHECK-DAG: [oobsum:summary] {"assumes":{{\[\["p0","p1"\]\]}},{{.*}}"fn":"Fill"
+CHECK-DAG: [oobsum:summary] {"assumes":{{\[\["g:g_stCtx","p0"\]\]}},{{.*}}"fn":"H"
+CHECK-DAG: [oobsum:summary] {"assumes":{{\[\["p0","p1"\]\]}},{{.*}}"fn":"G"
+# Dump=state 行尾：经 char 写过的根；照 false 推，循环界不丢
+CHECK-DAG: [oobsum:state] fn Fill b2: p=*p0+0 c=*p1+0 i=[0, p1->ulLen - 1]:loop guards: p1->ulLen >= 1 char-written:p0
+# 判定照 false：真越界仍是 POSSIBLE、安全的不报
+CHECK-DAG: v.c:13:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 64 of 'a' (16 bytes) may be accessed
+CHECK-NOT: v.c:14:1: warning: [OOB-
+
+BAD: error: {{.*}}rb.enhance.ipa.OobSummary:CharAlias{{.*}}one of 'false', 'true', 'verify'

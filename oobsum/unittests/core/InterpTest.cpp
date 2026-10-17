@@ -1921,3 +1921,32 @@ TEST(Interp, SubObjectWindow)
     EXPECT_EQ(labeled.reqs[0].dir + " " + labeled.reqs[0].have + " " + labeled.reqs[0].endHi, "sub 4 6");
     EXPECT_EQ(Reqs(labeled), "W have=4 obj=local:a end=[6, 6] bound=exact at=t.c:7 +W[5, 5]");
 }
+
+TEST(Interp, CharAliasVerifyAssumes)
+{
+    // SPEC-0106：CharAlias=verify——照 false 推（末端仍是 [3, 3]），记下"p 与 pst 不重叠"；false 下不记
+    Builder b;
+    Record r;
+    r.id = 0;
+    r.name = "CTX_S";
+    r.size = 4;
+    r.fields = {{"len", 0, b.u32}};
+    b.m.records.push_back(r);
+    TypeId pu8 = b.m.Intern(Type::Ptr(b.u8));
+    uint32_t p = b.Param("p", pu8);
+    uint32_t pst = b.Param("pst", b.m.Intern(Type::Ptr(b.m.Intern(Type::Rec(0)))));
+    uint32_t q = b.Param("q", pu8);
+    uint32_t t = b.LocalVar("t", b.u32);
+    b.Straight({b.Store(b.L(pst), 4, b.C(2), 5), b.Store(b.L(p), 1, b.C(200), 6), b.Load(t, b.L(pst), 4, 7),
+                b.Store(b.PAdd(b.L(q), b.L(t)), 1, b.C(0), 8)});
+    interp::Options verify;
+    verify.charVerify = true;
+    interp::FunctionFacts facts =
+        interp::AnalyzeFunction(b.m, b.f, nullptr, models::ModelTable::Default(), nullptr, nullptr, verify);
+    EXPECT_TRUE(Reqs(facts).find("obj=*p2 end=[3, 3]") != std::string::npos);
+    ASSERT_TRUE(facts.assumes.size() == 1);
+    EXPECT_EQ(facts.assumes.begin()->first + "&" + facts.assumes.begin()->second, "p0&p1");
+    EXPECT_TRUE(b.Run().assumes.empty());
+    // q 的写（也是 char）在读 pst 之后：不影响这条假设；写过的根不读自己不记
+    EXPECT_EQ(interp::BuildSummary(b.m, b.f, facts).assumes.size(), size_t(1));
+}

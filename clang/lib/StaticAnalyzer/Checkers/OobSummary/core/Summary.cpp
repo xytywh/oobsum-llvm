@@ -549,7 +549,7 @@ bool Reader::ReadSummary(const Value &v, Summary &s)
 {
     const Object *o =
         Obj(v, {"schema", "fn", "key", "loc", "params", "status", "reqs", "effs", "calls", "reps", "opens"},
-            {"tu", "fields", "mods"});
+            {"tu", "fields", "mods", "assumes"});
     if (o == nullptr) {
         return false;
     }
@@ -578,6 +578,16 @@ bool Reader::ReadSummary(const Value &v, Summary &s)
         }
         return true;
     };
+    auto pairOf = [&](const Value &x, std::pair<std::string, std::string> &y) {
+        const Array *a = x.getAsArray();
+        llvm::Optional<llvm::StringRef> first = a != nullptr && a->size() == 2 ? (*a)[0].getAsString() : llvm::None;
+        llvm::Optional<llvm::StringRef> second = a != nullptr && a->size() == 2 ? (*a)[1].getAsString() : llvm::None;
+        if (!first || !second) {
+            return Fail("expected [root, root]");
+        }
+        y = {first->str(), second->str()};
+        return true;
+    };
     return Key(*o, "schema", schema, OOBSUM_M(Str)) &&
            In("schema",
               [&] { return schema == kSummarySchema || Fail("expected '" + llvm::Twine(kSummarySchema) + "'"); }) &&
@@ -586,6 +596,8 @@ bool Reader::ReadSummary(const Value &v, Summary &s)
            In("params", [&] { return List(*o->get("params"), s.params, params); }) &&
            OptKey(*o, "fields", s.fields, fields) && Key(*o, "status", s.status, OOBSUM_M(Str)) &&
            (o->get("mods") == nullptr || In("mods", [&] { return List(*o->get("mods"), s.mods, OOBSUM_M(Str)); })) &&
+           (o->get("assumes") == nullptr ||
+            In("assumes", [&] { return List(*o->get("assumes"), s.assumes, pairOf); })) &&
            In("reqs", [&] { return List(*o->get("reqs"), s.reqs, OOBSUM_M(ReadReq)); }) &&
            In("effs", [&] { return List(*o->get("effs"), s.effs, OOBSUM_M(ReadEff)); }) &&
            In("calls", [&] { return List(*o->get("calls"), s.calls, OOBSUM_M(ReadCall)); }) &&
@@ -880,6 +892,13 @@ Value SummaryToJson(const Summary &s)
     Put(out, "tu", s.tu);
     if (!s.mods.empty()) {
         out["mods"] = Strings(s.mods);  // SPEC-0045
+    }
+    if (!s.assumes.empty()) {
+        Array a;
+        for (const auto &p : s.assumes) {
+            a.push_back(Array{p.first, p.second});  // SPEC-0106
+        }
+        out["assumes"] = std::move(a);
     }
     if (s.fields) {
         Object f;

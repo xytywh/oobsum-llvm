@@ -1750,9 +1750,10 @@ def OobSummaryChecker : Checker<"OobSummary">,
                   "Functions with more CFG blocks than this are not analyzed and get a suspect decision "
                   "(0: no limit)",
                   "5000", Released>,
-    CmdLineOption<Boolean, "CharAlias",
-                  "Treat writes through char / void pointers as possibly modifying any external object "
-                  "(struct parameters, globals)",
+    CmdLineOption<String, "CharAlias",
+                  "Writes through char / void pointers to external objects: 'false' (assume they do not modify "
+                  "objects of other types), 'true' (they may modify any external object: struct parameters, "
+                  "globals), 'verify' (assume no overlap and check the assumption at each call site)",
                   "false", Released>,
     CmdLineOption<String, "Subobject",
                   "How an access that leaves an array member or a row of a multi-dimensional array but stays "

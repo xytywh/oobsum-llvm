@@ -12,6 +12,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Regex.h"
 
 #include <algorithm>
 #include <cctype>
@@ -729,6 +730,7 @@ struct State {
     bool clobbered = false;  // 经未知指针写过 / 把未知指针交给了被调者：任何基址都可能被改
     bool called = false;  // 调用过可能写全局的函数（不在模型表里的被调者）：全局标量不再是入口值（SPEC-0041）
     bool externAll = false;  // 经 char / void 写过外部内存（CharAlias）：任何外部对象都可能被改（SPEC-0103）
+    std::set<std::string> charRoots;  // CharAlias=verify：本路径上经 char / void 写过的外部根（SPEC-0106）
 };
 
 const size_t kMaxGuards = 8;
@@ -786,7 +788,7 @@ bool operator==(const State &a, const State &b)
 {
     return a.reached == b.reached && a.locals == b.locals && a.cells == b.cells && a.guards == b.guards &&
            a.written == b.written && a.writtenAll == b.writtenAll && a.clobbered == b.clobbered &&
-           a.called == b.called && a.externAll == b.externAll;
+           a.called == b.called && a.externAll == b.externAll && a.charRoots == b.charRoots;
 }
 
 // envOf：给定汇合后成立的守卫（两边的交集），建比较符号界的环境（SPEC-0023）；空 = 只认常数差
@@ -814,6 +816,8 @@ State Join(const State &a, const State &b, const std::function<SymEnv(const std:
     out.clobbered = a.clobbered || b.clobbered;
     out.called = a.called || b.called;
     out.externAll = a.externAll || b.externAll;
+    out.charRoots = a.charRoots;  // SPEC-0106：取并集
+    out.charRoots.insert(b.charRoots.begin(), b.charRoots.end());
     SymEnv env;
     SymEnv envA;
     SymEnv envB;
@@ -1184,6 +1188,8 @@ private:
     bool Changed(const State &s, const std::string &id, int64_t off, int64_t size) const;
     void MarkWritten(State &s, const std::string &id) const;
     void AliasWritten(State &s, const std::string &id) const;
+    std::string RootOf(const std::string &id) const;           // SPEC-0106
+    void NoteAssume(const State &s, const std::string &root);  // SPEC-0106
     struct ExternalView {
         enum class Kind { None, Param, ParamPtr, Global };
         Kind kind = Kind::None;
@@ -1351,7 +1357,8 @@ private:
     std::vector<RawAccess> accesses;
     std::vector<RawAccess> safe;
     std::vector<summary::Open> opens;
-    std::set<std::string> mods;  // 可能写的位置（记录那一遍，SPEC-0045）
+    std::set<std::string> mods;                             // 可能写的位置（记录那一遍，SPEC-0045）
+    std::set<std::pair<std::string, std::string>> assumes;  // CharAlias=verify 的不别名假设（记录那一遍，SPEC-0106）
     std::vector<summary::Call> calls;
     std::map<uint32_t, std::set<std::string>> fnTargets;  // 局部函数指针可能指向的函数键（SPEC-0058）
     mutable std::map<std::string, summary::FieldInfo> fields;
@@ -1802,6 +1809,42 @@ Analyzer::ExternalView Analyzer::ViewOf(const std::string &id) const
     return v;
 }
 
+// 外部内存的根（接口说法，SPEC-0106）：P<k>、P<k>.m → p<k>；PP<k>.f → p<k>->f；全局 → g:名；其余（局部、堆、字符串）空
+std::string Analyzer::RootOf(const std::string &id) const
+{
+    llvm::StringRef text = id;
+    unsigned k = 0;
+    if (text.consume_front("PP")) {
+        if (text.consumeInteger(10, k) || !text.consume_front(".")) {
+            return "";
+        }
+        return "p" + std::to_string(k) + "->" + text.str();
+    }
+    if (text.size() >= 2 && text[0] == 'P' && std::isdigit(static_cast<unsigned char>(text[1]))) {
+        text = text.drop_front();
+        return text.consumeInteger(10, k) ? "" : "p" + std::to_string(k);
+    }
+    if (text.startswith("G")) {
+        if (const fir::Global *g = GlobalOf(id)) {
+            return "g:" + g->name;
+        }
+    }
+    return "";
+}
+
+// CharAlias=verify（SPEC-0106）：本路径上经 char 写过外部根 X，之后用到外部根 Y（读、交给被调者）→ 假设 X 与 Y 不重叠
+void Analyzer::NoteAssume(const State &s, const std::string &root)
+{
+    if (!recording || !options.charVerify || root.empty()) {
+        return;
+    }
+    for (const std::string &x : s.charRoots) {
+        if (x != root) {
+            assumes.insert(x < root ? std::make_pair(x, root) : std::make_pair(root, x));
+        }
+    }
+}
+
 // 经外部内存 id 写：可能是同一块的其它外部内存——格失效、记进 writtenAll（SPEC-0091，取代 SPEC-0040 §2.2）。
 // 指针视角（形参所指、指针字段所指）：类型键相同，或它是 char / void；全局对象：类型键相同（经全局写时不算别的全局）。
 // char / void 的写不影响别的类型（SPEC-0040 的取舍）；同一形参自己的成员 / 外层由 InvalidateFamily 按范围处理
@@ -1812,6 +1855,13 @@ void Analyzer::AliasWritten(State &s, const std::string &id) const
         return;
     }
     auto charLike = [](const std::string &k) { return k == "u8" || k == "i8" || k == "void"; };
+    // CharAlias=verify（SPEC-0106）：记下写过的根，之后照 false 处理（不让别的外部内存失效）
+    if (options.charVerify && charLike(x.key)) {
+        std::string root = RootOf(id);
+        if (!root.empty()) {
+            s.charRoots.insert(root);
+        }
+    }
     // CharAlias（SPEC-0103，默认打开）：经 char / void 写外部内存 → 任何外部对象都可能被改：外部内存的格全部失效（写的那个对象自己除外，
     // 它的成员 / 外层由 InvalidateFamily 按范围处理），之后读字段、全局标量都不是入口值
     if (options.charAlias && charLike(x.key)) {
@@ -2394,6 +2444,7 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
         case fir::InstOp::Load: {
             PtrVal addr = EvalPtr(inst.addr, s);
             Access("R", addr, inst.addr, IntVal::Exact(LinExpr::Const(inst.size)), inst.loc, s);
+            NoteAssume(s, RootOf(addr.id));  // CharAlias=verify（SPEC-0106）
             SetLocal(s, inst.dst, LoadValue(addr, inst.size, inst.dst, s));
             return;
         }
@@ -3048,8 +3099,12 @@ FunctionFacts Analyzer::Run()
         }
         if (trace != nullptr) {
             // 经 char / void 写过外部内存（CharAlias，SPEC-0103）的标记放在行尾
+            std::string roots;  // CharAlias=verify：经 char 写过的根（SPEC-0106）
+            for (const std::string &r : in[b].charRoots) {
+                roots += (roots.empty() ? " char-written:" : ",") + r;
+            }
             trace->push_back(ShowState(f.blocks[b], in[b]) + (heads[b] ? " (head)" : "") +
-                             (in[b].externAll ? " extern-written" : ""));
+                             (in[b].externAll ? " extern-written" : "") + roots);
         }
         State s = in[b];
         for (const fir::Inst &inst : f.blocks[b].insts) {
@@ -3074,7 +3129,8 @@ FunctionFacts Analyzer::Run()
     facts.effs = Effects();  // 先算效果：出参字段要写进 fields 表（SPEC-0061）
     facts.fields = fields;
     facts.opens = opens;
-    facts.mods = mods;  // SPEC-0045
+    facts.mods = mods;        // SPEC-0045
+    facts.assumes = assumes;  // SPEC-0106
     return facts;
 }
 
@@ -3481,6 +3537,38 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s, bool alt)
     // 模型表优先（I-44，SPEC-0018 §2.1）
     models::Kind kind = models.KindOf(call.callee);
     bool pure = kind == models::Kind::Pure;
+    // CharAlias=verify（SPEC-0106）：经 char 写过外部内存之后，把别的外部内存交给被调者、被调者的 Req 里用到全局 → 记不别名假设
+    if (options.charVerify && !s.charRoots.empty() && kind == models::Kind::None) {
+        for (ExprId arg : inst.args) {
+            Value v = Eval(arg, s);
+            if (v.isPtr) {
+                NoteAssume(s, RootOf(v.p.id));
+            }
+        }
+        const summary::Summary *calleeSummary = nullptr;
+        if (callees != nullptr) {
+            auto it = callees->find(inst.callee);  // 按函数键；找不到再按名字（SPEC-0027）
+            if (it == callees->end()) {
+                it = callees->find(call.callee);
+            }
+            calleeSummary = it != callees->end() ? &it->second : nullptr;
+        }
+        if (calleeSummary != nullptr) {
+            static llvm::Regex global("g:[A-Za-z_][A-Za-z0-9_]*");
+            for (const summary::Req &r : calleeSummary->reqs) {
+                std::string text = r.have + " " + r.endLo + " " + r.endHi;
+                for (const std::string &g : r.guard) {
+                    text += " " + g;
+                }
+                llvm::StringRef rest = text;
+                llvm::SmallVector<llvm::StringRef, 1> match;
+                while (global.match(rest, &match)) {
+                    NoteAssume(s, StripGlobalSuffix(match[0].str()));
+                    rest = rest.drop_front(match[0].end() - rest.begin());
+                }
+            }
+        }
+    }
     if (kind != models::Kind::None) {
         call.model = models::KindName(kind).str();
     } else {
@@ -5383,7 +5471,8 @@ summary::Summary BuildSummary(const fir::Module &m, const fir::Function &f, cons
     s.calls = facts.calls;
     s.effs = facts.effs;
     s.opens = facts.opens;
-    s.mods.assign(facts.mods.begin(), facts.mods.end());  // SPEC-0045
+    s.mods.assign(facts.mods.begin(), facts.mods.end());           // SPEC-0045
+    s.assumes.assign(facts.assumes.begin(), facts.assumes.end());  // SPEC-0106
     return s;
 }
 

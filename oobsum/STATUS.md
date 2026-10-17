@@ -207,7 +207,9 @@
       在本函数里改过（或指针交给过被调者）时，别名代换会用入口时的旧值，链顶代入字段值后能把越界证明成安全（LV5-04 TP 一度变成 SAFE，已修、单测守住）。
       **LV5-01 端到端一致（金标准 11 个）**；`run.py csa`：LV5-01、LV5-04 TP → DEFINITE——**通过 78、漏报 14**，回退 0。
 - [ ] **内层界补漏**（D24）：被调者里负偏移越到成员前面（实参另记内层前面的字节数）、结构体字段里存的指针也记 `sub`、汇合时窗口对不上不丢（保留两边的窗口）。
-- [ ] **`CharAlias=verify`**（D25）：假设不别名、在调用点核对；`CharAlias` 改成字符串选项（`false` / `true` / `verify`，`false` / `true` 照旧可用）。
+- [ ] **`CharAlias=verify` 第 2 步**（SPEC-0106 §2.3）：Solver 在调用点核对假设（成立 / 不成立 → SUSPECT `alias_unverified` / 换成调用方的往上传），入口剩下的各报一条。
+- [x] **`CharAlias=verify` 第 1 步**（SPEC-0106，D25）：`CharAlias` 改成字符串（`false` / `true` / `verify`）；verify 照 false 推，记下不别名假设
+      （摘要顶层 `assumes`、`Dump=state` 的 `char-written:`）；判定暂与 false 相同。
 - [x] **选项 `Subobject`**（SPEC-0105，D24 / D25）：`suspect`（默认）/ `label`（内层按常规判 DEFINITE / POSSIBLE）/ `off`（只查整个对象）；
       内层的判定不按 `InlineDepth` 过滤。本地验证用默认 `suspect`。
 - [x] **内层界：带窗口的实参**（SPEC-0104 第 3b 步）：调用点记实参的内层剩余 `sub`；外层 safe / up 时按内层再判，越出 → SUSPECT `subobject_overflow`、

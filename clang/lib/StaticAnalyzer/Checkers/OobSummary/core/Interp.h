@@ -141,6 +141,7 @@ struct FunctionFacts {
     std::map<std::string, summary::FieldInfo> fields;  // 用到的 pi->字段（D-23 的 fields 表）
     std::vector<summary::Eff> effs;                    // 对调用方的效果（本步只有 ret_new，SPEC-0024）
     std::vector<summary::Open> opens;
+    std::set<std::pair<std::string, std::string>> assumes;  // CharAlias=verify 的不别名假设（根的无序对，SPEC-0106）
     std::set<std::string> mods = {"*"};  // 可能写的位置（SPEC-0045）；没分析完 / 跳过的函数不知道写了什么：*
 };
 
@@ -154,6 +155,8 @@ struct Options {
     // char / void 的写当成可能改了任何外部内存（SPEC-0103，用户决定 D20）。默认先关：打开后
     // for (i < pst->ulLen) pucBuf[i] = … 这类循环的界都丢掉、真报降成 SUSPECT，默认值等用户按实测确认
     bool charAlias = false;
+    // CharAlias=verify（SPEC-0106，用户决定 D25）：照 false 推，记下"经 char 写的外部内存与之后用到的外部内存不重叠"，调用点核对
+    bool charVerify = false;
     SubMode subobject = SubMode::Suspect;  // SPEC-0105，用户决定 D24 / D25
 };
 

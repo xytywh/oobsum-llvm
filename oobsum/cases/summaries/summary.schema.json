@@ -30,6 +30,8 @@
     "mods": { "type": "array", "items": { "type": "string", "pattern": "^(\\*|g:\\*|g:\\w+|\\*p\\d+->\\w+|p\\d+(\\+\\d+:\\d+)?)$" },
               "description": "可能写的位置（mod-ref，SPEC-0045）：pK、pK+off:size、*pK->f、g:名字、g:*、*；不写 = 不写被跟踪的内存" },
     "opens": { "type": "array", "items": { "$ref": "#/definitions/open" } },
+    "assumes": { "type": "array", "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "string" } },
+                 "description": "CharAlias=verify 的不别名假设（SPEC-0106）：根（p<k>、p<k>->f、g:名）的无序对；不写 = 没有" },
     "doc": { "$ref": "#/definitions/doc" }
   },
   "definitions": {

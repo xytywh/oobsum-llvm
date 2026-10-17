@@ -259,3 +259,27 @@ TEST(Summary, FieldMayRoundTrip)
     EXPECT_TRUE(back.effs[0].may.getValueOr(false));
     EXPECT_EQ(Print(SummaryToJson(back)), Print(out));
 }
+
+// CharAlias=verify 的不别名假设（SPEC-0106）：assumes 读入再写出不变；空的不写；不是两个字符串 → 报错
+TEST(Summary, AssumesRoundTrip)
+{
+    std::vector<std::string> files = SummaryFiles();
+    ASSERT_TRUE(!files.empty());
+    auto buffer = llvm::MemoryBuffer::getFile(files[0]);
+    ASSERT_TRUE(static_cast<bool>(buffer));
+    llvm::Expected<llvm::json::Value> v = llvm::json::parse((*buffer)->getBuffer());
+    ASSERT_TRUE(static_cast<bool>(v));
+    llvm::json::Value in = StripDoc(*v);
+    Summary s;
+    std::string error;
+    ASSERT_TRUE(ReadSummary(in, s, error));
+    EXPECT_TRUE(SummaryToJson(s).getAsObject()->get("assumes") == nullptr);
+    in.getAsObject()->insert(
+        {"assumes", llvm::json::Array{llvm::json::Array{"p0", "p1"}, llvm::json::Array{"g:g_stCtx", "p0"}}});
+    ASSERT_TRUE(ReadSummary(in, s, error));
+    ASSERT_TRUE(s.assumes.size() == 2);
+    EXPECT_EQ(s.assumes[1].first + "&" + s.assumes[1].second, "g:g_stCtx&p0");
+    EXPECT_EQ(Print(SummaryToJson(s)), Print(in));
+    (*in.getAsObject())["assumes"] = llvm::json::Array{llvm::json::Array{"p0"}};
+    EXPECT_FALSE(ReadSummary(in, s, error));
+}
