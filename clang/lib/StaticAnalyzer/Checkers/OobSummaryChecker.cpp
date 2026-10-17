@@ -566,6 +566,8 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
     if (charAlias != "false" && charAlias != "true" && charAlias != "verify") {
         mgr.reportInvalidCheckerOptionValue(chk, "CharAlias", "one of 'false', 'true', 'verify'");
     }
+    // AssumeNoWrap（SPEC-0108）：检查与地址计算按数学整数、记局部线性关系；默认关（召回优先）
+    chk->interpOptions.assumeNoWrap = opts.getCheckerBooleanOption(chk, "AssumeNoWrap");
     // Subobject（SPEC-0105，用户决定 D24 / D25）：内层界（成员数组、多维数组的一行）怎么报
     std::string subobject = opts.getCheckerStringOption(chk, "Subobject").str();
     if (subobject == "label") {
@@ -599,7 +601,8 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
                        opts.getCheckerStringOption(chk, "SuspectReasons").str() + "\" Dump=\"" + chk->dumpKinds +
                        "\" DumpFilter=\"" + chk->dumpFilter + "\" ModelFile=\"" + chk->modelFile +
                        "\" MaxBlocks=" + std::to_string(chk->maxBlocks) + " CharAlias=" + charAlias +
-                       " Subobject=" + subobject;
+                       " Subobject=" + subobject +
+                       " AssumeNoWrap=" + (chk->interpOptions.assumeNoWrap ? "true" : "false");
 }
 
 bool ento::shouldRegisterOobSummaryChecker(const CheckerManager &mgr)

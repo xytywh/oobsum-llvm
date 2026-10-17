@@ -1759,7 +1759,12 @@ def OobSummaryChecker : Checker<"OobSummary">,
                   "How an access that leaves an array member or a row of a multi-dimensional array but stays "
                   "inside the whole object is reported: 'suspect' (SUSPECT subobject_overflow), 'label' (judged "
                   "like any other bound: DEFINITE / POSSIBLE / SUSPECT), 'off' (only the whole object is checked)",
-                  "suspect", Released>
+                  "suspect", Released>,
+    CmdLineOption<Boolean, "AssumeNoWrap",
+                  "Assume integer arithmetic in checks and address computations does not wrap around (treat it as "
+                  "mathematical integers) and track linear relations between locals; may miss defects where a "
+                  "check itself is bypassed by wraparound",
+                  "false", Released>
   ]>,
   Documentation<NotDocumented>;
 

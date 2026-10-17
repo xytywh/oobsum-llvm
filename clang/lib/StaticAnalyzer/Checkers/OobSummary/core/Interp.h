@@ -158,6 +158,8 @@ struct Options {
     // CharAlias=verify（SPEC-0106，用户决定 D25）：照 false 推，记下"经 char 写的外部内存与之后用到的外部内存不重叠"，调用点核对
     bool charVerify = false;
     SubMode subobject = SubMode::Suspect;  // SPEC-0105，用户决定 D24 / D25
+    // 检查与地址计算里的整数运算按数学整数（不回绕），并记局部线性关系（SPEC-0108；默认关：召回优先，SPEC-0016 §2.1）
+    bool assumeNoWrap = false;
 };
 
 FunctionFacts AnalyzeFunction(

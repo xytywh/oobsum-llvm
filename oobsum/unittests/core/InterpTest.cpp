@@ -2019,3 +2019,44 @@ TEST(Interp, SubWindowKeptAcrossJoin)
     interp::FunctionFacts facts = b.Run();
     EXPECT_EQ(Reqs(facts), "open subobject_overflow at=t.c:9");
 }
+
+TEST(Interp, LocalRelations)
+{
+    // SPEC-0108：AssumeNoWrap 打开时，if (off + t > n) return; 之后记 $off + $t <= p1（off、t 都不是确切值）；off 再被赋值后去掉；默认不记
+    Builder b;
+    uint32_t n = b.Param("n", b.u32);
+    uint32_t off = b.LocalVar("off", b.u32);
+    uint32_t t = b.LocalVar("t", b.u32);
+    auto havoc = [](uint32_t dst) {
+        Inst i;
+        i.op = InstOp::Havoc;
+        i.dst = dst;
+        i.why = "data";
+        return i;
+    };
+    Diamond d;
+    d.entry.insts = {havoc(off), havoc(t)};
+    d.yes.succ = {{0, kNone}};  // return
+    d.no.insts = {b.Set(off, b.Math(BinOp::Add, b.L(off), b.C(1)))};
+    ExprId sum = b.Math(BinOp::Add, b.L(off), b.L(t));
+    ExprId gt = b.f.Add(Expr::Cmp(CmpOp::Gt, sum, b.L(n), false));
+    ExprId le = b.f.Add(Expr::Cmp(CmpOp::Le, sum, b.L(n), false));
+    d.Install(b, gt, le);
+    interp::Options on;
+    on.assumeNoWrap = true;
+    std::vector<std::string> trace;
+    interp::AnalyzeFunction(b.m, b.f, &trace, models::ModelTable::Default(), nullptr, nullptr, on);
+    auto line = [&](const std::string &head) {
+        for (const std::string &l : trace) {
+            if (l.compare(0, head.size(), head) == 0) {
+                return l;
+            }
+        }
+        return std::string();
+    };
+    EXPECT_TRUE(line("b3:").find("rels: $off + $t <= p0") != std::string::npos);  // 假的那条边（继续往下）
+    EXPECT_TRUE(line("b1:").find("rels:") == std::string::npos);                  // off 被赋值：去掉
+    std::vector<std::string> plain;
+    interp::AnalyzeFunction(b.m, b.f, &plain, models::ModelTable::Default(), nullptr, nullptr);
+    EXPECT_TRUE(llvm::none_of(plain, [](const std::string &l) { return l.find("rels:") != std::string::npos; }));
+}

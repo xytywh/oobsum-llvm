@@ -769,10 +769,44 @@ struct State {
     bool called = false;  // 调用过可能写全局的函数（不在模型表里的被调者）：全局标量不再是入口值（SPEC-0041）
     bool externAll = false;  // 经 char / void 写过外部内存（CharAlias）：任何外部对象都可能被改（SPEC-0103）
     std::set<std::string> charRoots;  // CharAlias=verify：本路径上经 char / void 写过的外部根（SPEC-0106）
+    // AssumeNoWrap：局部线性关系 L ≤ 0（含局部符号 $l<id> / $o<id>，至多 8 条，先进先出；SPEC-0108）
+    std::vector<LinExpr> rels;
 };
 
 const size_t kMaxGuards = 8;
 const size_t kMaxCases = 4;  // 一个值至多带几个情形（SPEC-0025 §2.1）
+const size_t kMaxRels = 8;   // 局部线性关系至多几条（SPEC-0108）
+
+// 局部符号（SPEC-0108）：$l<id> 是整数局部此刻的值，$o<id> 是指针局部此刻的偏移
+LinExpr LocalSym(uint32_t id, bool pointer)
+{
+    return LinExpr::Sym(std::string(pointer ? "$o" : "$l") + std::to_string(id));
+}
+
+bool HasLocalSym(const LinExpr &e)
+{
+    return llvm::any_of(e.Terms(), [](const std::pair<const Atom, int64_t> &t) {
+        return t.first.kind == Atom::Kind::Sym && llvm::StringRef(t.first.name).startswith("$");
+    });
+}
+
+// 局部 id 被赋值：含它的局部关系去掉（SPEC-0108）
+void DropRels(State &s, uint32_t id)
+{
+    if (s.rels.empty()) {
+        return;
+    }
+    std::string l = "$l" + std::to_string(id);
+    std::string o = "$o" + std::to_string(id);
+    s.rels.erase(std::remove_if(s.rels.begin(), s.rels.end(),
+                                [&](const LinExpr &r) {
+                                    return llvm::any_of(r.Terms(), [&](const std::pair<const Atom, int64_t> &t) {
+                                        return t.first.kind == Atom::Kind::Sym &&
+                                               (t.first.name == l || t.first.name == o);
+                                    });
+                                }),
+                 s.rels.end());
+}
 
 // 一边的情形：常数 → {(c, 这条路上的守卫)}；已带情形 → 每个情形再加上这条路上的守卫；其余没有
 bool CasesOf(const IntVal &v, const std::vector<LinExpr> &pathGuards, std::vector<IntCase> &out)
@@ -826,7 +860,7 @@ bool operator==(const State &a, const State &b)
 {
     return a.reached == b.reached && a.locals == b.locals && a.cells == b.cells && a.guards == b.guards &&
            a.written == b.written && a.writtenAll == b.writtenAll && a.clobbered == b.clobbered &&
-           a.called == b.called && a.externAll == b.externAll && a.charRoots == b.charRoots;
+           a.called == b.called && a.externAll == b.externAll && a.charRoots == b.charRoots && a.rels == b.rels;
 }
 
 // envOf：给定汇合后成立的守卫（两边的交集），建比较符号界的环境（SPEC-0023）；空 = 只认常数差
@@ -856,6 +890,11 @@ State Join(const State &a, const State &b, const std::function<SymEnv(const std:
     out.externAll = a.externAll || b.externAll;
     out.charRoots = a.charRoots;  // SPEC-0106：取并集
     out.charRoots.insert(b.charRoots.begin(), b.charRoots.end());
+    for (const LinExpr &r : a.rels) {
+        if (llvm::is_contained(b.rels, r)) {
+            out.rels.push_back(r);  // 局部关系：取两边都有的（SPEC-0108）
+        }
+    }
     SymEnv env;
     SymEnv envA;
     SymEnv envB;
@@ -1333,8 +1372,13 @@ private:
             i.i = IntVal::Top("ptr_as_int");
             v = i;
         }
+        DropRels(s, dst);  // 赋值：含它的局部关系失效（SPEC-0108）
         s.locals[dst] = v;
     }
+    // AssumeNoWrap 的符号式（SPEC-0108 §2.1）：整数式 / 指针（基址身份, 偏移）；含局部符号，没有符号式 → None
+    llvm::Optional<LinExpr> SymOf(ExprId e, const State &s, int depth = 0);
+    llvm::Optional<std::pair<std::string, LinExpr>> SymPtr(ExprId e, const State &s, int depth = 0);
+    void NoteRel(fir::CmpOp op, ExprId a, ExprId b, State &s);
 
     State Entry() const;
     std::vector<summary::Req> Merge() const;
@@ -2660,6 +2704,7 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             v.isPtr = IsPtrLocal(inst.dst);
             v.p = UnknownPtr(inst.why);
             v.i = IntVal::Top(inst.why);
+            DropRels(s, inst.dst);  // SPEC-0108
             s.locals[inst.dst] = v;
             return;
         }
@@ -3977,10 +4022,167 @@ bool Analyzer::Assume(ExprId c, bool negate, State &s)
     return AssumeCmp(negate ? fir::CmpOp::Eq : fir::CmpOp::Ne, c, fir::kNone, s);
 }
 
+llvm::Optional<LinExpr> Analyzer::SymOf(ExprId e, const State &s, int depth)
+{
+    if (e >= f.exprs.size() || depth > 8) {
+        return llvm::None;
+    }
+    const fir::Expr &x = f.exprs[e];
+    switch (x.op) {
+        case ExprOp::Const:
+            return LinExpr::Const(x.value);
+        case ExprOp::Local: {
+            uint32_t id = static_cast<uint32_t>(x.value);
+            if (IsPtrLocal(id)) {
+                return llvm::None;
+            }
+            auto it = s.locals.find(id);
+            if (it != s.locals.end() && !it->second.isPtr && it->second.i.kind == IntVal::Kind::Exact &&
+                !it->second.i.value.IsUnknown()) {
+                return it->second.i.value;
+            }
+            return LocalSym(id, false);
+        }
+        case ExprOp::Cast:
+            return SymOf(x.a, s, depth + 1);  // 不回绕的假设下值不变
+        case ExprOp::Neg: {
+            llvm::Optional<LinExpr> a = SymOf(x.a, s, depth + 1);
+            return a ? llvm::Optional<LinExpr>(-*a) : llvm::None;
+        }
+        case ExprOp::Bin: {
+            auto bop = static_cast<fir::BinOp>(x.sub);
+            if (bop != fir::BinOp::Add && bop != fir::BinOp::Sub && bop != fir::BinOp::Mul) {
+                return llvm::None;
+            }
+            llvm::Optional<LinExpr> a = SymOf(x.a, s, depth + 1);
+            llvm::Optional<LinExpr> b = SymOf(x.b, s, depth + 1);
+            if (!a || !b) {
+                return llvm::None;
+            }
+            if (bop == fir::BinOp::Mul) {
+                if (b->IsConst()) {
+                    return a->Scale(b->Constant());
+                }
+                if (a->IsConst()) {
+                    return b->Scale(a->Constant());
+                }
+                return llvm::None;
+            }
+            LinExpr out = bop == fir::BinOp::Add ? *a + *b : *a - *b;
+            return out.IsUnknown() ? llvm::None : llvm::Optional<LinExpr>(out);
+        }
+        default:
+            return llvm::None;
+    }
+}
+
+llvm::Optional<std::pair<std::string, LinExpr>> Analyzer::SymPtr(ExprId e, const State &s, int depth)
+{
+    if (e >= f.exprs.size() || depth > 8) {
+        return llvm::None;
+    }
+    const fir::Expr &x = f.exprs[e];
+    if (x.op == ExprOp::Local) {
+        uint32_t id = static_cast<uint32_t>(x.value);
+        auto it = s.locals.find(id);
+        if (!IsPtrLocal(id) || it == s.locals.end() || !it->second.isPtr || it->second.p.kind == BaseKind::Unknown ||
+            it->second.p.kind == BaseKind::Func) {
+            return llvm::None;
+        }
+        const PtrVal &p = it->second.p;
+        bool exact = p.off.kind == IntVal::Kind::Exact && !p.off.value.IsUnknown();
+        return std::make_pair(p.id, exact ? p.off.value : LocalSym(id, true));
+    }
+    if (x.op == ExprOp::PAdd) {
+        llvm::Optional<std::pair<std::string, LinExpr>> base = SymPtr(x.a, s, depth + 1);
+        llvm::Optional<LinExpr> d = SymOf(x.b, s, depth + 1);
+        if (!base || !d) {
+            return llvm::None;
+        }
+        return std::make_pair(base->first, base->second + *d);
+    }
+    if (x.op == ExprOp::SubObj) {
+        return SymPtr(x.a, s, depth + 1);
+    }
+    Value v = Eval(e, s);  // 其余：偏移确切时直接用（同一基址身份）
+    if (x.op == ExprOp::Fld) {
+        llvm::Optional<std::pair<std::string, LinExpr>> base = SymPtr(x.a, s, depth + 1);
+        if (base && v.isPtr && v.p.id == base->first) {
+            return std::make_pair(base->first, base->second + LinExpr::Const(x.value));
+        }
+    }
+    if (v.isPtr && v.p.kind != BaseKind::Unknown && v.p.kind != BaseKind::Func && v.p.off.kind == IntVal::Kind::Exact &&
+        !v.p.off.value.IsUnknown()) {
+        return std::make_pair(v.p.id, v.p.off.value);
+    }
+    return llvm::None;
+}
+
+// AssumeNoWrap（SPEC-0108 §2.1）：比较两边的符号式之差含局部符号 → 记成局部线性关系（同一对象的两个指针比偏移）
+void Analyzer::NoteRel(fir::CmpOp op, ExprId a, ExprId b, State &s)
+{
+    llvm::Optional<LinExpr> sa;
+    llvm::Optional<LinExpr> sb = LinExpr::Const(0);
+    if (Eval(a, s).isPtr) {
+        llvm::Optional<std::pair<std::string, LinExpr>> pa = SymPtr(a, s);
+        llvm::Optional<std::pair<std::string, LinExpr>> pb =
+            b != fir::kNone ? SymPtr(b, s) : llvm::Optional<std::pair<std::string, LinExpr>>();
+        if (!pa || !pb || pa->first != pb->first) {
+            return;
+        }
+        sa = pa->second;
+        sb = pb->second;
+    } else {
+        sa = SymOf(a, s);
+        if (b != fir::kNone) {
+            sb = SymOf(b, s);
+        }
+    }
+    if (!sa || !sb) {
+        return;
+    }
+    LinExpr d = *sa - *sb;  // a − b
+    if (d.IsUnknown() || !HasLocalSym(d)) {
+        return;
+    }
+    LinExpr one = LinExpr::Const(1);
+    std::vector<LinExpr> atoms;
+    switch (op) {
+        case fir::CmpOp::Lt:
+            atoms = {d + one};
+            break;
+        case fir::CmpOp::Le:
+            atoms = {d};
+            break;
+        case fir::CmpOp::Gt:
+            atoms = {one - d};
+            break;
+        case fir::CmpOp::Ge:
+            atoms = {-d};
+            break;
+        case fir::CmpOp::Eq:
+            atoms = {d, -d};
+            break;
+        case fir::CmpOp::Ne:
+            break;
+    }
+    for (const LinExpr &r : atoms) {
+        if (!llvm::is_contained(s.rels, r)) {
+            s.rels.push_back(r);
+        }
+        if (s.rels.size() > kMaxRels) {
+            s.rels.erase(s.rels.begin());
+        }
+    }
+}
+
 // a op b（b 为 kNone 时是常数 0）。两边都是确切值 → 原子（常数为假 → 不可达）；一边是区间、一边是确切值 → 收窄区间并推出原子
 // （SPEC-0017 §2.3）；在类型范围与已有守卫下已经成立的原子不加
 bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
 {
+    if (options.assumeNoWrap) {
+        NoteRel(op, a, b, s);  // 局部线性关系（SPEC-0108）
+    }
     Value va = Eval(a, s);
     Value vb;
     vb.i = IntVal::Exact(LinExpr::Const(0));
@@ -5521,6 +5723,27 @@ std::string Analyzer::ShowState(const fir::Block &b, const State &s) const
         out += " guards:";
         for (size_t i = 0; i < s.guards.size(); ++i) {
             out += (i == 0 ? " " : ", ") + ShowLe0(s.guards[i]);
+        }
+    }
+    if (!s.rels.empty()) {
+        // 局部关系（SPEC-0108）：局部符号写成 $名字（指针局部的偏移 $名字.off）
+        static llvm::Regex sym("\\$([lo])([0-9]+)");
+        out += " rels:";
+        for (size_t i = 0; i < s.rels.size(); ++i) {
+            std::string text = ShowLe0(s.rels[i]);
+            llvm::SmallVector<llvm::StringRef, 3> m;
+            std::string shown;
+            llvm::StringRef rest = text;
+            while (sym.match(rest, &m)) {
+                size_t at = m[0].data() - rest.data();
+                shown += rest.substr(0, at).str();
+                unsigned id = 0;
+                m[2].getAsInteger(10, id);
+                const fir::Local *l = f.FindLocal(id);
+                shown += "$" + (l != nullptr ? l->name : m[2].str()) + (m[1] == "o" ? ".off" : "");
+                rest = rest.drop_front(at + m[0].size());
+            }
+            out += (i == 0 ? " " : ", ") + shown + rest.str();
         }
     }
     return out;

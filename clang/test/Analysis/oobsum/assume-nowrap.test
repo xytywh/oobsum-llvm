@@ -1,0 +1,22 @@
+# 选项 AssumeNoWrap（oobsum/specs/SPEC-0108）：检查与地址计算里的整数运算按数学整数（不回绕），记局部线性关系。默认关（召回优先，SPEC-0016 §2.1）。
+#
+# 打开：条件边上记下局部之间的关系；局部被赋值时去掉
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:AssumeNoWrap=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=options+state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Tlv$' \
+# RUN:   -w %S/Inputs/nowrap/n.c 2>&1 | FileCheck %s --check-prefix=ON
+# 关（默认）：没有局部关系
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:Dump=options+state \
+# RUN:   -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Tlv$' -w %S/Inputs/nowrap/n.c 2>&1 \
+# RUN:   | FileCheck %s --check-prefix=OFF --implicit-check-not=rels:
+
+ON-DAG: [oobsum:options] {{.*}} AssumeNoWrap=true
+# while (ulOff + 2 <= ulTotal) 之后、if (ulOff + ulLen > ulTotal) break; 之后
+ON-DAG: [oobsum:state] fn Tlv b4: {{.*}} rels: $ulOff <= p1 - 2
+ON-DAG: [oobsum:state] fn Tlv b2: {{.*}} rels: $ulOff <= p1 - 2, $ulOff + $ulLen <= p1
+# ulOff += 2 + ulLen 之后：含 ulOff 的关系去掉
+ON-DAG: [oobsum:state] fn Tlv b1: pucBuf=*p0+0 ulTotal=p1 pucOut=*p2+0 ulOff=[0, +inf]:widen ulLen=[0, 255]:data{{$}}
+
+OFF-DAG: [oobsum:options] {{.*}} AssumeNoWrap=false
+OFF-DAG: [oobsum:state] fn Tlv b2: {{.*}}ulLen=[0, 255]:data{{$}}
