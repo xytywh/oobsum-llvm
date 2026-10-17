@@ -1003,7 +1003,7 @@
    "kind": "TP",
    "entry": "Drv_OnRxPkt_TP",
    "pa": "记账",
-   "actual": "SUSPECT:entry_unproven×2",
+   "actual": "SUSPECT:typed_field×3",
    "verdict": "通过"
   },
   {
@@ -1011,7 +1011,7 @@
    "kind": "TN",
    "entry": "Drv_OnRxPkt_TN",
    "pa": "记账",
-   "actual": "SUSPECT:typed_field×2",
+   "actual": "SUSPECT:typed_field×3",
    "verdict": "通过+S"
   },
   {
@@ -1204,6 +1204,15 @@
    "fn": "F:Drv_OnRxPkt_TP",
    "label": "suspect",
    "reason": "typed_field",
+   "access": "lv10/lv10_01_field_pairing.c:34"
+  },
+  {
+   "case": "LV10-01",
+   "site": "lv10/lv10_01_field_pairing.c:53:0",
+   "kind": "R",
+   "fn": "F:Drv_OnRxPkt_TP",
+   "label": "suspect",
+   "reason": "typed_field",
    "access": "lv10/lv10_01_field_pairing.c:37"
   },
   {
@@ -1223,6 +1232,15 @@
    "label": "suspect",
    "reason": "typed_field",
    "access": "lv10/lv10_01_field_pairing.c:42"
+  },
+  {
+   "case": "LV10-01",
+   "site": "lv10/lv10_01_field_pairing.c:54:0",
+   "kind": "R",
+   "fn": "F:Drv_OnRxPkt_TN",
+   "label": "suspect",
+   "reason": "typed_field",
+   "access": "lv10/lv10_01_field_pairing.c:45"
   },
   {
    "case": "LV10-01",

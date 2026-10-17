@@ -21,7 +21,7 @@ void Put(UINT8 *pucPkt, UINT32 ulOff, const UINT8 *pucVal, UINT32 ulLen)
 // CHECK-SAME: "fn":"Put",
 // CHECK-SAME: "end":["128","128"],"guard":["p1 <= 128"]
 // CHECK-SAME: "kind":"W"
-// CHECK-SAME: "end":["p3","p3"],"guard":["p1 + p3 <= 128"]
+// CHECK-SAME: "end":["p3","p3"],"guard":["p1 + p3 <= 128","p1 <= 128"]
 // CHECK-SAME: "kind":"R"
 // 第二段（SPEC-0020）：ulOff >= 2^31 + 129 时回绕后不超过 0x7fffffff，照样写；段守卫总挂上
 // CHECK-SAME: "end":["4294967424","4294967424"],"guard":["p1 >= 2147483777"]

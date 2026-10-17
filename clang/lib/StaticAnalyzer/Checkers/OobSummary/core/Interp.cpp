@@ -2175,14 +2175,17 @@ void Analyzer::Record(RawAccess a, const State &s, const std::vector<LinExpr> &f
     if (a.start) {
         CollectSyms(*a.start, syms);
     }
+    // 全部守卫都带上（SPEC-0096）：只关于别的形参的路径条件（if (c) …）也要带，调用方传的值让它为假时访问走不到。
+    // 守卫只含接口符号（A-14），带上是可靠的；与 have / end 有公共符号的排在前面
     std::vector<LinExpr> chosen;
+    std::vector<LinExpr> others;
     for (const LinExpr &g : s.guards) {
         std::set<std::string> gs;
         CollectSyms(g, gs);
-        if (llvm::any_of(gs, [&](const std::string &x) { return syms.count(x) != 0; })) {
-            chosen.push_back(g);
-        }
+        bool related = llvm::any_of(gs, [&](const std::string &x) { return syms.count(x) != 0; });
+        (related ? chosen : others).push_back(g);
     }
+    chosen.insert(chosen.end(), others.begin(), others.end());
     for (const LinExpr &g : forced) {
         // 环境只用类型范围与已挑中的守卫（Env(s) 里已经有 g 自己，会把它判成"已蕴含"）
         State bare;

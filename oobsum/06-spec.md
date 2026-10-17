@@ -601,7 +601,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 3. **A-42 代区间**：`D` 里剩下的局部换成它们的界（系数为正取上界、为负取下界），得到 `D` 的上界 `U` 与下界 `L`（只含接口符号），并记下所用界的来源标签；
    另对 `offExpr` 求下界，检查 `off ≥ 0`。
 4. **A-43 当场判定**：`U`、`L` 不含符号时按 F-10…F-14 判；`depth = 0`，判出的进 `reps`（只有 F-21 / F-22 时才会报出，其余被 F-20 过滤，但照样入 `reports.json` 并标 `filtered`）。
-5. **A-44 生成 Req**〔由 SPEC-0014、SPEC-0016、SPEC-0018 修订〕：含接口符号时，先用守卫判蕴含（§6.5）：`U ≤ 0` 成立 → 安全，丢弃；否则生成 Req：`have`、`end`（末端的 [下界, 上界]）、`start`、`bytes`、`bound`、
+5. **A-44 生成 Req**〔由 SPEC-0014、SPEC-0016、SPEC-0018 修订；SPEC-0096：Req 带上全部守卫（与 have / end 有公共符号的在前），不只相关的〕：含接口符号时，先用守卫判蕴含（§6.5）：`U ≤ 0` 成立 → 安全，丢弃；否则生成 Req：`have`、`end`（末端的 [下界, 上界]）、`start`、`bytes`、`bound`、
    与 Req 符号相关的守卫原子、访问位置与序号、`depth = 0`、`blind`（A-07）。**覆盖合并**：同一 `have`、守卫相同的两条 Req，若一条的 `end[1]` 恒不大于另一条
 （差为非正常数），弱的那条并进强的、记进 `absorbed`（LV1-02 的 `pszName[0]`、`pszName[1]`）；守卫不同的不合并（LV2-03 TN 的 `R3`）。
 6. **A-45 记账**：`have` 无法表示（`Ret` / `Unknown` base、未知大小的分配）→ 记账 `alloc_size_unknown` / 对应原因；上界只来自 `type` / `widen` / `data` → `type_range_only` / `pointer_stepping`；含 `nonlinear` → `nonlinear`。

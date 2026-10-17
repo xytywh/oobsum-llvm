@@ -794,7 +794,7 @@ TEST(Interp, MemcpySecurec)
     // 模型给出的段守卫总挂上（第一段的源上 p1 <= 128 被 p1 + p3 <= 128 蕴含，不挂）
     EXPECT_EQ(Reqs(c.Run()),
               "W have=ext(p0) obj=*p0 end=[128, 128] bound=exact at=t.c:36 guard=p1 <= 128 | "
-              "R have=ext(p2) obj=*p2 end=[p3, p3] bound=exact at=t.c:36 guard=p1 + p3 <= 128 | "
+              "R have=ext(p2) obj=*p2 end=[p3, p3] bound=exact at=t.c:36 guard=p1 + p3 <= 128 guard=p1 <= 128 | "
               "W have=ext(p0) obj=*p0 end=[4294967424, 4294967424] bound=exact at=t.c:36 "
               "guard=p1 >= 2147483777 | "
               "R have=ext(p2) obj=*p2 end=[p3, p3] bound=exact at=t.c:36 guard=p1 + p3 <= 4294967424 "
@@ -1801,4 +1801,18 @@ TEST(Interp, EffectParamPassthrough)
         interp::AnalyzeFunction(b.m, b.f, nullptr, models::ModelTable::Default(), &callees, nullptr);
     std::string reqs = Reqs(facts);
     EXPECT_TRUE(reqs.find("obj=*p0 end=[3, 101]") != std::string::npos);
+}
+
+TEST(Interp, UnrelatedGuardKept)
+{
+    // SPEC-0096：if (c != 0) p[i] = 0; → Req 带上只关于 c 的守卫 p2 >= 1（原来与 have / end 没有公共符号就丢掉）
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t i = b.Param("i", b.u32);
+    uint32_t c = b.Param("c", b.u32);
+    Diamond d;
+    d.yes.insts = {b.Store(b.PAdd(b.L(p), b.L(i)), 1, b.C(0), 7)};
+    d.Install(b, b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(c), b.C(0), false)),
+              b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(c), b.C(0), false)));
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[p1 + 1, p1 + 1] bound=exact at=t.c:7 guard=p2 >= 1");
 }
