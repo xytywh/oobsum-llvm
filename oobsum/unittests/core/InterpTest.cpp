@@ -2060,3 +2060,39 @@ TEST(Interp, LocalRelations)
     interp::AnalyzeFunction(b.m, b.f, &plain, models::ModelTable::Default(), nullptr, nullptr);
     EXPECT_TRUE(llvm::none_of(plain, [](const std::string &l) { return l.find("rels:") != std::string::npos; }));
 }
+
+TEST(Interp, AssumeNoWrapAccess)
+{
+    // SPEC-0108 §2.2：if (off + t > n) return; 之后
+    //   p[off + t] = 0       → 末端 off + t + 1，用关系 off + t ≤ n 消去局部 → [1, p1 + 1]，标签 check
+    //   memset_s(p + off, n − off, 0, n − off) → 末端 off + (n − off) 先抵消（A-41）→ [p1, p1]（被上一条覆盖并入）
+    // 默认（不打开）：off 没有上界 → 记账 type_range_only
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("n", b.u32);
+    uint32_t off = b.LocalVar("off", b.u32);
+    uint32_t t = b.LocalVar("t", b.u32);
+    auto havoc = [](uint32_t dst) {
+        Inst i;
+        i.op = InstOp::Havoc;
+        i.dst = dst;
+        i.why = "data";
+        return i;
+    };
+    Diamond d;
+    d.entry.insts = {havoc(off), havoc(t)};
+    d.yes.succ = {{0, kNone}};
+    ExprId sum = b.Math(BinOp::Add, b.L(off), b.L(t));
+    ExprId rest = b.Wrap(BinOp::Sub, b.L(n), b.L(off));
+    d.no.insts = {b.Store(b.PAdd(b.L(p), sum), 1, b.C(0), 8),
+                  CallOf("F:memset_s", {b.PAdd(b.L(p), b.L(off)), rest, b.C(0), rest}, 9)};
+    ExprId gt = b.f.Add(Expr::Cmp(CmpOp::Gt, sum, b.L(n), false));
+    ExprId le = b.f.Add(Expr::Cmp(CmpOp::Le, sum, b.L(n), false));
+    d.Install(b, gt, le);
+    interp::Options on;
+    on.assumeNoWrap = true;
+    interp::FunctionFacts facts =
+        interp::AnalyzeFunction(b.m, b.f, nullptr, models::ModelTable::Default(), nullptr, nullptr, on);
+    EXPECT_EQ(Reqs(facts), "W have=ext(p0) obj=*p0 end=[1, p1 + 1] bound=check at=t.c:8 +W[p1, p1]");
+    EXPECT_TRUE(Reqs(b.Run()).find("open type_range_only") != std::string::npos);
+}

@@ -1167,6 +1167,13 @@ bool IsCondExpr(const fir::Function &f, ExprId e)
 }
 
 // 一次访问（覆盖合并之前）
+// AssumeNoWrap 的访问（SPEC-0108 §2.2）：偏移与字节数的符号式（含局部符号）
+struct SymAccess {
+    LinExpr off;
+    LinExpr bytes;
+    bool upto = false;  // 模型的"至多 bytes 字节"（实际 1 … bytes，SPEC-0034）
+};
+
 struct RawAccess {
     std::string kind;
     std::string dir;  // "back"：负偏移（SPEC-0039）
@@ -1250,11 +1257,16 @@ private:
     void Step(const fir::Inst &inst, State &s);
     Value LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const State &s) const;
     void Access(const char *kind, const PtrVal &addr, ExprId addrExpr, const IntVal &bytes, const fir::Loc &loc,
-                const State &s, const std::vector<LinExpr> &forced = {}, bool checkBack = true);
+                const State &s, const std::vector<LinExpr> &forced = {}, bool checkBack = true,
+                const SymAccess *sym = nullptr);
+    // AssumeNoWrap（SPEC-0108 §2.2）：含局部符号的式子 e 的上 / 下界（只含接口符号，用局部关系与区间消去局部符号）
+    llvm::Optional<std::pair<LinExpr, Tag>> Bound(const LinExpr &e, bool upper, const State &s);
+    llvm::Optional<std::pair<LinExpr, Tag>> AtomBound(llvm::StringRef name, bool upper, const State &s) const;
+    llvm::Optional<SymAccess> SymAt(ExprId addrExpr, const PtrVal &addr, const LinExpr &bytes, const State &s);
     void CheckSubs(const char *kind, const PtrVal &addr, const IntVal &bytes, const std::string &at, const State &s,
                    const std::vector<LinExpr> &forced);
     void BackAccess(const char *kind, const PtrVal &addr, ExprId addrExpr, const std::string &at, const State &s,
-                    const std::vector<LinExpr> &forced);
+                    const std::vector<LinExpr> &forced, const SymAccess *sym = nullptr);
     void Record(RawAccess a, const State &s, const std::vector<LinExpr> &forced);
     void AddOpen(const std::string &reason, const std::string &at);
     // mod-ref（SPEC-0045）：记下可能写的位置；调用点按被调者的 mods 只让写到的位置失效
@@ -2295,7 +2307,7 @@ void Analyzer::ApplyMods(const fir::Inst &inst, const std::vector<std::string> &
 }
 
 void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, const IntVal &bytes, const fir::Loc &loc,
-                      const State &s, const std::vector<LinExpr> &forced, bool checkBack)
+                      const State &s, const std::vector<LinExpr> &forced, bool checkBack, const SymAccess *sym)
 {
     if (!recording) {
         return;
@@ -2326,14 +2338,21 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
         CheckSubs(kind, addr, bytes, at, s, forced);  // 成员数组、多维数组的一行（SPEC-0104）
     }
     if (checkBack) {
-        BackAccess(kind, addr, addrExpr, at, s, forced);  // 负偏移（SPEC-0039）
+        BackAccess(kind, addr, addrExpr, at, s, forced, sym);  // 负偏移（SPEC-0039）
     }
     if (!addr.hasSize) {
         open("alloc_size_unknown");
         return;
     }
+    // AssumeNoWrap（SPEC-0108 §2.2）：末端 = 偏移 + 字节数的符号式，同类项抵消（A-41），再用局部关系与区间消去局部符号
+    llvm::Optional<std::pair<LinExpr, Tag>> symHi;
+    llvm::Optional<std::pair<LinExpr, Tag>> symLo;
+    if (options.assumeNoWrap && sym != nullptr) {
+        symHi = Bound(sym->off + sym->bytes, true, s);
+        symLo = Bound(sym->off + (sym->upto ? LinExpr::Const(1) : sym->bytes), false, s);
+    }
     llvm::Optional<LinExpr> hi = addr.off.Upper();
-    if (!hi) {
+    if (!hi && !symHi) {
         // 偏移的上界被 widening 去掉、地址就是一个指针局部（*p++）→ 指针步进（A-45、SPEC-0017 §2.5）
         bool stepping = addr.off.kind == IntVal::Kind::Range && addr.off.tag == Tag::Widen &&
                         addrExpr < f.exprs.size() && f.exprs[addrExpr].op == ExprOp::Local;
@@ -2342,7 +2361,7 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
     }
     // 字节数（模型给出的可以是区间或符号，SPEC-0018 §2.2）：没有上界 → 账本；没有下界按 0
     llvm::Optional<LinExpr> bytesHi = bytes.Upper();
-    if (!bytesHi) {
+    if (!bytesHi && !symHi) {
         AddOpen(OpenReason(bytes, "type_range_only"), at);
         return;
     }
@@ -2352,18 +2371,137 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
     a.kind = kind;
     a.have = addr.size;
     a.obj = addr.obj;
-    a.hi = *hi + *bytesHi;
+    a.hi = hi && bytesHi ? *hi + *bytesHi : LinExpr::Unknown();
     a.lo = (lo ? *lo : LinExpr::Const(0)) + (bytesLo ? *bytesLo : LinExpr::Const(0));
     a.start = lo;
     Tag offTag = addr.off.kind == IntVal::Kind::Exact ? Tag::Exact : addr.off.tag;
     Tag bytesTag = bytes.kind == IntVal::Kind::Exact ? Tag::Exact : bytes.tag;
     a.tag = WorseTag(offTag, bytesTag);
     a.at = at;
+    // 符号式给出的界更紧（或原来没有）就用它
+    SymEnv env = Env(s);
+    if (symHi && (a.hi.IsUnknown() || (symHi->first != a.hi && EntailsLe0(symHi->first - a.hi, s.guards, env)))) {
+        a.hi = symHi->first;
+        a.tag = symHi->second;
+    }
+    if (symLo && (a.lo.IsUnknown() || (symLo->first != a.lo && EntailsLe0(a.lo - symLo->first, s.guards, env)))) {
+        a.lo = symLo->first;
+    }
     if (a.hi.IsUnknown() || a.lo.IsUnknown()) {
         open("type_range_only");
         return;
     }
     Record(std::move(a), s, forced);
+}
+
+// 局部符号此刻的界（SPEC-0108 §2.2）：局部的区间；没有就用类型范围（无符号的下界 0 是确切的事实，标 exact）
+llvm::Optional<std::pair<LinExpr, Tag>> Analyzer::AtomBound(llvm::StringRef name, bool upper, const State &s) const
+{
+    bool ptr = name.startswith("$o");
+    unsigned id = 0;
+    if ((!ptr && !name.startswith("$l")) || name.drop_front(2).getAsInteger(10, id)) {
+        return llvm::None;
+    }
+    auto it = s.locals.find(id);
+    if (it != s.locals.end() && it->second.isPtr != ptr) {
+        return llvm::None;
+    }
+    IntVal v = it == s.locals.end() ? IntVal::Top("uninit") : (ptr ? it->second.p.off : it->second.i);
+    llvm::Optional<LinExpr> b = upper ? v.Upper() : v.Lower();
+    const fir::Type *t = ptr ? nullptr : LocalType(id);
+    bool unsignedInt = t != nullptr && t->kind == fir::TypeKind::Int && !t->isSigned;
+    if (b && !b->IsUnknown()) {
+        Tag tag = v.kind == IntVal::Kind::Exact ? Tag::Exact : v.tag;
+        if (!upper && unsignedInt && b->IsConst() && b->Constant() == 0) {
+            tag = Tag::Exact;
+        }
+        return std::make_pair(*b, tag);
+    }
+    if (t == nullptr || t->kind != fir::TypeKind::Int || t->width == 0 || t->width > 62) {
+        return llvm::None;
+    }
+    int64_t max = t->isSigned ? (int64_t(1) << (t->width - 1)) - 1 : (int64_t(1) << t->width) - 1;
+    int64_t min = t->isSigned ? -(int64_t(1) << (t->width - 1)) : 0;
+    return std::make_pair(LinExpr::Const(upper ? max : min), upper || t->isSigned ? Tag::Type : Tag::Exact);
+}
+
+llvm::Optional<std::pair<LinExpr, Tag>> Analyzer::Bound(const LinExpr &e, bool upper, const State &s)
+{
+    if (e.IsUnknown()) {
+        return llvm::None;
+    }
+    // ① 用局部关系 R ≤ 0 消去局部符号：上界 e − k·R、下界 e + k·R（k > 0，使这个局部符号的系数变成 0；至多两轮）
+    std::vector<std::pair<LinExpr, Tag>> cands{{e, Tag::Exact}};
+    for (int round = 0; round < 2; ++round) {
+        size_t n = cands.size();
+        for (size_t i = 0; i < n && cands.size() < 32; ++i) {
+            LinExpr d = cands[i].first;
+            Tag tag = cands[i].second;
+            for (const auto &term : d.Terms()) {
+                const Atom &x = term.first;
+                int64_t c = term.second;
+                if (x.kind != Atom::Kind::Sym || !llvm::StringRef(x.name).startswith("$") ||
+                    (upper ? c <= 0 : c >= 0)) {
+                    continue;  // 系数另一侧的用区间
+                }
+                for (const LinExpr &r : s.rels) {
+                    int64_t cr = r.Coeff(x);
+                    int64_t k = upper ? c : -c;
+                    if (cr <= 0 || k % cr != 0) {
+                        continue;
+                    }
+                    k /= cr;
+                    LinExpr next = upper ? d - r.Scale(k) : d + r.Scale(k);
+                    if (!next.IsUnknown()) {
+                        cands.push_back({next, WorseTag(tag, Tag::Check)});
+                    }
+                }
+            }
+        }
+    }
+    // ② 剩下的局部符号按区间换掉（系数为正取上界、为负取下界；求下界时反过来）；取最紧的一个
+    SymEnv env = Env(s);
+    llvm::Optional<std::pair<LinExpr, Tag>> best;
+    for (const auto &cand : cands) {
+        LinExpr out = cand.first;
+        Tag tag = cand.second;
+        bool ok = true;
+        for (const auto &term : cand.first.Terms()) {
+            const Atom &x = term.first;
+            if (x.kind != Atom::Kind::Sym || !llvm::StringRef(x.name).startswith("$")) {
+                continue;
+            }
+            llvm::Optional<std::pair<LinExpr, Tag>> b = AtomBound(x.name, (term.second > 0) == upper, s);
+            if (!b) {
+                ok = false;
+                break;
+            }
+            out = out + (b->first - LinExpr::OfAtom(x)).Scale(term.second);
+            tag = WorseTag(tag, b->second);
+        }
+        if (!ok || out.IsUnknown() || HasLocalSym(out)) {
+            continue;
+        }
+        bool better = !best || (upper ? EntailsLe0(out - best->first, s.guards, env) && out != best->first
+                                      : EntailsLe0(best->first - out, s.guards, env) && out != best->first);
+        if (better) {
+            best = std::make_pair(out, tag);
+        }
+    }
+    return best;
+}
+
+// load / store 的符号偏移（同一基址身份才用，SPEC-0108 §2.2）
+llvm::Optional<SymAccess> Analyzer::SymAt(ExprId addrExpr, const PtrVal &addr, const LinExpr &bytes, const State &s)
+{
+    if (!options.assumeNoWrap) {
+        return llvm::None;
+    }
+    llvm::Optional<std::pair<std::string, LinExpr>> p = SymPtr(addrExpr, s);
+    if (!p || p->first != addr.id) {
+        return llvm::None;
+    }
+    return SymAccess{p->second, bytes};
 }
 
 // 内层窗口（SPEC-0104 §2.2，用户决定 D22）：访问还要落在每个子对象（成员数组、多维数组的一行）里。证明不了 → 账本
@@ -2461,13 +2599,20 @@ void Analyzer::CheckSubs(const char *kind, const PtrVal &addr, const IntVal &byt
 
 // 负偏移（06- §3.1，SPEC-0039 §2.1）：偏移下界不能证明 ≥ 0 时，记一条反向 Req：越到基址前面的字节数 −lo ≤ bext(基址)
 void Analyzer::BackAccess(const char *kind, const PtrVal &addr, ExprId addrExpr, const std::string &at, const State &s,
-                          const std::vector<LinExpr> &forced)
+                          const std::vector<LinExpr> &forced, const SymAccess *sym)
 {
     llvm::Optional<LinExpr> have = BackOf(addr);
     if (!have) {
         return;
     }
     llvm::Optional<LinExpr> lo = addr.off.Lower();
+    if ((!lo || lo->IsUnknown()) && options.assumeNoWrap && sym != nullptr) {
+        // AssumeNoWrap：偏移的下界也用符号式求（SPEC-0108 §2.2）
+        llvm::Optional<std::pair<LinExpr, Tag>> b = Bound(sym->off, false, s);
+        if (b) {
+            lo = b->first;
+        }
+    }
     if (!lo || lo->IsUnknown()) {
         bool stepping = addr.off.kind == IntVal::Kind::Range && addr.off.tag == Tag::Widen &&
                         addrExpr < f.exprs.size() && f.exprs[addrExpr].op == ExprOp::Local;
@@ -2545,14 +2690,18 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
             return;
         case fir::InstOp::Load: {
             PtrVal addr = EvalPtr(inst.addr, s);
-            Access("R", addr, inst.addr, IntVal::Exact(LinExpr::Const(inst.size)), inst.loc, s);
+            llvm::Optional<SymAccess> sym = SymAt(inst.addr, addr, LinExpr::Const(inst.size), s);  // SPEC-0108
+            Access("R", addr, inst.addr, IntVal::Exact(LinExpr::Const(inst.size)), inst.loc, s, {}, true,
+                   sym ? &*sym : nullptr);
             NoteAssume(s, RootOf(addr.id));  // CharAlias=verify（SPEC-0106）
             SetLocal(s, inst.dst, LoadValue(addr, inst.size, inst.dst, s));
             return;
         }
         case fir::InstOp::Store: {
             PtrVal addr = EvalPtr(inst.addr, s);
-            Access("W", addr, inst.addr, IntVal::Exact(LinExpr::Const(inst.size)), inst.loc, s);
+            llvm::Optional<SymAccess> sym = SymAt(inst.addr, addr, LinExpr::Const(inst.size), s);  // SPEC-0108
+            Access("W", addr, inst.addr, IntVal::Exact(LinExpr::Const(inst.size)), inst.loc, s, {}, true,
+                   sym ? &*sym : nullptr);
             AddMod(addr, inst.size);  // SPEC-0045
             if (addr.kind == BaseKind::Unknown) {
                 s.cells.clear();  // A-12：经未知基址的写
@@ -4255,8 +4404,8 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
         }
         return Faithful(e, v, env) || (large && v.kind == IntVal::Kind::Exact && UpperSound(e, s, env));
     };
-    if (!offsets && (!usable(a, va.i, aLarge) || !usable(b, vb.i, bLarge))) {
-        return true;
+    if (!offsets && !options.assumeNoWrap && (!usable(a, va.i, aLarge) || !usable(b, vb.i, bLarge))) {
+        return true;  // AssumeNoWrap：检查按数学整数，不做忠实判断（SPEC-0108 §2.2）
     }
     static const fir::CmpOp mirrored[] = {fir::CmpOp::Eq, fir::CmpOp::Ne, fir::CmpOp::Gt,
                                           fir::CmpOp::Ge, fir::CmpOp::Lt, fir::CmpOp::Le};
@@ -4561,7 +4710,7 @@ void Analyzer::ApplyAccessModel(const fir::Inst &inst, const models::AccessModel
         Value v = Eval(arg, s);
         values.push_back(v);
         base.ints.push_back(v.isPtr ? IntVal::Top("ptr_as_int") : v.i);
-        base.faithful.push_back(!v.isPtr && Faithful(arg, v.i, env));
+        base.faithful.push_back(!v.isPtr && (options.assumeNoWrap || Faithful(arg, v.i, env)));  // SPEC-0108
     }
     // 给一段加模型守卫 atom（L ≤ 0）：不可能成立 → false；已经成立 → 不加
     auto guard = [&](Segment &seg, const LinExpr &atom) {
@@ -4599,10 +4748,10 @@ void Analyzer::ApplyAccessModel(const fir::Inst &inst, const models::AccessModel
                 segA.faithful[dmIndex] = FaithfulAs(segA.ints[dmIndex], IntType{bits, false}, Env(segA.t));
                 segments.push_back(segA);
             }
-            // 段 B：E <= 0x7fffffff − 2^W（且 E <= −1），回绕后的值仍不超过上限，照样写，destMax = E + 2^W
+            // 段 B：E <= 0x7fffffff − 2^W（且 E <= −1），回绕后的值仍不超过上限，照样写，destMax = E + 2^W（AssumeNoWrap 时没有这一段）
             int64_t modulus = int64_t(1) << bits;
             Segment segB = base;
-            if (guard(segB, inner - LinExpr::Const(kSecurecMemMax - modulus)) &&
+            if (!options.assumeNoWrap && guard(segB, inner - LinExpr::Const(kSecurecMemMax - modulus)) &&
                 guard(segB, inner + LinExpr::Const(1))) {
                 segB.ints[dmIndex] = IntVal::Exact(inner + LinExpr::Const(modulus));
                 segB.faithful[dmIndex] = FaithfulAs(segB.ints[dmIndex], IntType{bits, false}, Env(segB.t));
@@ -4663,7 +4812,29 @@ void Analyzer::ApplyAccessModel(const fir::Inst &inst, const models::AccessModel
                     continue;  // count > destMax：securec 不读源
                 }
             }
-            Access(cond.kind == "W" ? "W" : "R", addr, fir::kNone, bytes, inst.loc, u, forced);
+            // AssumeNoWrap（SPEC-0108 §2.2）：模型的字节数把实参换成实参的符号式；基址实参的符号偏移
+            llvm::Optional<SymAccess> sym;
+            if (options.assumeNoWrap) {
+                llvm::Optional<std::pair<std::string, LinExpr>> p = SymPtr(inst.args[cond.base], seg.t);
+                std::set<std::string> used;
+                CollectSyms(bytesExpr, used);
+                Substitution actual;
+                bool ok = p && p->first == addr.id;
+                for (const std::string &x : used) {
+                    int k = ParamIndexOf(x);
+                    llvm::Optional<LinExpr> v =
+                        k >= 0 && static_cast<size_t>(k) < inst.args.size() ? SymOf(inst.args[k], seg.t) : llvm::None;
+                    ok = ok && v.hasValue();
+                    if (v) {
+                        actual.sym[x] = *v;
+                    }
+                }
+                if (ok) {
+                    sym = SymAccess{p->second, Substitute(bytesExpr, actual), cond.upto};
+                }
+            }
+            Access(cond.kind == "W" ? "W" : "R", addr, fir::kNone, bytes, inst.loc, u, forced, true,
+                   sym ? &*sym : nullptr);
         }
     }
 }

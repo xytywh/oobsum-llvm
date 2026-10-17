@@ -28,7 +28,7 @@ replay = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(replay)
 
 
-def run_engine(clang, files, triple):
+def run_engine(clang, files, triple, extra=()):
     """返回 (摘要列表, 文件 id → 文件名)。各源文件 Phase=export（Dump=keys），再由桩 TU 跑 Phase=solve（Dump=summary）
     取全局求解后的摘要（SPEC-0032）。"""
     res = subprocess.run([clang, '-print-resource-dir'], capture_output=True, text=True).stdout.strip()
@@ -55,10 +55,10 @@ def run_engine(clang, files, triple):
     work = tempfile.mkdtemp(prefix='oobsum-engine-xtu-')
     try:
         for f in files:
-            cc1(f, ['Phase=export', 'WorkDir=' + work, 'Dump=keys'])
+            cc1(f, ['Phase=export', 'WorkDir=' + work, 'Dump=keys'] + list(extra))
         stub = os.path.join(work, 'stub.c')
         open(stub, 'w', encoding='utf-8').write('void oobsum_solve_stub(void) {}\n')
-        cc1(stub, ['Phase=solve', 'WorkDir=' + work, 'Dump=summary'])
+        cc1(stub, ['Phase=solve', 'WorkDir=' + work, 'Dump=summary'] + list(extra))
     finally:
         shutil.rmtree(work)
     return sums, names
@@ -88,7 +88,7 @@ def normalize(s, names):
     return s
 
 
-def check(cid, clang, triple, verbose):
+def check(cid, clang, triple, verbose, extra=()):
     meta = json.load(open(os.path.join(SUMMARIES, cid, 'case.json'), encoding='utf-8'))
     # 跨 TU 用例是一个目录（case.json 只列带 @id 的那个文件）：跑目录里所有的 .c
     files = []
@@ -100,7 +100,7 @@ def check(cid, clang, triple, verbose):
         else:
             files.append(path)
     files = sorted(set(files))
-    sums, names = run_engine(clang, files, triple)
+    sums, names = run_engine(clang, files, triple, extra)
     tmp = tempfile.mkdtemp(prefix='oobsum-engine-')
     try:
         os.makedirs(os.path.join(tmp, cid))
@@ -171,8 +171,9 @@ def main():
     ap.add_argument('--clang', default=os.path.join(REPO, 'cmake-build-release', 'bin', 'clang'))
     ap.add_argument('--triple', default='armebv7-linux-gnueabi')
     ap.add_argument('-v', action='store_true')
+    ap.add_argument('--config', action='append', default=[], metavar='K=V', help='追加 checker 选项（同 run.py csa --config）')
     a = ap.parse_args()
-    ok = [check(cid, a.clang, a.triple, a.v) for cid in a.cases]
+    ok = [check(cid, a.clang, a.triple, a.v, a.config) for cid in a.cases]
     print('合计 %d 个用例，一致 %d 个' % (len(ok), sum(ok)))
     sys.exit(0 if all(ok) else 1)
 

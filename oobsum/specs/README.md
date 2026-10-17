@@ -126,7 +126,7 @@
 | [SPEC-0092](SPEC-0092-caller-param-passthrough.md) | 调用方把自己的形参传给被调者时，返回值式子照样代换；文本不露 `_unknown<k>` | 已实现 |
 | [SPEC-0093](SPEC-0093-effect-param-passthrough.md) | 写效应的值就是被调者的形参时，按实参的值写（实参是区间也行） | 已实现 |
 | [SPEC-0094](SPEC-0094-ret-ptr-range.md) | `ret_ptr` 的多条返回偏移不同：记常数区间 | 已实现 |
-| [SPEC-0108](SPEC-0108-assume-nowrap.md) | 选项 `AssumeNoWrap`：检查按数学整数、局部线性关系、访问末端抵消（默认关） | 第 1 步已实现 |
+| [SPEC-0108](SPEC-0108-assume-nowrap.md) | 选项 `AssumeNoWrap`：检查按数学整数、局部线性关系、访问末端抵消（默认关） | 已实现 |
 | [SPEC-0107](SPEC-0107-subobject-gaps.md) | 内层界补漏：结构体字段里的指针、返回成员数组的指针、负偏移、汇合 | 已实现 |
 | [SPEC-0106](SPEC-0106-char-alias-verify.md) | `CharAlias=verify`：经 char 写外部内存时假设不别名，调用点核对 | 已实现 |
 | [SPEC-0105](SPEC-0105-subobject-option.md) | 选项 `Subobject`：内层界 `suspect`（默认）/ `label`（按常规判）/ `off`（只查整个对象） | 已实现 |

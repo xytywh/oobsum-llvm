@@ -5,6 +5,13 @@
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:AssumeNoWrap=true \
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=options+state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Tlv$' \
 # RUN:   -w %S/Inputs/nowrap/n.c 2>&1 | FileCheck %s --check-prefix=ON
+# 打开：访问点用局部关系与 A-41 的抵消（SPEC-0108 §2.2）
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:AssumeNoWrap=true \
+# RUN:   -w %S/Inputs/nowrap/n.c 2>&1 | FileCheck %s --check-prefix=USE
+# 关（默认）：检查可能回绕不用，循环里的访问只能记账
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -w %S/Inputs/nowrap/n.c 2>&1 | FileCheck %s --check-prefix=DEF
 # 关（默认）：没有局部关系
 # RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:Dump=options+state \
@@ -20,3 +27,15 @@ ON-DAG: [oobsum:state] fn Tlv b1: pucBuf=*p0+0 ulTotal=p1 pucOut=*p2+0 ulOff=[0,
 
 OFF-DAG: [oobsum:options] {{.*}} AssumeNoWrap=false
 OFF-DAG: [oobsum:state] fn Tlv b2: {{.*}}ulLen=[0, 255]:data{{$}}
+
+# Tlv：本轮的访问末端 ulOff + 2 + ulLen，检查给出 ulOff + ulLen <= ulTotal → 末端 <= ulTotal + 2（漏算了 2 字节头）→ POSSIBLE；Tlv_OK 不报
+USE-DAG: n.c:29:1: warning: [OOB-POSSIBLE] Possible out-of-bound read through a 1-level call chain: up to byte 66 of 'aucMsg' (64 bytes) may be accessed; the bound comes from a check
+# Put：memcpy_s(pucPkt + ulOff, ulPktLen, …) 末端 ulOff + ulPktLen <= 2·ulPktLen → POSSIBLE；Put_OK 的 destMax 是 ulPktLen − ulOff，末端抵消成 ulPktLen → 不报
+USE-DAG: n.c:57:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 256 of 'aucPkt' (128 bytes) may be accessed; the bound comes from a check
+USE-NOT: type_range_only
+USE-NOT: n.c:{{(30|58)}}:1: warning: [OOB-{{DEFINITE|POSSIBLE}}
+
+DEF-DAG: n.c:9:1: warning: [OOB-SUSPECT:type_range_only]
+DEF-DAG: n.c:13:1: warning: [OOB-SUSPECT:type_range_only]
+DEF-DAG: n.c:40:1: warning: [OOB-SUSPECT:type_range_only]
+DEF-NOT: [OOB-POSSIBLE]

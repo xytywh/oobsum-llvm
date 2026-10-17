@@ -185,9 +185,10 @@
 - [x] **S7d-3 `ret_new` 效果**（SPEC-0024）：每条返回路径都是同一个堆对象或空指针 → `ret_new`（`eff_depth` 逐层加 1）；调用方拿到 `heap@<调用点>`、
       实参写 `eff_depth`；`RunInline` 按 FIR 调用图自底向上解释，`Dump=summary` / `state` 取同一份结果。**LV4-01 端到端一致（16 个金标准用例 9 个）**；
       `run.py csa`：LV4-01 TP POSSIBLE、LV4-02 TP DEFINITE、LV7-01（柔性数组）TP DEFINITE / TN SAFE——**通过 72、漏报 14**，回退 0（尺子：账本判定同一处有 SAFE 就算证明）。
-- [ ] **`AssumeNoWrap` 第 2 步**（SPEC-0108 §2.2）：访问点把末端写成含局部的线性式、同类项抵消、用关系与区间消去局部；模型字节数的符号式；选项打开时不做忠实判断。
+- [x] **`AssumeNoWrap` 第 2 步**（SPEC-0108 §2.2）：访问点末端写成含局部的线性式、同类项抵消（A-41）、用关系与区间消去局部；模型字节数的符号式；
+      选项打开时不做忠实判断。打开后 `run.py csa` 通过 110（LV3-07、LV8-01 不再"级别不同"），`engine_check` 15/16（LV2-03 只差上传条数）。
 - [x] **`AssumeNoWrap` 第 1 步**（SPEC-0108）：选项（默认关）；局部符号与 `SymOf` / `SymPtr`；条件边记局部线性关系 `rels`，赋值时失效、汇合取交集；`Dump=state` 的 `rels:`。
-- [ ] **S7d-4**：偏移与长度的抵消（A-41，LV3-07、LV8-01）——查明：两个用例的检查可能回绕，按 SPEC-0016 §2.1 不能用；要做只能是"假设不回绕"的选项（见"等用户提供"）。条件效应（LV4-06，SPEC-0025）、局部结构体字段带进调用点（LV5-01，SPEC-0026 / 0069）已做。
+- [x] **S7d-4**：偏移与长度的抵消（A-41，LV3-07、LV8-01）——两个用例的检查可能回绕，按 SPEC-0016 §2.1 默认不用；做成选项 `AssumeNoWrap`（SPEC-0108）。条件效应（LV4-06，SPEC-0025）、局部结构体字段带进调用点（LV5-01，SPEC-0026 / 0069）已做。
       A-41 的难点（2026-10-17 查过）：securec 的 destMax 回绕到 `(0, 0x7fffffff]` 时照样写（SPEC-0020 段 B），widening 后的 `ulOff` 排除不了段 B；
       要先有跨轮不变式 `ulOff <= ulPktLen`（关系域）。
 - [x] **S7e 全局大小表**（SPEC-0032）：`extern` 不完整数组在 solve 时取定义所在 TU 的大小（D-34）；solve 时"哪里都没有定义"的被调者也写进调用方的本地账本；
@@ -336,7 +337,8 @@
 * **等用户确认（LV3-07、LV8-01 的"级别不同"）**：两个用例的检查都是 `if (ulOff + len > total) break;`，`ulOff` 被加宽到 `[0, +∞)`，`ulOff + len`
   可能回绕。SPEC-0016 §2.1 定过：这种检查可能被绕过，不当守卫、不收窄（召回优先）。所以现在 TP 报 SUSPECT（已报出，只是标签不是 POSSIBLE）、
   TN 报 SUSPECT（G2 下算"通过+S"）。要做到 TP POSSIBLE / TN 不报，必须假设检查里不回绕，并在状态里加"局部线性关系"（A-13 / A-41）。
-  用户 2026-10-17 同意做成默认关的选项 `AssumeNoWrap`（SPEC-0108，进行中）。
+  用户 2026-10-17 同意做成默认关的选项 `AssumeNoWrap`（SPEC-0108，已实现）。**公司实测**：`AssumeNoWrap=false` / `true` 各跑一遍，比 SUSPECT 条数，
+  抽查打开后不再报的是否确实不会回绕。
 * **用户决定（2026-10-17，D25）**：取舍做成选项，用户在公司按参数实测再选。`CharAlias` 加第三个值 `verify`（假设不别名、在调用点核对，开发中）；
   内层界加选项（每一维都报 / 标签按常规判 / 只在越出整个对象时报）。**公司实测**：`CharAlias=false / true / verify`、`Subobject=suspect / label / off`
   各跑一遍，比 SUSPECT / alias_unverified / subobject_overflow 的条数并抽查（本地 compiler-rt 的对照见 SPEC-0106 §3）。
