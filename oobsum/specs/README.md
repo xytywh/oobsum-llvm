@@ -120,4 +120,5 @@
 | [SPEC-0086](SPEC-0086-global-symbol-identity.md) | 全局符号的身份：内部链接带哈希后缀；被调者改了本模块看不到的全局要记账（修三处错误 SAFE） | 已实现 |
 | [SPEC-0087](SPEC-0087-entry-constant-level.md) | 入口函数上深度 0 的常数 Req 按 F-10 / F-11 / F-12 判级（不再一律记"入口未证明"） | 已实现 |
 | [SPEC-0088](SPEC-0088-struct-copy-fields.md) | 结构体整体赋值按字段拷值（`y = x;`、`*pstOut = st;`、`st = *pstIn;`） | 已实现 |
+| [SPEC-0089](SPEC-0089-access-model-cells.md) | 访问类模型（memcpy_s / memset_s / strcpy_s …）只失效目的对象的格 | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

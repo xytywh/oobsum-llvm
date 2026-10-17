@@ -1226,6 +1226,21 @@ private:
                                                  std::map<std::string, summary::Local> *locals = nullptr) const;
     // 没有摘要可用的被调者：保守失效（清格、指针实参整块、可能写全局，SPEC-0026 / 0041 / 0045）
     void Clobber(const fir::Inst &inst, models::Kind kind, llvm::StringRef name, State &s);
+    // 对象 p 所在的整块内存的格全部失效：同一基址、它的成员数组（id.成员）、成员数组的外层对象及其成员（SPEC-0089）
+    void EraseObject(State &s, const PtrVal &p) const
+    {
+        auto family = [](llvm::StringRef base, const std::string &id) {
+            return base == id || base.startswith(id + ".");
+        };
+        for (auto it = s.cells.begin(); it != s.cells.end();) {
+            llvm::StringRef base = std::get<0>(it->first);
+            bool same = family(base, p.id) || (p.hasParent && family(base, p.parentId));
+            it = same ? s.cells.erase(it) : std::next(it);
+        }
+        if (p.hasParent) {
+            s.writtenAll.insert(p.parentId);
+        }
+    }
     // 结构体整体赋值按字段拷值（SPEC-0088）：做了返回 true；取不到类型 / 基址 / 偏移返回 false（调用方照旧 Clobber）
     bool CopyStruct(const fir::Inst &inst, State &s);
     // 局部函数指针（S9.1，06- A-60 ①，SPEC-0058）：只被赋过函数地址常量的局部 → 可能指向的函数
@@ -2872,7 +2887,11 @@ void Analyzer::Clobber(const fir::Inst &inst, models::Kind kind, llvm::StringRef
         s.called = true;    // 被调者可能写全局：之后读全局标量不再是入口值（SPEC-0041）
         AddModText("g:*");  // 没有摘要：往上传时也按"可能写任何全局"（SPEC-0045 §2.3）
     }
-    s.cells.clear();  // 被调者可能经指针 / 全局写内存（效果在 S7d-3）；纯函数、释放函数不改被跟踪的内存
+    // 被调者可能经指针 / 全局写内存（效果在 S7d-3）；纯函数、释放函数不改被跟踪的内存；
+    // 访问类模型只写 W 实参所指的对象：只失效那些基址的格（SPEC-0089）
+    if (kind != models::Kind::Access) {
+        s.cells.clear();
+    }
     // 交给被调者的指针所指的对象可能被改（SPEC-0026）；访问类模型只写目的一侧
     std::set<size_t> writtenArgs;
     if (kind == models::Kind::Access) {
@@ -2888,12 +2907,20 @@ void Analyzer::Clobber(const fir::Inst &inst, models::Kind kind, llvm::StringRef
         }
         Value v = Eval(inst.args[k], s);
         if (!v.isPtr) {
+            if (kind == models::Kind::Access) {
+                s.cells.clear();  // 目的不是指针（不认识）：保守
+                s.clobbered = true;
+            }
             continue;
         }
         if (v.p.kind == BaseKind::Unknown) {
             s.clobbered = true;
+            s.cells.clear();
         } else {
             MarkWritten(s, v.p.id);
+            if (kind == models::Kind::Access) {
+                EraseObject(s, v.p);  // 这个对象整块失效（SPEC-0089）
+            }
         }
         AddMod(v.p, llvm::None);  // 交给了不知道写哪里的被调者 / 访问类模型的目的：整块（SPEC-0045）
     }

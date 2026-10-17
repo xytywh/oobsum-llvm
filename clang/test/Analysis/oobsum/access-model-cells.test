@@ -1,0 +1,14 @@
+# 访问类模型（memcpy_s / memset_s …）只失效目的对象的格（oobsum/specs/SPEC-0089）。原来调用后清掉全部格，写 tmp 也让 m.len 丢了。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/amcells/m.c 2>&1 | FileCheck %s
+
+# 写的是另一个对象：m.len 还在
+CHECK-DAG: m.c:9:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 101 of 'a' (4 bytes) is accessed
+CHECK-DAG: m.c:10:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 3 of 'a' (4 bytes)
+# 写的就是 m：len 不知道
+CHECK-DAG: m.c:12:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within 'a' (4 bytes): up to byte m->len + 1 may be accessed
+# 形参结构体与它的成员数组是同一块内存：写一个，另一个上的旧格也失效（不能当 idx[1] 还是 2）
+CHECK-DAG: m.c:16:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'a' (4 bytes): up to byte 256 may be accessed
+CHECK-DAG: m.c:18:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'a' (4 bytes): up to byte 256 may be accessed

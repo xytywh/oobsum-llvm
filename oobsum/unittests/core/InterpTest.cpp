@@ -1673,3 +1673,22 @@ TEST(Interp, StructCopyFields)
     std::string reqs = Reqs(b.Run());
     EXPECT_TRUE(reqs.find("W have=ext(p0) obj=*p0 end=[101, 101] bound=exact at=t.c:8") != std::string::npos);
 }
+
+TEST(Interp, AccessModelKeepsOtherCells)
+{
+    // SPEC-0089：x = 100; memset_s(buf, 16, 0, 16); p[x] = 0 → 末端 101（原来访问类模型调用后清掉全部格，x 读成未知）
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t x = b.LocalVar("x", b.u32, true);
+    uint32_t buf = b.LocalVar("buf", b.m.Intern(Type::Arr(b.u8, 16)), true);
+    uint32_t t = b.LocalVar("t", b.u32);
+    Inst set;
+    set.op = InstOp::Call;
+    set.callee = "F:memset_s";
+    set.args = {b.f.Add(Expr::LAddr(buf)), b.C(16), b.C(0), b.C(16)};
+    set.loc = {0, 6, 5};
+    b.Straight({b.Store(b.f.Add(Expr::LAddr(x)), 4, b.C(100), 5), set, b.Load(t, b.f.Add(Expr::LAddr(x)), 4, 7),
+                b.Store(b.PAdd(b.L(p), b.L(t)), 1, b.C(0), 8)});
+    std::string reqs = Reqs(b.Run());
+    EXPECT_TRUE(reqs.find("W have=ext(p0) obj=*p0 end=[101, 101] bound=exact at=t.c:8") != std::string::npos);
+}
