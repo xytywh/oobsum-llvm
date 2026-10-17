@@ -126,6 +126,7 @@
 | [SPEC-0092](SPEC-0092-caller-param-passthrough.md) | 调用方把自己的形参传给被调者时，返回值式子照样代换；文本不露 `_unknown<k>` | 已实现 |
 | [SPEC-0093](SPEC-0093-effect-param-passthrough.md) | 写效应的值就是被调者的形参时，按实参的值写（实参是区间也行） | 已实现 |
 | [SPEC-0094](SPEC-0094-ret-ptr-range.md) | `ret_ptr` 的多条返回偏移不同：记常数区间 | 已实现 |
+| [SPEC-0101](SPEC-0101-field-nonnull-guard.md) | 指针字段判空产生守卫：`nn:p<k>-><f>`（上下文结构体里的可选缓冲区置 `NULL`） | 已实现 |
 | [SPEC-0100](SPEC-0100-replay-sync.md) | `replay.py` 同步 SPEC-0095（实参偏移区间）与 SPEC-0099（`nn:p<k>`） | 已实现 |
 | [SPEC-0099](SPEC-0099-nonnull-guard.md) | 指针形参判空产生守卫：接口符号 `nn:p<k>`（可选出参传 `NULL` 时访问走不到） | 已实现 |
 | [SPEC-0098](SPEC-0098-range-nonempty-guard.md) | 条件边收窄出的区间非空：`lo ≤ hi` 记成守卫（`while (n--)` 传 0 时访问走不到） | 已实现 |

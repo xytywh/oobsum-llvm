@@ -310,6 +310,9 @@ def subst(l, m):
         elif a[0] == 's' and '->' in a[1] and a[1].split('->', 1)[0] in m.get('__alias__', {}):
             base, rest = a[1].split('->', 1)
             out = out + Lin(0, {('s', m['__alias__'][base] + '->' + rest): c})
+        elif a[0] == 's' and a[1].startswith('nn:') and '->' in a[1] and a[1][3:].split('->', 1)[0] in m.get('__alias__', {}):
+            base, rest = a[1][3:].split('->', 1)  # nn:p<k>->f 的别名（SPEC-0101）
+            out = out + Lin(0, {('s', 'nn:' + m['__alias__'][base] + '->' + rest): c})
         elif a[0] in ('ext', 'bext') and ('%s(%s)' % a) in m:
             out = out + m['%s(%s)' % a].scale(c)
         elif a[0] in ('ext', 'bext') and '->' in a[1] and a[1].split('->', 1)[0] in m.get('__alias__', {}):
@@ -361,6 +364,9 @@ class Env(object):
                 self.lo[('s', 'nn:p%d' % i)] = (0, 'type')
         for f, d in fields.items():
             self._type(f, d.get('type', ''))
+            if d.get('type', '').endswith('*'):  # 指针字段不是空指针（SPEC-0101）
+                self.hi[('s', 'nn:' + f)] = (1, 'type')
+                self.lo[('s', 'nn:' + f)] = (0, 'type')
 
     def _type(self, n, ty):
         if ty.endswith('*'):
@@ -736,6 +742,16 @@ def build_map(call, callee):
             if 'alias' in arg:
                 alias[p] = arg['alias']
             for f, v in arg.get('fields', {}).items():
+                # 字段不是空指针（SPEC-0101，同 BuildMap）
+                if isinstance(v, dict):
+                    fo = v.get('obj', '')
+                    fj = re.match(r'\*p(\d+)$', fo)
+                    if (fo.startswith('local:') and not fo.startswith('local:_unknown')) or fo.startswith('g:'):
+                        m['nn:%s->%s' % (p, f)] = P('1')
+                    elif fj:
+                        m['nn:%s->%s' % (p, f)] = Lin(0, {('s', 'nn:p' + fj.group(1)): 1})
+                elif P(v).const() is not None:
+                    m['nn:%s->%s' % (p, f)] = P('1' if P(v).const() != 0 else '0')
                 if isinstance(v, dict):
                     m['ext(%s->%s)' % (p, f)] = P(v['have'])
                     m['bext(%s->%s)' % (p, f)] = P(v['back']) if 'back' in v else Lin(0, {('s', '_noback%d_%s' % (i, f)): 1})

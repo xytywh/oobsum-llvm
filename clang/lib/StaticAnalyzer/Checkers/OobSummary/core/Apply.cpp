@@ -99,6 +99,23 @@ Map BuildMap(const Call &call)
             if (arg.ptr->fields) {
                 for (const auto &entry : *arg.ptr->fields) {
                     std::string name = p + "->" + entry.first;
+                    // 字段不是空指针（SPEC-0101）：常数 → 0 / 1；指向局部 / 全局 / 字符串 → 1；调用方形参所指 → 调用方的 nn:p<j>
+                    if (entry.second.kind == ArgValue::Kind::Expr) {
+                        LinExpr fv = P(entry.second.expr);
+                        if (fv.IsConst()) {
+                            out.m.sym["nn:" + name] = LinExpr::Const(fv.Constant() != 0 ? 1 : 0);
+                        }
+                    } else if (entry.second.kind == ArgValue::Kind::Ptr) {
+                        llvm::StringRef fobj = entry.second.ptr->obj;
+                        llvm::StringRef frest = fobj;
+                        unsigned fj = 0;
+                        if ((fobj.startswith("local:") && !fobj.startswith("local:_unknown")) ||
+                            fobj.startswith("g:")) {
+                            out.m.sym["nn:" + name] = LinExpr::Const(1);
+                        } else if (frest.consume_front("*p") && !frest.consumeInteger(10, fj) && frest.empty()) {
+                            out.m.sym["nn:" + name] = LinExpr::Sym("nn:p" + std::to_string(fj));
+                        }
+                    }
                     if (entry.second.kind == ArgValue::Kind::Ptr) {
                         out.m.ext[name] = P(entry.second.ptr->have);
                         out.m.bext[name] = entry.second.ptr->back
@@ -344,6 +361,9 @@ SymEnv CallerEnv(const Summary &caller)
     if (caller.fields) {
         for (const auto &entry : *caller.fields) {
             add(entry.first, entry.second.type.getValueOr(""));
+            if (llvm::StringRef(entry.second.type.getValueOr("")).endswith("*")) {
+                env.SetTypeRange("nn:" + entry.first, 0, 1);  // 指针字段不是空指针（SPEC-0101）
+            }
         }
     }
     return env;

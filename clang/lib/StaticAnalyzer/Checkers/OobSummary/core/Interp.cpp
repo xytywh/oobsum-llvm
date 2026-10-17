@@ -3450,6 +3450,13 @@ SymEnv Analyzer::Env(const State &s) const
         }
     }
     for (const LinExpr &g : s.guards) {
+        std::set<std::string> syms;
+        CollectSyms(g, syms);
+        for (const std::string &x : syms) {
+            if (x.compare(0, 3, "nn:") == 0) {
+                env.SetTypeRange(x, 0, 1);  // 不是空指针：0 / 1（SPEC-0099 / 0101）
+            }
+        }
         env.AddGuard(g, Tag::Check);
     }
     return env;
@@ -3575,11 +3582,18 @@ bool Analyzer::AssumeNull(fir::CmpOp op, const Value &va, const Value &vb, State
                      std::isdigit(static_cast<unsigned char>(id[1])) && id.find('.') == std::string::npos;
         return param ? static_cast<int>(std::strtol(id.c_str() + 1, nullptr, 10)) : -1;
     };
+    // 指针字段所指（*p<k>->f，SPEC-0101）：符号 nn:p<k>->f
+    auto fieldOf = [](const Value &v) {
+        bool field = v.isPtr && v.p.kind == BaseKind::ParamPtr && v.p.obj.size() > 1 && v.p.obj[0] == '*' &&
+                     v.p.obj.find("->") != std::string::npos;
+        return field ? v.p.obj.substr(1) : std::string();
+    };
     int k = isNull(vb) ? paramOf(va) : isNull(va) ? paramOf(vb) : -1;
-    if (k < 0 || (op != fir::CmpOp::Ne && op != fir::CmpOp::Eq)) {
+    std::string field = isNull(vb) ? fieldOf(va) : isNull(va) ? fieldOf(vb) : std::string();
+    if ((k < 0 && field.empty()) || (op != fir::CmpOp::Ne && op != fir::CmpOp::Eq)) {
         return true;
     }
-    LinExpr nn = LinExpr::Sym("nn:p" + std::to_string(k));
+    LinExpr nn = LinExpr::Sym(k >= 0 ? "nn:p" + std::to_string(k) : "nn:" + field);
     LinExpr atom = op == fir::CmpOp::Ne ? LinExpr::Const(1) - nn : nn;  // ≤ 0
     SymEnv env = Env(s);
     if (EntailsLe0(LinExpr::Const(1) - atom, s.guards, env)) {

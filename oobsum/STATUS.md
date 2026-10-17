@@ -206,6 +206,8 @@
 - [x] **局部结构体的字段值带进调用点**（SPEC-0026）：实参 `fields`；常数偏移的写只失效重叠的内存格；**修了别名实参的旧值问题**——形参所指结构体的字段
       在本函数里改过（或指针交给过被调者）时，别名代换会用入口时的旧值，链顶代入字段值后能把越界证明成安全（LV5-04 TP 一度变成 SAFE，已修、单测守住）。
       **LV5-01 端到端一致（金标准 11 个）**；`run.py csa`：LV5-01、LV5-04 TP → DEFINITE——**通过 78、漏报 14**，回退 0。
+- [x] **指针字段判空的守卫**（SPEC-0101）：`if (pst->pucBuf != NULL)` 推出 `nn:p0->pucBuf >= 1`，调用方把字段置 `NULL` → `guard_false`（原来 SUSPECT）；
+      经中间函数按别名改写。C++ 与 `replay.py` 一起改。健壮性复查（SPEC-0094…0100 之后）：上游 234 个用例 0 崩溃 0 超时；`perf-chain` 300 层 0.3 秒、加 2000 全局 1 秒。
 - [x] **`replay.py` 同步**（SPEC-0100）：SPEC-0095 / 0099 只改了 C++ 的 Apply，`replay.py`（参考实现，`engine_check` 用它推到底）补上 `off_*` 与 `nn:p<k>`。
       **注意**：以后改 `apply::Classify` / `BuildMap` 时同一个提交里改 `replay.py`。
 - [x] **指针判空的守卫**（SPEC-0099）：新接口符号 `nn:p<k>`（形参不是空指针）。`if (pOut != NULL) memset_s(pOut, …)` 的调用方传 `NULL` 原来报 SUSPECT

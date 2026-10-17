@@ -699,11 +699,14 @@ LinExpr Substitute(const LinExpr &e, const Substitution &m)
         if (a.kind == Atom::Kind::Sym || a.kind == Atom::Kind::Ext || a.kind == Atom::Kind::BExt) {
             const auto &table = a.kind == Atom::Kind::Sym ? m.sym : a.kind == Atom::Kind::Ext ? m.ext : m.bext;
             auto hit = table.find(a.name);
-            size_t arrow = a.name.find("->");
+            // nn:p<k>->f（字段不是空指针，SPEC-0101）：别名照样改写，前缀留着
+            std::string prefix = a.name.compare(0, 3, "nn:") == 0 ? "nn:" : "";
+            std::string bare = a.name.substr(prefix.size());
+            size_t arrow = bare.find("->");
             if (hit != table.end()) {
                 piece = hit->second;
-            } else if (arrow != std::string::npos && m.alias.count(a.name.substr(0, arrow)) != 0) {
-                std::string renamed = m.alias.at(a.name.substr(0, arrow)) + a.name.substr(arrow);
+            } else if (arrow != std::string::npos && m.alias.count(bare.substr(0, arrow)) != 0) {
+                std::string renamed = prefix + m.alias.at(bare.substr(0, arrow)) + bare.substr(arrow);
                 piece = a.kind == Atom::Kind::Sym   ? LinExpr::Sym(renamed)
                         : a.kind == Atom::Kind::Ext ? LinExpr::Ext(renamed)
                                                     : LinExpr::BExt(renamed);

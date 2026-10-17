@@ -1,0 +1,13 @@
+# 指针字段判空产生守卫：nn:p<k>->f（oobsum/specs/SPEC-0101）。原来 if (pst->pucBuf != NULL) 不产生信息，可选缓冲区置 NULL 的调用方报 SUSPECT。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Clr$' \
+# RUN:   %S/Inputs/fnonnull/f.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}"guard":["nn:p0->pucBuf >= 1"]
+CHECK-DAG: f.c:8:1: warning: [OOB-SAFE:guard_false] Proven within bounds: up to byte 100 of '*pst->pucBuf' (size unknown)
+CHECK-DAG: f.c:9:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 100 of 'a' (4 bytes; via st.pucBuf) is accessed
+# 经一层中间函数：别名把 nn:p0->pucBuf 改写成调用方的
+CHECK-DAG: f.c:11:1: warning: [OOB-SAFE:guard_false] Proven within bounds: up to byte 100 of '*pst->pucBuf' (size unknown)
+CHECK-DAG: f.c:12:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 2-level call chain: up to byte 100 of 'a' (4 bytes; via st.pucBuf) is accessed

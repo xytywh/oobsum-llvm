@@ -29,3 +29,9 @@ run('buf', r, [{'obj': 'local:a', 'have': '4'}, {'obj': 'local:b', 'have': '1'}]
 # 调用方把自己的形参传下去 → 往上传，守卫换成调用方的 nn:p1
 run('up', r, [{'obj': '*p0', 'have': 'ext(p0)', 'alias': 'p0'}, {'obj': '*p1', 'have': 'ext(p1)', 'alias': 'p1'}],
     [{'name': 'a', 'type': 'UINT8*'}, {'name': 'q', 'type': 'UINT8*'}])
+# SPEC-0101：字段判空 nn:p0->pucBuf；字段记成 0 → safe；实参是调用方形参（alias）→ 按别名改写往上传
+r2 = {'id': 'R1', 'kind': 'W', 'have': 'ext(p0->pucBuf)', 'obj': '*p0->pucBuf', 'end': ['100', '100'], 'bound': 'exact',
+      'guard': ['nn:p0->pucBuf >= 1'], 'access': {'fn': 'Clr', 'key': 'F:Clr', 'at': 'a.c:2', 'end': '100'},
+      'path': ['Clr@a.c:2'], 'depth': 0, 'eff_depth': 0, 'blind': False}
+run('fnull', r2, [{'obj': 'local:st', 'have': '8', 'fields': {'pucBuf': '0'}}])
+run('falias', r2, [{'obj': '*p0', 'have': 'ext(p0)', 'alias': 'p0'}], [{'name': 'pst', 'type': 'CTX_S*'}])

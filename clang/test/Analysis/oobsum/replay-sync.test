@@ -7,3 +7,5 @@ CHECK: type open 16 268 type
 CHECK: null safe
 CHECK: buf L1 4 11 exact
 CHECK: up up ext(p0) 11 exact nn:p1 >= 1
+CHECK: fnull safe
+CHECK: falias up ext(p0->pucBuf) 100 exact nn:p0->pucBuf >= 1

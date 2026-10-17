@@ -56,4 +56,4 @@ void O3(void) { UINT8 a[4]; Opt(a, 10, NULL); }                     /* DEFINITE�
 
 ## 9. 待定 / 以后
 
-* 指针字段判空（`if (pst->pucBuf != NULL)`）、堆对象判空后的非空（`p = malloc(); if (p == NULL) return;` 之后传下去）。
+* 指针字段判空（`if (pst->pucBuf != NULL)`）〔SPEC-0101 已做〕、堆对象判空后的非空（`p = malloc(); if (p == NULL) return;` 之后传下去）。

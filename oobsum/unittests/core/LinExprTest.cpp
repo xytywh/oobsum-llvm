@@ -220,3 +220,14 @@ TEST(LinExpr, OpaqueDepthCap)
     EXPECT_EQ(L("4*div(p1 + 31, 32)").Depth(), 1);
     EXPECT_EQ(L("p1 + 3").Depth(), 0);
 }
+
+TEST(LinExpr, SubstituteNnAlias)
+{
+    // SPEC-0101：nn:p0->buf 按别名改写成 nn:p2->buf；没别名、没映射 → 改名（poison）
+    Substitution m;
+    m.poison = true;
+    m.alias["p0"] = "p2";
+    EXPECT_EQ(Substitute(L("nn:p0->buf"), m).Show(), "nn:p2->buf");
+    EXPECT_EQ(Substitute(L("nn:p1->buf"), m).Show(), "_unmapped:nn:p1->buf");
+    EXPECT_EQ(Substitute(L("nn:p1"), m).Show(), "_unmapped:nn:p1");
+}
