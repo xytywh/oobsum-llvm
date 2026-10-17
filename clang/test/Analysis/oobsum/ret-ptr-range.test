@@ -1,0 +1,12 @@
+# ret_ptr 的多条返回偏移不同但都是常数：记 range（oobsum/specs/SPEC-0094）。原来不记，调用方拿到未知指针（SUSPECT untracked_pointer）。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(GetPos|GetAt)$' \
+# RUN:   %S/Inputs/retptrr/r.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"ret_ptr","range":["4","8"],"target":"p0->buf"}]{{.*}}"fn":"GetPos"
+# 对照：偏移带符号且不同 → 照旧不记
+CHECK-DAG: [oobsum:summary] {"calls":[],"effs":[],{{.*}}"fn":"GetAt"
+CHECK-DAG: r.c:7:1: warning: [OOB-POSSIBLE] Possible out-of-bound write: up to byte 20 of 'b' (16 bytes) may be accessed; the bound comes from a branch constant
+CHECK-DAG: r.c:8:1: warning: [OOB-SAFE:local_entailed] Proven within bounds: up to byte 16 of 'b' (16 bytes)

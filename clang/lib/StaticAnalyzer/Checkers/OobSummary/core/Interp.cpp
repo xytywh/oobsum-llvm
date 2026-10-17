@@ -2298,7 +2298,7 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                             result.i = CondResult(inst, callee->second.effs, s, &callee->second);  // SPEC-0025 §2.3
                             break;
                         }
-                        if (e.kind == "ret_ptr" && result.isPtr && e.target && e.value) {
+                        if (e.kind == "ret_ptr" && result.isPtr && e.target && (e.value || e.range)) {
                             result = RetPtrResult(inst, e, callee->second, s);  // 调用前的状态（SPEC-0070 §2.2）
                             break;
                         }
@@ -4311,6 +4311,11 @@ llvm::Optional<summary::Eff> Analyzer::ReturnPointer() const
 {
     const PtrVal *base = nullptr;
     bool maybeNull = false;
+    bool sameOff = true;  // 各条返回的偏移都相同
+    // 偏移都是常数（或界是常数的区间）时的最小、最大（SPEC-0094）
+    bool constOffs = true;
+    int64_t offLo = INT64_MAX;
+    int64_t offHi = INT64_MIN;
     for (const auto &ret : returns) {
         const Value &v = ret.first;
         bool null = (!v.isPtr && v.i.IsConst() && v.i.value.Constant() == 0) ||
@@ -4320,23 +4325,36 @@ llvm::Optional<summary::Eff> Analyzer::ReturnPointer() const
             continue;
         }
         // 形参所指对象（*pK）或形参所指结构体的指针字段在入口时的值（*pK->f）；成员数组（ParamField）不记（成员界会丢）
-        if (!v.isPtr || (v.p.kind != BaseKind::Param && v.p.kind != BaseKind::ParamPtr) ||
-            v.p.off.kind != IntVal::Kind::Exact || v.p.off.value.IsUnknown() || v.p.obj.size() < 2 ||
+        if (!v.isPtr || (v.p.kind != BaseKind::Param && v.p.kind != BaseKind::ParamPtr) || v.p.obj.size() < 2 ||
             v.p.obj[0] != '*') {
             return llvm::None;
         }
-        if (base != nullptr && (base->id != v.p.id || !(base->off.value == v.p.off.value))) {
+        llvm::Optional<LinExpr> lo = v.p.off.Lower();
+        llvm::Optional<LinExpr> hi = v.p.off.Upper();
+        if (lo && hi && lo->IsConst() && hi->IsConst()) {
+            offLo = std::min(offLo, lo->Constant());
+            offHi = std::max(offHi, hi->Constant());
+        } else {
+            constOffs = false;
+        }
+        bool exact = v.p.off.kind == IntVal::Kind::Exact && !v.p.off.value.IsUnknown();
+        if (base != nullptr && base->id != v.p.id) {
             return llvm::None;
         }
+        sameOff = sameOff && exact && (base == nullptr || base->off == v.p.off);
         base = &v.p;
     }
-    if (base == nullptr) {
+    if (base == nullptr || (!sameOff && !constOffs)) {
         return llvm::None;
     }
     summary::Eff e;
     e.kind = "ret_ptr";
     e.target = base->obj.substr(1);  // *p0 → p0；*p0->pucBuf → p0->pucBuf
-    e.value = base->off.value.Show();
+    if (sameOff) {
+        e.value = base->off.value.Show();
+    } else {
+        e.range = std::vector<std::string>{std::to_string(offLo), std::to_string(offHi)};  // SPEC-0094
+    }
     if (maybeNull) {
         e.maybeNull = true;
     }
@@ -4375,6 +4393,17 @@ Value Analyzer::RetPtrResult(const fir::Inst &inst, const summary::Eff &e, const
             return loaded.isPtr ? loaded : out;
         }
         base = loaded.p;
+    }
+    if (!e.value) {
+        // 几个常数偏移之一（SPEC-0094）
+        int64_t lo = 0;
+        int64_t hi = 0;
+        bool ok = e.range && e.range->size() == 2 && !llvm::StringRef((*e.range)[0]).getAsInteger(10, lo) &&
+                  !llvm::StringRef((*e.range)[1]).getAsInteger(10, hi) && lo <= hi;
+        base.off = AddVals(
+            base.off, ok ? IntVal::Range(LinExpr::Const(lo), LinExpr::Const(hi), Tag::Branch) : IntVal::Top("call"));
+        out.p = base;
+        return out;
     }
     LinExpr off;
     std::string error;

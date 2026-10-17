@@ -1246,8 +1246,14 @@ TEST(Interp, RetPtrEffect)
     c.f.entry = 3;
     c.f.exit = 0;
     interp::FunctionFacts facts2 = c.Run();
-    EXPECT_TRUE(std::none_of(facts2.effs.begin(), facts2.effs.end(),
-                             [](const summary::Eff &e) { return e.kind == "ret_ptr"; }));
+    // 偏移不同但都是常数：记 range [2, 6]（SPEC-0094；原来不记）
+    auto rp =
+        std::find_if(facts2.effs.begin(), facts2.effs.end(), [](const summary::Eff &e) { return e.kind == "ret_ptr"; });
+    ASSERT_TRUE(rp != facts2.effs.end());
+    EXPECT_FALSE(rp->value.hasValue());
+    ASSERT_TRUE(rp->range.hasValue());
+    EXPECT_EQ((*rp->range)[0], "2");
+    EXPECT_EQ((*rp->range)[1], "6");
 }
 
 TEST(Interp, CalleeFieldResult)

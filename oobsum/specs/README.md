@@ -125,5 +125,6 @@
 | [SPEC-0091](SPEC-0091-external-alias.md) | 外部内存的别名：形参所指、指针字段所指、全局之间按类型互相失效（修三处错误 SAFE） | 已实现 |
 | [SPEC-0092](SPEC-0092-caller-param-passthrough.md) | 调用方把自己的形参传给被调者时，返回值式子照样代换；文本不露 `_unknown<k>` | 已实现 |
 | [SPEC-0093](SPEC-0093-effect-param-passthrough.md) | 写效应的值就是被调者的形参时，按实参的值写（实参是区间也行） | 已实现 |
+| [SPEC-0094](SPEC-0094-ret-ptr-range.md) | `ret_ptr` 的多条返回偏移不同：记常数区间 | 已实现 |
 | [SPEC-0095](SPEC-0095-arg-offset-range.md) | 指针实参的偏移是区间：调用点按"对象起点 + 偏移区间"判，不再拿最小剩余判 L1（修 DEFINITE 误判） | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |
