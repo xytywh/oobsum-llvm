@@ -614,7 +614,11 @@ def alert_msg(rep, params=()):
     w = 'write' if rep['kind'] == 'W' else 'read'
     name = obj_name(rep['obj'], params)
     size = '%s bytes' % rep['have'] + ('; via %s' % rep['via'].split(':', 1)[1] if rep.get('via') else '')
-    if rep.get('dir') == 'sub':                        # 内层（Subobject=label，SPEC-0105）
+    if rep.get('dir') == 'subback':                    # 内层、负偏移（Subobject=label，SPEC-0107）
+        s = '%s out-of-bound %s through a %d-level call chain: up to %s bytes before the pointer leave the array member or row of %s (%s available before the pointer)%s' % (
+            'Definite' if rep['level'] == 'L1' else 'Possible', w, rep['depth'], rep['end'][1], name, size,
+            '' if rep['level'] == 'L1' else '; the bound comes from %s' % BOUND_PHRASE.get(rep['bound'], rep['bound']))
+    elif rep.get('dir') == 'sub':                      # 内层（Subobject=label，SPEC-0105）
         s = '%s out-of-bound %s through a %d-level call chain: up to byte %s of the array member or row (%s) of %s %s' % (
             'Definite' if rep['level'] == 'L1' else 'Possible', w, rep['depth'], rep['end'][1], size, name,
             'is accessed' if rep['level'] == 'L1' else 'may be accessed; the bound comes from %s' % BOUND_PHRASE.get(rep['bound'], rep['bound']))
@@ -847,17 +851,20 @@ def sub_call(req, call):
     """带窗口的实参（SPEC-0104 §2.3 3b、SPEC-0107 §2.1，同 apply::SubCall）：req 是 *pK（或 *pK->f）上的正向 Req、have 正好是 ext(pK)（ext(pK->f)）、
     第 K 个实参（它记着的字段 f）带 sub → 换成只剩 sub 的调用点（去掉 alias / parent / back / off_*）；否则 None。"""
     m = re.match(r'^\*p([0-9]+)(->([A-Za-z0-9_]+))?$', req['obj'])
-    if req.get('dir') or not m or int(m.group(1)) >= len(call['args']):
+    back = req.get('dir') == 'back'                    # 反向 Req 按 sub_back 再判（SPEC-0107 §2.2 第 3 步）
+    if (req.get('dir') and not back) or not m or int(m.group(1)) >= len(call['args']):
         return None
     k, field = int(m.group(1)), m.group(3)
     arg = call['args'][k]
     root = 'p%d' % k + ('->%s' % field if field else '')
-    if not isinstance(arg, dict) or 'obj' not in arg or P(req['have']) != P('ext(%s)' % root):
+    if not isinstance(arg, dict) or 'obj' not in arg or P(req['have']) != P('%s(%s)' % ('bext' if back else 'ext', root)):
         return None
     target = arg if not field else (arg.get('fields') or {}).get(field)
-    if not isinstance(target, dict) or 'sub' not in target:
+    if not isinstance(target, dict) or ('sub_back' if back else 'sub') not in target:
         return None
-    inner = {'obj': target['obj'], 'have': target['sub']}
+    inner = {'obj': target['obj'], 'have': target['have'] if back else target['sub']}
+    if back:
+        inner['back'] = target['sub_back']
     for key in ('eff_depth', 'fields'):
         if key in target:
             inner[key] = target[key]
@@ -879,9 +886,10 @@ def classify_all(req, call, caller, callee, env_guards):
             out = ([] if mine['outcome'] == 'safe' else out) + [(o, outer, True)]
     inner = sub_call(req, call)
     if inner is not None and all(x[0]['outcome'] in ('safe', 'up') for x in out):
-        i = classify(dict(req, dir='sub'), inner, caller, callee, env_guards)
+        d = 'subback' if req.get('dir') == 'back' else 'sub'
+        i = classify(dict(req, dir=d), inner, caller, callee, env_guards)
         if i['outcome'] != 'safe':
-            out.append((dict(i, dir='sub'), inner, False))
+            out.append((dict(i, dir=d), inner, False))
     return out
 
 
@@ -903,7 +911,7 @@ def classify(req, call, caller, callee, env_guards):
     L1 / L2 改判 open，账本原因一律 subobject_overflow；safe / up 不变。"""
     o = classify_plain(req, call, caller, callee, env_guards)
     relabel = o['outcome'] == 'open' or (SUBOBJECT != 'label' and o['outcome'] in ('L1', 'L2'))   # Subobject=label：L1 / L2 照常（SPEC-0105）
-    if req.get('dir') == 'sub' and relabel:
+    if req.get('dir') in ('sub', 'subback') and relabel:
         o = dict(o, outcome='open', reason='subobject_overflow', why='%s → 内层只记 SUSPECT' % o['outcome'])
     return o
 
@@ -1345,8 +1353,8 @@ def derive(cid):
                 reason = 'type_range_only' if r['have'].const() is not None and tag == 'type' else 'entry_unproven'
                 if typed_field(r, s.get('params', [])):
                     reason = 'typed_field'
-                if r.get('dir') == 'sub':
-                    reason = 'subobject_overflow'               # 内层 Req（SPEC-0104）
+                if r.get('dir') in ('sub', 'subback'):
+                    reason = 'subobject_overflow'               # 内层 Req（SPEC-0104 / 0107）
                 stat['entry'] += 1
                 if reason not in [o['reason'] for o in s['opens'] if o.get('req')]:
                     probs.append('%s %s：入口账本应为 %s' % (cid, fn, reason))

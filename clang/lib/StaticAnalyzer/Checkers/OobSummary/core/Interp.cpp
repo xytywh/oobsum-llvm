@@ -666,6 +666,16 @@ IntVal WidenInt(const IntVal &a, const IntVal &b);
 constexpr size_t kMaxSubs = 4;  // 一个指针至多带几个内层窗口（SPEC-0104）
 
 // 从这个指针起最内层子对象还剩多少字节（取最小的，SPEC-0104 §2.3 3b）；没有窗口、窗口到基址末尾、偏移没有上界 → None
+// 从这个指针往前到最内层子对象起点有多少字节（取最小的，SPEC-0107 §2.2 第 3 步）；没有窗口、窗口从基址起点开始、偏移没有下界 → None
+llvm::Optional<std::string> SubBack(const PtrVal &p)
+{
+    if (p.subs.empty() || p.subs.back().head) {
+        return llvm::None;
+    }
+    llvm::Optional<LinExpr> wlo = p.subs.back().off.Lower();
+    return wlo && !wlo->IsUnknown() ? llvm::Optional<std::string>(wlo->Show()) : llvm::None;
+}
+
 llvm::Optional<std::string> SubRest(const PtrVal &p)
 {
     if (p.subs.empty() || p.subs.back().tail) {
@@ -2368,7 +2378,27 @@ void Analyzer::CheckSubs(const char *kind, const PtrVal &addr, const IntVal &byt
             if (!lo || lo->IsUnknown()) {
                 bad = outerHasLo;
             } else {
-                bad = !EntailsLe0(LinExpr::Const(0) - *lo, s.guards, Env(s));
+                LinExpr under = LinExpr::Const(0) - *lo;  // 越到子对象前面的字节数
+                bad = !EntailsLe0(under, s.guards, Env(s));
+                std::set<std::string> syms;
+                if (bad) {
+                    CollectSyms(under, syms);
+                }
+                // 负偏移的内层 Req（dir subback，SPEC-0107 §2.2 第 3 步）：子对象前面没有字节可越（have 0），越过的字节数 −lo
+                if (!syms.empty() || (bad && options.subobject == SubMode::Label)) {
+                    llvm::Optional<LinExpr> hi = w.off.Upper();
+                    RawAccess b;
+                    b.kind = kind;
+                    b.dir = "subback";
+                    b.have = LinExpr::Const(0);
+                    b.obj = addr.obj;
+                    b.hi = under;
+                    b.lo = hi && !hi->IsUnknown() ? LinExpr::Const(0) - *hi : LinExpr::Const(0);
+                    b.tag = w.off.kind == IntVal::Kind::Exact ? Tag::Exact : w.off.tag;
+                    b.at = at;
+                    up.push_back(std::move(b));
+                    bad = false;
+                }
             }
         }
         if (bad) {
@@ -3639,6 +3669,7 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s, bool alt)
                     arg.ptr->back = BackText(v.p);  // 前面取最小的（偏移下界，SPEC-0039）
                     // 指向成员数组 / 多维数组的一行：另记最内层子对象的剩余，代换时内层也查（SPEC-0104 §2.3 3b）
                     arg.ptr->sub = SubRest(v.p);
+                    arg.ptr->subBack = SubBack(v.p);  // SPEC-0107 §2.2 第 3 步
                     if (v.p.kind == BaseKind::Param && v.p.off.IsConst() && v.p.off.value.Constant() == 0) {
                         arg.ptr->alias = v.p.obj.substr(1);  // *p0 → p0
                     }
@@ -5436,6 +5467,7 @@ std::map<std::string, summary::ArgValue> Analyzer::ArgFields(const PtrVal &p, co
             a.ptr->have = (v.p.size - *hi).Show();
             a.ptr->back = BackText(v.p);  // SPEC-0039
             a.ptr->sub = SubRest(v.p);    // 字段里的指针也记内层剩余（SPEC-0107 §2.1）
+            a.ptr->subBack = SubBack(v.p);
             if (v.p.kind == BaseKind::Heap && v.p.effDepth > 0) {
                 a.ptr->effDepth = v.p.effDepth;
             }

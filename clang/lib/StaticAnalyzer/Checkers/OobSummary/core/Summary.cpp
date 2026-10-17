@@ -273,7 +273,7 @@ bool Reader::ReadReq(const Value &v, Req &r)
     auto kind = [&](const Value &x, std::string &y) { return OneOf(x, y, {"R", "W"}); };
     llvm::Optional<std::string> dir;  // SPEC-0039
     if (o != nullptr && !OptKey(*o, "dir", dir, [&](const Value &x, std::string &y) {
-            return OneOf(x, y, {"back", "sub"});
+            return OneOf(x, y, {"back", "sub", "subback"});
         })) {
         return false;
     }
@@ -315,8 +315,9 @@ bool Reader::ReadEff(const Value &v, Eff &e)
 
 bool Reader::ReadPtr(const Value &v, PtrArg &p)
 {
-    const Object *o = Obj(v, {"obj", "have"},
-                          {"alias", "eff_depth", "fields", "parent", "back", "off_lo", "off_hi", "off_bound", "sub"});
+    const Object *o =
+        Obj(v, {"obj", "have"},
+            {"alias", "eff_depth", "fields", "parent", "back", "off_lo", "off_hi", "off_bound", "sub", "sub_back"});
     auto outer = [&](const Value &x, OuterObj &y) {
         const Object *po = Obj(x, {"obj", "have"}, {});
         return po != nullptr && Key(*po, "obj", y.obj, OOBSUM_M(ObjName)) && Key(*po, "have", y.have, OOBSUM_M(Expr));
@@ -340,7 +341,7 @@ bool Reader::ReadPtr(const Value &v, PtrArg &p)
            OptKey(*o, "fields", p.fields, fields) && OptKey(*o, "parent", p.parent, outer) &&
            OptKey(*o, "back", p.back, OOBSUM_M(Expr)) && OptKey(*o, "off_lo", p.offLo, OOBSUM_M(Expr)) &&
            OptKey(*o, "off_hi", p.offHi, OOBSUM_M(Expr)) && OptKey(*o, "off_bound", p.offBound, OOBSUM_M(TagName)) &&
-           OptKey(*o, "sub", p.sub, OOBSUM_M(Expr));
+           OptKey(*o, "sub", p.sub, OOBSUM_M(Expr)) && OptKey(*o, "sub_back", p.subBack, OOBSUM_M(Expr));
 }
 
 bool Reader::ReadArg(const Value &v, ArgValue &a, bool allowNull)
@@ -516,7 +517,7 @@ bool Reader::ReadRep(const Value &v, Rep &r)
     auto via = [&](const Value &x, std::string &y) { return Str(x, y) && (IsVia(y) || Fail("bad via '" + y + "'")); };
     llvm::Optional<std::string> dir;  // SPEC-0039
     if (o != nullptr && !OptKey(*o, "dir", dir, [&](const Value &x, std::string &y) {
-            return OneOf(x, y, {"back", "sub"});
+            return OneOf(x, y, {"back", "sub", "subback"});
         })) {
         return false;
     }
@@ -655,7 +656,8 @@ Value PtrJson(const PtrArg &p)
     Put(o, "off_lo", p.offLo);
     Put(o, "off_hi", p.offHi);
     Put(o, "off_bound", p.offBound);
-    Put(o, "sub", p.sub);  // SPEC-0104
+    Put(o, "sub", p.sub);           // SPEC-0104
+    Put(o, "sub_back", p.subBack);  // SPEC-0107
     if (p.fields) {
         Object f;
         for (const auto &entry : *p.fields) {

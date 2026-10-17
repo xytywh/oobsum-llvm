@@ -1,0 +1,20 @@
+# 内层界补漏 3（oobsum/specs/SPEC-0107 §2.2，用户决定 D24）：负偏移越到成员数组 / 一行的前面、还在整个对象里 → SUSPECT subobject_overflow。
+# 实参另记"从指针往前到子对象起点的字节数"（sub_back），被调者的反向 Req 按它再判一次（内层变体 dir subback）；
+# 函数里下标是形参的负偏移记成内层反向 Req（dir subback、have 0）往调用方传。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary+apply -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Back_Tp|SetRow)$' \
+# RUN:   -w %S/Inputs/subobj/b.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}"args":[{"back":"4","have":"28","obj":"local:st","sub":"16","sub_back":"0"}]
+CHECK-DAG: [oobsum:apply] Back_Tp @ b.c:6 Prev.b.c:5 → open (subobject_overflow) [subback]
+CHECK-DAG: [oobsum:summary] {{.*}}"dir":"subback","eff_depth":0,"end":["-p0 + 1","-p0 + 1"],"guard":[],"have":"0",{{.*}}"obj":"local:a"
+# Prev(st.aucBuf)：p[-1] 落在 ulLen 上（st 里、aucBuf 前面）；Prev(st.aucBuf + 1) 不越出
+CHECK-DAG: b.c:6:1: warning: [OOB-SAFE:within] Proven within bounds: up to 1 bytes before 'st' (4 bytes before the pointer)
+CHECK-DAG: b.c:6:1: warning: [OOB-SUSPECT:subobject_overflow] Cannot prove the write through a 1-level call chain stays within the array member or row of 'st' (0 bytes before the pointer): up to 1 bytes before it may be accessed
+CHECK-DAG: b.c:8:1: warning: [OOB-SUSPECT:subobject_overflow] Cannot prove the write through a 1-level call chain stays within the array member or row of 'a' (0 bytes before the pointer)
+# SetRow(0)：a[1][-1] 越到第 1 行前面；SetRow(1) 不越出
+CHECK-DAG: b.c:13:1: warning: [OOB-SUSPECT:subobject_overflow]
+CHECK-DAG: b.c:14:1: warning: [OOB-SAFE:within] Proven within bounds: up to 0 bytes before the pointer stay within the array member or row of 'a' (0 bytes before the pointer)
+CHECK-NOT: b.c:{{(7|11|14)}}:1: warning: [OOB-SUSPECT

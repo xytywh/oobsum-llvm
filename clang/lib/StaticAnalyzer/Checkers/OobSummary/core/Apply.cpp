@@ -586,7 +586,7 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
     // L1 / L2 改判 open，账本原因一律 subobject_overflow；safe / up 不变（同 replay.py 的 classify）。
     // Subobject=label（SPEC-0105）：L1 / L2 照常，只有 open 的原因换成 subobject_overflow
     bool relabel = o.outcome == "open" || (!subLabel && (o.outcome == "L1" || o.outcome == "L2"));
-    if (req.dir == "sub" && relabel) {
+    if (InnerDir(req.dir) && relabel) {
         o.why = o.outcome + "（" + (o.reason.empty() ? o.why : o.reason) + "）→ 内层只记 SUSPECT";
         o.outcome = "open";
         o.reason = "subobject_overflow";
@@ -630,7 +630,9 @@ llvm::Optional<Call> ParentCall(const summary::Req &req, const Call &call)
 // 这个实参换成"只剩 sub"的调用点（同 replay.py 的 sub_call）
 llvm::Optional<Call> SubCall(const summary::Req &req, const Call &call)
 {
-    if (!req.dir.empty()) {
+    // 正向 Req 按内层剩余（sub）再判；反向 Req（负偏移）按指针前面到子对象起点的字节数（sub_back）再判（SPEC-0107 §2.2 第 3 步）
+    bool back = req.dir == "back";
+    if (!req.dir.empty() && !back) {
         return llvm::None;
     }
     // *p<k>：实参本身；*p<k>->f：实参所指结构体里记着的指针字段值（SPEC-0107 §2.1）
@@ -643,7 +645,7 @@ llvm::Optional<Call> SubCall(const summary::Req &req, const Call &call)
     const ArgValue &arg = call.args[k];
     std::string field = groups[3].str();
     std::string root = "p" + std::to_string(k) + (field.empty() ? "" : "->" + field);
-    if (arg.kind != ArgValue::Kind::Ptr || P(req.have) != LinExpr::Ext(root)) {
+    if (arg.kind != ArgValue::Kind::Ptr || P(req.have) != (back ? LinExpr::BExt(root) : LinExpr::Ext(root))) {
         return llvm::None;
     }
     const ArgValue *target = &arg;
@@ -653,12 +655,15 @@ llvm::Optional<Call> SubCall(const summary::Req &req, const Call &call)
         }
         target = &arg.ptr->fields->at(field);
     }
-    if (target->kind != ArgValue::Kind::Ptr || !target->ptr->sub) {
+    if (target->kind != ArgValue::Kind::Ptr || !(back ? target->ptr->subBack : target->ptr->sub)) {
         return llvm::None;
     }
     auto inner = std::make_shared<summary::PtrArg>();
     inner->obj = target->ptr->obj;
-    inner->have = *target->ptr->sub;
+    inner->have = back ? target->ptr->have : *target->ptr->sub;
+    if (back) {
+        inner->back = *target->ptr->subBack;
+    }
     inner->effDepth = target->ptr->effDepth;
     inner->fields = target->ptr->fields;
     Call out = call;
@@ -777,10 +782,10 @@ std::vector<SiteClass> ClassifyAll(const summary::Req &req, const Call &call, co
         llvm::all_of(out, [](const SiteClass &x) { return x.mine.outcome == "safe" || x.mine.outcome == "up"; });
     if (inner && clean) {
         summary::Req rs = req;
-        rs.dir = "sub";
+        rs.dir = req.dir == "back" ? "subback" : "sub";
         SiteClass i{Classify(rs, *inner, caller, envGuards, subLabel), *inner, false};
         if (i.mine.outcome != "safe") {
-            i.mine.dir = "sub";
+            i.mine.dir = rs.dir;
             out.push_back(std::move(i));
         }
     }

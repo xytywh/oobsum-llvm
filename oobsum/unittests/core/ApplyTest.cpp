@@ -351,3 +351,42 @@ TEST(Apply, SubObjectFieldArg)
     call.args[1].expr = "16";
     EXPECT_TRUE(apply::ClassifyAll(req, call, caller, {}).size() == 1);
 }
+
+TEST(Apply, SubObjectBackArg)
+{
+    // SPEC-0107 §2.2 第 3 步：被调者写 p[-1]（反向 Req：越到指针前面 1 字节 ≤ bext(p0)）；实参 st.aucBuf：外层前面 4 字节、子对象前面 0 字节
+    summary::Req req;
+    req.id = "R1";
+    req.kind = "W";
+    req.dir = "back";
+    req.have = "bext(p0)";
+    req.obj = "*p0";
+    req.endLo = "1";
+    req.endHi = "1";
+    req.bound = "exact";
+    req.access = {"Prev", "F:Prev", "b.c:5", "1"};
+    req.path = {"Prev@b.c:5"};
+    summary::ArgValue ptr;
+    ptr.kind = summary::ArgValue::Kind::Ptr;
+    ptr.ptr = std::make_shared<summary::PtrArg>();
+    ptr.ptr->obj = "local:st";
+    ptr.ptr->have = "28";
+    ptr.ptr->back = std::string("4");
+    ptr.ptr->sub = std::string("16");
+    ptr.ptr->subBack = std::string("0");
+    summary::Call call;
+    call.site = "b.c:6";
+    call.callee = "Prev";
+    call.args = {ptr};
+    summary::Summary caller;
+    caller.fn = "Top";
+    caller.key = "F:Top";
+    std::vector<apply::SiteClass> all = apply::ClassifyAll(req, call, caller, {});
+    ASSERT_TRUE(all.size() == 2);
+    EXPECT_EQ(all[0].mine.outcome, "safe");
+    EXPECT_EQ(all[1].mine.outcome + ":" + all[1].mine.reason + ":" + all[1].mine.dir,
+              "open:subobject_overflow:subback");
+    // 指针在子对象里第 1 个字节之后：前面还有 1 字节 → 内层也安全
+    call.args[0].ptr->subBack = std::string("1");
+    EXPECT_TRUE(apply::ClassifyAll(req, call, caller, {}).size() == 1);
+}

@@ -118,6 +118,7 @@ struct PtrArg {
     llvm::Optional<std::string> offBound;
     // 实参指向成员数组 / 多维数组的一行时：从这个指针起子对象还剩多少字节（取最小的；SPEC-0104 §2.3 3b）
     llvm::Optional<std::string> sub;
+    llvm::Optional<std::string> subBack;  // 从这个指针往前到子对象起点的字节数（取最小的；SPEC-0107 §2.2 第 3 步）
     llvm::Optional<std::string> alias;
     llvm::Optional<int64_t> effDepth;
     llvm::Optional<std::map<std::string, ArgValue>> fields;  // 值是表达式或指针（不为 null）

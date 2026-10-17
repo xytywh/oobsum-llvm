@@ -7,7 +7,7 @@
 # RUN:   -w %S/Inputs/subobj/a.c 2>&1 | FileCheck %s
 
 # 实参：st.aucBuf 外层剩 28、内层剩 16；a[0] 外层剩 8、内层剩 4
-CHECK-DAG: [oobsum:summary] {{.*}}"args":[{"back":"4","have":"28","obj":"local:st","sub":"16"},"20"]
+CHECK-DAG: [oobsum:summary] {{.*}}"args":[{"back":"4","have":"28","obj":"local:st","sub":"16","sub_back":"0"},"20"]
 CHECK-DAG: [oobsum:summary] {{.*}}"args":[{"back":"0","have":"8","obj":"local:a","sub":"4"},"5"]
 CHECK-DAG: [oobsum:apply] Arg_Tp @ a.c:7 Fill.a.c:5 → open (subobject_overflow) [sub]
 # Fill(st.aucBuf, 20)：没越出 st、越出 aucBuf

@@ -21,8 +21,8 @@
 LABEL-O-DAG: o.c:7:1: warning: [OOB-DEFINITE] Definite out-of-bound write: up to byte 6 of the array member or row (4 bytes) of 'a' is accessed
 LABEL-O-DAG: o.c:8:1: warning: [OOB-DEFINITE] Definite out-of-bound write: up to byte 21 of the array member or row (16 bytes) of 'st' is accessed
 LABEL-O-DAG: o.c:10:1: warning: [OOB-POSSIBLE] Possible out-of-bound write: up to byte 8 of the array member or row (4 bytes) of 'a' may be accessed; the bound comes from a loop condition
-# 负下标越到成员前面：仍是 SUSPECT（label 只管上界）
-LABEL-O-DAG: o.c:12:1: warning: [OOB-SUSPECT:subobject_overflow]
+# 负下标越到成员前面（内层反向 Req，SPEC-0107 第 3 步）：label 下同样按常规判
+LABEL-O-DAG: o.c:12:1: warning: [OOB-DEFINITE] Definite out-of-bound write: up to 1 bytes before the pointer leave the array member or row of 'st' (0 bytes available before the pointer)
 LABEL-U-DAG: u.c:10:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 9 of the array member or row (8 bytes) of 'g_aucTbl' is accessed
 LABEL-U-DAG: u.c:13:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 6 of the array member or row (4 bytes) of 'st' is accessed
 LABEL-U-DAG: u.c:15:1: warning: [OOB-SUSPECT:subobject_overflow]

@@ -22,7 +22,7 @@ namespace {
 // subLabel：Subobject=label 时内层 Req（dir sub）也按常规判（SPEC-0105）
 llvm::Optional<std::string> EntryLevel(const DerivedReq &r, bool subLabel)
 {
-    bool plain = r.dir.empty() || (subLabel && r.dir == "sub");
+    bool plain = r.dir.empty() || (subLabel && apply::InnerDir(r.dir));
     if (r.depth != 0 || !plain || !r.have.IsConst() || !r.lo.IsConst() || !r.hi.IsConst()) {
         return llvm::None;
     }
@@ -308,9 +308,9 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bo
                 Limit l = env.RangeOf(r.hi - r.have, true);
                 bool typeOnly = r.have.IsConst() && l.known && l.tag == Tag::Type;
                 // 内层 Req（SPEC-0104 §2.3 3a）：入口账本原因 subobject_overflow
-                result.entryOpens.push_back(r.dir == "sub"     ? "subobject_overflow"
-                                            : TypedField(r, s) ? "typed_field"
-                                                               : (typeOnly ? "type_range_only" : "entry_unproven"));
+                result.entryOpens.push_back(apply::InnerDir(r.dir) ? "subobject_overflow"
+                                            : TypedField(r, s)     ? "typed_field"
+                                                                   : (typeOnly ? "type_range_only" : "entry_unproven"));
                 ++out.entry;
             }
         }

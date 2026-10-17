@@ -1,6 +1,6 @@
 # SPEC-0107 内层界补漏：指针存进结构体字段、返回成员数组的指针、负偏移、汇合（用户决定 D24）
 
-状态：第 1、2、4 步已实现；第 3 步（被调者里的负偏移）见 §2.2
+状态：已实现（第 1…4 步）
 来源：D24"不管哪个维度，每个越界都告警"。SPEC-0104 之后还有几处只查整个对象、内层越界不报（SPEC-0104 §2.3 末尾列的"不覆盖"与之后发现的）。
 
 ## 1. 漏洞
@@ -29,7 +29,14 @@
   * `RetPtrResult`（调用方）：结果 = 实参 + 偏移，**实参原有的窗口一起平移**（原来没平移，`Next(st.aucBuf)` 返回 `p + 1` 后内层偏移差 1）；
     有 `sub` 时推一个窗口（`sub_off` 换成调用方的值；`Subobject=off` 不推）。
   * 返回成员数组的指针现在跟踪得到：调用方原来的 `untracked_pointer` 换成外层 / 内层都检查（证明了安全的才不报）。
-* 第 3 步（#3）：实参另记窗口前面的字节数，被调者的反向 Req 按它再判一次。
+* 第 3 步（#3，已实现）：内层反向 Req（`dir: subback`）。
+  * 调用点记实参（与字段值）时另记 `sub_back`：从指针往前到最内层子对象起点的字节数（窗口偏移下界；窗口从基址起点开始时不记）。
+  * `apply::SubCall`：被调者的反向 Req（对象 `*p<k>` / `*p<k>->f`、`have` 正好是 `bext(…)`）→ 实参的 `back` 换成 `sub_back` 再判一次（`dir: subback`），同 3b 的内层变体。
+  * `CheckSubs`：下界（负下标）证明不了、式子里有接口符号（或 `Subobject=label`）→ 记内层反向 Req（`have` 0、`end` = 越到子对象前面的字节数），往调用方传；
+    其余照旧记账。
+  * `subback` 与 `sub` 同样：L1 / L2 改判 SUSPECT（`label` 下照常）、入口账本原因 `subobject_overflow`、不按 `InlineDepth` 过滤；文字
+    `Cannot prove the write … stays within the array member or row of 'st' (0 bytes before the pointer): up to 1 bytes before it may be accessed`。
+  * 摘要：`dir` 加 `subback`、实参加 `sub_back`（`summary.schema.json`、`core/Summary.cpp`）；`replay.py` 同步（`sub_call`、`classify`、入口原因、`alert_msg`）。
 * 第 4 步（#4，已实现）：`JoinSubs`——大小（与 head / tail）相同的窗口两两汇合 / 加宽；对不上的两边都留下（至多 4 个，丢最外层的）。
   每个窗口对应一条路径，访问越出它就是那条路上越出了子对象（检出优先）；外层检查不变。收敛：窗口个数有上限，下一轮配上对的照常加宽。
 
@@ -41,6 +48,8 @@
 
 第 1 步：`core/Interp.cpp`（`SubRest`、`ArgFields`）、`core/Apply.cpp`（`SubCall`）、`replay.py`（`sub_call`）。
 第 2 步：`core/Interp.cpp`（`ReturnPointer`、`RetPtrResult`）、`core/Summary.{h,cpp}`（`Eff::sub` / `subOff`）、`summary.schema.json`。
+第 3 步：`core/Interp.cpp`（`SubBack`、`CheckSubs`）、`core/Apply.{h,cpp}`（`InnerDir`、`SubCall`、`ClassifyAll`）、`core/Solver.cpp`、`core/Policy.cpp`、
+`core/Engine.cpp`、`core/Alert.cpp`、`core/Summary.{h,cpp}`、`summary.schema.json`、`replay.py`、`tools/golden_regen.py`。
 第 4 步：`core/Interp.cpp`（`JoinSubs`）。
 
 ## 5. 测试
@@ -49,6 +58,10 @@
   单测 `Apply.SubObjectFieldArg`。
 * 第 2 步：lit `subobject-ret.test`（`Dump=summary` 的 `ret_ptr` 带 `sub` / `sub_off`；`GetBuf(&st)[20]` → SUSPECT、`[15]` → SAFE；`GetRow(a, 0)[5]` → SUSPECT；
   `Next(st.aucBuf)[15]` → SUSPECT、`[14]` 不报）；单测 `Interp.RetPtrMemberWindow`。compiler-rt、上游用例集不变（判定键 1370 → 1370）。
+* 第 3 步：lit `subobject-back.test`（实参的 `sub_back`；`Prev(st.aucBuf)` 里 `p[-1]` → SUSPECT、`Prev(st.aucBuf + 1)` 不报、`Prev(a[1])` → SUSPECT；
+  `SetRow(0)`（`a[1][i - 1]`）→ SUSPECT、`SetRow(1)` 不报；`Dump=summary` 的 `subback` Req）；单测 `Apply.SubObjectBackArg`；`subobject-option.test` 的 `label` 下
+  常数负下标 → DEFINITE（原来 SUSPECT，有意的）。上游用例集 `subobject_overflow` 30 → 24：少掉的行都是重复读写同一元素、按 A-44 并进覆盖它的那条，
+  同一访问的上下界两条只报一条（SPEC-0036 `duplicate_access`，日志里都在）；compiler-rt 判定键 1370 → 1370。
 * 第 4 步：lit `subobject-join.test`（`c ? st.aucBuf : (UINT8 *)&st` 之后 `p[20]` → SUSPECT、`p[15]` 不报；`c ? st.aucBuf : st.aucPad` 的两个窗口都留下，
   `Dump=state` 的 `{sub 16@0}{sub 12@0}`）；单测 `Interp.SubWindowKeptAcrossJoin`。compiler-rt、上游用例集不变。
 

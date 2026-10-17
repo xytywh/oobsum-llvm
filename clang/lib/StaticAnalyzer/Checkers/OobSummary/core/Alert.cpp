@@ -113,6 +113,11 @@ std::string AlertMessage(const summary::Rep &rep, const std::vector<summary::Par
         if (rep.level != "L1") {
             s += "; the bound comes from " + BoundPhrase(rep.bound);
         }
+    } else if (rep.dir == "subback") {  // 内层、负偏移（Subobject=label，SPEC-0107；同 replay.py 的 alert_msg）
+        s = std::string(rep.level == "L1" ? "Definite" : "Possible") + " out-of-bound " + w + levels + ": up to " +
+            rep.endHi + " bytes before the pointer leave the array member or row of " + name + " (" + size +
+            " available before the pointer)" +
+            (rep.level == "L1" ? "" : "; the bound comes from " + BoundPhrase(rep.bound));
     } else if (rep.dir == "sub") {  // 内层（Subobject=label，SPEC-0105；同 replay.py 的 alert_msg）
         s = std::string(rep.level == "L1" ? "Definite" : "Possible") + " out-of-bound " + w + levels + ": up to byte " +
             rep.endHi + " of the array member or row (" + size + ") of " + name +

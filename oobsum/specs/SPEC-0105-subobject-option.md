@@ -18,7 +18,7 @@ D25：取舍一律做成选项，默认与本地验证用"每一维都报"。另
 * `off`：`Eval` 的 `subobj` 不推窗口——函数内不查、实参不记 `sub`、不产生内层 Req。
 * `label`：
   * `CheckSubs`：上界证明不了时**一律**记内层 Req（不再区分含不含接口符号；本函数里就定了的常数也走 Req，由入口 / 调用点按常规判）；
-    下界（负下标）证明不了、窗口没有界仍记账 `subobject_overflow`。
+    下界（负下标）证明不了、窗口没有界仍记账 `subobject_overflow`。〔SPEC-0107 第 3 步：负下标也记内层反向 Req（`dir: subback`），label 下同样按常规判〕
   * `apply::Classify`：内层 Req 的 L1 / L2 不改判（`open` 的原因仍是 `subobject_overflow`）；3b 的内层变体同样。
   * `solver::Propagate`：入口函数上深度 0 的常数内层 Req 按 F-10 / F-11 / F-12 判（`EntryLevel`，SPEC-0087）。
   * 告警文字（`alert::AlertMessage`、`replay.py` 的 `alert_msg`）：`Definite out-of-bound write: up to byte 6 of the array member or row (4 bytes) of 'a' is accessed`。
