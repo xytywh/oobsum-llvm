@@ -102,6 +102,8 @@
         "eff_depth": { "type": "integer", "minimum": 0 },
         "bound": { "$ref": "#/definitions/tag" },
         "may": { "type": "boolean", "description": "field：有的返回路径没写，调用方取旧值与新值的并（SPEC-0073）" },
+        "sub": { "$ref": "#/definitions/expr", "description": "ret_ptr：返回的指针在这么多字节的子对象（成员数组 / 多维数组的一行）里（SPEC-0107）" },
+        "sub_off": { "$ref": "#/definitions/expr", "description": "ret_ptr：返回的指针在子对象里的偏移（SPEC-0107）" },
         "doc": { "$ref": "#/definitions/doc" }
       }
     },

@@ -1972,3 +1972,30 @@ TEST(Interp, CharAliasVerifyDropsIneffective)
         interp::AnalyzeFunction(b.m, b.f, nullptr, models::ModelTable::Default(), nullptr, nullptr, verify);
     EXPECT_TRUE(facts.assumes.empty());
 }
+
+TEST(Interp, RetPtrMemberWindow)
+{
+    // SPEC-0107 §2.2：return pst->aucBuf（形参所指结构体里 16 字节的成员数组，偏移 4）→ ret_ptr p0 + 4，带 sub 16 / sub_off 0
+    auto ret = [](ExprId v) {
+        Inst i;
+        i.op = InstOp::Ret;
+        i.val = v;
+        return i;
+    };
+    Builder b;
+    Record r;
+    r.id = 0;
+    r.name = "CTX_S";
+    r.size = 20;
+    r.fields = {{"ulLen", 0, b.u32}, {"aucBuf", 4, b.m.Intern(Type::Arr(b.u8, 16))}};
+    b.m.records.push_back(r);
+    b.f.ret = b.m.Intern(Type::Ptr(b.u8));
+    uint32_t pst = b.Param("pst", b.m.Intern(Type::Ptr(b.m.Intern(Type::Rec(0)))));
+    ExprId buf = b.f.Add(Expr::SubObj(b.f.Add(Expr::Fld(b.L(pst), 4, 16, "aucBuf")), 16));
+    b.Straight({ret(buf)});
+    interp::FunctionFacts facts = b.Run();
+    ASSERT_TRUE(facts.effs.size() == 1);
+    const summary::Eff &e = facts.effs[0];
+    EXPECT_EQ(e.kind + " " + e.target.getValueOr("-") + " " + e.value.getValueOr("-"), "ret_ptr p0 4");
+    EXPECT_EQ(e.sub.getValueOr("-") + " " + e.subOff.getValueOr("-"), "16 0");
+}

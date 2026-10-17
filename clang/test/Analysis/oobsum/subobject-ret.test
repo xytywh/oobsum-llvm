@@ -1,0 +1,21 @@
+# 内层界补漏 2（oobsum/specs/SPEC-0107 §2.2，用户决定 D24）：被调者返回指向成员数组 / 多维数组一行的指针（ret_ptr 带 sub / sub_off），
+# 调用方经它的访问越出内层 → SUSPECT subobject_overflow。返回成员数组原来不记 ret_ptr（调用方只能记 untracked_pointer）。
+# 返回"实参 + 偏移"时实参原有的窗口一起平移。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(GetBuf|GetRow|Next)$' \
+# RUN:   -w %S/Inputs/subobj/r.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"ret_ptr","sub":"16","sub_off":"0","target":"p0","value":"4"}],{{.*}}"fn":"GetBuf"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"ret_ptr","sub":"4","sub_off":"0","target":"p0","value":"4*p1"}],{{.*}}"fn":"GetRow"
+CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"kind":"ret_ptr","target":"p0","value":"1"}],{{.*}}"fn":"Next"
+# GetBuf(&st)[20]：越出 aucBuf、没越出 st；[15] 两边都在界内
+CHECK-DAG: r.c:7:1: warning: [OOB-SUSPECT:subobject_overflow]
+CHECK-DAG: r.c:7:1: warning: [OOB-SAFE:local_entailed] Proven within bounds: up to byte 25 of 'st' (32 bytes)
+CHECK-DAG: r.c:8:1: warning: [OOB-SAFE:local_entailed] Proven within bounds: up to byte 20 of 'st' (32 bytes)
+# GetRow(a, 0)[5]：越出一行
+CHECK-DAG: r.c:9:1: warning: [OOB-SUSPECT:subobject_overflow]
+# Next(st.aucBuf)[15]：实参的窗口随返回的偏移平移 → 越出；[14] 不越出
+CHECK-DAG: r.c:11:1: warning: [OOB-SUSPECT:subobject_overflow]
+CHECK-NOT: r.c:{{(8|12)}}:1: warning: [OOB-SUSPECT

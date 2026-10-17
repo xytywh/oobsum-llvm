@@ -1,6 +1,6 @@
 # SPEC-0107 内层界补漏：指针存进结构体字段、返回成员数组的指针、负偏移、汇合（用户决定 D24）
 
-状态：第 1 步（结构体字段里的指针）已实现；其余见 §2
+状态：第 1 步（结构体字段里的指针）、第 2 步（返回成员数组 / 一行的指针）已实现；第 3、4 步见 §2.2
 来源：D24"不管哪个维度，每个越界都告警"。SPEC-0104 之后还有几处只查整个对象、内层越界不报（SPEC-0104 §2.3 末尾列的"不覆盖"与之后发现的）。
 
 ## 1. 漏洞
@@ -22,7 +22,13 @@
 
 ### 2.2 其余（后续步骤）
 
-* 第 2 步（#2）：`ret_ptr` 效果带子对象的窗口——待查现在 `return p->aucBuf` 记成什么。
+* 第 2 步（#2，已实现）：原来 `return p->aucBuf`（形参所指结构体里的成员数组）根本不记 `ret_ptr`（注释是"成员界会丢"），调用方只能记 `untracked_pointer`；
+  `return a[r]` 记了 `ret_ptr p0 + 4*p1` 但不带窗口。改为：
+  * `ReturnPointer`：成员数组基址换成"形参所指 + 成员偏移"、成员本身当最外层窗口；各条返回的最内层窗口（大小、偏移确切且相同）记进 `ret_ptr` 的
+    `sub`（子对象大小）/ `sub_off`（返回的指针在子对象里的偏移，被调者接口符号）。摘要 `effs[]` 加这两个键（`summary.schema.json`、`core/Summary.cpp`）。
+  * `RetPtrResult`（调用方）：结果 = 实参 + 偏移，**实参原有的窗口一起平移**（原来没平移，`Next(st.aucBuf)` 返回 `p + 1` 后内层偏移差 1）；
+    有 `sub` 时推一个窗口（`sub_off` 换成调用方的值；`Subobject=off` 不推）。
+  * 返回成员数组的指针现在跟踪得到：调用方原来的 `untracked_pointer` 换成外层 / 内层都检查（证明了安全的才不报）。
 * 第 3 步（#3）：实参另记窗口前面的字节数，被调者的反向 Req 按它再判一次。
 * 第 4 步（#4）：汇合时一边有窗口、另一边没有，保留有的那边（那条路上就是越出了子对象，检出优先）。
 
@@ -33,11 +39,14 @@
 ## 4. 实现位置
 
 第 1 步：`core/Interp.cpp`（`SubRest`、`ArgFields`）、`core/Apply.cpp`（`SubCall`）、`replay.py`（`sub_call`）。
+第 2 步：`core/Interp.cpp`（`ReturnPointer`、`RetPtrResult`）、`core/Summary.{h,cpp}`（`Eff::sub` / `subOff`）、`summary.schema.json`。
 
 ## 5. 测试
 
 * 第 1 步：lit `subobject-field.test`（`ctx.pucBuf = st.aucBuf; Proc(&ctx, 20)` → SUSPECT、`Proc(&ctx, 16)` → SAFE、`Dump=summary` 的字段值带 `sub`）；
   单测 `Apply.SubObjectFieldArg`。
+* 第 2 步：lit `subobject-ret.test`（`Dump=summary` 的 `ret_ptr` 带 `sub` / `sub_off`；`GetBuf(&st)[20]` → SUSPECT、`[15]` → SAFE；`GetRow(a, 0)[5]` → SUSPECT；
+  `Next(st.aucBuf)[15]` → SUSPECT、`[14]` 不报）；单测 `Interp.RetPtrMemberWindow`。compiler-rt、上游用例集不变（判定键 1370 → 1370）。
 
 ## 6. 调试
 

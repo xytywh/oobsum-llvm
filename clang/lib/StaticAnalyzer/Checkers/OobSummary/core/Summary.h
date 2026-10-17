@@ -86,6 +86,9 @@ struct Eff {
     llvm::Optional<int64_t> effDepth;
     llvm::Optional<std::string> bound;
     llvm::Optional<bool> may;  // field：有的返回路径没写（调用方取旧值与新值的并，SPEC-0073）
+    // ret_ptr：返回的指针在一个 sub 字节的子对象（成员数组 / 多维数组的一行）里，偏移 subOff（SPEC-0107 §2.2）
+    llvm::Optional<std::string> sub;
+    llvm::Optional<std::string> subOff;
 };
 
 struct PtrArg;

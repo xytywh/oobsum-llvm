@@ -4699,6 +4699,10 @@ llvm::Optional<summary::Eff> Analyzer::ReturnPointer() const
     bool constOffs = true;
     int64_t offLo = INT64_MAX;
     int64_t offHi = INT64_MIN;
+    std::vector<PtrVal> views;  // 每条返回换成"形参所指 + 偏移"的说法
+    views.reserve(returns.size());
+    bool winOk = true;  // 各条返回的最内层窗口相同（SPEC-0107 §2.2）
+    llvm::Optional<SubWindow> win;
     for (const auto &ret : returns) {
         const Value &v = ret.first;
         bool null = (!v.isPtr && v.i.IsConst() && v.i.value.Constant() == 0) ||
@@ -4707,25 +4711,45 @@ llvm::Optional<summary::Eff> Analyzer::ReturnPointer() const
             maybeNull = true;
             continue;
         }
-        // 形参所指对象（*pK）或形参所指结构体的指针字段在入口时的值（*pK->f）；成员数组（ParamField）不记（成员界会丢）
-        if (!v.isPtr || (v.p.kind != BaseKind::Param && v.p.kind != BaseKind::ParamPtr) || v.p.obj.size() < 2 ||
-            v.p.obj[0] != '*') {
+        // 形参所指结构体里的成员数组（ParamField）：换成"形参所指 + 成员偏移"，成员本身当最外层的窗口（成员界不丢，SPEC-0107 §2.2）
+        PtrVal view = v.isPtr ? v.p : PtrVal();
+        if (v.isPtr && v.p.kind == BaseKind::ParamField && v.p.hasParent && v.p.size.IsConst()) {
+            SubWindow member;
+            member.size = v.p.size.Constant();
+            member.off = v.p.off;
+            view.kind = BaseKind::Param;
+            view.id = v.p.parentId;
+            view.obj = v.p.parentObj;
+            view.off = AddVals(IntVal::Exact(LinExpr::Const(v.p.parentOff)), v.p.off);
+            view.subs.insert(view.subs.begin(), member);
+        }
+        views.push_back(view);
+        // 形参所指对象（*pK）或形参所指结构体的指针字段在入口时的值（*pK->f）
+        if (!v.isPtr || (view.kind != BaseKind::Param && view.kind != BaseKind::ParamPtr) || view.obj.size() < 2 ||
+            view.obj[0] != '*') {
             return llvm::None;
         }
-        llvm::Optional<LinExpr> lo = v.p.off.Lower();
-        llvm::Optional<LinExpr> hi = v.p.off.Upper();
+        if (view.subs.empty() || view.subs.back().tail || view.subs.back().off.kind != IntVal::Kind::Exact ||
+            (win && !(win->size == view.subs.back().size && win->off == view.subs.back().off))) {
+            winOk = false;
+        } else {
+            win = view.subs.back();
+        }
+        const PtrVal &vp = views.back();
+        llvm::Optional<LinExpr> lo = vp.off.Lower();
+        llvm::Optional<LinExpr> hi = vp.off.Upper();
         if (lo && hi && lo->IsConst() && hi->IsConst()) {
             offLo = std::min(offLo, lo->Constant());
             offHi = std::max(offHi, hi->Constant());
         } else {
             constOffs = false;
         }
-        bool exact = v.p.off.kind == IntVal::Kind::Exact && !v.p.off.value.IsUnknown();
-        if (base != nullptr && base->id != v.p.id) {
+        bool exact = vp.off.kind == IntVal::Kind::Exact && !vp.off.value.IsUnknown();
+        if (base != nullptr && base->id != vp.id) {
             return llvm::None;
         }
-        sameOff = sameOff && exact && (base == nullptr || base->off == v.p.off);
-        base = &v.p;
+        sameOff = sameOff && exact && (base == nullptr || base->off == vp.off);
+        base = &vp;
     }
     if (base == nullptr || (!sameOff && !constOffs)) {
         return llvm::None;
@@ -4740,6 +4764,10 @@ llvm::Optional<summary::Eff> Analyzer::ReturnPointer() const
     }
     if (maybeNull) {
         e.maybeNull = true;
+    }
+    if (winOk && win && !win->off.value.IsUnknown()) {
+        e.sub = std::to_string(win->size);  // 返回的指针在这个子对象里（SPEC-0107 §2.2）
+        e.subOff = win->off.value.Show();
     }
     return e;
 }
@@ -4783,15 +4811,33 @@ Value Analyzer::RetPtrResult(const fir::Inst &inst, const summary::Eff &e, const
         int64_t hi = 0;
         bool ok = e.range && e.range->size() == 2 && !llvm::StringRef((*e.range)[0]).getAsInteger(10, lo) &&
                   !llvm::StringRef((*e.range)[1]).getAsInteger(10, hi) && lo <= hi;
-        base.off = AddVals(
-            base.off, ok ? IntVal::Range(LinExpr::Const(lo), LinExpr::Const(hi), Tag::Branch) : IntVal::Top("call"));
+        IntVal delta = ok ? IntVal::Range(LinExpr::Const(lo), LinExpr::Const(hi), Tag::Branch) : IntVal::Top("call");
+        base.off = AddVals(base.off, delta);
+        ShiftSubs(base, delta);  // 实参原有的窗口一起平移（SPEC-0107 §2.2）
         out.p = base;
         return out;
     }
     LinExpr off;
     std::string error;
     llvm::Optional<LinExpr> mine = ParseLin(*e.value, off, error) ? CallerExpr(inst, off, s, &callee) : llvm::None;
-    base.off = AddVals(base.off, mine ? IntVal::Exact(*mine) : IntVal::Top("call"));
+    IntVal delta = mine ? IntVal::Exact(*mine) : IntVal::Top("call");
+    base.off = AddVals(base.off, delta);
+    ShiftSubs(base, delta);
+    // 返回的指针在被调者的一个子对象里：推一个窗口（SPEC-0107 §2.2）
+    int64_t size = 0;
+    LinExpr subOff;
+    if (e.sub && e.subOff && !llvm::StringRef(*e.sub).getAsInteger(10, size) && size > 0 &&
+        options.subobject != SubMode::Off && ParseLin(*e.subOff, subOff, error)) {
+        if (llvm::Optional<LinExpr> at = CallerExpr(inst, subOff, s, &callee)) {
+            SubWindow w;
+            w.size = size;
+            w.off = IntVal::Exact(*at);
+            base.subs.push_back(w);
+            if (base.subs.size() > kMaxSubs) {
+                base.subs.erase(base.subs.begin());
+            }
+        }
+    }
     out.p = base;
     return out;
 }
