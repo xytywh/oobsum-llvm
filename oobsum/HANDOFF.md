@@ -64,6 +64,7 @@
 | **D21** | G2：TN 入口零 DEFINITE / POSSIBLE，SUSPECT 条数单列（SPEC-0102） | 宁可多报，证明不了安全就报 SUSPECT（D16） |
 | **D22** | 多维数组每一维、成员数组都查内层界：越出内层、没越出外层的记 SUSPECT（新原因） | 每个维度越界都要报出来 |
 | **D23** | securec `strcpy_s` 族出错时写多少：暂不定，公司确认后在模型文件里按需配置（`upto`），不影响开发 | 只有公司的 securec 源码能确定 |
+| **D24** | （2026-10-17，补充 D22）不管越出哪一维、哪一层成员，每个越界都报，不只是越出整个对象才报；**不加按写法关掉内层检查的选项**（SPEC-0104 已实现：只越出内层的报 SUSPECT `subobject_overflow`，越出整个对象的照常 DEFINITE / POSSIBLE） | 每个维度越界都要报出来 |
 
 D16 对 `06-spec.md` 的修订（详见 SPEC-0001 §9）：F-15（"S2 不输出"）改为 SUSPECT 按 `Policy` 输出；F-20 的层数过滤只作用于
 DEFINITE / POSSIBLE（浅层的交给现有规则，仍写日志），SUSPECT 不按层数过滤；F-31 每个标签一个 BugType；F-32 消息加标签前缀。

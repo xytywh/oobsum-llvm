@@ -81,7 +81,7 @@ ENT_S astEnt[4];      astEnt[0].aucName[8];   /* 越过成员，还在 astEnt[1]
 * compiler-rt：判定键 1370 → 1370，没有报出消失。
 
 第 3b 步实测：`run.py csa`、上游用例集、compiler-rt 与 3a 相同（这些代码里几乎没有把成员数组 / 一行交给自定义函数的写法，`memcpy_s` 等模型函数第 2 步已查）；
-效果见 lit `subobject-arg.test`。**公司实测项**：业务子目录上 `subobject_overflow` 的条数，抽查是真越出成员 / 行，还是"把二维数组当一维用"之类的有意写法。
+效果见 lit `subobject-arg.test`。**公司实测项**：业务子目录上 `subobject_overflow` 的条数（只是看量；用户决定 D24：每个越界都报，不按写法关掉）。
 
 ## 4. 实现位置
 
@@ -125,8 +125,7 @@ ENT_S astEnt[4];      astEnt[0].aucName[8];   /* 越过成员，还在 astEnt[1]
 
 ## 8. 公司侧验证
 
-业务子目录上 `subobject_overflow` 的条数与抽查（真越出成员 / 行，还是"把二维数组当一维用"、"按成员地址清整个结构体"之类的有意写法）。
-有意写法多时，可加选项按写法关掉（例如结构体最后一个成员、`memset_s(&st.first, …, sizeof(st))`），等用户按实测决定。
+业务子目录上 `subobject_overflow` 的条数（只看量）。用户决定 D24：不管越出哪一维都报，"把二维数组当一维用"、"按成员地址清整个结构体"也照报，不加关掉的选项。
 
 ## 9. 待定 / 以后
 
