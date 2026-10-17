@@ -1860,3 +1860,31 @@ TEST(Interp, NonNullGuard)
               b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(q), b.C(0), false)));
     EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[11, 11] bound=exact at=t.c:7 guard=nn:p1 >= 1");
 }
+
+TEST(Interp, CharAliasOption)
+{
+    // SPEC-0103：pst->len = 2; p[0] = 200;（p 是 UINT8 *）t = pst->len; q[t] = 0
+    // CharAlias 打开：p 可能就是 pst，t 不再是 2；关掉（默认）：t = 2，末端 [3, 3]
+    Builder b;
+    Record r;
+    r.id = 0;
+    r.name = "CTX_S";
+    r.size = 4;
+    r.fields = {{"len", 0, b.u32}};
+    b.m.records.push_back(r);
+    TypeId pu8 = b.m.Intern(Type::Ptr(b.u8));
+    uint32_t p = b.Param("p", pu8);
+    uint32_t pst = b.Param("pst", b.m.Intern(Type::Ptr(b.m.Intern(Type::Rec(0)))));
+    uint32_t q = b.Param("q", pu8);
+    uint32_t t = b.LocalVar("t", b.u32);
+    b.Straight({b.Store(b.L(pst), 4, b.C(2), 5), b.Store(b.L(p), 1, b.C(200), 6), b.Load(t, b.L(pst), 4, 7),
+                b.Store(b.PAdd(b.L(q), b.L(t)), 1, b.C(0), 8)});
+    interp::Options on;
+    on.charAlias = true;
+    std::string withAlias =
+        Reqs(interp::AnalyzeFunction(b.m, b.f, nullptr, models::ModelTable::Default(), nullptr, nullptr, on));
+    std::string without = Reqs(b.Run());
+    EXPECT_TRUE(without.find("obj=*p2 end=[3, 3]") != std::string::npos);
+    EXPECT_TRUE(withAlias.find("obj=*p2 end=[3, 3]") == std::string::npos);
+    EXPECT_TRUE(withAlias.find("obj=*p2") != std::string::npos);
+}

@@ -698,6 +698,7 @@ struct State {
     std::set<std::string> writtenAll;  // 偏移不定写过、或把指针交给了被调者的基址
     bool clobbered = false;  // 经未知指针写过 / 把未知指针交给了被调者：任何基址都可能被改
     bool called = false;  // 调用过可能写全局的函数（不在模型表里的被调者）：全局标量不再是入口值（SPEC-0041）
+    bool externAll = false;  // 经 char / void 写过外部内存（CharAlias）：任何外部对象都可能被改（SPEC-0103）
 };
 
 const size_t kMaxGuards = 8;
@@ -754,7 +755,8 @@ const int kNarrowPasses = 2;     // 下降的遍数（SPEC-0017 §2.1）
 bool operator==(const State &a, const State &b)
 {
     return a.reached == b.reached && a.locals == b.locals && a.cells == b.cells && a.guards == b.guards &&
-           a.written == b.written && a.writtenAll == b.writtenAll && a.clobbered == b.clobbered && a.called == b.called;
+           a.written == b.written && a.writtenAll == b.writtenAll && a.clobbered == b.clobbered &&
+           a.called == b.called && a.externAll == b.externAll;
 }
 
 // envOf：给定汇合后成立的守卫（两边的交集），建比较符号界的环境（SPEC-0023）；空 = 只认常数差
@@ -781,6 +783,7 @@ State Join(const State &a, const State &b, const std::function<SymEnv(const std:
     out.writtenAll.insert(b.writtenAll.begin(), b.writtenAll.end());
     out.clobbered = a.clobbered || b.clobbered;
     out.called = a.called || b.called;
+    out.externAll = a.externAll || b.externAll;
     SymEnv env;
     SymEnv envA;
     SymEnv envB;
@@ -1304,6 +1307,7 @@ private:
 
 public:
     std::vector<std::string> *trace = nullptr;
+    Options options;  // SPEC-0103
     const std::map<std::string, summary::Summary> *callees = nullptr;
     const std::map<std::string, int64_t> *globalSizes = nullptr;  // 全局键 → 定义处的大小（SPEC-0032）
 
@@ -1627,6 +1631,10 @@ Value Analyzer::Eval(ExprId e, const State &s)
 // load 的值：命中格；形参所指结构体的字段 → pi->字段（指针字段 → *pi->字段 的基址）；全局标量 → g:名（A-28）；其余 data
 bool Analyzer::Changed(const State &s, const std::string &id, int64_t off, int64_t size) const
 {
+    // 经 char / void 写过外部内存（CharAlias）：形参所指、指针字段所指、全局都可能被改（SPEC-0103）
+    if (s.externAll && (llvm::StringRef(id).startswith("P") || llvm::StringRef(id).startswith("G"))) {
+        return true;
+    }
     return s.clobbered || s.writtenAll.count(id) != 0 || llvm::any_of(s.written, [&](const CellKey &w) {
                return std::get<0>(w) == id && std::get<1>(w) < off + size && off < std::get<1>(w) + std::get<2>(w);
            });
@@ -1743,6 +1751,19 @@ void Analyzer::AliasWritten(State &s, const std::string &id) const
         return;
     }
     auto charLike = [](const std::string &k) { return k == "u8" || k == "i8" || k == "void"; };
+    // CharAlias（SPEC-0103，默认打开）：经 char / void 写外部内存 → 任何外部对象都可能被改：外部内存的格全部失效（写的那个对象自己除外，
+    // 它的成员 / 外层由 InvalidateFamily 按范围处理），之后读字段、全局标量都不是入口值
+    if (options.charAlias && charLike(x.key)) {
+        s.externAll = true;
+        std::string root = x.kind == ExternalView::Kind::Param ? "P" + std::to_string(x.param) : id;
+        for (auto it = s.cells.begin(); it != s.cells.end();) {
+            llvm::StringRef base = std::get<0>(it->first);
+            bool own = base == root || base.startswith(root + ".") || base == id;
+            bool external = base.startswith("P") || base.startswith("G");
+            it = external && !own ? s.cells.erase(it) : std::next(it);
+        }
+        return;
+    }
     auto same = [&](const ExternalView &y) {
         auto eq = [](const std::string &a, const std::string &b) { return !a.empty() && a == b; };
         return eq(y.key, x.key) || eq(y.key, x.parentKey) || eq(y.parentKey, x.key) || eq(y.parentKey, x.parentKey);
@@ -2889,7 +2910,9 @@ FunctionFacts Analyzer::Run()
             continue;
         }
         if (trace != nullptr) {
-            trace->push_back(ShowState(f.blocks[b], in[b]) + (heads[b] ? " (head)" : ""));
+            // 经 char / void 写过外部内存（CharAlias，SPEC-0103）的标记放在行尾
+            trace->push_back(ShowState(f.blocks[b], in[b]) + (heads[b] ? " (head)" : "") +
+                             (in[b].externAll ? " extern-written" : ""));
         }
         State s = in[b];
         for (const fir::Inst &inst : f.blocks[b].insts) {
@@ -3119,8 +3142,8 @@ std::map<std::string, std::string> Analyzer::GlobalsAt(const State &s,
                                                        std::map<std::string, summary::Local> *locals) const
 {
     std::map<std::string, std::string> out;
-    if (s.called || s.clobbered) {
-        out["g:*"] = "?";  // 调用过可能写任何全局的函数 / 内存整个被清
+    if (s.called || s.clobbered || s.externAll) {
+        out["g:*"] = "?";  // 调用过可能写任何全局的函数 / 内存整个被清 / 经 char 写过外部内存（SPEC-0103）
     }
     // 只看状态里动过的全局（格、常数偏移写过、整块写过；SPEC-0080）——called / clobbered 时上面的 g:* 已经兜住其余的
     std::set<std::string> ids;
@@ -5153,9 +5176,10 @@ std::string Analyzer::ShowState(const fir::Block &b, const State &s) const
 
 FunctionFacts AnalyzeFunction(const fir::Module &m, const fir::Function &f, std::vector<std::string> *stateTrace,
                               const models::ModelTable &models, const std::map<std::string, summary::Summary> *callees,
-                              const std::map<std::string, int64_t> *globalSizes)
+                              const std::map<std::string, int64_t> *globalSizes, const Options &options)
 {
     Analyzer a(m, f, models);
+    a.options = options;
     a.trace = stateTrace;
     a.callees = callees;
     a.globalSizes = globalSizes;

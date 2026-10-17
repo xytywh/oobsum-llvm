@@ -1749,7 +1749,11 @@ def OobSummaryChecker : Checker<"OobSummary">,
     CmdLineOption<Integer, "MaxBlocks",
                   "Functions with more CFG blocks than this are not analyzed and get a suspect decision "
                   "(0: no limit)",
-                  "5000", Released>
+                  "5000", Released>,
+    CmdLineOption<Boolean, "CharAlias",
+                  "Treat writes through char / void pointers as possibly modifying any external object "
+                  "(struct parameters, globals)",
+                  "false", Released>
   ]>,
   Documentation<NotDocumented>;
 

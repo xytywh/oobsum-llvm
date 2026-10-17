@@ -136,6 +136,7 @@ public:
     std::string optionsText;  // Dump=options 打印用
     std::string modelFile;
     unsigned maxBlocks = 5000;                                                  // A-09、I-18（SPEC-0037）
+    oobsum::interp::Options interpOptions;                                      // CharAlias 等（SPEC-0103）
     oobsum::models::ModelTable models = oobsum::models::ModelTable::Default();  // 内置表 + ModelFile（SPEC-0033）
     oobsum::DumpSink dump;
 
@@ -233,7 +234,7 @@ void OobSummaryChecker::solveAll() const
     for (const auto &m : modules) {
         mods.push_back(m.get());
     }
-    oobsum::engine::InlineResult result = oobsum::engine::RunSolve(mods, models);
+    oobsum::engine::InlineResult result = oobsum::engine::RunSolve(mods, models, interpOptions);
     // Dump=summary：全局求解后的每个函数的摘要（SPEC-0032；engine_check.py 的跨 TU 用例用它）
     for (const auto &entry : result.summaries) {
         if (dump.Wants("summary", entry.second.fn)) {
@@ -461,7 +462,7 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
         }
         bool wantState = dump.On("state");
         oobsum::engine::InlineResult result = oobsum::engine::RunInline(
-            module, models, [&](const std::string &fn) { return wantState && dump.Wants("state", fn); });
+            module, models, [&](const std::string &fn) { return wantState && dump.Wants("state", fn); }, interpOptions);
         if (dump.On("summary") || dump.On("state")) {
             dumpSummaries(module, tuId, result);
         }
@@ -558,6 +559,8 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
         maxBlocks = 0;
     }
     chk->maxBlocks = static_cast<unsigned>(maxBlocks);
+    // CharAlias（SPEC-0103，用户决定 D20）：char / void 的写当成可能改了任何外部内存
+    chk->interpOptions.charAlias = opts.getCheckerBooleanOption(chk, "CharAlias");
     // ModelFile（SPEC-0033 §2.1）：读不了、YAML 错 → 选项错误；坏条目跳过并提示
     chk->modelFile = opts.getCheckerStringOption(chk, "ModelFile").str();
     if (!chk->modelFile.empty()) {
@@ -581,7 +584,8 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
                        " ReportSafe=" + (chk->policy.reportSafe ? "true" : "false") + " SuspectReasons=\"" +
                        opts.getCheckerStringOption(chk, "SuspectReasons").str() + "\" Dump=\"" + chk->dumpKinds +
                        "\" DumpFilter=\"" + chk->dumpFilter + "\" ModelFile=\"" + chk->modelFile +
-                       "\" MaxBlocks=" + std::to_string(chk->maxBlocks);
+                       "\" MaxBlocks=" + std::to_string(chk->maxBlocks) +
+                       " CharAlias=" + (chk->interpOptions.charAlias ? "true" : "false");
 }
 
 bool ento::shouldRegisterOobSummaryChecker(const CheckerManager &mgr)

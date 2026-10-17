@@ -36,13 +36,16 @@ struct InlineResult {
 
 // traceFilter：哪些函数记 Dump=state 的轨迹（空 = 都不记）
 InlineResult RunInline(const fir::Module &m, const models::ModelTable &models = models::ModelTable::Default(),
-                       const std::function<bool(const std::string &)> &traceFilter = nullptr);
+                       const std::function<bool(const std::string &)> &traceFilter = nullptr,
+                       const interp::Options &options = interp::Options());
 // Phase=solve（SPEC-0029）：所有 TU 的 FIR 放在一起
 InlineResult RunSolve(const std::vector<const fir::Module *> &mods,
-                      const models::ModelTable &models = models::ModelTable::Default());
+                      const models::ModelTable &models = models::ModelTable::Default(),
+                      const interp::Options &options = interp::Options());
 // 两者共用：linked = 模块齐了（solve）
 InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const models::ModelTable &models,
-                        const std::function<bool(const std::string &)> &traceFilter, bool linked);
+                        const std::function<bool(const std::string &)> &traceFilter, bool linked,
+                        const interp::Options &options = interp::Options());
 
 // 文本（SPEC-0021 §2.3）
 std::string SuspectMessage(const std::string &kind, int64_t depth, const std::string &object, const std::string &have,

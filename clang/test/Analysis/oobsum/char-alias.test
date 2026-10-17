@@ -1,0 +1,24 @@
+# 选项 CharAlias（oobsum/specs/SPEC-0103，用户决定 D20）：char / void 的写当成可能改了任何外部内存。默认先关（等公司实测后定）。
+#
+# 打开：F（p 就是 pst）不再错判 SAFE；代价：编码函数、循环界每轮从结构体读的循环都降成 SUSPECT
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:CharAlias=true -analyzer-config rb.enhance.ipa.OobSummary:Dump=state \
+# RUN:   -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^F$' %S/Inputs/charalias/c.c 2>&1 | FileCheck %s --check-prefix=ON
+# 关（默认）：照旧
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=options %S/Inputs/charalias/c.c 2>&1 | FileCheck %s --check-prefix=OFF
+
+ON-DAG: [oobsum:state] fn F b0: {{.*}} extern-written
+ON-DAG: c.c:6:1: warning: [OOB-SUSPECT:type_range_only]
+ON-DAG: c.c:10:1: warning: [OOB-SUSPECT:type_range_only]
+ON-DAG: c.c:11:1: warning: [OOB-SUSPECT:type_range_only]
+# 循环界丢掉：真越界变成 Fill 自己访问点上的 SUSPECT（关掉时是调用点上的 POSSIBLE）
+ON-DAG: c.c:13:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove this access is within bounds: the offset is bounded only by its type
+
+OFF-DAG: [oobsum:options] {{.*}} CharAlias=false
+OFF-DAG: c.c:6:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 3 of 'a' (4 bytes)
+OFF-DAG: c.c:10:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 101 of 'a' (4 bytes) is accessed
+OFF-DAG: c.c:11:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 3 of 'a' (4 bytes)
+OFF-DAG: c.c:14:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 64 of 'a' (16 bytes) may be accessed

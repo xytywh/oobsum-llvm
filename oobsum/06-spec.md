@@ -224,6 +224,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 | I-23 | `Verbose` | int | `0` | `1`：每 TU 一行统计；`2`：每函数一行 |
 | I-24 | `CallTrace` | string | `full` | 摘要里 `calls[]` 调用点记录的详细程度：`full`（实参、局部区间、守卫、结局，调试用）/ `results`（只留结局）/ `none`。全量跑出来体积过大时降级 |
 | I-25 | `Emit` | string | `machine` | 摘要里写不写说明：`machine`（只写机器字段，D-30）/ `doc`（另生成 `doc`：形参名渲染的一句话、源码原文、宏值，调试与评审用；判定结果不变） |
+| I-26 | `CharAlias` | bool | `false` | 〔SPEC-0103〕`char *` / `void *` 的写当成可能改了任何外部内存（结构体形参、全局）；默认值等公司实测后定（D20） |
 
 ### 4.3 运行命令
 

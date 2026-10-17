@@ -307,18 +307,20 @@ static void RecursionLedger(InlineResult &out)
 }
 
 InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
-                       const std::function<bool(const std::string &)> &traceFilter)
+                       const std::function<bool(const std::string &)> &traceFilter, const interp::Options &options)
 {
-    return RunProgram({&m}, models, traceFilter, false);
+    return RunProgram({&m}, models, traceFilter, false, options);
 }
 
-InlineResult RunSolve(const std::vector<const fir::Module *> &mods, const models::ModelTable &models)
+InlineResult RunSolve(const std::vector<const fir::Module *> &mods, const models::ModelTable &models,
+                      const interp::Options &options)
 {
-    return RunProgram(mods, models, nullptr, true);
+    return RunProgram(mods, models, nullptr, true, options);
 }
 
 InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const models::ModelTable &models,
-                        const std::function<bool(const std::string &)> &traceFilter, bool linked)
+                        const std::function<bool(const std::string &)> &traceFilter, bool linked,
+                        const interp::Options &options)
 {
     InlineResult out;
     // 全局大小表（D-34，SPEC-0032）：类型完整的全局按键记大小，定义优先
@@ -340,7 +342,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
         std::vector<std::string> trace;
         bool traced = traceFilter && traceFilter(f.name);
         interp::FunctionFacts facts =
-            interp::AnalyzeFunction(m, f, traced ? &trace : nullptr, models, &out.summaries, &globalSizes);
+            interp::AnalyzeFunction(m, f, traced ? &trace : nullptr, models, &out.summaries, &globalSizes, options);
         out.summaries[f.key] = interp::BuildSummary(m, f, facts);  // 按函数键（SPEC-0027）
         out.facts[f.key] = std::move(facts);
         out.order.push_back(f.key);
