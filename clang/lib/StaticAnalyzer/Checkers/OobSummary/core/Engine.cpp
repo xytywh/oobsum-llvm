@@ -95,6 +95,17 @@ std::string Readable(std::string text, const std::vector<summary::Param> *callee
     for (size_t at = text.find("_unknown__0"); at != std::string::npos; at = text.find("_unknown__0", at)) {
         text.replace(at, 11, "an unknown value");
     }
+    // 调用点上不知道的整数实参 _unknown<数字>：没有名字可写（SPEC-0092）
+    for (size_t at = text.find("_unknown"); at != std::string::npos; at = text.find("_unknown", at + 1)) {
+        size_t end = at + 8;
+        while (end < text.size() && std::isdigit(static_cast<unsigned char>(text[end]))) {
+            ++end;
+        }
+        bool ident = end < text.size() && (std::isalnum(static_cast<unsigned char>(text[end])) || text[end] == '_');
+        if (end > at + 8 && !ident) {
+            text.replace(at, end - at, "an unknown value");
+        }
+    }
     // 调用点记录里不知道的字段值的占位符 _unknown_<字段>：写成字段名（SPEC-0068）
     for (size_t at = text.find("_unknown_"); at != std::string::npos; at = text.find("_unknown_", at)) {
         text.erase(at, 9);

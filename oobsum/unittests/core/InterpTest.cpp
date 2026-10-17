@@ -1731,3 +1731,25 @@ TEST(Interp, ExternalAlias)
     EXPECT_TRUE(reqs.find("obj=*p1 end=[3, 3]") == std::string::npos);
     EXPECT_TRUE(reqs.find("obj=*p1") != std::string::npos);
 }
+
+TEST(Interp, CallerParamPassthrough)
+{
+    // SPEC-0092：被调者 ret_int [p0, p0]；调用方把自己的形参 n（p1）传进去 → 结果是 p1（原来结果里有 p<k> 就当没换掉、未知）
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t n = b.Param("n", b.u32);
+    uint32_t t = b.LocalVar("t0", b.u32);
+    b.Straight({CallOf("F@abc:Id", {b.L(n)}, 4, t), b.Store(b.PAdd(b.L(p), b.L(t)), 1, b.C(0), 5)});
+    summary::Summary callee;
+    callee.fn = "Id";
+    callee.key = "F@abc:Id";
+    summary::Eff e;
+    e.kind = "ret_int";
+    e.range = std::vector<std::string>{"p0", "p0"};
+    e.bound = "exact";
+    callee.effs.push_back(e);
+    std::map<std::string, summary::Summary> callees{{callee.key, callee}};
+    interp::FunctionFacts facts =
+        interp::AnalyzeFunction(b.m, b.f, nullptr, models::ModelTable::Default(), &callees, nullptr);
+    EXPECT_EQ(Reqs(facts), "W have=ext(p0) obj=*p0 end=[p1 + 1, p1 + 1] bound=exact at=t.c:5");
+}

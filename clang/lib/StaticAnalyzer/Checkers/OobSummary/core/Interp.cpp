@@ -4290,8 +4290,8 @@ llvm::Optional<LinExpr> Analyzer::CallerExpr(const fir::Inst &inst, const LinExp
             }
         }
     }
-    bool leaked = llvm::any_of(
-        syms, [](const std::string &x) { return ParamIndexOf(x) >= 0 || llvm::StringRef(x).startswith("_unmapped:"); });
+    // 没换掉的被调者接口符号已改名成 _unmapped:…；结果里的 p<k> 是调用方自己的形参（实参就是它，SPEC-0092）
+    bool leaked = llvm::any_of(syms, [](const std::string &x) { return llvm::StringRef(x).startswith("_unmapped:"); });
     if (out.IsUnknown() || leaked) {
         return llvm::None;
     }
