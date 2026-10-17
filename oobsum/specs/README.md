@@ -124,4 +124,5 @@
 | [SPEC-0090](SPEC-0090-member-alias-store.md) | 形参结构体的成员数组与外层对象是同一块内存：写一边要失效另一边重叠的格（修错误 SAFE） | 已实现 |
 | [SPEC-0091](SPEC-0091-external-alias.md) | 外部内存的别名：形参所指、指针字段所指、全局之间按类型互相失效（修三处错误 SAFE） | 已实现 |
 | [SPEC-0092](SPEC-0092-caller-param-passthrough.md) | 调用方把自己的形参传给被调者时，返回值式子照样代换；文本不露 `_unknown<k>` | 已实现 |
+| [SPEC-0093](SPEC-0093-effect-param-passthrough.md) | 写效应的值就是被调者的形参时，按实参的值写（实参是区间也行） | 已实现 |
 | [SPEC-0022](SPEC-0022-member-array-parent.md) | 经形参访问成员数组：成员边界与外层对象边界都查（修 LV7-03 被证明成安全） | 已实现 |

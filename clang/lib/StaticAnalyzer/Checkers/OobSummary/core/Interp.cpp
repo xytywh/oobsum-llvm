@@ -693,7 +693,7 @@ const size_t kMaxCases = 4;  // 一个值至多带几个情形（SPEC-0025 §2.1
 bool CasesOf(const IntVal &v, const std::vector<LinExpr> &pathGuards, std::vector<IntCase> &out)
 {
     if (v.IsConst()) {
-        out = {{v.value.Constant(), pathGuards}};
+        out = {{v.value.Constant(), pathGuards, {}}};
         return true;
     }
     if (v.kind != IntVal::Kind::Range || v.cases.empty()) {
@@ -4439,12 +4439,29 @@ std::vector<std::pair<CellKey, Value>> Analyzer::FieldWrites(
         } else {
             LinExpr calleeValue;
             std::string error;
-            llvm::Optional<LinExpr> mine =
-                ParseLin(*e.value, calleeValue, error) ? CallerExpr(inst, calleeValue, s, &callee) : llvm::None;
-            if (!mine) {
-                continue;  // 换不了：格照旧被 mods 清掉（不知道）
+            if (!ParseLin(*e.value, calleeValue, error)) {
+                continue;
             }
-            v.i = IntVal::Exact(*mine);
+            // 值正好是被调者的形参 p<k>：写第 k 个实参的值本身（确切值、区间都行），同调用方自己写 s.len = 实参（SPEC-0093）
+            int k = -1;
+            if (calleeValue.Constant() == 0 && calleeValue.Terms().size() == 1 &&
+                calleeValue.Terms().begin()->second == 1 &&
+                calleeValue.Terms().begin()->first.kind == Atom::Kind::Sym) {
+                k = ParamIndexOf(calleeValue.Terms().begin()->first.name);
+            }
+            if (k >= 0 && static_cast<size_t>(k) < inst.args.size()) {
+                IntVal arg = EvalInt(inst.args[k], s);
+                if (arg.kind == IntVal::Kind::Top) {
+                    continue;
+                }
+                v.i = arg;
+            } else {
+                llvm::Optional<LinExpr> mine = CallerExpr(inst, calleeValue, s, &callee);
+                if (!mine) {
+                    continue;  // 换不了：格照旧被 mods 清掉（不知道）
+                }
+                v.i = IntVal::Exact(*mine);
+            }
         }
         if (e.may.getValueOr(false)) {
             // 有的路径没写：与调用前的值汇合

@@ -32,7 +32,7 @@ void Len_TP(void) { UINT8 a[16]; UINT32 n = 0; (void)Get_Len(&n, 16); Fill2(a, n
 
 ### 2.2 调用点
 
-在应用 `mods` **之前**算新值：`V` 换成调用方的说法（`CallerExpr`，SPEC-0072；换不了就不应用，格照旧被 `mods` 清掉）；`may` 时与调用前的值汇合（`JoinValue`）。
+在应用 `mods` **之前**算新值：`V` 换成调用方的说法（`CallerExpr`，SPEC-0072；换不了就不应用，格照旧被 `mods` 清掉；〔由 SPEC-0093 修订：`V` 正好是 `p<k>` 时直接写实参的值，含区间〕）；`may` 时与调用前的值汇合（`JoinValue`）。
 应用 `mods` 之后把第 K 个实参所指对象（常数偏移）的那一格写成它。
 
 ## 3. 对召回与误报的影响

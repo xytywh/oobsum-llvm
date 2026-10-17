@@ -1,0 +1,13 @@
+# 写效应的值就是被调者的形参时，按实参的值写（oobsum/specs/SPEC-0093）。原来实参是区间就换不了，setter 之后字段不知道（SUSPECT）。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/effparam/e.c 2>&1 | FileCheck %s
+
+CHECK-DAG: e.c:7:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 101 of 'x' (4 bytes) may be accessed; the bound comes from a branch constant
+CHECK-DAG: e.c:8:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 3 of 'x' (4 bytes)
+# 全局 setter
+CHECK-DAG: e.c:11:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 101 of 'x' (4 bytes) may be accessed; the bound comes from a branch constant
+CHECK-DAG: e.c:12:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 3 of 'x' (4 bytes)
+# 对照：n + 4 照旧换不了
+CHECK-DAG: e.c:14:1: warning: [OOB-SUSPECT:type_range_only]

@@ -1753,3 +1753,46 @@ TEST(Interp, CallerParamPassthrough)
         interp::AnalyzeFunction(b.m, b.f, nullptr, models::ModelTable::Default(), &callees, nullptr);
     EXPECT_EQ(Reqs(facts), "W have=ext(p0) obj=*p0 end=[p1 + 1, p1 + 1] bound=exact at=t.c:5");
 }
+
+TEST(Interp, EffectParamPassthrough)
+{
+    // SPEC-0093：被调者 field p0->len := p1；调用方传区间 [2, 100] → 调用后 s.len 就是 [2, 100]
+    Builder b;
+    Record r;
+    r.id = 0;
+    r.name = "S_S";
+    r.size = 4;
+    r.fields = {{"len", 0, b.u32}};
+    b.m.records.push_back(r);
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t k = b.Param("k", b.u32);
+    uint32_t st = b.LocalVar("s", b.m.Intern(Type::Rec(0)), true);
+    uint32_t n = b.LocalVar("n", b.u32);
+    uint32_t t = b.LocalVar("t", b.u32);
+    Diamond d;
+    d.yes.insts = {b.Set(n, b.C(2))};
+    d.no.insts = {b.Set(n, b.C(100))};
+    d.join.insts = {CallOf("F@abc:SetLen", {b.f.Add(Expr::LAddr(st)), b.L(n)}, 6, fir::kNone),
+                    b.Load(t, b.f.Add(Expr::LAddr(st)), 4, 7), b.Store(b.PAdd(b.L(p), b.L(t)), 1, b.C(0), 8)};
+    d.Install(b, b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(k), b.C(3), false)),
+              b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(k), b.C(3), false)));
+    summary::Summary callee;
+    callee.fn = "SetLen";
+    callee.key = "F@abc:SetLen";
+    summary::Eff e;
+    e.kind = "field";
+    e.target = std::string("p0->len");
+    e.value = std::string("p1");
+    callee.effs.push_back(e);
+    summary::FieldInfo info;
+    info.off = 0;
+    info.size = 4;
+    info.type = std::string("u32");
+    callee.fields = std::map<std::string, summary::FieldInfo>{{"p0->len", info}};
+    callee.mods = std::vector<std::string>{"p0+0:4"};
+    std::map<std::string, summary::Summary> callees{{callee.key, callee}};
+    interp::FunctionFacts facts =
+        interp::AnalyzeFunction(b.m, b.f, nullptr, models::ModelTable::Default(), &callees, nullptr);
+    std::string reqs = Reqs(facts);
+    EXPECT_TRUE(reqs.find("obj=*p0 end=[3, 101]") != std::string::npos);
+}
