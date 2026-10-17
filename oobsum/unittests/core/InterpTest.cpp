@@ -1647,3 +1647,29 @@ TEST(Interp, NeThresholdFromBody)
     b.f.exit = 0;
     EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=check at=t.c:7");
 }
+
+TEST(Interp, StructCopyFields)
+{
+    // SPEC-0088：x.len = 100; y = x;（__oobsum_copy(&y, &x, 8)）; p[y.len] = 0 → 末端 101（原来拷贝后清掉全部格，读成未知）
+    Builder b;
+    Record r;
+    r.id = 0;
+    r.name = "CTX_S";
+    r.size = 8;
+    r.fields = {{"len", 0, b.u32}, {"cap", 4, b.u32}};
+    b.m.records.push_back(r);
+    TypeId rec = b.m.Intern(Type::Rec(0));
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t x = b.LocalVar("x", rec, true);
+    uint32_t y = b.LocalVar("y", rec, true);
+    uint32_t t = b.LocalVar("t", b.u32);
+    Inst copy;
+    copy.op = InstOp::Call;
+    copy.callee = "F:__oobsum_copy";
+    copy.args = {b.f.Add(Expr::LAddr(y)), b.f.Add(Expr::LAddr(x)), b.C(8)};
+    copy.loc = {0, 6, 5};
+    b.Straight({b.Store(b.f.Add(Expr::LAddr(x)), 4, b.C(100), 5), copy, b.Load(t, b.f.Add(Expr::LAddr(y)), 4, 7),
+                b.Store(b.PAdd(b.L(p), b.L(t)), 1, b.C(0), 8)});
+    std::string reqs = Reqs(b.Run());
+    EXPECT_TRUE(reqs.find("W have=ext(p0) obj=*p0 end=[101, 101] bound=exact at=t.c:8") != std::string::npos);
+}

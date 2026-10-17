@@ -1226,6 +1226,8 @@ private:
                                                  std::map<std::string, summary::Local> *locals = nullptr) const;
     // 没有摘要可用的被调者：保守失效（清格、指针实参整块、可能写全局，SPEC-0026 / 0041 / 0045）
     void Clobber(const fir::Inst &inst, models::Kind kind, llvm::StringRef name, State &s);
+    // 结构体整体赋值按字段拷值（SPEC-0088）：做了返回 true；取不到类型 / 基址 / 偏移返回 false（调用方照旧 Clobber）
+    bool CopyStruct(const fir::Inst &inst, State &s);
     // 局部函数指针（S9.1，06- A-60 ①，SPEC-0058）：只被赋过函数地址常量的局部 → 可能指向的函数
     void ResolveFnLocals();
     std::vector<std::string> TargetsOf(ExprId e) const;
@@ -2213,7 +2215,9 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                         HeapResult(inst, *e.size, e.effDepth.getValueOr(1), s);
                 }
             } else if (kind != models::Kind::Pure && kind != models::Kind::Free) {
-                Clobber(inst, kind, name, s);
+                if (name != "__oobsum_copy" || !CopyStruct(inst, s)) {
+                    Clobber(inst, kind, name, s);
+                }
             }
             if (inst.dst != fir::kNone) {
                 SetLocal(s, inst.dst, result);
@@ -2752,6 +2756,116 @@ FunctionFacts Analyzer::Run()
 
 // 调用点记录（D-25，SPEC-0015 §2.1）：整数实参写表达式（区间写成局部名 + locals）；指针实参写 {obj, have, alias?}；
 // 纯函数模型的指针实参为 null；不知道的值写成不是接口符号的名字（_unknown<k>），以后在调用点只会走向 entry_unproven
+// 结构体里的整数 / 指针字段（递归展开嵌套的结构体，数组成员不展开）：(偏移, 大小, 是不是指针)
+struct CopyLeaf {
+    int64_t off = 0;
+    int64_t size = 0;
+    bool ptr = false;
+};
+
+void ScalarLeaves(const fir::Module &m, fir::TypeId t, int64_t base, int depth, std::vector<CopyLeaf> &out)
+{
+    if (t >= m.types.size() || depth > 4) {
+        return;
+    }
+    const fir::Type &ty = m.types[t];
+    int64_t size = 0;
+    if (ty.kind == fir::TypeKind::Int && TypeSize(m, t, size)) {
+        out.push_back({base, size, false});
+    } else if (ty.kind == fir::TypeKind::Ptr) {
+        out.push_back({base, m.target.ptr, true});
+    } else if (ty.kind == fir::TypeKind::Rec) {
+        if (const fir::Record *r = m.FindRecord(ty.record)) {
+            for (const fir::Field &field : r->fields) {
+                ScalarLeaves(m, field.type, base + field.off, depth + 1, out);
+            }
+        }
+    }
+}
+
+bool Analyzer::CopyStruct(const fir::Inst &inst, State &s)
+{
+    if (inst.args.size() < 3) {
+        return false;
+    }
+    IntVal n = EvalInt(inst.args[2], s);
+    if (!n.IsConst() || n.value.Constant() <= 0) {
+        return false;
+    }
+    int64_t size = n.value.Constant();
+    // 结构体类型：&局部 / &全局 → 它的类型；指针局部 → 所指类型；须是记录、大小等于第三个实参
+    auto recordOf = [&](ExprId e) {
+        while (e < f.exprs.size() && f.exprs[e].op == ExprOp::Cast) {
+            e = f.exprs[e].a;
+        }
+        fir::TypeId t = fir::kNone;
+        if (e < f.exprs.size()) {
+            const fir::Expr &x = f.exprs[e];
+            if (x.op == ExprOp::LAddr) {
+                const fir::Local *l = f.FindLocal(static_cast<uint32_t>(x.value));
+                t = l != nullptr ? l->type : fir::kNone;
+            } else if (x.op == ExprOp::GAddr) {
+                const fir::Global *g = GlobalOf("G" + x.text);
+                t = g != nullptr ? g->type : fir::kNone;
+            } else if (x.op == ExprOp::Local) {
+                const fir::Type *lt = LocalType(static_cast<uint32_t>(x.value));
+                t = lt != nullptr && lt->kind == fir::TypeKind::Ptr ? lt->to : fir::kNone;
+            }
+        }
+        int64_t ts = 0;
+        return t < m.types.size() && m.types[t].kind == fir::TypeKind::Rec && TypeSize(m, t, ts) && ts == size
+                   ? t
+                   : fir::kNone;
+    };
+    fir::TypeId rec = recordOf(inst.args[0]);
+    if (rec == fir::kNone) {
+        rec = recordOf(inst.args[1]);
+    }
+    PtrVal dst = EvalPtr(inst.args[0], s);
+    PtrVal src = EvalPtr(inst.args[1], s);
+    auto usable = [](const PtrVal &p) {
+        return p.kind != BaseKind::Unknown && p.kind != BaseKind::Func && p.off.IsConst();
+    };
+    if (rec == fir::kNone || !usable(dst) || !usable(src)) {
+        return false;
+    }
+    int64_t dOff = dst.off.value.Constant();
+    int64_t sOff = src.off.value.Constant();
+    std::vector<CopyLeaf> leaves;
+    ScalarLeaves(m, rec, 0, 0, leaves);
+    // 先读源：整数照常读（格、形参所指的入口符号、全局入口值）；指针只取源的格、或形参所指的（类型从字段来），其余不拷
+    std::vector<std::pair<CopyLeaf, Value>> values;
+    for (const CopyLeaf &leaf : leaves) {
+        PtrVal at = src;
+        at.off = IntVal::Exact(LinExpr::Const(sOff + leaf.off));
+        auto cell = s.cells.find(CellKey(src.id, sOff + leaf.off, leaf.size));
+        if (cell != s.cells.end()) {
+            values.push_back({leaf, cell->second});
+            continue;
+        }
+        if (leaf.ptr && src.kind != BaseKind::Param) {
+            continue;
+        }
+        Value v = LoadValue(at, leaf.size, fir::kNone, s);
+        if (v.isPtr == leaf.ptr && (v.isPtr || v.i.kind != IntVal::Kind::Top)) {
+            values.push_back({leaf, v});
+        }
+    }
+    // 目标那一段：重叠的格失效、整段记写过（同 store），再写入读出的值；其余对象的格不动
+    for (auto it = s.cells.begin(); it != s.cells.end();) {
+        bool overlap = std::get<0>(it->first) == dst.id && std::get<1>(it->first) < dOff + size &&
+                       dOff < std::get<1>(it->first) + std::get<2>(it->first);
+        it = overlap ? s.cells.erase(it) : std::next(it);
+    }
+    s.written.insert(CellKey(dst.id, dOff, size));
+    AliasWritten(s, dst.id);
+    AddMod(dst, size);
+    for (const auto &lv : values) {
+        s.cells[CellKey(dst.id, dOff + lv.first.off, lv.first.size)] = lv.second;
+    }
+    return true;
+}
+
 void Analyzer::Clobber(const fir::Inst &inst, models::Kind kind, llvm::StringRef name, State &s)
 {
     if (kind == models::Kind::None) {

@@ -1,0 +1,20 @@
+# 结构体整体赋值按字段拷值（oobsum/specs/SPEC-0088）。原来 __oobsum_copy 之后清掉全部内存格，y = x 后 y.len 不知道（SUSPECT）。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(In|C1_TP)$' \
+# RUN:   %S/Inputs/scopy/fields.c 2>&1 | FileCheck %s
+
+# 拷完：目标与源的 len 都是 100；从形参拷：字段是 p1->…
+CHECK-DAG: [oobsum:state] fn C1_TP b0: [L1+0:4]=100 [L2+0:4]=100
+CHECK-DAG: [oobsum:state] fn In b0: p=*p0+0 pIn=*p1+0 [L2+0:4]=p1->len [L2+4:4]=*p1->buf [L2+8:4]=p1->cap
+CHECK-DAG: fields.c:6:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 101 of 'a' (4 bytes) is accessed
+CHECK-DAG: fields.c:7:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 3 of 'a' (4 bytes)
+# 拷完再改源：目标不变
+CHECK-DAG: fields.c:9:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 3 of 'a' (4 bytes)
+# 拷到形参：调用方按写的值判（写效应）
+CHECK-DAG: fields.c:12:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 101 of 'a' (4 bytes) is accessed
+CHECK-DAG: fields.c:15:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 101 of 'a' (4 bytes) is accessed
+CHECK-DAG: fields.c:16:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 4 of 'a' (4 bytes)
+# 指针字段经拷贝
+CHECK-DAG: fields.c:19:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 9 of 'a' (4 bytes; via y.buf) is accessed
