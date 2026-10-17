@@ -1384,7 +1384,7 @@ TEST(Interp, DependentNarrowing)
     l.head.insts = {b.Set(t, b.L(n)), b.Set(n, b.Wrap(BinOp::Sub, b.L(t), b.C(1)))};
     l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(t), b.C(0), false)),
               b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(t), b.C(0), false)));
-    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=branch at=t.c:7");
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=branch at=t.c:7 guard=p1 >= 1");
 }
 
 TEST(Interp, SignedBoundFaithful)
@@ -1487,7 +1487,7 @@ TEST(Interp, PointerCompareNarrows)
     l.latch.insts = {b.Set(p, b.PAdd(b.L(p), b.C(1)))};
     l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(p), b.L(e), false)),
               b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(p), b.L(e), false)));
-    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=loop at=t.c:7");
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=loop at=t.c:7 guard=p1 >= 1");
 }
 
 TEST(Interp, WidePointerCompareIsCoarse)
@@ -1504,7 +1504,7 @@ TEST(Interp, WidePointerCompareIsCoarse)
     l.latch.insts = {b.Set(p, b.PAdd(b.L(p), b.C(1)))};
     l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(p), b.L(e), false)),
               b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(p), b.L(e), false)));
-    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[4, 4*p1 + 3] bound=widen at=t.c:7");
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[4, 4*p1 + 3] bound=widen at=t.c:7 guard=p1 >= 1");
 }
 
 TEST(Interp, CongruencePointerLoop)
@@ -1523,12 +1523,12 @@ TEST(Interp, CongruencePointerLoop)
               b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(p), b.L(e), false)));
     std::vector<std::string> trace;
     EXPECT_EQ(Reqs(interp::AnalyzeFunction(b.m, b.f, &trace)),
-              "W have=ext(p0) obj=*p0 end=[4, 4*p1] bound=loop at=t.c:7");
+              "W have=ext(p0) obj=*p0 end=[4, 4*p1] bound=loop at=t.c:7 guard=p1 >= 1");
     bool body = false;
     for (const std::string &line : trace) {
         if (line.rfind("b3:", 0) == 0) {
             body = true;
-            EXPECT_EQ(line, "b3: p=*p0+[0, 4*p1 - 4]:loop%4 n=p1 e=*p0+4*p1");
+            EXPECT_EQ(line, "b3: p=*p0+[0, 4*p1 - 4]:loop%4 n=p1 e=*p0+4*p1 guards: p1 >= 1");
         }
     }
     EXPECT_TRUE(body);
@@ -1601,7 +1601,7 @@ TEST(Interp, NeLoopThreshold)
     std::vector<std::string> trace;
     EXPECT_EQ(ForLoop(
                   CmpOp::Ne, [](Builder &b, uint32_t n) { return b.L(n); }, &trace),
-              "W have=ext(p0) obj=*p0 end=[1, p1] bound=loop at=t.c:7");
+              "W have=ext(p0) obj=*p0 end=[1, p1] bound=loop at=t.c:7 guard=p1 >= 1");
     bool head = false;
     for (const std::string &line : trace) {
         if (line.rfind("b4:", 0) == 0) {
@@ -1609,7 +1609,7 @@ TEST(Interp, NeLoopThreshold)
             EXPECT_EQ(line, "b4: p=*p0+0 n=p1 i=[0, p1]:loop (head)");
         }
         if (line.rfind("b3:", 0) == 0) {
-            EXPECT_EQ(line, "b3: p=*p0+0 n=p1 i=[0, p1 - 1]:loop");
+            EXPECT_EQ(line, "b3: p=*p0+0 n=p1 i=[0, p1 - 1]:loop guards: p1 >= 1");
         }
     }
     EXPECT_TRUE(head);
@@ -1625,7 +1625,7 @@ TEST(Interp, NeLoopThreshold)
     l.latch.insts = {b.Set(q, b.PAdd(b.L(q), b.C(1)))};
     ExprId end = b.PAdd(b.L(p), b.L(n));
     l.Install(b, b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(q), end, false)), b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(q), end, false)));
-    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=loop at=t.c:7");
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=loop at=t.c:7 guard=p1 >= 1");
 }
 
 TEST(Interp, NeThresholdFromBody)
@@ -1651,7 +1651,7 @@ TEST(Interp, NeThresholdFromBody)
     b.f.blocks = {entry, head, check, body, exit};
     b.f.entry = 6;
     b.f.exit = 0;
-    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=check at=t.c:7");
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[1, p1] bound=check at=t.c:7 guard=p1 >= 1");
 }
 
 TEST(Interp, StructCopyFields)
@@ -1829,4 +1829,20 @@ TEST(Interp, SingleBitMask)
     d.Install(b, b.f.Add(Expr::Cmp(CmpOp::Ne, bit, b.C(0), false)), b.f.Add(Expr::Cmp(CmpOp::Eq, bit, b.C(0), false)));
     EXPECT_EQ(Reqs(b.Run()),
               "W have=ext(p0) obj=*p0 end=[11, 11] bound=exact at=t.c:7 guard=4*mod(div(p1, 4), 2) >= 1");
+}
+
+TEST(Interp, RangeNonEmptyGuard)
+{
+    // SPEC-0098：for (i = 0; i != n; i++) 体内 i ∈ [0, p1 − 1] → 区间非空的守卫 p1 >= 1（约简后的写法）
+    std::vector<std::string> trace;
+    ForLoop(
+        CmpOp::Ne, [](Builder &b, uint32_t n) { return b.L(n); }, &trace);
+    bool body = false;
+    for (const std::string &line : trace) {
+        if (line.rfind("b3:", 0) == 0) {
+            body = true;
+            EXPECT_EQ(line, "b3: p=*p0+0 n=p1 i=[0, p1 - 1]:loop guards: p1 >= 1");
+        }
+    }
+    EXPECT_TRUE(body);
 }

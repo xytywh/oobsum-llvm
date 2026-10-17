@@ -249,6 +249,12 @@ int64_t Gcd(int64_t a, int64_t b)
     return a;
 }
 
+int64_t FloorDivInt(int64_t a, int64_t s)
+{
+    int64_t q = a / s;
+    return (a % s != 0 && ((a < 0) != (s < 0))) ? q - 1 : q;
+}
+
 int64_t PosMod(int64_t a, int64_t s)
 {
     int64_t r = a % s;
@@ -1229,6 +1235,7 @@ private:
     bool NarrowPtr(ExprId e, fir::CmpOp op, const LinExpr &c, State &s, bool coarse);
     uint32_t WrittenLocal(ExprId e, const State &s);
     static void AddGuard(State &s, const LinExpr &le0);
+    void NonEmptyGuard(const IntVal &v, State &s);
     void SetLocal(State &s, uint32_t dst, Value v) const
     {
         bool ptr = IsPtrLocal(dst);
@@ -3551,6 +3558,33 @@ bool Analyzer::UpperSound(ExprId e, const State &s, const SymEnv &env)
     }
 }
 
+// 收窄出的区间非空：lo ≤ hi 在这条边上恒成立，不是已经成立的就记成守卫（SPEC-0098）
+void Analyzer::NonEmptyGuard(const IntVal &v, State &s)
+{
+    llvm::Optional<LinExpr> lo = v.Lower();
+    llvm::Optional<LinExpr> hi = v.Upper();
+    if (v.kind != IntVal::Kind::Range || !lo || !hi) {
+        return;
+    }
+    LinExpr d = *lo - *hi;
+    if (d.IsUnknown() || d.IsConst() || EntailsLe0(d, s.guards, Env(s))) {
+        return;
+    }
+    // 整数约简：各项系数除以公约数 g，常数项向上取整（Σ a·x + c ≤ 0 ⇔ Σ (a/g)·x + ⌈c/g⌉ ≤ 0），4·p1 >= 4 写成 p1 >= 1
+    int64_t g = 0;
+    for (const auto &term : d.Terms()) {
+        g = Gcd(g, term.second);
+    }
+    if (g > 1) {
+        LinExpr norm = LinExpr::Const(-FloorDivInt(-d.Constant(), g));
+        for (const auto &term : d.Terms()) {
+            norm = norm + LinExpr::OfAtom(term.first).Scale(term.second / g);
+        }
+        d = norm;
+    }
+    AddGuard(s, d);
+}
+
 void Analyzer::AddGuard(State &s, const LinExpr &le0)
 {
     if (llvm::is_contained(s.guards, le0)) {
@@ -3619,10 +3653,18 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
                    !TypeSize(m, type->to, size) || size != 1;
         };
         if (oa.kind == IntVal::Kind::Range && ob.kind == IntVal::Kind::Exact) {
-            return NarrowPtr(a, op, ob.value, s, coarse(a));
+            bool ok = NarrowPtr(a, op, ob.value, s, coarse(a));
+            if (ok) {
+                NonEmptyGuard(Eval(a, s).p.off, s);  // SPEC-0098
+            }
+            return ok;
         }
         if (ob.kind == IntVal::Kind::Range && oa.kind == IntVal::Kind::Exact) {
-            return NarrowPtr(b, mirror[static_cast<int>(op)], oa.value, s, coarse(b));
+            bool ok = NarrowPtr(b, mirror[static_cast<int>(op)], oa.value, s, coarse(b));
+            if (ok) {
+                NonEmptyGuard(Eval(b, s).p.off, s);  // SPEC-0098
+            }
+            return ok;
         }
         if (oa.kind != IntVal::Kind::Exact || ob.kind != IntVal::Kind::Exact) {
             return true;
@@ -3663,6 +3705,7 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
     const IntVal &ia = va.i;
     const IntVal &ib = vb.i;
     LinExpr one = LinExpr::Const(1);
+    llvm::Optional<IntVal> narrowed;  // 收窄过的区间（SPEC-0098）
     std::vector<LinExpr> atoms;
     if (ia.kind == IntVal::Kind::Exact && ib.kind == IntVal::Kind::Exact) {
         LinExpr d = ia.value - ib.value;  // a − b
@@ -3707,12 +3750,14 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
         if (!Narrow(a, op, ib.value, s)) {
             return false;
         }
+        narrowed = EvalInt(a, s);  // 区间非空的守卫最后再加（SPEC-0098）
         AtomsOfRange(ia, op, ib.value, atoms);
     } else if (ib.kind == IntVal::Kind::Range && ia.kind == IntVal::Kind::Exact && b != fir::kNone) {
         fir::CmpOp m = mirrored[static_cast<int>(op)];
         if (!Narrow(b, m, ia.value, s)) {
             return false;
         }
+        narrowed = EvalInt(b, s);  // SPEC-0098
         AtomsOfRange(ib, m, ia.value, atoms);
     }
     for (const LinExpr &atom : atoms) {
@@ -3729,6 +3774,9 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
             continue;  // 已经成立，没有信息
         }
         AddGuard(s, atom);
+    }
+    if (narrowed) {
+        NonEmptyGuard(*narrowed, s);
     }
     return true;
 }

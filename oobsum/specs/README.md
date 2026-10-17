@@ -126,6 +126,7 @@
 | [SPEC-0092](SPEC-0092-caller-param-passthrough.md) | 调用方把自己的形参传给被调者时，返回值式子照样代换；文本不露 `_unknown<k>` | 已实现 |
 | [SPEC-0093](SPEC-0093-effect-param-passthrough.md) | 写效应的值就是被调者的形参时，按实参的值写（实参是区间也行） | 已实现 |
 | [SPEC-0094](SPEC-0094-ret-ptr-range.md) | `ret_ptr` 的多条返回偏移不同：记常数区间 | 已实现 |
+| [SPEC-0098](SPEC-0098-range-nonempty-guard.md) | 条件边收窄出的区间非空：`lo ≤ hi` 记成守卫（`while (n--)` 传 0 时访问走不到） | 已实现 |
 | [SPEC-0097](SPEC-0097-single-bit-mask.md) | 单个位的掩码 `x & 2^k` 写成 `2^k·mod(div(x, 2^k), 2)`：标志位判断产生守卫（修 DEFINITE 误报） | 已实现 |
 | [SPEC-0096](SPEC-0096-all-guards.md) | Req 带上全部守卫（含只关于别的形参的路径条件）：调用方让条件为假时访问走不到（修 DEFINITE 误报） | 已实现 |
 | [SPEC-0095](SPEC-0095-arg-offset-range.md) | 指针实参的偏移是区间：调用点按"对象起点 + 偏移区间"判，不再拿最小剩余判 L1（修 DEFINITE 误判） | 已实现 |

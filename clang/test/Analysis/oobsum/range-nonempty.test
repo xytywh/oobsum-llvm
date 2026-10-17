@@ -1,0 +1,12 @@
+# 条件边收窄出的区间非空：lo <= hi 记成守卫（oobsum/specs/SPEC-0098）。原来 while (n--) 体内的 Req 没有守卫，传 0 的调用方也报 POSSIBLE。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Wn$' \
+# RUN:   %S/Inputs/nonempty/n.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Wn"{{.*}}"guard":["p1 >= 1"]
+CHECK-DAG: n.c:5:1: warning: [OOB-SAFE:guard_false] Proven within bounds: up to byte 10 of 'a' (4 bytes)
+CHECK-DAG: n.c:6:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 11 of 'a' (4 bytes) may be accessed
+CHECK-DAG: n.c:8:1: warning: [OOB-SAFE:guard_false] Proven within bounds: up to byte 11 of 'a' (4 bytes)
+CHECK-DAG: n.c:9:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 13 of 'a' (4 bytes) may be accessed
