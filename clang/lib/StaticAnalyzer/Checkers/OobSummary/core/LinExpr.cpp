@@ -673,6 +673,9 @@ std::string ShowLe0(const LinExpr &g)
 // 被调者的接口符号名：p<i> 或 p<i>->…（全局 g:… 两边同名同义，不算）
 static bool IsCalleeIface(const std::string &name)
 {
+    if (name.compare(0, 3, "nn:") == 0) {
+        return IsCalleeIface(name.substr(3));  // 形参不是空指针（SPEC-0099）
+    }
     if (name.size() < 2 || name[0] != 'p' || !std::isdigit(static_cast<unsigned char>(name[1]))) {
         return false;
     }

@@ -1236,6 +1236,7 @@ private:
     uint32_t WrittenLocal(ExprId e, const State &s);
     static void AddGuard(State &s, const LinExpr &le0);
     void NonEmptyGuard(const IntVal &v, State &s);
+    bool AssumeNull(fir::CmpOp op, const Value &va, const Value &vb, State &s);
     void SetLocal(State &s, uint32_t dst, Value v) const
     {
         bool ptr = IsPtrLocal(dst);
@@ -3434,6 +3435,9 @@ SymEnv Analyzer::Env(const State &s) const
         if (l.param >= 0 && TypeRangeOf(fir::TypeText(m, l.type), lo, hi)) {
             env.SetTypeRange("p" + std::to_string(l.param), lo, hi);
         }
+        if (l.param >= 0 && l.type < m.types.size() && m.types[l.type].kind == fir::TypeKind::Ptr) {
+            env.SetTypeRange("nn:p" + std::to_string(l.param), 0, 1);  // 形参不是空指针（SPEC-0099）
+        }
     }
     for (const auto &field : fields) {
         if (field.second.type && TypeRangeOf(*field.second.type, lo, hi)) {
@@ -3558,6 +3562,35 @@ bool Analyzer::UpperSound(ExprId e, const State &s, const SymEnv &env)
     }
 }
 
+// 形参指针与空指针比较（SPEC-0099）：p != NULL → nn:p<k> >= 1；p == NULL → nn:p<k> <= 0；与已有守卫矛盾 → 不可达。其余不产生信息
+bool Analyzer::AssumeNull(fir::CmpOp op, const Value &va, const Value &vb, State &s)
+{
+    auto isNull = [](const Value &v) {
+        return (!v.isPtr && v.i.IsConst() && v.i.value.Constant() == 0) ||
+               (v.isPtr && v.p.kind == BaseKind::Unknown && v.p.why == "null");
+    };
+    auto paramOf = [](const Value &v) {
+        const std::string &id = v.p.id;
+        bool param = v.isPtr && v.p.kind == BaseKind::Param && id.size() >= 2 && id[0] == 'P' &&
+                     std::isdigit(static_cast<unsigned char>(id[1])) && id.find('.') == std::string::npos;
+        return param ? static_cast<int>(std::strtol(id.c_str() + 1, nullptr, 10)) : -1;
+    };
+    int k = isNull(vb) ? paramOf(va) : isNull(va) ? paramOf(vb) : -1;
+    if (k < 0 || (op != fir::CmpOp::Ne && op != fir::CmpOp::Eq)) {
+        return true;
+    }
+    LinExpr nn = LinExpr::Sym("nn:p" + std::to_string(k));
+    LinExpr atom = op == fir::CmpOp::Ne ? LinExpr::Const(1) - nn : nn;  // ≤ 0
+    SymEnv env = Env(s);
+    if (EntailsLe0(LinExpr::Const(1) - atom, s.guards, env)) {
+        return false;  // 已有守卫说 atom >= 1：这条边走不到
+    }
+    if (!EntailsLe0(atom, s.guards, env)) {
+        AddGuard(s, atom);
+    }
+    return true;
+}
+
 // 收窄出的区间非空：lo ≤ hi 在这条边上恒成立，不是已经成立的就记成守卫（SPEC-0098）
 void Analyzer::NonEmptyGuard(const IntVal &v, State &s)
 {
@@ -3639,7 +3672,7 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
         bool sameObject = b != fir::kNone && va.isPtr && vb.isPtr && va.p.kind == vb.p.kind && va.p.id == vb.p.id &&
                           va.p.kind != BaseKind::Unknown && va.p.kind != BaseKind::Func;
         if (!sameObject) {
-            return true;
+            return AssumeNull(op, va, vb, s);  // 形参指针判空（SPEC-0099）
         }
         const IntVal &oa = va.p.off;
         const IntVal &ob = vb.p.off;

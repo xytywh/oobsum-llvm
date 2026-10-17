@@ -1846,3 +1846,17 @@ TEST(Interp, RangeNonEmptyGuard)
     }
     EXPECT_TRUE(body);
 }
+
+TEST(Interp, NonNullGuard)
+{
+    // SPEC-0099：if (q != NULL) p[10] = 0; → 守卫 nn:p1 >= 1（原来指针判空不产生信息）
+    Builder b;
+    TypeId pu8 = b.m.Intern(Type::Ptr(b.u8));
+    uint32_t p = b.Param("p", pu8);
+    uint32_t q = b.Param("q", pu8);
+    Diamond d;
+    d.yes.insts = {b.Store(b.PAdd(b.L(p), b.C(10)), 1, b.C(0), 7)};
+    d.Install(b, b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(q), b.C(0), false)),
+              b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(q), b.C(0), false)));
+    EXPECT_EQ(Reqs(b.Run()), "W have=ext(p0) obj=*p0 end=[11, 11] bound=exact at=t.c:7 guard=nn:p1 >= 1");
+}

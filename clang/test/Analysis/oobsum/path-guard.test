@@ -12,4 +12,5 @@ CHECK-DAG: g.c:6:1: warning: [OOB-DEFINITE] Definite out-of-bound write through 
 CHECK-DAG: g.c:8:1: warning: [OOB-SAFE:guard_false] Proven within bounds: up to byte 11 of 'a' (4 bytes)
 CHECK-DAG: g.c:9:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 11 of 'a' (4 bytes) is accessed
 CHECK-DAG: g.c:11:1: warning: [OOB-SAFE:guard_false] Proven within bounds: up to byte 11 of 'a' (4 bytes)
-CHECK-DAG: g.c:14:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 11 of 'a' (4 bytes) is accessed
+# 指针判空：原来没有守卫（照旧 DEFINITE），SPEC-0099 之后 nn:p2 >= 1、调用方传 NULL → guard_false
+CHECK-DAG: g.c:14:1: warning: [OOB-SAFE:guard_false] Proven within bounds: up to byte 11 of 'a' (4 bytes)

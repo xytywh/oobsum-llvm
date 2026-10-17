@@ -348,3 +348,53 @@ TEST(Propagate, ArgOffsetRange)
     ASSERT_TRUE(r.fns.at("F:T_Old").reps.size() == 1);
     EXPECT_EQ(r.fns.at("F:T_Old").reps[0].level, "L1");
 }
+
+TEST(Propagate, NonNullMap)
+{
+    // SPEC-0099：被调者 Req 带守卫 nn:p1 >= 1；实参 0 → 走不到；局部数组 → L1；调用方自己的形参 → 换成调用方的 nn:p1 往上传
+    auto parse = [](const std::string &text) {
+        summary::Summary s;
+        std::string error;
+        llvm::Expected<llvm::json::Value> v = llvm::json::parse(text);
+        EXPECT_TRUE(static_cast<bool>(v));
+        EXPECT_TRUE(summary::ReadSummary(*v, s, error));
+        return s;
+    };
+    summary::Summary opt = parse(
+        R"j({"schema":"oobsum-summary/1","fn":"Opt","key":"F@aaaa:Opt","loc":"a.c:1","params":[{"name":"p","type":"UINT8*"},)j"
+        R"j({"name":"q","type":"UINT8*"}],"status":"analyzed","reqs":[{"id":"R1","kind":"W","have":"ext(p0)","obj":"*p0",)j"
+        R"j("end":["11","11"],"bound":"exact","guard":["nn:p1 >= 1"],"access":{"fn":"Opt","key":"F@aaaa:Opt","at":"a.c:2",)j"
+        R"j("end":"11"},"path":["Opt@a.c:2"],"depth":0,"eff_depth":0,"blind":false}],"effs":[],"calls":[],"reps":[],"opens":[]})j");
+    auto top = [&](const std::string &name, const std::string &params, const std::string &q) {
+        return parse(
+            R"j({"schema":"oobsum-summary/1","fn":")j" + name + R"j(","key":"F:)j" + name +
+            R"j(","loc":"t.c:1",)j"
+            R"j("params":[)j" +
+            params +
+            R"j(],"status":"analyzed","reqs":[],"effs":[],"calls":[{"site":"t.c:3","callee":"Opt","callee_key":"F@aaaa:Opt",)j"
+            R"j("args":[{"obj":"local:a","have":"4"},)j" +
+            q + R"j(],"results":[]}],"reps":[],"opens":[]})j");
+    };
+    std::map<std::string, summary::Summary> fns;
+    fns["F@aaaa:Opt"] = opt;
+    fns["F:T_Null"] = top("T_Null", "", R"j("0")j");
+    fns["F:T_Buf"] = top("T_Buf", "", R"j({"obj":"local:b","have":"1"})j");
+    // T_Mid 把自己的两个形参传下去：Req 往上传，守卫换成它自己的 nn:p1
+    fns["F:T_Mid"] = parse(
+        R"j({"schema":"oobsum-summary/1","fn":"T_Mid","key":"F:T_Mid","loc":"t.c:1","params":[{"name":"a","type":"UINT8*"},)j"
+        R"j({"name":"q","type":"UINT8*"}],"status":"analyzed","reqs":[],"effs":[],"calls":[{"site":"t.c:3","callee":"Opt",)j"
+        R"j("callee_key":"F@aaaa:Opt","args":[{"obj":"*p0","have":"ext(p0)","alias":"p0"},)j"
+        R"j({"obj":"*p1","have":"ext(p1)","alias":"p1"}],"results":[]}],"reps":[],"opens":[]})j");
+    solver::PropagateResult r = solver::Propagate(fns);
+    EXPECT_TRUE(r.fns.at("F:T_Null").reps.empty());
+    bool safe = false;
+    for (const solver::SiteOutcome &o : r.fns.at("F:T_Null").sites) {
+        safe = safe || (o.mine.outcome == "safe" && o.mine.reason == "guard_false");
+    }
+    EXPECT_TRUE(safe);
+    ASSERT_TRUE(r.fns.at("F:T_Buf").reps.size() == 1);
+    EXPECT_EQ(r.fns.at("F:T_Buf").reps[0].level, "L1");
+    ASSERT_TRUE(r.fns.at("F:T_Mid").reqs.size() == 1);
+    ASSERT_TRUE(r.fns.at("F:T_Mid").reqs[0].guards.size() == 1);
+    EXPECT_EQ(ShowLe0(r.fns.at("F:T_Mid").reqs[0].guards[0]), "nn:p1 >= 1");
+}

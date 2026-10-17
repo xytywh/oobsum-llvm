@@ -1,0 +1,18 @@
+# 指针形参判空产生守卫：接口符号 nn:p<k>（oobsum/specs/SPEC-0099）。原来 if (p != NULL) 不产生信息，
+# 可选出参传 NULL 的调用方被报 SUSPECT untracked_pointer（Get）或 DEFINITE（Opt：判断的是另一个指针）。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Opt$' \
+# RUN:   %S/Inputs/nonnull/o.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Opt"{{.*}}"guard":["nn:p2 >= 1"]
+CHECK-DAG: o.c:7:1: warning: [OOB-SAFE:guard_false] Proven within bounds: up to byte 100 of '*pOut' (size unknown)
+CHECK-DAG: o.c:8:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 100 of 'a' (4 bytes) is accessed
+CHECK-DAG: o.c:10:1: warning: [OOB-SAFE:guard_false] Proven within bounds: up to byte 11 of 'a' (4 bytes)
+CHECK-DAG: o.c:11:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 11 of 'a' (4 bytes) is accessed
+# if (p == NULL) return; 之后的访问
+CHECK-DAG: o.c:13:1: warning: [OOB-SAFE:guard_false] Proven within bounds: up to byte 100 of '*pOut' (size unknown)
+# 经一层中间函数（MidO 把自己的形参 q 传下去，守卫换成 nn:p1 往上传）：传 NULL → guard_false，传缓冲区 → DEFINITE
+CHECK-DAG: o.c:15:1: warning: [OOB-SAFE:guard_false] Proven within bounds: up to byte 11 of 'a' (4 bytes)
+CHECK-DAG: o.c:16:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 2-level call chain: up to byte 11 of 'a' (4 bytes) is accessed

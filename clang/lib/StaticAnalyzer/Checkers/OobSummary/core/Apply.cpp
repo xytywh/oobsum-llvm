@@ -72,6 +72,22 @@ Map BuildMap(const Call &call)
     for (size_t i = 0; i < call.args.size(); ++i) {
         std::string p = "p" + std::to_string(i);
         const ArgValue &arg = call.args[i];
+        // 第 i 个形参不是空指针（SPEC-0099）：常数 0 → 0、非 0 常数 → 1；局部 / 全局 / 字符串的地址 → 1；调用方形参所指 → 调用方的 nn:p<j>；其余不换
+        if (arg.kind == ArgValue::Kind::Expr) {
+            LinExpr v = P(arg.expr);
+            if (v.IsConst()) {
+                out.m.sym["nn:" + p] = LinExpr::Const(v.Constant() != 0 ? 1 : 0);
+            }
+        } else if (arg.kind == ArgValue::Kind::Ptr) {
+            llvm::StringRef obj = arg.ptr->obj;
+            unsigned j = 0;
+            llvm::StringRef rest = obj;
+            if ((obj.startswith("local:") && !obj.startswith("local:_unknown")) || obj.startswith("g:")) {
+                out.m.sym["nn:" + p] = LinExpr::Const(1);
+            } else if (rest.consume_front("*p") && !rest.consumeInteger(10, j) && rest.empty()) {
+                out.m.sym["nn:" + p] = LinExpr::Sym("nn:p" + std::to_string(j));
+            }
+        }
         if (arg.kind == ArgValue::Kind::Ptr) {
             out.m.ext[p] = P(arg.ptr->have);
             // 指针前面的字节数；实参没写 back → 不是接口符号的名字，调用点上只会走向记账（不当成 0，SPEC-0039 §2.2）
@@ -264,6 +280,7 @@ bool IsIface(const Atom &a)
     if (a.kind == Atom::Kind::Sym) {
         // p<数字> 或 p<数字>->…（同 replay.py 的 p\d+($|->)），或全局 g:…
         llvm::StringRef name = a.name;
+        name.consume_front("nn:");  // 形参不是空指针（SPEC-0099）
         if (name.consume_front("p")) {
             llvm::StringRef digits = name.take_while([](char c) { return c >= '0' && c <= '9'; });
             llvm::StringRef rest = name.drop_front(digits.size());
@@ -320,6 +337,9 @@ SymEnv CallerEnv(const Summary &caller)
     };
     for (size_t i = 0; i < caller.params.size(); ++i) {
         add("p" + std::to_string(i), caller.params[i].type);
+        if (llvm::StringRef(caller.params[i].type).endswith("*")) {
+            env.SetTypeRange("nn:p" + std::to_string(i), 0, 1);  // SPEC-0099
+        }
     }
     if (caller.fields) {
         for (const auto &entry : *caller.fields) {
