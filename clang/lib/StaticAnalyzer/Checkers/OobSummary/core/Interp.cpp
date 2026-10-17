@@ -133,7 +133,7 @@ std::string IntVal::Show() const
 
 bool PtrVal::operator==(const PtrVal &o) const
 {
-    return kind == o.kind && id == o.id && off == o.off && why == o.why;
+    return kind == o.kind && id == o.id && off == o.off && why == o.why && subs == o.subs;
 }
 
 // ---- 类型 ----
@@ -659,6 +659,35 @@ PtrVal UnknownPtr(llvm::StringRef why)
     return p;
 }
 
+IntVal WidenInt(const IntVal &a, const IntVal &b);
+
+constexpr size_t kMaxSubs = 4;  // 一个指针至多带几个内层窗口（SPEC-0104）
+
+// 偏移 d 同时加到每个内层窗口上（SPEC-0104 §2.2）
+void ShiftSubs(PtrVal &p, const IntVal &d)
+{
+    for (SubWindow &w : p.subs) {
+        w.off = AddVals(w.off, d);
+    }
+}
+
+// 内层窗口的汇合 / 加宽（SPEC-0104 §2.2）：个数与大小都相同才逐个合并，否则丢掉（照旧只查外层）
+std::vector<SubWindow> JoinSubs(const std::vector<SubWindow> &a, const std::vector<SubWindow> &b, const Comparer *cmp,
+                                bool widen)
+{
+    if (a.size() != b.size()) {
+        return {};
+    }
+    std::vector<SubWindow> out = b;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (a[i].size != b[i].size || a[i].head != b[i].head || a[i].tail != b[i].tail) {
+            return {};
+        }
+        out[i].off = widen ? WidenInt(a[i].off, b[i].off) : JoinInt(a[i].off, b[i].off, cmp);
+    }
+    return out;
+}
+
 Value JoinValue(const Value &a, const Value &b, const Comparer *cmp = nullptr)
 {
     if (a == b) {
@@ -682,6 +711,7 @@ Value JoinValue(const Value &a, const Value &b, const Comparer *cmp = nullptr)
     }
     out.p = a.p;
     out.p.off = JoinInt(a.p.off, b.p.off, cmp);
+    out.p.subs = JoinSubs(a.p.subs, b.p.subs, cmp, false);
     return out;
 }
 
@@ -896,6 +926,7 @@ Value WidenValue(const Value &a, const Value &b)
         return out;
     }
     out.p.off = WidenInt(a.p.off, b.p.off);
+    out.p.subs = JoinSubs(a.p.subs, b.p.subs, nullptr, true);
     return out;
 }
 
@@ -1139,6 +1170,7 @@ private:
     Value LoadValue(const PtrVal &addr, int64_t size, uint32_t dst, const State &s) const;
     void Access(const char *kind, const PtrVal &addr, ExprId addrExpr, const IntVal &bytes, const fir::Loc &loc,
                 const State &s, const std::vector<LinExpr> &forced = {}, bool checkBack = true);
+    void CheckSubs(const char *kind, const PtrVal &addr, const IntVal &bytes, const std::string &at, const State &s);
     void BackAccess(const char *kind, const PtrVal &addr, ExprId addrExpr, const std::string &at, const State &s,
                     const std::vector<LinExpr> &forced);
     void Record(RawAccess a, const State &s, const std::vector<LinExpr> &forced);
@@ -1583,7 +1615,9 @@ Value Analyzer::Eval(ExprId e, const State &s)
         case ExprOp::PAdd: {
             PtrVal p = EvalPtr(x.a, s);
             if (p.kind != BaseKind::Unknown) {
-                p.off = AddVals(p.off, EvalInt(x.b, s));
+                IntVal d = EvalInt(x.b, s);
+                p.off = AddVals(p.off, d);
+                ShiftSubs(p, d);
             }
             v.isPtr = true;
             v.p = p;
@@ -1601,10 +1635,13 @@ Value Analyzer::Eval(ExprId e, const State &s)
                 v.p.parentObj = p.obj;
                 v.p.parentSize = p.size;
                 v.p.parentOff = x.value;
+                v.p.subs = p.subs;  // 外面的窗口照带（SPEC-0104）
+                ShiftSubs(v.p, IntVal::Exact(LinExpr::Const(x.value)));
                 return v;
             }
             if (p.kind != BaseKind::Unknown) {
                 p.off = AddVals(p.off, IntVal::Exact(LinExpr::Const(x.value)));
+                ShiftSubs(p, IntVal::Exact(LinExpr::Const(x.value)));
             }
             v.p = p;
             return v;
@@ -1623,8 +1660,28 @@ Value Analyzer::Eval(ExprId e, const State &s)
             v.i = IntVal::Top(x.text);
             v.p = UnknownPtr(x.text);
             return v;
-        case ExprOp::SubObj:
-            return Eval(x.a, s);  // 子对象的起点（SPEC-0104）；内层界的检查在第 2 步
+        case ExprOp::SubObj: {
+            // 子对象的起点（SPEC-0104 §2.2）：推一个内层窗口
+            v = Eval(x.a, s);
+            if (!v.isPtr || v.p.kind == BaseKind::Unknown || v.p.kind == BaseKind::Func || x.size <= 0) {
+                return v;
+            }
+            SubWindow w;
+            w.size = x.size;
+            if (v.p.off.IsConst() && v.p.hasSize && v.p.size.IsConst()) {
+                int64_t start = v.p.off.value.Constant();
+                w.head = start == 0;
+                w.tail = start + x.size == v.p.size.Constant();
+            }
+            if (w.head && w.tail) {
+                return v;  // 就是整个基址（例如形参所指结构体的成员数组 p->aucBuf，SPEC-0022 已经以它为界）
+            }
+            v.p.subs.push_back(w);
+            if (v.p.subs.size() > kMaxSubs) {
+                v.p.subs.erase(v.p.subs.begin());  // 丢最外层的
+            }
+            return v;
+        }
     }
     v.i = IntVal::Top("expr");
     return v;
@@ -2131,6 +2188,9 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
         AddOpen(r.empty() ? "untracked_pointer" : r.str(), at);  // 不支持的构造给出的指针（SPEC-0060）
         return;
     }
+    if (!addr.subs.empty()) {
+        CheckSubs(kind, addr, bytes, at, s);  // 成员数组、多维数组的一行（SPEC-0104）
+    }
     if (checkBack) {
         BackAccess(kind, addr, addrExpr, at, s, forced);  // 负偏移（SPEC-0039）
     }
@@ -2170,6 +2230,50 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
         return;
     }
     Record(std::move(a), s, forced);
+}
+
+// 内层窗口（SPEC-0104 §2.2，用户决定 D22）：访问还要落在每个子对象（成员数组、多维数组的一行）里。证明不了 → 账本
+// subobject_overflow（SUSPECT）；越没越出整个对象由外层的检查照常判。窗口的偏移没有界而外层有 → 也记（可靠）；
+// 都没有 → 外层自己记账，不重复记
+void Analyzer::CheckSubs(const char *kind, const PtrVal &addr, const IntVal &bytes, const std::string &at,
+                         const State &s)
+{
+    llvm::Optional<LinExpr> bytesHi = bytes.Upper();
+    if (!bytesHi || bytesHi->IsUnknown()) {
+        return;  // 字节数没有上界：外层记账
+    }
+    llvm::Optional<LinExpr> outerHi = addr.off.Upper();
+    llvm::Optional<LinExpr> outerLo = addr.off.Lower();
+    bool outerHasHi = outerHi && !outerHi->IsUnknown();
+    bool outerHasLo = outerLo && !outerLo->IsUnknown();
+    for (const SubWindow &w : addr.subs) {
+        bool bad = false;
+        if (!w.tail) {
+            llvm::Optional<LinExpr> hi = w.off.Upper();
+            if (!hi || hi->IsUnknown()) {
+                bad = outerHasHi;
+            } else {
+                LinExpr need = *hi + *bytesHi - LinExpr::Const(w.size);
+                bad = need.IsUnknown() || !EntailsLe0(need, s.guards, Env(s));
+            }
+        }
+        if (!bad && !w.head) {
+            llvm::Optional<LinExpr> lo = w.off.Lower();
+            if (!lo || lo->IsUnknown()) {
+                bad = outerHasLo;
+            } else {
+                bad = !EntailsLe0(LinExpr::Const(0) - *lo, s.guards, Env(s));
+            }
+        }
+        if (bad) {
+            if (trace != nullptr) {
+                trace->push_back("subobject " + at + " " + kind + " off " + w.off.Show() + " bytes " + bytes.Show() +
+                                 " of " + std::to_string(w.size));
+            }
+            AddOpen("subobject_overflow", at);
+            return;
+        }
+    }
 }
 
 // 负偏移（06- §3.1，SPEC-0039 §2.1）：偏移下界不能证明 ≥ 0 时，记一条反向 Req：越到基址前面的字节数 −lo ≤ bext(基址)
@@ -3996,6 +4100,21 @@ bool Analyzer::NarrowPtr(ExprId e, fir::CmpOp op, const LinExpr &c, State &s, bo
     }
     uint32_t local = WrittenLocal(e, s);
     if (changed && local != fir::kNone) {
+        // 内层窗口（SPEC-0104 §2.2）：与外层偏移相差定值（上下界的差相同）时同步收窄，否则不动（只会更宽）
+        llvm::Optional<LinExpr> lo = v.p.off.Lower();
+        llvm::Optional<LinExpr> hi = v.p.off.Upper();
+        for (SubWindow &w : v.p.subs) {
+            llvm::Optional<LinExpr> wlo = w.off.Lower();
+            llvm::Optional<LinExpr> whi = w.off.Upper();
+            if (!lo || !wlo || lo->IsUnknown() || wlo->IsUnknown() || hi.hasValue() != whi.hasValue()) {
+                continue;
+            }
+            LinExpr d = *lo - *wlo;
+            if (d.IsUnknown() || (hi && *hi - *whi != d)) {
+                continue;
+            }
+            w.off = AddVals(out, IntVal::Exact(-d));
+        }
         v.p.off = out;
         s.locals[local] = v;
     }
@@ -5158,6 +5277,11 @@ std::string Analyzer::ShowState(const fir::Block &b, const State &s) const
         std::string text = v.isPtr
                                ? (v.p.kind == BaseKind::Unknown ? "?(" + v.p.why + ")" : v.p.obj + "+" + v.p.off.Show())
                                : v.i.Show();
+        if (v.isPtr) {
+            for (const SubWindow &w : v.p.subs) {
+                text += "{sub " + std::to_string(w.size) + "@" + w.off.Show() + "}";  // 内层窗口（SPEC-0104）
+            }
+        }
         out += " " + l->name + "=" + text;
     }
     for (const auto &cell : s.cells) {

@@ -1888,3 +1888,20 @@ TEST(Interp, CharAliasOption)
     EXPECT_TRUE(withAlias.find("obj=*p2 end=[3, 3]") == std::string::npos);
     EXPECT_TRUE(withAlias.find("obj=*p2") != std::string::npos);
 }
+
+TEST(Interp, SubObjectWindow)
+{
+    // SPEC-0104 §2.2：UINT8 a[2][4]；a[0] 是 4 字节的一行。a[0][5] 越出这一行、没越出 a → 账本 subobject_overflow；a[0][3] 不记。
+    // 窗口随指针运算平移、经指针局部传下去：p = a[0] + 2；p[2] 越出、p[1] 不越出
+    Builder b;
+    TypeId row = b.m.Intern(Type::Arr(b.u8, 4));
+    uint32_t a = b.LocalVar("a", b.m.Intern(Type::Arr(row, 2)), true);
+    uint32_t p = b.LocalVar("p", b.m.Intern(Type::Ptr(b.u8)));
+    ExprId a0 = b.f.Add(Expr::SubObj(b.f.Add(Expr::LAddr(a)), 4));
+    b.Straight({b.Store(b.PAdd(a0, b.C(5)), 1, b.C(0), 7), b.Store(b.PAdd(a0, b.C(3)), 1, b.C(0), 8),
+                b.Set(p, b.PAdd(a0, b.C(2))), b.Store(b.PAdd(b.L(p), b.C(2)), 1, b.C(0), 9),
+                b.Store(b.PAdd(b.L(p), b.C(1)), 1, b.C(0), 10)});
+    interp::FunctionFacts facts = b.Run();
+    EXPECT_EQ(Reqs(facts), "open subobject_overflow at=t.c:7 | open subobject_overflow at=t.c:9");
+    EXPECT_TRUE(facts.safe.size() == 4);  // 整个 a 的检查照旧：4 处都在 a 里
+}

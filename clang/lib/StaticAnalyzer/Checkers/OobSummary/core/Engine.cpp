@@ -169,6 +169,9 @@ std::string LedgerMessage(const std::string &reason, const std::string &callee)
         phrase = "the offset is bounded only by its type";
     } else if (reason == "pointer_stepping") {
         phrase = "the pointer is advanced in a loop";
+    } else if (reason == "subobject_overflow") {
+        // SPEC-0104：越出成员数组 / 多维数组的一行（整个对象由外层的检查判）
+        phrase = "it may leave the array member or the row of the multi-dimensional array it starts in";
     } else if (reason == "recursion") {
         phrase = "the call is part of a recursion; accesses deeper in the recursion are not checked";  // SPEC-0066
     } else if (reason == "unsupported_construct") {

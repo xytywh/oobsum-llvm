@@ -1,0 +1,44 @@
+# 内层界（oobsum/specs/SPEC-0104 §2.2，用户决定 D22）：成员数组、多维数组的一行退化成指针时带内层窗口，访问越出内层、
+# 没越出整个对象 → SUSPECT subobject_overflow（原来只查整个对象，判 SAFE）。越出整个对象照常由外层判。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Loop_Tp|Ptr_Tn)$' \
+# RUN:   -w %S/Inputs/subobj/o.c 2>&1 | FileCheck %s
+# 只有这 6 行报 subobject_overflow（TN、越出整个对象的第一维、指针步进都不报）
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -w %S/Inputs/subobj/o.c 2>&1 \
+# RUN:   | grep 'subobject_overflow' | FileCheck %s --check-prefix=ONLY
+
+# 越出内层、没越出整个对象：a[0][5]、st.aucBuf[20]、astEnt[0].aucName[8]、a[0][i]（i < 8）、st.aucPad[-1]
+CHECK-DAG: o.c:7:1: warning: [OOB-SUSPECT:subobject_overflow] Cannot prove this access is within bounds: it may leave the array member or the row of the multi-dimensional array it starts in
+CHECK-DAG: o.c:7:1: warning: [OOB-SAFE:local_entailed] Proven within bounds: up to byte 6 of 'a' (8 bytes)
+CHECK-DAG: o.c:8:1: warning: [OOB-SUSPECT:subobject_overflow]
+CHECK-DAG: o.c:9:1: warning: [OOB-SUSPECT:subobject_overflow]
+CHECK-DAG: o.c:10:1: warning: [OOB-SUSPECT:subobject_overflow]
+CHECK-DAG: o.c:12:1: warning: [OOB-SUSPECT:subobject_overflow]
+# memset_s 按整个结构体的大小写成员：两边都越出——外层 DEFINITE，另有内层一条
+CHECK-DAG: o.c:11:1: warning: [OOB-DEFINITE] Definite out-of-bound write: up to byte 36 of 'st' (32 bytes) is accessed
+CHECK-DAG: o.c:11:1: warning: [OOB-SUSPECT:subobject_overflow]
+# 指针步进：外层没有界、外层自己记账，内层不重复记
+CHECK-DAG: o.c:13:1: warning: [OOB-SUSPECT:pointer_stepping]
+# 不越出：a[1][3]、st.aucBuf[15]、memset_s(…, sizeof(st.aucBuf))、p < st.aucBuf + 16（窗口随指针比较同步收窄）、两重循环 a[i][j]
+CHECK-DAG: o.c:14:1: warning: [OOB-SAFE:local_entailed]
+CHECK-DAG: o.c:15:1: warning: [OOB-SAFE:local_entailed]
+CHECK-DAG: o.c:16:1: warning: [OOB-SAFE:local_entailed]
+CHECK-DAG: o.c:17:1: warning: [OOB-SAFE:local_entailed]
+CHECK-DAG: o.c:18:1: warning: [OOB-SAFE:local_entailed]
+# 第一维越界 a[2][0]：越出整个对象，外层 DEFINITE；行内偏移 0 不越出
+CHECK-DAG: o.c:19:1: warning: [OOB-DEFINITE] Definite out-of-bound write: up to byte 9 of 'a' (8 bytes) is accessed
+
+# Dump=state：指针值后面的窗口 {sub 大小@偏移}；证明不了时一行 subobject
+CHECK-DAG: [oobsum:state] fn Loop_Tp subobject o.c:10 W off [0, 7]:loop bytes 1 of 4
+CHECK-DAG: [oobsum:state] fn Ptr_Tn b2: p=local:st+[4, 19]:loop{sub 16@[0, 15]:loop}
+
+ONLY:      o.c:7:1: warning: [OOB-SUSPECT:subobject_overflow]
+ONLY-NEXT: o.c:8:1: warning: [OOB-SUSPECT:subobject_overflow]
+ONLY-NEXT: o.c:9:1: warning: [OOB-SUSPECT:subobject_overflow]
+ONLY-NEXT: o.c:10:1: warning: [OOB-SUSPECT:subobject_overflow]
+ONLY-NEXT: o.c:11:1: warning: [OOB-SUSPECT:subobject_overflow]
+ONLY-NEXT: o.c:12:1: warning: [OOB-SUSPECT:subobject_overflow]
+ONLY-NOT:  subobject_overflow

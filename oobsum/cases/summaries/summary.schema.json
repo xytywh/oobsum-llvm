@@ -215,7 +215,7 @@
                          "pointer_stepping", "string_length", "nonlinear", "type_range_only", "entry_unproven",
                          "cond_truncated", "ambiguous_callee", "not_exported", "not_in_tu", "cfg_too_large", "timeout",
                          "iter_limit", "unsupported_construct", "struct_by_value", "inline_asm", "imprecise_join",
-                         "untracked_pointer", "typed_field"] },
+                         "untracked_pointer", "typed_field", "subobject_overflow"] },
     "open": {
       "type": "object", "additionalProperties": false, "required": ["reason", "at"],
       "properties": {

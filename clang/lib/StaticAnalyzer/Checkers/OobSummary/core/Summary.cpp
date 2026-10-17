@@ -48,6 +48,7 @@ const std::set<std::string> &Reasons()
                                                   "entry_unproven",
                                                   "cond_truncated",
                                                   "typed_field",
+                                                  "subobject_overflow",  // SPEC-0104
                                                   "ambiguous_callee",
                                                   "not_exported",
                                                   "not_in_tu",

@@ -86,6 +86,19 @@ struct IntVal {
 // 指针的基址（A-11 的子集）
 enum class BaseKind : uint8_t { Unknown, Param, ParamField, ParamPtr, Global, Local, Str, Func, Heap };
 
+// 数组子对象的内层窗口（成员数组、多维数组的一行，SPEC-0104 §2.2）：子对象的字节数与相对子对象起点的偏移
+struct SubWindow {
+    int64_t size = 0;
+    IntVal off = IntVal::Exact(LinExpr::Const(0));
+    bool head = false;  // 子对象从基址起点开始：下界与外层相同，不另查
+    bool tail = false;  // 子对象到基址末尾为止：上界与外层相同，不另查
+
+    bool operator==(const SubWindow &o) const
+    {
+        return size == o.size && off == o.off && head == o.head && tail == o.tail;
+    }
+};
+
 struct PtrVal {
     BaseKind kind = BaseKind::Unknown;
     std::string id;        // 基址的身份（内存格的键用）
@@ -102,6 +115,8 @@ struct PtrVal {
     std::string parentObj;
     LinExpr parentSize;
     int64_t parentOff = 0;
+    // 内层窗口（SPEC-0104）：至多 4 个，内层的在后；访问还要落在每个窗口里，否则记账 subobject_overflow
+    std::vector<SubWindow> subs;
 
     bool operator==(const PtrVal &o) const;
 };
