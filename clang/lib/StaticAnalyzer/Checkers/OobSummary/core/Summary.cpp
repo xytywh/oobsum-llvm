@@ -310,7 +310,8 @@ bool Reader::ReadEff(const Value &v, Eff &e)
 
 bool Reader::ReadPtr(const Value &v, PtrArg &p)
 {
-    const Object *o = Obj(v, {"obj", "have"}, {"alias", "eff_depth", "fields", "parent", "back"});
+    const Object *o =
+        Obj(v, {"obj", "have"}, {"alias", "eff_depth", "fields", "parent", "back", "off_lo", "off_hi", "off_bound"});
     auto outer = [&](const Value &x, OuterObj &y) {
         const Object *po = Obj(x, {"obj", "have"}, {});
         return po != nullptr && Key(*po, "obj", y.obj, OOBSUM_M(ObjName)) && Key(*po, "have", y.have, OOBSUM_M(Expr));
@@ -332,7 +333,8 @@ bool Reader::ReadPtr(const Value &v, PtrArg &p)
     return o != nullptr && Key(*o, "obj", p.obj, OOBSUM_M(ObjName)) && Key(*o, "have", p.have, OOBSUM_M(Expr)) &&
            OptKey(*o, "alias", p.alias, OOBSUM_M(Str)) && OptKey(*o, "eff_depth", p.effDepth, OOBSUM_M(Int)) &&
            OptKey(*o, "fields", p.fields, fields) && OptKey(*o, "parent", p.parent, outer) &&
-           OptKey(*o, "back", p.back, OOBSUM_M(Expr));
+           OptKey(*o, "back", p.back, OOBSUM_M(Expr)) && OptKey(*o, "off_lo", p.offLo, OOBSUM_M(Expr)) &&
+           OptKey(*o, "off_hi", p.offHi, OOBSUM_M(Expr)) && OptKey(*o, "off_bound", p.offBound, OOBSUM_M(TagName));
 }
 
 bool Reader::ReadArg(const Value &v, ArgValue &a, bool allowNull)
@@ -631,6 +633,9 @@ Value PtrJson(const PtrArg &p)
         o["parent"] = Object{{"obj", p.parent->obj}, {"have", p.parent->have}};
     }
     Put(o, "back", p.back);
+    Put(o, "off_lo", p.offLo);
+    Put(o, "off_hi", p.offHi);
+    Put(o, "off_bound", p.offBound);
     if (p.fields) {
         Object f;
         for (const auto &entry : *p.fields) {

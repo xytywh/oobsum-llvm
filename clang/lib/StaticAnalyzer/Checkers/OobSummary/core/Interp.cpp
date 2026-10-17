@@ -3332,7 +3332,16 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s, bool alt)
                 if (known) {
                     arg.ptr->obj = v.p.obj;
                     arg.ptr->have = (v.p.size - *hi).Show();  // 偏移是区间时取最小的剩余（多报不少报）
-                    arg.ptr->back = BackText(v.p);            // 前面取最小的（偏移下界，SPEC-0039）
+                    // 偏移是区间：另记上下界与来源，代换时按对象起点 + 偏移区间判（L1 不能拿最小剩余判，SPEC-0095）
+                    llvm::Optional<LinExpr> lo = v.p.off.Lower();
+                    if (v.p.off.kind == IntVal::Kind::Range && !(lo && *lo == *hi)) {
+                        if (lo && !lo->IsUnknown()) {
+                            arg.ptr->offLo = lo->Show();
+                        }
+                        arg.ptr->offHi = hi->Show();
+                        arg.ptr->offBound = TagName(v.p.off.tag == Tag::None ? Tag::Widen : v.p.off.tag).str();
+                    }
+                    arg.ptr->back = BackText(v.p);  // 前面取最小的（偏移下界，SPEC-0039）
                     if (v.p.kind == BaseKind::Param && v.p.off.IsConst() && v.p.off.value.Constant() == 0) {
                         arg.ptr->alias = v.p.obj.substr(1);  // *p0 → p0
                     }

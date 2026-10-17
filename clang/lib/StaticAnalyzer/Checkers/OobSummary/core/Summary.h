@@ -109,6 +109,10 @@ struct PtrArg {
     std::string have;
     llvm::Optional<OuterObj> parent;  // 实参是形参所指结构体里的成员数组时：外层对象（SPEC-0035）
     llvm::Optional<std::string> back;  // 这个指针前面还有多少字节（调用方的说法；负偏移，SPEC-0039）
+    // 指针偏移是区间时（SPEC-0095）：下界（不知道时没有）、上界、上界的来源标签；have 是按上界算的最小剩余
+    llvm::Optional<std::string> offLo;
+    llvm::Optional<std::string> offHi;
+    llvm::Optional<std::string> offBound;
     llvm::Optional<std::string> alias;
     llvm::Optional<int64_t> effDepth;
     llvm::Optional<std::map<std::string, ArgValue>> fields;  // 值是表达式或指针（不为 null）

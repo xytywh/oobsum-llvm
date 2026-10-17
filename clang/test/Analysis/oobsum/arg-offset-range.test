@@ -1,0 +1,17 @@
+# 指针实参的偏移是区间：调用点按"对象起点 + 偏移区间"判（oobsum/specs/SPEC-0095）。原来拿最小剩余判 L1，
+# T3（下标只有类型范围）、T4（a + 2 或 a + 6）都被判成 DEFINITE（错误的级别）。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^T4$' \
+# RUN:   %S/Inputs/argoff/a.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:summary] {{.*}}"args":[{"back":"2","have":"10","obj":"local:a","off_bound":"branch","off_hi":"6","off_lo":"2"},"12"]
+CHECK-DAG: a.c:6:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove the write through a 1-level call chain stays within 'a' (300 bytes)
+CHECK-DAG: a.c:7:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 19 of 'a' (16 bytes) may be accessed; the bound comes from a branch constant
+# 偏移区间都在界内 → SAFE；都越界 → DEFINITE
+CHECK-DAG: a.c:8:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 16 of 'a' (16 bytes)
+CHECK-DAG: a.c:9:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 21 of 'a' (16 bytes) is accessed
+# 经一层中间函数往上传
+CHECK-DAG: a.c:11:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 2-level call chain: up to byte 19 of 'a' (16 bytes) may be accessed
+CHECK-DAG: a.c:12:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 19 of 'a' (32 bytes)

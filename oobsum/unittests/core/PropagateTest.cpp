@@ -300,3 +300,51 @@ TEST(Propagate, EntryConstantLevel)
     EXPECT_TRUE(r.fns.at("F:T14").reps.empty());  // 只有类型范围：不是代码给出的界
     EXPECT_EQ(r.fns.at("F:T14").entryOpens.size(), size_t(1));
 }
+
+TEST(Propagate, ArgOffsetRange)
+{
+    // SPEC-0095：实参偏移 [2, 6]（have 是最小剩余 10）；被调者写到 p0 + 13 → 按对象起点：末端 [15, 19] 对 16 → L2（原来拿 10 判 L1）
+    auto parse = [](const std::string &text) {
+        summary::Summary s;
+        std::string error;
+        llvm::Expected<llvm::json::Value> v = llvm::json::parse(text);
+        EXPECT_TRUE(static_cast<bool>(v));
+        EXPECT_TRUE(summary::ReadSummary(*v, s, error));
+        return s;
+    };
+    summary::Summary put = parse(
+        R"j({"schema":"oobsum-summary/1","fn":"Put","key":"F@aaaa:Put","loc":"a.c:1","params":[{"name":"p","type":"UINT8*"}],)j"
+        R"j("status":"analyzed","reqs":[{"id":"R1","kind":"W","have":"ext(p0)","obj":"*p0","end":["13","13"],"bound":"exact",)j"
+        R"j("guard":[],"access":{"fn":"Put","key":"F@aaaa:Put","at":"a.c:2","end":"13"},"path":["Put@a.c:2"],"depth":0,)j"
+        R"j("eff_depth":0,"blind":false}],"effs":[],"calls":[],"reps":[],"opens":[]})j");
+    auto top = [&](const std::string &name, const std::string &arg) {
+        return parse(
+            R"j({"schema":"oobsum-summary/1","fn":")j" + name + R"j(","key":"F:)j" + name +
+            R"j(","loc":"t.c:1","params":[],"status":"analyzed","reqs":[],"effs":[],"calls":[{"site":"t.c:3",)j"
+            R"j("callee":"Put","callee_key":"F@aaaa:Put","args":[)j" +
+            arg + R"j(],"results":[]}],"reps":[],"opens":[]})j");
+    };
+    std::map<std::string, summary::Summary> fns;
+    fns["F@aaaa:Put"] = put;
+    fns["F:T_Range"] =
+        top("T_Range", R"j({"obj":"local:a","have":"10","off_lo":"2","off_hi":"6","off_bound":"branch"})j");
+    fns["F:T_Type"] =
+        top("T_Type", R"j({"obj":"local:a","have":"-239","off_lo":"0","off_hi":"255","off_bound":"type"})j");
+    fns["F:T_Old"] = top("T_Old", R"j({"obj":"local:a","have":"10"})j");  // 老格式：照旧按 have 判
+    // 读写往返带 off_*
+    llvm::json::Value back = summary::SummaryToJson(fns["F:T_Range"]);
+    summary::Summary again;
+    std::string error;
+    ASSERT_TRUE(summary::ReadSummary(back, again, error));
+    ASSERT_TRUE(again.calls[0].args[0].ptr->offLo.hasValue());
+    EXPECT_EQ(*again.calls[0].args[0].ptr->offHi, "6");
+    EXPECT_EQ(*again.calls[0].args[0].ptr->offBound, "branch");
+    solver::PropagateResult r = solver::Propagate(fns);
+    ASSERT_TRUE(r.fns.at("F:T_Range").reps.size() == 1);
+    EXPECT_EQ(r.fns.at("F:T_Range").reps[0].level, "L2");
+    EXPECT_EQ(r.fns.at("F:T_Range").reps[0].have, "16");
+    EXPECT_EQ(r.fns.at("F:T_Range").reps[0].endHi, "19");
+    EXPECT_TRUE(r.fns.at("F:T_Type").reps.empty());  // 偏移上界只来自类型范围 → 记账，不是 L1
+    ASSERT_TRUE(r.fns.at("F:T_Old").reps.size() == 1);
+    EXPECT_EQ(r.fns.at("F:T_Old").reps[0].level, "L1");
+}

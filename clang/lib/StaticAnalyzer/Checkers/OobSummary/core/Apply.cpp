@@ -349,6 +349,26 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
     o.have = Substitute(P(req.have), map.m);
     o.endLo = Substitute(P(req.endLo), map.m);
     o.endHi = Substitute(P(req.endHi), map.m);
+    // 指针实参的偏移是区间（SPEC-0095）：have 正好是 ext(pK) 时按对象起点判——剩余加偏移上界、末端加偏移区间、
+    // 标签并入偏移的来源；偏移下界不知道 → 最小末端记 0（不判 L1，往上传也不会）
+    llvm::Optional<std::string> offBound;
+    if (req.dir.empty()) {
+        LinExpr rh = P(req.have);
+        llvm::StringRef name = rh.Terms().size() == 1 && rh.Terms().begin()->second == 1 &&
+                                       rh.Terms().begin()->first.kind == Atom::Kind::Ext
+                                   ? llvm::StringRef(rh.Terms().begin()->first.name)
+                                   : llvm::StringRef();
+        unsigned k = 0;
+        if (name.consume_front("p") && !name.getAsInteger(10, k) && k < call.args.size() &&
+            call.args[k].kind == ArgValue::Kind::Ptr && call.args[k].ptr->offHi) {
+            const summary::PtrArg &pa = *call.args[k].ptr;
+            LinExpr offHi = P(*pa.offHi);
+            o.have = o.have + offHi;
+            o.endHi = o.endHi + offHi;
+            o.endLo = pa.offLo ? o.endLo + P(*pa.offLo) : LinExpr::Const(0);
+            offBound = pa.offBound ? *pa.offBound : std::string("widen");
+        }
+    }
     for (const std::string &g : req.guard) {
         for (const LinExpr &atom : C(SubstCond(g, map.m))) {
             o.guards.push_back(atom);
@@ -416,6 +436,9 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
             worst = WorseTag(worst, TagOf(t));
         }
         o.bound = worst == Tag::None ? *hi.tags.begin() : TagName(worst).str();
+    }
+    if (offBound) {
+        o.bound = TagName(WorseTag(TagOf(o.bound), TagOf(*offBound))).str();  // SPEC-0095
     }
     std::vector<LinExpr> liveNe = live;
     liveNe.insert(liveNe.end(), hi.ne.begin(), hi.ne.end());
@@ -535,6 +558,9 @@ llvm::Optional<Call> ParentCall(const summary::Req &req, const Call &call)
     outer->obj = arg.ptr->parent->obj;
     outer->have = arg.ptr->parent->have;
     outer->effDepth = arg.ptr->effDepth;
+    outer->offLo = arg.ptr->offLo;  // 外层的剩余同样按偏移上界算（SPEC-0095）
+    outer->offHi = arg.ptr->offHi;
+    outer->offBound = arg.ptr->offBound;
     out.args[k].ptr = outer;
     return out;
 }
