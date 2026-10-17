@@ -1,0 +1,9 @@
+# replay.py（apply::Classify / BuildMap 的参考实现）同步 SPEC-0095（实参偏移区间）与 SPEC-0099（nn:p<k>）（oobsum/specs/SPEC-0100）。
+#
+# RUN: %python %S/Inputs/replaysync/check.py %S/../../../../oobsum/cases/summaries | FileCheck %s
+
+CHECK: range L2 16 19 branch
+CHECK: type open 16 268 type
+CHECK: null safe
+CHECK: buf L1 4 11 exact
+CHECK: up up ext(p0) 11 exact nn:p1 >= 1

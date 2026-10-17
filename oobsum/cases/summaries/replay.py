@@ -315,7 +315,7 @@ def subst(l, m):
         elif a[0] in ('ext', 'bext') and '->' in a[1] and a[1].split('->', 1)[0] in m.get('__alias__', {}):
             base, rest = a[1].split('->', 1)
             out = out + Lin(0, {(a[0], m['__alias__'][base] + '->' + rest): c})
-        elif (m.get('__poison__') and a[0] in ('s', 'ext', 'bext') and re.match(r'p\d+($|->)', a[1])) or \
+        elif (m.get('__poison__') and a[0] in ('s', 'ext', 'bext') and re.match(r'(nn:)?p\d+($|->)', a[1])) or \
                 (m.get('__poison_g__') and a[0] == 's' and a[1].startswith('g:')):
             text = a[1] if a[0] == 's' else '%s(%s)' % a     # SPEC-0063：改名成非接口符号
             out = out + Lin(0, {('s', '_unmapped:' + text): c})
@@ -333,7 +333,7 @@ def subst(l, m):
 def is_iface(a):
     """调用方的接口符号（形参、字段、ext、全局）。"""
     if a[0] == 's':
-        return bool(re.match(r'p\d+($|->)', a[1])) or a[1].startswith('g:')
+        return bool(re.match(r'(nn:)?p\d+($|->)', a[1])) or a[1].startswith('g:')  # nn:p<k>：SPEC-0099
     if a[0] in ('ext', 'bext'):
         return True
     return all(is_iface(x) for x in opaque_atoms(a))
@@ -356,6 +356,9 @@ class Env(object):
         for i, p in enumerate(params):
             ty = p.get('type', '') if isinstance(p, dict) else (p.split(':', 1)[1].strip() if ':' in p else '')
             self._type('p%d' % i, ty)
+            if ty.endswith('*'):  # 形参不是空指针：0 / 1（SPEC-0099）
+                self.hi[('s', 'nn:p%d' % i)] = (1, 'type')
+                self.lo[('s', 'nn:p%d' % i)] = (0, 'type')
         for f, d in fields.items():
             self._type(f, d.get('type', ''))
 
@@ -715,6 +718,16 @@ def build_map(call, callee):
     m, alias, effd = {}, {}, 0
     for i, arg in enumerate(call['args']):
         p = 'p%d' % i
+        # 第 i 个形参不是空指针（SPEC-0099，同 apply::BuildMap）：常数 0 → 0、非 0 → 1；局部 / 全局 / 字符串 → 1；*p<j> → nn:p<j>；其余不换
+        if isinstance(arg, dict):
+            obj = arg.get('obj', '')
+            mj = re.match(r'\*p(\d+)$', obj)
+            if (obj.startswith('local:') and not obj.startswith('local:_unknown')) or obj.startswith('g:'):
+                m['nn:' + p] = P('1')
+            elif mj:
+                m['nn:' + p] = Lin(0, {('s', 'nn:p' + mj.group(1)): 1})
+        elif arg is not None and P(arg).const() is not None:
+            m['nn:' + p] = P('1' if P(arg).const() != 0 else '0')
         if isinstance(arg, dict):
             m['ext(%s)' % p] = P(arg['have'])
             # 指针前面的字节数；没写 back → 不是接口符号的名字，调用点上只会走向记账（不当成 0，SPEC-0039 §2.2）
@@ -800,6 +813,9 @@ def parent_call(req, call):
     if not isinstance(arg, dict) or 'parent' not in arg:
         return None
     outer = {'obj': arg['parent']['obj'], 'have': arg['parent']['have']}
+    for key in ('off_lo', 'off_hi', 'off_bound'):  # 外层的剩余同样按偏移上界算（SPEC-0095）
+        if key in arg:
+            outer[key] = arg[key]
     if 'eff_depth' in arg:
         outer['eff_depth'] = arg['eff_depth']
     args = list(call['args'])
@@ -820,10 +836,34 @@ def classify_all(req, call, caller, callee, env_guards):
     return ([] if mine['outcome'] == 'safe' else [(mine, call, False)]) + [(o, outer, True)]
 
 
+TAG_ORDER = ('type', 'widen', 'data', 'model', 'check', 'guard', 'mask', 'loop', 'branch', 'ret', 'const', 'exact')
+
+
+def worse_tag(a, b):
+    """两个来源标签取更"差"的（同 C++ 的 WorseTag：枚举里靠前的）。"""
+    ia = TAG_ORDER.index(a) if a in TAG_ORDER else len(TAG_ORDER)
+    ib = TAG_ORDER.index(b) if b in TAG_ORDER else len(TAG_ORDER)
+    return a if ia <= ib else b
+
+
 def classify(req, call, caller, callee, env_guards):
     m, effd = build_map(call, callee)
     have = subst(P(req['have']), m)
     elo, ehi = [subst(P(x), m) for x in req['end']]
+    # 指针实参的偏移是区间（SPEC-0095，同 apply::Classify）：have 正好是 ext(pK) + c 时按对象起点判——剩余加偏移上界、末端加偏移区间、
+    # 标签并入偏移的来源；偏移下界不知道 → 最小末端记 0
+    off_bound = None
+    rh = P(req['have'])
+    if not req.get('dir') and len(rh.t) == 1:
+        (atom, coef), = rh.t.items()
+        mk = re.match(r'p(\d+)$', atom[1]) if atom[0] == 'ext' and coef == 1 else None
+        if mk and int(mk.group(1)) < len(call['args']):
+            arg = call['args'][int(mk.group(1))]
+            if isinstance(arg, dict) and 'off_hi' in arg:
+                oh = P(arg['off_hi'])
+                have, ehi = have + oh, ehi + oh
+                elo = elo + P(arg['off_lo']) if 'off_lo' in arg else P('0')
+                off_bound = arg.get('off_bound', 'widen')
     guards = [g for s in req.get('guard', []) for g in C(subst_cond(s, m))]
     locs = {n: (P(v['range'][0]), P(v['range'][1]), v.get('bound', 'loop')) for n, v in call.get('locals', {}).items()}
     env = Env(caller.get('params', []), caller.get('fields', {}))
@@ -853,6 +893,8 @@ def classify(req, call, caller, callee, env_guards):
     if call.get('alt'):
         elo2 = P('0')  # 函数指针的多个目标之一：这次不一定执行（只判 L2，SPEC-0058 §2.3）
     bound = (tags_hi.pop() if tags_hi else req.get('bound', 'exact'))
+    if off_bound:
+        bound = worse_tag(bound, off_bound)  # SPEC-0095
     for g in live + ne:
         env.add_guard(g, 'guard')
     dhi, dlo = ehi2 - have, elo2 - have
