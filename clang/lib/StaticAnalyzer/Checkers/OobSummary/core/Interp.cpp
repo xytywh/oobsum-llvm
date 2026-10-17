@@ -1134,9 +1134,33 @@ private:
     bool Changed(const State &s, const std::string &id, int64_t off, int64_t size) const;
     void MarkWritten(State &s, const std::string &id) const;
     void AliasWritten(State &s, const std::string &id) const;
+    struct ExternalView {
+        enum class Kind { None, Param, ParamPtr, Global };
+        Kind kind = Kind::None;
+        int param = -1;
+        std::string key;        // 类型键
+        std::string parentKey;  // 成员数组：外层的类型键
+    };
+    ExternalView ViewOf(const std::string &id) const;
+    std::string TypeKey(fir::TypeId t) const;
+    fir::TypeId ParamPointee(int k) const;
+    // 类型键 → 全局基址 id（SPEC-0091）
+    const std::vector<std::string> &GlobalsWithKey(const std::string &key) const
+    {
+        static const std::vector<std::string> none;
+        if (!keyIndexed) {
+            keyIndexed = true;
+            for (const fir::Global &g : m.globals) {
+                globalsByKey[TypeKey(g.type)].push_back("G" + g.key);
+            }
+        }
+        auto it = key.empty() ? globalsByKey.end() : globalsByKey.find(key);
+        return it != globalsByKey.end() ? it->second : none;
+    }
+    mutable bool keyIndexed = false;
+    mutable std::map<std::string, std::vector<std::string>> globalsByKey;
     llvm::Optional<uint32_t> PointeeRecord(int param) const;
     // 形参所指的类型（别名判断用）：结构体按记录号，整数按宽度与符号；别的 → None（SPEC-0040 §2.2、SPEC-0071）
-    llvm::Optional<std::string> PointeeKey(int param) const;
     // ---- 模型（SPEC-0018）----
     void ApplyAccessModel(const fir::Inst &inst, const models::AccessModel &model, const State &s);
     Value HeapResult(const fir::Inst &inst, const std::string &size, int64_t effDepth, const State &s);
@@ -1614,45 +1638,145 @@ void Analyzer::MarkWritten(State &s, const std::string &id) const
     AliasWritten(s, id);
 }
 
-llvm::Optional<std::string> Analyzer::PointeeKey(int param) const
+// 外部内存的类型键（SPEC-0091）：数组取元素类型，其余同 TypeText（rec#号、u8、u32、void…）
+std::string Analyzer::TypeKey(fir::TypeId t) const
 {
-    if (llvm::Optional<uint32_t> record = PointeeRecord(param)) {
-        return "rec#" + std::to_string(*record);
+    while (t < m.types.size() && m.types[t].kind == fir::TypeKind::Arr) {
+        t = m.types[t].to;
     }
-    for (const fir::Local &l : f.locals) {
-        if (l.param != param || l.type >= m.types.size() || m.types[l.type].kind != fir::TypeKind::Ptr) {
-            continue;
-        }
-        fir::TypeId pointee = m.types[l.type].to;
-        // 整数（char 不算：char 缓冲区的写不当成改了别的形参，SPEC-0040 §2 的取舍）
-        if (pointee < m.types.size() && m.types[pointee].kind == fir::TypeKind::Int && m.types[pointee].width > 8) {
-            return fir::TypeText(m, pointee);
-        }
-    }
-    return llvm::None;
+    return t < m.types.size() ? fir::TypeText(m, t) : std::string();
 }
 
-// 经形参 pK（或它所指结构体里的成员数组）写：所指类型相同的其它形参 pJ 可能就是同一个对象——清掉它的格、记进 writtenAll。
-// 只看结构体与（宽于 char 的）整数形参（char / void 缓冲区的写不算，SPEC-0040 §2 的取舍；整数：SPEC-0071）
+// 第 k 个形参所指的类型；不是指针 → kNone
+fir::TypeId Analyzer::ParamPointee(int k) const
+{
+    for (const fir::Local &l : f.locals) {
+        if (l.param == k && l.type < m.types.size() && m.types[l.type].kind == fir::TypeKind::Ptr) {
+            return m.types[l.type].to;
+        }
+    }
+    return fir::kNone;
+}
+
+// 基址 id 是哪一种外部内存、类型键是什么（SPEC-0091）：形参所指 P<k>（成员数组 P<k>.<m> 另带外层的键）、
+// 形参结构体里指针字段所指 PP<k>.<f>、全局 G…；局部、堆、字符串不是
+Analyzer::ExternalView Analyzer::ViewOf(const std::string &id) const
+{
+    ExternalView v;
+    llvm::StringRef text = id;
+    auto fieldOf = [&](int k, llvm::StringRef name) -> const fir::Field * {
+        fir::TypeId pointee = ParamPointee(k);
+        if (pointee >= m.types.size() || m.types[pointee].kind != fir::TypeKind::Rec) {
+            return nullptr;
+        }
+        const fir::Record *r = m.FindRecord(m.types[pointee].record);
+        for (const fir::Field &field : r != nullptr ? r->fields : std::vector<fir::Field>()) {
+            if (field.name == name) {
+                return &field;
+            }
+        }
+        return nullptr;
+    };
+    if (text.consume_front("PP")) {
+        unsigned k = 0;
+        if (text.consumeInteger(10, k) || !text.consume_front(".")) {
+            return v;
+        }
+        const fir::Field *field = fieldOf(static_cast<int>(k), text);
+        if (field != nullptr && field->type < m.types.size() && m.types[field->type].kind == fir::TypeKind::Ptr) {
+            v.kind = ExternalView::Kind::ParamPtr;
+            v.param = static_cast<int>(k);
+            v.key = TypeKey(m.types[field->type].to);
+        }
+        return v;
+    }
+    if (text.size() >= 2 && text[0] == 'P' && std::isdigit(static_cast<unsigned char>(text[1]))) {
+        text = text.drop_front();
+        unsigned k = 0;
+        if (text.consumeInteger(10, k)) {
+            return v;
+        }
+        v.kind = ExternalView::Kind::Param;
+        v.param = static_cast<int>(k);
+        std::string outer = ParamPointee(v.param) != fir::kNone ? TypeKey(ParamPointee(v.param)) : std::string();
+        if (text.consume_front(".")) {
+            const fir::Field *field = fieldOf(v.param, text);
+            v.key = field != nullptr ? TypeKey(field->type) : std::string();
+            v.parentKey = outer;
+        } else {
+            v.key = outer;
+        }
+        return v;
+    }
+    if (text.startswith("G")) {
+        if (const fir::Global *g = GlobalOf(id)) {
+            v.kind = ExternalView::Kind::Global;
+            v.key = TypeKey(g->type);
+        }
+    }
+    return v;
+}
+
+// 经外部内存 id 写：可能是同一块的其它外部内存——格失效、记进 writtenAll（SPEC-0091，取代 SPEC-0040 §2.2）。
+// 指针视角（形参所指、指针字段所指）：类型键相同，或它是 char / void；全局对象：类型键相同（经全局写时不算别的全局）。
+// char / void 的写不影响别的类型（SPEC-0040 的取舍）；同一形参自己的成员 / 外层由 InvalidateFamily 按范围处理
 void Analyzer::AliasWritten(State &s, const std::string &id) const
 {
-    if (id.size() < 2 || id[0] != 'P' || !std::isdigit(static_cast<unsigned char>(id[1]))) {
-        return;  // 不是形参（PP… 是形参结构体里的指针字段所指的对象，不算）
-    }
-    int k = static_cast<int>(std::strtol(id.c_str() + 1, nullptr, 10));
-    llvm::Optional<std::string> pointee = PointeeKey(k);
-    if (!pointee) {
+    ExternalView x = ViewOf(id);
+    if (x.kind == ExternalView::Kind::None) {
         return;
     }
+    auto charLike = [](const std::string &k) { return k == "u8" || k == "i8" || k == "void"; };
+    auto same = [&](const ExternalView &y) {
+        auto eq = [](const std::string &a, const std::string &b) { return !a.empty() && a == b; };
+        return eq(y.key, x.key) || eq(y.key, x.parentKey) || eq(y.parentKey, x.key) || eq(y.parentKey, x.parentKey);
+    };
+    auto hit = [&](const ExternalView &y) {
+        if (y.kind == ExternalView::Kind::None) {
+            return false;
+        }
+        if (y.kind == ExternalView::Kind::Global) {
+            return x.kind != ExternalView::Kind::Global && same(y);
+        }
+        return same(y) || charLike(y.key);
+    };
+    auto ownFamily = [&](llvm::StringRef other) {
+        if (x.kind != ExternalView::Kind::Param) {
+            return other == id;
+        }
+        std::string root = "P" + std::to_string(x.param);
+        return other == root || other.startswith(root + ".");
+    };
+    // 候选：所有指针形参、格里出现的外部基址（成员数组、指针字段所指、全局）、类型键相同的全局（之后读全局标量要知道改过）
+    std::set<std::string> candidates;
     for (const fir::Local &l : f.locals) {
-        if (l.param < 0 || l.param == k || PointeeKey(l.param) != pointee) {
+        if (l.param >= 0 && ParamPointee(l.param) != fir::kNone) {
+            candidates.insert("P" + std::to_string(l.param));
+        }
+    }
+    for (const auto &cell : s.cells) {
+        llvm::StringRef base = std::get<0>(cell.first);
+        if (base.startswith("P") || base.startswith("G")) {
+            candidates.insert(base.str());
+        }
+    }
+    if (x.kind != ExternalView::Kind::Global) {
+        for (const std::string &key : {x.key, x.parentKey}) {
+            for (const std::string &g : GlobalsWithKey(key)) {
+                candidates.insert(g);
+            }
+        }
+    }
+    for (const std::string &other : candidates) {
+        if (ownFamily(other) || !hit(ViewOf(other))) {
             continue;
         }
-        std::string other = "P" + std::to_string(l.param);
+        bool param = other.size() >= 2 && other[0] == 'P' && std::isdigit(static_cast<unsigned char>(other[1])) &&
+                     other.find('.') == std::string::npos;
         for (auto it = s.cells.begin(); it != s.cells.end();) {
             llvm::StringRef base = std::get<0>(it->first);
-            bool same = base == other || base.startswith(other + ".");
-            it = same ? s.cells.erase(it) : std::next(it);
+            bool drop = base == other || (param && base.startswith(other + "."));
+            it = drop ? s.cells.erase(it) : std::next(it);
         }
         s.writtenAll.insert(other);
     }
@@ -1926,6 +2050,7 @@ void Analyzer::ApplyMods(const fir::Inst &inst, const std::vector<std::string> &
             int64_t at = v.p.off.value.Constant() + off;
             s.written.insert(CellKey(v.p.id, at, size));
             eraseBase(v.p.id, std::make_pair(at, size));
+            InvalidateFamily(s, v.p, at, size);  // 成员数组 / 外层（SPEC-0090、0091）
             AliasWritten(s, v.p.id);
             PtrVal q = v.p;
             q.off = IntVal::Exact(LinExpr::Const(at));
@@ -1933,6 +2058,7 @@ void Analyzer::ApplyMods(const fir::Inst &inst, const std::vector<std::string> &
         } else {
             MarkWritten(s, v.p.id);
             eraseBase(v.p.id, llvm::None);
+            InvalidateFamily(s, v.p, llvm::None, 0);  // 成员数组 / 外层（SPEC-0090、0091）
             AddMod(v.p, llvm::None);
         }
     }

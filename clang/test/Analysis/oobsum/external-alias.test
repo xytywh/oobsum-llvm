@@ -1,0 +1,18 @@
+# 外部内存的别名（oobsum/specs/SPEC-0091）：形参所指、指针字段所指、全局之间按类型键互相失效；char / void 指针视角被任何写影响。
+# 原来 A1（形参就是全局数组）、A2（形参就是 m->buf 所指）、A4（UINT8 * 与 UINT32 * 指向同一块）判 SAFE（错误）。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/extalias/a.c 2>&1 | FileCheck %s
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
+# RUN:   %S/Inputs/extalias/a.c 2>&1 | not grep -E "a.c:(8|11|18):1: warning: \[OOB-SAFE:within\] Proven within bounds: up to byte [0-9]+ of 'a'"
+
+CHECK-DAG: a.c:8:1: warning: [OOB-SUSPECT:type_range_only]
+CHECK-DAG: a.c:11:1: warning: [OOB-SUSPECT:type_range_only]
+CHECK-DAG: a.c:18:1: warning: [OOB-SUSPECT:type_range_only]
+# 对照：char 输出缓冲区的写不影响结构体形参的长度（SPEC-0040 的取舍）
+CHECK-DAG: a.c:23:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 1-level call chain: up to byte 101 of 'a' (4 bytes) is accessed
+CHECK-DAG: a.c:24:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 3 of 'a' (4 bytes)
+# 对照：经 UINT32 * 写不影响 UINT8 全局数组
+CHECK-DAG: a.c:27:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 3 of 'a' (4 bytes)

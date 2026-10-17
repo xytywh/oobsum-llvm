@@ -1713,3 +1713,21 @@ TEST(Interp, MemberAliasStore)
     EXPECT_TRUE(reqs.find("obj=*p1 end=[3, 3]") == std::string::npos);
     EXPECT_TRUE(reqs.find("obj=*p1") != std::string::npos);
 }
+
+TEST(Interp, ExternalAlias)
+{
+    // SPEC-0091：g_idx[1] = 2; p[1] = 200;（p 是 UINT8 *，可能就是 g_idx）t = g_idx[1]; q[t] = 0 → t 不能还是 2
+    Builder b;
+    TypeId tbl = b.m.Intern(Type::Arr(b.u8, 4));
+    b.m.globals.push_back({"G@abc:g_idx", "g_idx", true, tbl, {0, 3, 15}});
+    TypeId pu8 = b.m.Intern(Type::Ptr(b.u8));
+    uint32_t p = b.Param("p", pu8);
+    uint32_t q = b.Param("q", pu8);
+    uint32_t t = b.LocalVar("t", b.u8);
+    ExprId g1 = b.PAdd(b.f.Add(Expr::GAddr("G@abc:g_idx")), b.C(1));
+    b.Straight({b.Store(g1, 1, b.C(2), 5), b.Store(b.PAdd(b.L(p), b.C(1)), 1, b.C(200), 6), b.Load(t, g1, 1, 7),
+                b.Store(b.PAdd(b.L(q), b.L(t)), 1, b.C(0), 8)});
+    std::string reqs = Reqs(b.Run());
+    EXPECT_TRUE(reqs.find("obj=*p1 end=[3, 3]") == std::string::npos);
+    EXPECT_TRUE(reqs.find("obj=*p1") != std::string::npos);
+}
