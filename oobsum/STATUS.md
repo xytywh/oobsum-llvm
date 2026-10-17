@@ -311,27 +311,20 @@
 
 ## 等用户提供 / 在公司做的
 
+* **已决定（2026-10-17，HANDOFF D20…D23）**：① `char *` 写当成可能改了任何外部内存，选项 `CharAlias` 控制（默认打开）——**公司实测**：业务子目录上
+  `CharAlias=true` / `false` 各跑一遍，带回 SUSPECT 条数差，再定默认；② G2 口径改为 TN 零 DEFINITE / POSSIBLE、SUSPECT 单列（SPEC-0102，已改）；
+  ③ 多维数组每一维、成员数组都查内层界，越出内层没越出外层记 SUSPECT（新原因）；④ `strcpy_s` 族出错时写多少：公司确认后在模型文件里按需配置
+  （出错按 destMax 清零 → 去掉 `upto`），不影响开发；确认后再按 SPEC 改 LV7-05 的 `@expect`。
+
 * **跨 TU 的 bxen 命令格式**（SPEC-0031 §8）：bxen 跑多个文件时 `-cc_json` 给目录还是文件、`-analysis_folder` 与过滤后的 cdb 怎么配合。驱动的模板按 COMPANY.md §4
   的写法猜的；在公司先用 `oobsum_run.py bxen …`（不加 `--run`）打印三段命令，跑一遍 TestCase 目录，不对就把正确的写法告诉我。
 
-* **点头**：SPEC-0002 §7 提议把 07- / 06- T-09 的 G2"期望为 `-` / `记账` 的入口零告警"改成"零 DEFINITE / POSSIBLE 告警，SUSPECT 条数单列"
-  （D16 召回优先的直接推论；不点头的话，G2 时 TN 上的 SUSPECT 都算不通过）。
 * 公司（可选，很快）：bxen 命令加 `-analyzer-config rb.enhance.ipa.OobSummary:Dump=fir` 跑 TestCase，看 `module` 行是否 `ptr=4 long=4 big-endian`
   （fork 是否按 ILP32 分析，对应探针 R2），以及 `char` 字段是否 `u8`。只带回"是/否"。
 * 公司：`oobsum/devenv/fork-facts.sh` 的输出；I0 探针 R1–R3；TestCase 在 bxen 下的结果（**现在预期 4 条告警 + 判定日志 7 条**：
   骨架的 3 条 + 引擎的三层链 `Tc_Engine_TP` 一条 DEFINITE；`Dump=stats` 应为 `decisions=7 emitted=4`）。
 * 公司（可选）：引擎已在默认的 `Phase=inline` 下跑。拿 bxen 跑一个业务子目录，
   带回各标签 / 原因的条数与耗时（`tools/decisions.py` 汇总，只要数字），用来定 `SuspectReasons` 的默认值（`not_in_tu`、`typed_field` 预计很多）。
-* **决定：嵌套子对象的越界要不要先报 SUSPECT**（探针发现）：二维数组行内越界（`a[0][5]`，`UINT8 a[2][4]`）、结构体数组元素里的成员越界但仍在下一个元素里
-  （`astEnt[0].aucName[8]`），现在只按整个对象 / 外层成员查，判 SAFE（只进日志、不报）。06- §1.3 把它列为 P1（不在年内承诺）。
-  选项：① 维持（P1 再做行级的界）；② 年内先把"下标跨出内层子对象"记 SUSPECT（多报，覆盖这类写法；二维数组访问多的模块会多出不少 SUSPECT）。我倾向 ①。
-* **决定：`char` 缓冲区的写要不要当成改了结构体形参**（SPEC-0040 §2.2 / SPEC-0091 保留的取舍）：现在经 `UINT8 *` / `void *` 写时，不让所指类型是结构体
-  （或别的非 `char` 类型）的形参、全局失效。调用方真的把 `(UINT8 *)pst` 与 `pst` 一起传进来时，`pst->ulLen` 先写 2、经字节指针改成 200、再读 → 仍判 SAFE（错误）。
-  选项：① 维持（我倾向这个：编码函数"先写输出缓冲区、再读输入结构体的长度"非常普遍，全当别名会把这类函数里按长度的访问都变成 SUSPECT `type_range_only`；
-  同一个对象既按字节又按结构体传进来的写法少见，CSA 自己的 inline 也覆盖一部分）；② 改成可靠（多出的 SUSPECT 条数可以先在公司子目录上量一下再定）。
-* **确认 securec 的 `strcpy_s` 族出错时写多少**（SPEC-0034）：我按 libboundscheck 的实现理解为"最多写实际长度 + 1，出错只写 `dest[0] = '\0'`"，
-  所以 destMax 超过目的大小报 **POSSIBLE**；用例 LV7-05 的注释写的是"出错路径会按 destMax 清零"（`later=L1`）。公司的 securec 版本若真按 destMax 清零，
-  告诉我改成 DEFINITE（内置表去掉 `upto`；在模型文件里覆盖也行，不用改代码）。确认前不改 LV7-05 的 `@expect`。
 * 公司（可选）：业务代码里函数 CFG 块数的分布（P99、最大值），用来定 `MaxBlocks` 的默认值（现在 5000，06- I-18"探针给出 P99 后再定"；SPEC-0037 §8）。
 * **I5 / I8 / I9 现在写进模型文件即可，不用改代码**（SPEC-0033）：复制 `oobsum/config/oob_models.example.yaml`，改 `VOS_MemAlloc` 的 `size`（I5）、
   加内部封装的拷贝 / 分配函数（I8）、纯函数清单（I9），bxen 命令加 `-analyzer-config rb.enhance.ipa.OobSummary:ModelFile=<路径>`，用 `Dump=models` 确认生效。

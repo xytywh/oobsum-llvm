@@ -434,8 +434,9 @@ def cmd_csa(a):
                     rep = 'suspect'
                     actual = '%s@%s' % (_tag(sus[0]), names_of.get(sus[0]['fn'], _fn_name(sus[0]['fn']))) + \
                         ('×%d' % len(sus) if len(sus) > 1 else '')
+            nsus = len([d for d in decs if _fn_name(d['fn']) == e['entry'] and d.get('emitted') and d['label'] == 'suspect'])
             entries.append({'case': cid, 'kind': e['kind'], 'entry': e['entry'], 'pa': pa, 'actual': actual,
-                            'verdict': _verdict(e['kind'], pa, rep, len(srcs) > 1 and not xtu)})
+                            'verdict': _verdict(e['kind'], pa, rep, len(srcs) > 1 and not xtu), 'nsus': nsus})
         for d in decs:
             key = (cid, d['site'], d['kind'])
             if d['label'] == 'safe':
@@ -472,6 +473,11 @@ def cmd_csa(a):
     c = Counter(e['verdict'] for e in entries)
     print('合计 %d 个入口：%s；其它报出 %d 条' % (len(entries), '，'.join('%s %d' % (v, c[v]) for v in VERDICTS + ['?'] if c[v]),
                                           len(others)))
+    # G2 口径（SPEC-0102）：TN 入口零 DEFINITE / POSSIBLE；SUSPECT 条数单列
+    tn = [e for e in entries if e['kind'] == 'TN']
+    print('G2：TN %d 个入口，报出 DEFINITE / POSSIBLE %d 个（须为 0）；带 SUSPECT 的 %d 个、共 %d 条（单列）' % (
+        len(tn), len([e for e in tn if e['verdict'] == '误报']), len([e for e in tn if e['nsus']]),
+        sum(e['nsus'] for e in tn)))
     for msg in errors:
         print('✗ 运行错误：' + msg)
 
