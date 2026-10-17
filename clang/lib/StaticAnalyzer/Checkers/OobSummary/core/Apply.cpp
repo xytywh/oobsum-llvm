@@ -633,23 +633,42 @@ llvm::Optional<Call> SubCall(const summary::Req &req, const Call &call)
     if (!req.dir.empty()) {
         return llvm::None;
     }
-    static llvm::Regex re("^\\*p([0-9]+)$");
-    llvm::SmallVector<llvm::StringRef, 2> groups;
+    // *p<k>：实参本身；*p<k>->f：实参所指结构体里记着的指针字段值（SPEC-0107 §2.1）
+    static llvm::Regex re("^\\*p([0-9]+)(->([A-Za-z0-9_]+))?$");
+    llvm::SmallVector<llvm::StringRef, 4> groups;
     unsigned long long k = 0;
     if (!re.match(req.obj, &groups) || groups[1].getAsInteger(10, k) || k >= call.args.size()) {
         return llvm::None;
     }
     const ArgValue &arg = call.args[k];
-    if (arg.kind != ArgValue::Kind::Ptr || !arg.ptr->sub || P(req.have) != LinExpr::Ext("p" + std::to_string(k))) {
+    std::string field = groups[3].str();
+    std::string root = "p" + std::to_string(k) + (field.empty() ? "" : "->" + field);
+    if (arg.kind != ArgValue::Kind::Ptr || P(req.have) != LinExpr::Ext(root)) {
         return llvm::None;
     }
-    Call out = call;
+    const ArgValue *target = &arg;
+    if (!field.empty()) {
+        if (!arg.ptr->fields || arg.ptr->fields->count(field) == 0) {
+            return llvm::None;
+        }
+        target = &arg.ptr->fields->at(field);
+    }
+    if (target->kind != ArgValue::Kind::Ptr || !target->ptr->sub) {
+        return llvm::None;
+    }
     auto inner = std::make_shared<summary::PtrArg>();
-    inner->obj = arg.ptr->obj;
-    inner->have = *arg.ptr->sub;
-    inner->effDepth = arg.ptr->effDepth;
-    inner->fields = arg.ptr->fields;
-    out.args[k].ptr = inner;
+    inner->obj = target->ptr->obj;
+    inner->have = *target->ptr->sub;
+    inner->effDepth = target->ptr->effDepth;
+    inner->fields = target->ptr->fields;
+    Call out = call;
+    if (field.empty()) {
+        out.args[k].ptr = inner;
+    } else {
+        auto outer = std::make_shared<summary::PtrArg>(*arg.ptr);
+        (*outer->fields)[field].ptr = inner;
+        out.args[k].ptr = outer;
+    }
     return out;
 }
 

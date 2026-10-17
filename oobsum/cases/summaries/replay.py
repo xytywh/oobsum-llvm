@@ -844,21 +844,25 @@ def parent_call(req, call):
 
 
 def sub_call(req, call):
-    """带窗口的实参（SPEC-0104 §2.3 3b，同 apply::SubCall）：req 是 *pK 上的正向 Req、have 正好是 ext(pK)、第 K 个实参带 sub →
-    这个实参换成只剩 sub 的调用点（去掉 alias / parent / back / off_*）；否则 None。"""
-    m = re.match(r'^\*p([0-9]+)$', req['obj'])
+    """带窗口的实参（SPEC-0104 §2.3 3b、SPEC-0107 §2.1，同 apply::SubCall）：req 是 *pK（或 *pK->f）上的正向 Req、have 正好是 ext(pK)（ext(pK->f)）、
+    第 K 个实参（它记着的字段 f）带 sub → 换成只剩 sub 的调用点（去掉 alias / parent / back / off_*）；否则 None。"""
+    m = re.match(r'^\*p([0-9]+)(->([A-Za-z0-9_]+))?$', req['obj'])
     if req.get('dir') or not m or int(m.group(1)) >= len(call['args']):
         return None
-    k = int(m.group(1))
+    k, field = int(m.group(1)), m.group(3)
     arg = call['args'][k]
-    if not isinstance(arg, dict) or 'sub' not in arg or P(req['have']) != P('ext(p%d)' % k):
+    root = 'p%d' % k + ('->%s' % field if field else '')
+    if not isinstance(arg, dict) or 'obj' not in arg or P(req['have']) != P('ext(%s)' % root):
         return None
-    inner = {'obj': arg['obj'], 'have': arg['sub']}
+    target = arg if not field else (arg.get('fields') or {}).get(field)
+    if not isinstance(target, dict) or 'sub' not in target:
+        return None
+    inner = {'obj': target['obj'], 'have': target['sub']}
     for key in ('eff_depth', 'fields'):
-        if key in arg:
-            inner[key] = arg[key]
+        if key in target:
+            inner[key] = target[key]
     args = list(call['args'])
-    args[k] = inner
+    args[k] = inner if not field else dict(arg, fields=dict(arg['fields'], **{field: inner}))
     return dict(call, args=args)
 
 

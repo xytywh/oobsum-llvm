@@ -665,6 +665,17 @@ IntVal WidenInt(const IntVal &a, const IntVal &b);
 
 constexpr size_t kMaxSubs = 4;  // 一个指针至多带几个内层窗口（SPEC-0104）
 
+// 从这个指针起最内层子对象还剩多少字节（取最小的，SPEC-0104 §2.3 3b）；没有窗口、窗口到基址末尾、偏移没有上界 → None
+llvm::Optional<std::string> SubRest(const PtrVal &p)
+{
+    if (p.subs.empty() || p.subs.back().tail) {
+        return llvm::None;
+    }
+    llvm::Optional<LinExpr> whi = p.subs.back().off.Upper();
+    LinExpr rest = whi ? LinExpr::Const(p.subs.back().size) - *whi : LinExpr::Unknown();
+    return rest.IsUnknown() ? llvm::None : llvm::Optional<std::string>(rest.Show());
+}
+
 // 偏移 d 同时加到每个内层窗口上（SPEC-0104 §2.2）
 void ShiftSubs(PtrVal &p, const IntVal &d)
 {
@@ -3611,13 +3622,7 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s, bool alt)
                     }
                     arg.ptr->back = BackText(v.p);  // 前面取最小的（偏移下界，SPEC-0039）
                     // 指向成员数组 / 多维数组的一行：另记最内层子对象的剩余，代换时内层也查（SPEC-0104 §2.3 3b）
-                    if (!v.p.subs.empty() && !v.p.subs.back().tail) {
-                        llvm::Optional<LinExpr> whi = v.p.subs.back().off.Upper();
-                        LinExpr rest = whi ? LinExpr::Const(v.p.subs.back().size) - *whi : LinExpr::Unknown();
-                        if (!rest.IsUnknown()) {
-                            arg.ptr->sub = rest.Show();
-                        }
-                    }
+                    arg.ptr->sub = SubRest(v.p);
                     if (v.p.kind == BaseKind::Param && v.p.off.IsConst() && v.p.off.value.Constant() == 0) {
                         arg.ptr->alias = v.p.obj.substr(1);  // *p0 → p0
                     }
@@ -5368,6 +5373,7 @@ std::map<std::string, summary::ArgValue> Analyzer::ArgFields(const PtrVal &p, co
             a.ptr->obj = v.p.obj;
             a.ptr->have = (v.p.size - *hi).Show();
             a.ptr->back = BackText(v.p);  // SPEC-0039
+            a.ptr->sub = SubRest(v.p);    // 字段里的指针也记内层剩余（SPEC-0107 §2.1）
             if (v.p.kind == BaseKind::Heap && v.p.effDepth > 0) {
                 a.ptr->effDepth = v.p.effDepth;
             }

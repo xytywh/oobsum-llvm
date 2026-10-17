@@ -307,3 +307,47 @@ TEST(Apply, CheckAssume)
     EXPECT_EQ(check("g:g_x", "*p2", {"p0", "p1->pucBuf"}), "up:g:g_x&p2->pucBuf");
     EXPECT_EQ(check("local:b", "local:st", {"p0", "p1->pucBuf"}), "unknown:p1->pucBuf");
 }
+
+TEST(Apply, SubObjectFieldArg)
+{
+    // SPEC-0107 §2.1：被调者经 p0->pucBuf 写 p1 字节（have ext(p0->pucBuf)）；实参结构体里记着的字段值指向 st.aucBuf：外层剩 28、内层剩 16
+    summary::Req req;
+    req.id = "R1";
+    req.kind = "W";
+    req.have = "ext(p0->pucBuf)";
+    req.obj = "*p0->pucBuf";
+    req.endLo = "p1";
+    req.endHi = "p1";
+    req.bound = "exact";
+    req.access = {"Proc", "F:Proc", "f.c:6", "p1"};
+    req.path = {"Proc@f.c:6"};
+    summary::ArgValue field;
+    field.kind = summary::ArgValue::Kind::Ptr;
+    field.ptr = std::make_shared<summary::PtrArg>();
+    field.ptr->obj = "local:st";
+    field.ptr->have = "28";
+    field.ptr->sub = std::string("16");
+    summary::ArgValue view;
+    view.kind = summary::ArgValue::Kind::Ptr;
+    view.ptr = std::make_shared<summary::PtrArg>();
+    view.ptr->obj = "local:v";
+    view.ptr->have = "8";
+    view.ptr->fields = std::map<std::string, summary::ArgValue>{{"pucBuf", field}};
+    summary::ArgValue n;
+    n.kind = summary::ArgValue::Kind::Expr;
+    n.expr = "20";
+    summary::Call call;
+    call.site = "f.c:7";
+    call.callee = "Proc";
+    call.args = {view, n};
+    summary::Summary caller;
+    caller.fn = "Top";
+    caller.key = "F:Top";
+    std::vector<apply::SiteClass> all = apply::ClassifyAll(req, call, caller, {});
+    ASSERT_TRUE(all.size() == 2);
+    EXPECT_EQ(all[0].mine.outcome, "safe");
+    EXPECT_EQ(all[1].mine.outcome + ":" + all[1].mine.reason + ":" + all[1].mine.dir, "open:subobject_overflow:sub");
+    EXPECT_EQ(view.ptr->fields->at("pucBuf").ptr->have, "28");  // 原来的实参不动
+    call.args[1].expr = "16";
+    EXPECT_TRUE(apply::ClassifyAll(req, call, caller, {}).size() == 1);
+}
