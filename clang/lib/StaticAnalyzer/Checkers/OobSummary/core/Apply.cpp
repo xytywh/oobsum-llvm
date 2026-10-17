@@ -622,24 +622,62 @@ llvm::Optional<Call> ParentCall(const summary::Req &req, const Call &call)
     return out;
 }
 
-// 同 replay.py 的 classify_all：成员已经报 / 记账 → 只有它；成员 safe → 外层不 safe 就换成外层的；成员 up → 外层不 safe 时两条都要
+// 带窗口的实参（SPEC-0104 §2.3 3b）：req 是 *pK 上的正向 Req、have 正好是 ext(pK)、第 K 个实参带 sub →
+// 这个实参换成"只剩 sub"的调用点（同 replay.py 的 sub_call）
+llvm::Optional<Call> SubCall(const summary::Req &req, const Call &call)
+{
+    if (!req.dir.empty()) {
+        return llvm::None;
+    }
+    static llvm::Regex re("^\\*p([0-9]+)$");
+    llvm::SmallVector<llvm::StringRef, 2> groups;
+    unsigned long long k = 0;
+    if (!re.match(req.obj, &groups) || groups[1].getAsInteger(10, k) || k >= call.args.size()) {
+        return llvm::None;
+    }
+    const ArgValue &arg = call.args[k];
+    if (arg.kind != ArgValue::Kind::Ptr || !arg.ptr->sub || P(req.have) != LinExpr::Ext("p" + std::to_string(k))) {
+        return llvm::None;
+    }
+    Call out = call;
+    auto inner = std::make_shared<summary::PtrArg>();
+    inner->obj = arg.ptr->obj;
+    inner->have = *arg.ptr->sub;
+    inner->effDepth = arg.ptr->effDepth;
+    inner->fields = arg.ptr->fields;
+    out.args[k].ptr = inner;
+    return out;
+}
+
+// 同 replay.py 的 classify_all：成员已经报 / 记账 → 只有它；成员 safe → 外层不 safe 就换成外层的；成员 up → 外层不 safe 时两条都要。
+// 带窗口的实参：前面的结局都是 safe / up 时内层另判一次，不是 safe 就加上（dir "sub"，SPEC-0104 §2.3 3b）
 std::vector<SiteClass> ClassifyAll(const summary::Req &req, const Call &call, const Summary &caller,
                                    const EnvGuards &envGuards)
 {
     std::vector<SiteClass> out{{Classify(req, call, caller, envGuards), call, false}};
     llvm::Optional<Call> outer = ParentCall(req, call);
-    const std::string &first = out[0].mine.outcome;
-    if (!outer || (first != "safe" && first != "up")) {
-        return out;
+    const std::string first = out[0].mine.outcome;
+    if (outer && (first == "safe" || first == "up")) {
+        SiteClass o{Classify(req, *outer, caller, envGuards), *outer, true};
+        if (o.mine.outcome != "safe") {
+            if (first == "safe") {
+                out.clear();
+            }
+            out.push_back(std::move(o));
+        }
     }
-    SiteClass o{Classify(req, *outer, caller, envGuards), *outer, true};
-    if (o.mine.outcome == "safe") {
-        return out;
+    llvm::Optional<Call> inner = SubCall(req, call);
+    bool clean =
+        llvm::all_of(out, [](const SiteClass &x) { return x.mine.outcome == "safe" || x.mine.outcome == "up"; });
+    if (inner && clean) {
+        summary::Req rs = req;
+        rs.dir = "sub";
+        SiteClass i{Classify(rs, *inner, caller, envGuards), *inner, false};
+        if (i.mine.outcome != "safe") {
+            i.mine.dir = "sub";
+            out.push_back(std::move(i));
+        }
     }
-    if (first == "safe") {
-        out.clear();
-    }
-    out.push_back(std::move(o));
     return out;
 }
 

@@ -216,3 +216,51 @@ TEST(Apply, SubObjectReqIsSuspectOnly)
     call.args[0].expr = "8";
     EXPECT_EQ(apply::Classify(req, call, caller, {}).outcome, "L1");
 }
+
+TEST(Apply, SubObjectArg)
+{
+    // 带窗口的实参（SPEC-0104 §2.3 3b）：被调者写 p1 字节到 *p0（have ext(p0)）；实参 st.aucBuf：外层剩 28、内层剩 16。
+    // n = 20 → 外层 safe、内层越出 → 加一条 open subobject_overflow（dir sub）；n = 16 → 只有外层 safe；n = 40 → 外层 L1，不加内层
+    summary::Req req;
+    req.id = "R1";
+    req.kind = "W";
+    req.have = "ext(p0)";
+    req.obj = "*p0";
+    req.endLo = "p1";
+    req.endHi = "p1";
+    req.bound = "exact";
+    req.access = {"Fill", "F:Fill", "a.c:5", "p1"};
+    req.path = {"Fill@a.c:5"};
+    summary::Call call;
+    call.site = "a.c:7";
+    call.callee = "Fill";
+    summary::ArgValue ptr;
+    ptr.kind = summary::ArgValue::Kind::Ptr;
+    ptr.ptr = std::make_shared<summary::PtrArg>();
+    ptr.ptr->obj = "local:st";
+    ptr.ptr->have = "28";
+    ptr.ptr->sub = std::string("16");
+    summary::ArgValue n;
+    n.kind = summary::ArgValue::Kind::Expr;
+    n.expr = "20";
+    call.args = {ptr, n};
+    summary::Summary caller;
+    caller.fn = "Top";
+    caller.key = "F:Top";
+    std::vector<apply::SiteClass> all = apply::ClassifyAll(req, call, caller, {});
+    ASSERT_TRUE(all.size() == 2);
+    EXPECT_EQ(all[0].mine.outcome, "safe");
+    EXPECT_EQ(all[1].mine.outcome + ":" + all[1].mine.reason + ":" + all[1].mine.dir, "open:subobject_overflow:sub");
+    EXPECT_EQ(all[1].mine.have.Show(), "16");
+    call.args[1].expr = "16";
+    EXPECT_TRUE(apply::ClassifyAll(req, call, caller, {}).size() == 1);
+    call.args[1].expr = "40";
+    all = apply::ClassifyAll(req, call, caller, {});
+    ASSERT_TRUE(all.size() == 1);
+    EXPECT_EQ(all[0].mine.outcome, "L1");
+    // 被调者的实参是调用方形参 → 外层、内层都上传
+    call.args[1].expr = "p1";
+    all = apply::ClassifyAll(req, call, caller, {});
+    ASSERT_TRUE(all.size() == 2);
+    EXPECT_EQ(all[1].mine.outcome + ":" + all[1].mine.dir, "up:sub");
+}

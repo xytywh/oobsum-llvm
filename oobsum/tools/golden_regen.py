@@ -88,7 +88,7 @@ def regen(cid):
                         c = {'have': mine['have'], 'obj': mine['obj'], 'lo': mine['end2'][0], 'hi': mine['end2'][1], 'guards': g,
                              'gkey': frozenset(R.show_atom_le0(x) for x in g), 'depth': mine['depth'], 'eff_depth': mine['eff_depth'],
                              'bound': mine['bound'], 'path': ['%s@%s' % (fn, call['site'])] + r['path'], 'access': r['access'],
-                             'kind': r['kind'], 'src': 'up', 'blind': r['blind'], 'dir': r.get('dir'),
+                             'kind': r['kind'], 'src': 'up', 'blind': r['blind'], 'dir': mine.get('dir') or r.get('dir'),
                              'start': R.subst(R.P(r['start']), mm) if 'start' in r else None}
                         cand.append(c)
                     pending.append((call, r, mine, c, ucall, outer))

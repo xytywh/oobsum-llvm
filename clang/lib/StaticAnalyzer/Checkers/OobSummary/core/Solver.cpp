@@ -264,7 +264,7 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns)
                         d.path = path;
                         d.access = r.access;
                         d.kind = r.kind;
-                        d.dir = r.dir;
+                        d.dir = mine.dir.empty() ? r.dir : mine.dir;  // 带窗口实参的内层那条（SPEC-0104 §2.3 3b）
                         cand.push_back(std::move(d));
                         ++out.up;
                     } else if (mine.outcome == "L1" || mine.outcome == "L2") {

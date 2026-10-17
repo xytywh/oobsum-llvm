@@ -30,6 +30,7 @@ constexpr int64_t kInlineDepth = 2;
 // classify 的结果（同 replay.py 返回的 dict）
 struct Outcome {
     std::string outcome;  // safe / L1 / L2 / up / open
+    std::string dir;  // 结局对应的 Req 方向：空 = 照被调者的那条；"sub" = 带窗口实参的内层那条（SPEC-0104 §2.3 3b）
     std::string reason;  // open：账本原因；safe：怎么证明的（guard_false / within / guard_entailed / guard_bounds）
     std::string why;  // 说明（只给 Dump=apply 看）
     LinExpr have;
@@ -69,6 +70,8 @@ Outcome Classify(const summary::Req &req, const summary::Call &call, const summa
                  const EnvGuards &envGuards);
 // 成员数组实参的外层对象（SPEC-0035）：req 的对象是 *pK、第 K 个实参带 parent → 把它换成外层对象的调用点；否则 None
 llvm::Optional<summary::Call> ParentCall(const summary::Req &req, const summary::Call &call);
+// 带窗口的实参（SPEC-0104 §2.3 3b）：第 K 个实参换成只剩内层（sub）的调用点；不适用时 None
+llvm::Optional<summary::Call> SubCall(const summary::Req &req, const summary::Call &call);
 // 调用点判定的全部结局（SPEC-0035 §2.2）：(结局, 调用点（外层那一条是换过实参的）, 是不是外层对象那一条)
 struct SiteClass {
     Outcome mine;

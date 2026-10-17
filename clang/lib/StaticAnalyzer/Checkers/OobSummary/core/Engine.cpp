@@ -436,6 +436,9 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             if (!mine.reason.empty()) {
                 line += " (" + mine.reason + ")";
             }
+            if (!mine.dir.empty()) {
+                line += " [" + mine.dir + "]";  // 带窗口实参的内层那条（SPEC-0104）
+            }
             out.applyLines.push_back(line);
             if (mine.outcome != "safe" && mine.outcome != "open") {
                 continue;
@@ -449,7 +452,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.endLo = (mine.hasBase ? mine.end2Lo : mine.endLo).Show();
             d.endHi = (mine.hasBase ? mine.end2Hi : mine.endHi).Show();
             d.bound = mine.hasBase ? mine.bound : so.req.bound;
-            d.dir = so.req.dir;
+            d.dir = mine.dir.empty() ? so.req.dir : mine.dir;  // 带窗口实参的内层那条（SPEC-0104 §2.3 3b）
             d.depth = static_cast<unsigned>(mine.hasBase ? mine.depth : so.req.depth + 1);
             d.effDepth = static_cast<unsigned>(mine.hasBase ? mine.effDepth : so.req.effDepth);
             std::vector<std::string> path{s.fn + "@" + so.site};  // 函数名（fn 是函数键，SPEC-0027）

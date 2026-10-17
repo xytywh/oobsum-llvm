@@ -117,6 +117,7 @@
         "off_lo": { "$ref": "#/definitions/expr", "description": "指针偏移是区间时的下界（调用方的说法；不知道时不写，SPEC-0095）" },
         "off_hi": { "$ref": "#/definitions/expr", "description": "指针偏移是区间时的上界；have 是按它算的最小剩余（SPEC-0095）" },
         "off_bound": { "$ref": "#/definitions/tag", "description": "偏移上界的来源（SPEC-0095）" },
+        "sub": { "$ref": "#/definitions/expr", "description": "实参指向成员数组 / 多维数组的一行时：从这个指针起子对象还剩多少字节（最小的；代换时内层也查，SPEC-0104）" },
         "parent": { "type": "object", "additionalProperties": false, "required": ["obj", "have"],
                     "description": "实参是形参所指结构体里的成员数组时：外层对象与从这个指针起外层还剩多少字节（SPEC-0035）",
                     "properties": { "obj": { "$ref": "#/definitions/obj" }, "have": { "$ref": "#/definitions/expr" } } },

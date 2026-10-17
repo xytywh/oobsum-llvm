@@ -839,17 +839,42 @@ def parent_call(req, call):
     return dict(call, args=args)
 
 
+def sub_call(req, call):
+    """带窗口的实参（SPEC-0104 §2.3 3b，同 apply::SubCall）：req 是 *pK 上的正向 Req、have 正好是 ext(pK)、第 K 个实参带 sub →
+    这个实参换成只剩 sub 的调用点（去掉 alias / parent / back / off_*）；否则 None。"""
+    m = re.match(r'^\*p([0-9]+)$', req['obj'])
+    if req.get('dir') or not m or int(m.group(1)) >= len(call['args']):
+        return None
+    k = int(m.group(1))
+    arg = call['args'][k]
+    if not isinstance(arg, dict) or 'sub' not in arg or P(req['have']) != P('ext(p%d)' % k):
+        return None
+    inner = {'obj': arg['obj'], 'have': arg['sub']}
+    for key in ('eff_depth', 'fields'):
+        if key in arg:
+            inner[key] = arg[key]
+    args = list(call['args'])
+    args[k] = inner
+    return dict(call, args=args)
+
+
 def classify_all(req, call, caller, callee, env_guards):
     """调用点判定的全部结局 [(结论, 调用点, 是不是外层对象那一条)]（SPEC-0035 §2.2）：成员已经报 / 记账 → 只有它；
-    成员 safe → 外层不 safe 就换成外层的；成员 up → 外层不 safe 时两条都要。"""
+    成员 safe → 外层不 safe 就换成外层的；成员 up → 外层不 safe 时两条都要。
+    带窗口的实参：前面的结局都是 safe / up 时内层另判一次，不是 safe 就加上（结论带 dir sub，SPEC-0104 §2.3 3b）。"""
     mine = classify(req, call, caller, callee, env_guards)
+    out = [(mine, call, False)]
     outer = parent_call(req, call)
-    if outer is None or mine['outcome'] not in ('safe', 'up'):
-        return [(mine, call, False)]
-    o = classify(req, outer, caller, callee, env_guards)
-    if o['outcome'] == 'safe':
-        return [(mine, call, False)]
-    return ([] if mine['outcome'] == 'safe' else [(mine, call, False)]) + [(o, outer, True)]
+    if outer is not None and mine['outcome'] in ('safe', 'up'):
+        o = classify(req, outer, caller, callee, env_guards)
+        if o['outcome'] != 'safe':
+            out = ([] if mine['outcome'] == 'safe' else out) + [(o, outer, True)]
+    inner = sub_call(req, call)
+    if inner is not None and all(x[0]['outcome'] in ('safe', 'up') for x in out):
+        i = classify(dict(req, dir='sub'), inner, caller, callee, env_guards)
+        if i['outcome'] != 'safe':
+            out.append((dict(i, dir='sub'), inner, False))
+    return out
 
 
 TAG_ORDER = ('type', 'widen', 'data', 'model', 'check', 'guard', 'mask', 'loop', 'branch', 'ret', 'const', 'exact')
@@ -1276,7 +1301,7 @@ def derive(cid):
                         cand.append({'have': mine['have'], 'obj': mine['obj'], 'lo': mine['end2'][0], 'hi': mine['end2'][1], 'guards': g,
                                      'gkey': frozenset(show_atom_le0(x) for x in g), 'depth': mine['depth'], 'eff_depth': mine['eff_depth'],
                                      'bound': mine['bound'], 'path': path, 'access': r['access'], 'kind': r['kind'],
-                                     'dir': r.get('dir')})
+                                     'dir': mine.get('dir') or r.get('dir')})   # 带窗口实参的内层那条（SPEC-0104）
                         stat['up'] += 1
                     elif mine['outcome'] in ('L1', 'L2'):
                         reps.append(rep_of(mine, used, fn, s, r))

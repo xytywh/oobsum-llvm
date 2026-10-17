@@ -3518,6 +3518,14 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s, bool alt)
                         arg.ptr->offBound = TagName(v.p.off.tag == Tag::None ? Tag::Widen : v.p.off.tag).str();
                     }
                     arg.ptr->back = BackText(v.p);  // 前面取最小的（偏移下界，SPEC-0039）
+                    // 指向成员数组 / 多维数组的一行：另记最内层子对象的剩余，代换时内层也查（SPEC-0104 §2.3 3b）
+                    if (!v.p.subs.empty() && !v.p.subs.back().tail) {
+                        llvm::Optional<LinExpr> whi = v.p.subs.back().off.Upper();
+                        LinExpr rest = whi ? LinExpr::Const(v.p.subs.back().size) - *whi : LinExpr::Unknown();
+                        if (!rest.IsUnknown()) {
+                            arg.ptr->sub = rest.Show();
+                        }
+                    }
                     if (v.p.kind == BaseKind::Param && v.p.off.IsConst() && v.p.off.value.Constant() == 0) {
                         arg.ptr->alias = v.p.obj.substr(1);  // *p0 → p0
                     }

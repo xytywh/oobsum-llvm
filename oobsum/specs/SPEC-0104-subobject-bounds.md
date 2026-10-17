@@ -1,6 +1,6 @@
 # SPEC-0104 多维数组每一维、成员数组都查内层界：越出内层、没越出外层记 SUSPECT `subobject_overflow`（用户决定 D22）
 
-状态：第 1 步（FIR `subobj`）、第 2 步（函数内检查）、第 3a 步（内层 Req 往调用方传）已实现；第 3b 步（带窗口的实参）见 §2.3
+状态：第 1 步（FIR `subobj`）、第 2 步（函数内检查）、第 3a 步（内层 Req 往调用方传）、第 3b 步（带窗口的实参）已实现
 来源：用户 2026-10-17 决定（HANDOFF D22）："二维数组每个维度越界了就要报出来；成员数组 / 二维数组访问时多查一道内层界，越出内层、没越出外层的记 SUSPECT 带新原因。"
 
 ```c
@@ -49,7 +49,14 @@ ENT_S astEnt[4];      astEnt[0].aucName[8];   /* 越过成员，还在 astEnt[1]
 * 摘要 JSON 的 `dir` 取 `back` / `sub`（`summary.schema.json`、`core/Summary.cpp`）。
 
 **3b 带窗口的实参**：`Fill(st.aucBuf, 20)` 这样把带窗口的指针交给被调者，被调者的 Req `end ≤ ext(p0)` 在调用点换成外层剩余（28），内层（16）不查。
-调用点记录指针实参时另记内层剩余；代换时内层不满足、外层满足 → SUSPECT `subobject_overflow`。（下一步）
+（`memcpy_s` 等模型函数在调用方自己的 `Access` 里查，第 2 步已覆盖。）
+* 调用点记指针实参（D-25）：指针带窗口、最内层窗口不到基址末尾（不是 `tail`）、窗口偏移有上界 → 另记 `sub` = 子对象大小 − 窗口偏移上界（最小的内层剩余）。
+* 调用点代换（`apply::ClassifyAll`，同 `replay.py` 的 `classify_all`）：被调者的正向 Req、对象是 `*pK`、`have` 正好是 `ext(pK)`、第 K 个实参带 `sub` →
+  外层（原来那条，含 SPEC-0035 的外层对象）的结局是 `safe` / `up` 时，另用"第 K 个实参只剩 `sub`"的调用点（去掉 `alias` / `parent` / `back` / `off_*`）、
+  把这条 Req 当内层 Req（`dir: "sub"`）再判一次：`safe` → 不加；`up` → 另往上传一条内层 Req；其余 → `open subobject_overflow`。
+  外层已经报 / 记账的不再加内层这条（同 SPEC-0035"成员已经报 → 只有它"）。
+* 结局带 `dir`（`apply::Outcome::dir`，replay 里结局的 `dir` 键）：内层这条是 `sub`，往上传与判定日志用它。
+* 不覆盖：被调者的反向 Req（负偏移越到成员前面，仍只查外层）；结构体字段里存的指针（`fields`）不记 `sub`。
 
 ## 3. 对召回与误报的影响
 
@@ -73,9 +80,15 @@ ENT_S astEnt[4];      astEnt[0].aucName[8];   /* 越过成员，还在 astEnt[1]
   按 A-44 覆盖合并（SPEC-0014 §2.4，外层 Req 一直如此）并进代表那条，代表那条照样报 SUSPECT——不是漏报。
 * compiler-rt：判定键 1370 → 1370，没有报出消失。
 
+第 3b 步实测：`run.py csa`、上游用例集、compiler-rt 与 3a 相同（这些代码里几乎没有把成员数组 / 一行交给自定义函数的写法，`memcpy_s` 等模型函数第 2 步已查）；
+效果见 lit `subobject-arg.test`。**公司实测项**：业务子目录上 `subobject_overflow` 的条数，抽查是真越出成员 / 行，还是"把二维数组当一维用"之类的有意写法。
+
 ## 4. 实现位置
 
 第 1 步：`core/Fir.{h,cpp}`（`ExprOp::SubObj`、`Expr::SubObj`）、`core/FirJson.cpp`、`core/FirText.cpp`、`lower/Lowering.cpp`、`core/Interp.cpp`（恒等）、06- D-13。
+
+第 3b 步：`core/Summary.{h,cpp}`、`summary.schema.json`（`PtrArg::sub`）；`core/Interp.cpp`（调用点记 `sub`）；`core/Apply.{h,cpp}`（`Outcome::dir`、`SubCall`、`ClassifyAll`）；
+`core/Solver.cpp`（往上传用结局的 `dir`）；`core/Engine.cpp`（判定日志与 `Dump=apply` 用结局的 `dir`）；`replay.py`（`sub_call`、`classify_all`、`derive`）；`tools/golden_regen.py`。
 
 第 3a 步：`core/Interp.cpp`（`CheckSubs` 记 `dir: "sub"` 的 `RawAccess` → `Record`）；`core/Apply.cpp`（`Classify` = `ClassifyPlain` + 内层改判）；
 `core/Solver.cpp`（入口账本原因）；`core/Engine.cpp`（`SuspectMessage` / `SafeMessage` 的内层文字）；`core/Alert.cpp`（负偏移文字只认 `back`）；
@@ -94,6 +107,9 @@ ENT_S astEnt[4];      astEnt[0].aucName[8];   /* 越过成员，还在 astEnt[1]
   → 不记；越出外层的 `a[2][0]` → 外层 DEFINITE；`Dump=state` 的窗口 `{sub 4@…}`）；单测 `Interp.SubObjectWindow`；`run.py csa`：回退 0，新增的报出逐条列出。
 * 第 3a 步：lit `subobject-req.test`（`Dump=summary` 的内层 Req；`Mark(1, 8)` → SUSPECT、`Mark(1, 7)` → SAFE、`Mark(4, 0)` 外层 DEFINITE 内层 SAFE、
   `pst->stIn.ausY[i]` 同理、入口自己的形参下标 → 入口账本 `subobject_overflow`；没有 POSSIBLE）；单测 `Apply.SubObjectReqIsSuspectOnly`。
+* 第 3b 步：lit `subobject-arg.test`（`Dump=summary` 的实参 `sub`；`Fill(st.aucBuf, 20)` → SUSPECT、`Fill(st.aucBuf, 16)` → SAFE、`Fill(st.aucBuf, 40)` 外层 DEFINITE、
+  不加内层；`Fill(a[1], 5)`（二维数组的一行）→ SUSPECT；经中间函数 `Mid(p, n) { Fill(p, n); }`：`Mid(st.aucBuf, 20)` → SUSPECT、`Mid(st.aucBuf, 16)` → SAFE）；
+  单测 `Apply.SubObjectArg`。
 
 ## 6. 调试
 
@@ -109,7 +125,8 @@ ENT_S astEnt[4];      astEnt[0].aucName[8];   /* 越过成员，还在 astEnt[1]
 
 ## 8. 公司侧验证
 
-第 2 步之后：业务子目录上 `subobject_overflow` 的条数。
+业务子目录上 `subobject_overflow` 的条数与抽查（真越出成员 / 行，还是"把二维数组当一维用"、"按成员地址清整个结构体"之类的有意写法）。
+有意写法多时，可加选项按写法关掉（例如结构体最后一个成员、`memset_s(&st.first, …, sizeof(st))`），等用户按实测决定。
 
 ## 9. 待定 / 以后
 
