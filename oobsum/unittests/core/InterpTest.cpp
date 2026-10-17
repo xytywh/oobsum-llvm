@@ -1999,3 +1999,23 @@ TEST(Interp, RetPtrMemberWindow)
     EXPECT_EQ(e.kind + " " + e.target.getValueOr("-") + " " + e.value.getValueOr("-"), "ret_ptr p0 4");
     EXPECT_EQ(e.sub.getValueOr("-") + " " + e.subOff.getValueOr("-"), "16 0");
 }
+
+TEST(Interp, SubWindowKeptAcrossJoin)
+{
+    // SPEC-0107 §2.2 第 4 步：p = c ? a[0] : (UINT8 *)a（a 是 UINT8[2][4]）；p[5] 在 a[0] 那条路上越出一行 → 记账；
+    // 原来两边窗口对不上就全丢、只查整个 a（6 ≤ 8，安全）
+    Builder b;
+    uint32_t c = b.Param("c", b.u32);
+    uint32_t a = b.LocalVar("a", b.m.Intern(Type::Arr(b.m.Intern(Type::Arr(b.u8, 4)), 2)), true);
+    uint32_t p = b.LocalVar("p", b.m.Intern(Type::Ptr(b.u8)));
+    ExprId whole = b.f.Add(Expr::LAddr(a));
+    Diamond d;
+    d.yes.insts = {b.Set(p, b.f.Add(Expr::SubObj(whole, 4)))};
+    d.no.insts = {b.Set(p, whole)};
+    d.join.insts = {b.Store(b.PAdd(b.L(p), b.C(5)), 1, b.C(0), 9)};
+    ExprId ne = b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(c), b.C(0), false));
+    ExprId eq = b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(c), b.C(0), false));
+    d.Install(b, ne, eq);
+    interp::FunctionFacts facts = b.Run();
+    EXPECT_EQ(Reqs(facts), "open subobject_overflow at=t.c:9");
+}

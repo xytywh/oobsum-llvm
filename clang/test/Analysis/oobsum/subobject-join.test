@@ -1,0 +1,14 @@
+# 内层界补漏 4（oobsum/specs/SPEC-0107 §2.2，用户决定 D24）：两条路上的窗口对不上（一边有、一边没有；大小不同），汇合时都留下——
+# 每个窗口对应一条路径，访问越出它就是那条路上越出了子对象（检出优先）。原来对不上就全丢、只查外层。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:Dump=state \
+# RUN:   -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Mix_Tp|Two_Tp)$' -w %S/Inputs/subobj/j.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:state] fn Mix_Tp b0: c=p0 p=local:st+[0, 4]:branch%4{sub 16@0}
+CHECK-DAG: [oobsum:state] fn Two_Tp b0: c=p0 p=local:st+[4, 20]:branch%16~4{sub 16@0}{sub 12@0}
+# 一边是 st.aucBuf、一边是整个 st：p[20] 在 aucBuf 那条路上越出成员
+CHECK-DAG: j.c:5:1: warning: [OOB-SUSPECT:subobject_overflow]
+# aucBuf / aucPad：p[13] 在 aucPad 那条路上越出整个 st（aucPad 到结构体末尾，由外层判）
+CHECK-DAG: j.c:7:1: warning: [OOB-POSSIBLE] Possible out-of-bound write: up to byte 34 of 'st' (32 bytes) may be accessed
+CHECK-NOT: j.c:{{(6|8)}}:1: warning: [OOB-

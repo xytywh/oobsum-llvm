@@ -684,19 +684,35 @@ void ShiftSubs(PtrVal &p, const IntVal &d)
     }
 }
 
-// 内层窗口的汇合 / 加宽（SPEC-0104 §2.2）：个数与大小都相同才逐个合并，否则丢掉（照旧只查外层）
+// 内层窗口的汇合 / 加宽（SPEC-0104 §2.2；SPEC-0107 §2.2 第 4 步）：大小（与 head / tail）相同的两两合并；对不上的两边都留下——
+// 每个窗口对应一条路径，访问越出它就是那条路上越出了子对象（检出优先）。原来对不上就全丢、只查外层
 std::vector<SubWindow> JoinSubs(const std::vector<SubWindow> &a, const std::vector<SubWindow> &b, const Comparer *cmp,
                                 bool widen)
 {
-    if (a.size() != b.size()) {
-        return {};
-    }
-    std::vector<SubWindow> out = b;
-    for (size_t i = 0; i < a.size(); ++i) {
-        if (a[i].size != b[i].size || a[i].head != b[i].head || a[i].tail != b[i].tail) {
-            return {};
+    auto same = [](const SubWindow &x, const SubWindow &y) {
+        return x.size == y.size && x.head == y.head && x.tail == y.tail;
+    };
+    std::vector<SubWindow> out;
+    std::vector<bool> used(b.size(), false);
+    for (const SubWindow &x : a) {
+        size_t j = 0;
+        while (j < b.size() && (used[j] || !same(x, b[j]))) {
+            ++j;
         }
-        out[i].off = widen ? WidenInt(a[i].off, b[i].off) : JoinInt(a[i].off, b[i].off, cmp);
+        SubWindow w = x;
+        if (j < b.size()) {
+            used[j] = true;
+            w.off = widen ? WidenInt(x.off, b[j].off) : JoinInt(x.off, b[j].off, cmp);
+        }
+        out.push_back(w);
+    }
+    for (size_t j = 0; j < b.size(); ++j) {
+        if (!used[j]) {
+            out.push_back(b[j]);
+        }
+    }
+    while (out.size() > kMaxSubs) {
+        out.erase(out.begin());  // 丢最外层的
     }
     return out;
 }

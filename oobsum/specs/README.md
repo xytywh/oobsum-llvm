@@ -126,7 +126,7 @@
 | [SPEC-0092](SPEC-0092-caller-param-passthrough.md) | 调用方把自己的形参传给被调者时，返回值式子照样代换；文本不露 `_unknown<k>` | 已实现 |
 | [SPEC-0093](SPEC-0093-effect-param-passthrough.md) | 写效应的值就是被调者的形参时，按实参的值写（实参是区间也行） | 已实现 |
 | [SPEC-0094](SPEC-0094-ret-ptr-range.md) | `ret_ptr` 的多条返回偏移不同：记常数区间 | 已实现 |
-| [SPEC-0107](SPEC-0107-subobject-gaps.md) | 内层界补漏：结构体字段里的指针、返回成员数组的指针、负偏移、汇合 | 第 1、2 步已实现 |
+| [SPEC-0107](SPEC-0107-subobject-gaps.md) | 内层界补漏：结构体字段里的指针、返回成员数组的指针、负偏移、汇合 | 第 1、2、4 步已实现 |
 | [SPEC-0106](SPEC-0106-char-alias-verify.md) | `CharAlias=verify`：经 char 写外部内存时假设不别名，调用点核对 | 已实现 |
 | [SPEC-0105](SPEC-0105-subobject-option.md) | 选项 `Subobject`：内层界 `suspect`（默认）/ `label`（按常规判）/ `off`（只查整个对象） | 已实现 |
 | [SPEC-0104](SPEC-0104-subobject-bounds.md) | 多维数组每一维、成员数组都查内层界（越出内层没越出外层 → SUSPECT `subobject_overflow`） | 已实现 |

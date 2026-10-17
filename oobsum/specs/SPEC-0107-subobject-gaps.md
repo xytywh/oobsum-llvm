@@ -1,6 +1,6 @@
 # SPEC-0107 内层界补漏：指针存进结构体字段、返回成员数组的指针、负偏移、汇合（用户决定 D24）
 
-状态：第 1 步（结构体字段里的指针）、第 2 步（返回成员数组 / 一行的指针）已实现；第 3、4 步见 §2.2
+状态：第 1、2、4 步已实现；第 3 步（被调者里的负偏移）见 §2.2
 来源：D24"不管哪个维度，每个越界都告警"。SPEC-0104 之后还有几处只查整个对象、内层越界不报（SPEC-0104 §2.3 末尾列的"不覆盖"与之后发现的）。
 
 ## 1. 漏洞
@@ -30,7 +30,8 @@
     有 `sub` 时推一个窗口（`sub_off` 换成调用方的值；`Subobject=off` 不推）。
   * 返回成员数组的指针现在跟踪得到：调用方原来的 `untracked_pointer` 换成外层 / 内层都检查（证明了安全的才不报）。
 * 第 3 步（#3）：实参另记窗口前面的字节数，被调者的反向 Req 按它再判一次。
-* 第 4 步（#4）：汇合时一边有窗口、另一边没有，保留有的那边（那条路上就是越出了子对象，检出优先）。
+* 第 4 步（#4，已实现）：`JoinSubs`——大小（与 head / tail）相同的窗口两两汇合 / 加宽；对不上的两边都留下（至多 4 个，丢最外层的）。
+  每个窗口对应一条路径，访问越出它就是那条路上越出了子对象（检出优先）；外层检查不变。收敛：窗口个数有上限，下一轮配上对的照常加宽。
 
 ## 3. 对召回与误报的影响
 
@@ -40,6 +41,7 @@
 
 第 1 步：`core/Interp.cpp`（`SubRest`、`ArgFields`）、`core/Apply.cpp`（`SubCall`）、`replay.py`（`sub_call`）。
 第 2 步：`core/Interp.cpp`（`ReturnPointer`、`RetPtrResult`）、`core/Summary.{h,cpp}`（`Eff::sub` / `subOff`）、`summary.schema.json`。
+第 4 步：`core/Interp.cpp`（`JoinSubs`）。
 
 ## 5. 测试
 
@@ -47,6 +49,8 @@
   单测 `Apply.SubObjectFieldArg`。
 * 第 2 步：lit `subobject-ret.test`（`Dump=summary` 的 `ret_ptr` 带 `sub` / `sub_off`；`GetBuf(&st)[20]` → SUSPECT、`[15]` → SAFE；`GetRow(a, 0)[5]` → SUSPECT；
   `Next(st.aucBuf)[15]` → SUSPECT、`[14]` 不报）；单测 `Interp.RetPtrMemberWindow`。compiler-rt、上游用例集不变（判定键 1370 → 1370）。
+* 第 4 步：lit `subobject-join.test`（`c ? st.aucBuf : (UINT8 *)&st` 之后 `p[20]` → SUSPECT、`p[15]` 不报；`c ? st.aucBuf : st.aucPad` 的两个窗口都留下，
+  `Dump=state` 的 `{sub 16@0}{sub 12@0}`）；单测 `Interp.SubWindowKeptAcrossJoin`。compiler-rt、上游用例集不变。
 
 ## 6. 调试
 
