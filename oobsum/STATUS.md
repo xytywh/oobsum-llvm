@@ -105,8 +105,8 @@
 - [x] **形参所指字段的当前值与别名**（SPEC-0040）：读 `pK->f` 时，进函数后改过（被调者拿到过指针、偏移不定的写、同类型结构体形参的写）就读成 `data`，
       不再给入口符号——修掉三种错误的 SAFE（被调者改字段后再读、`((UINT32 *)p)[i] = …` 后再读、`Alias_Fill(&st, &st)`）。对照（调用前读的、只读的、
       不同类型的形参）照旧。`run.py csa` 与基线完全相同。取舍：`char` 缓冲区的写不当成会改结构体形参；形参与全局的别名以后。
-- [ ] 二维数组行内越界（`a[0][5]` 在 `UINT8 a[2][4]` 里）、结构体数组元素里的成员数组越界但仍在下一个元素里（`astEnt[0].aucName[8]`）：
-      嵌套子对象的界没查，判 SAFE（06- 已列为 P1 #18）。
+- [x] 二维数组行内越界（`a[0][5]` 在 `UINT8 a[2][4]` 里）、结构体数组元素里的成员数组越界但仍在下一个元素里（`astEnt[0].aucName[8]`）：
+      嵌套子对象的界没查，判 SAFE（06- 已列为 P1 #18）——SPEC-0104 / 0105 / 0107 已做（D22 / D24）。
 - [x] **调用点记账原因**（SPEC-0038）：上界只来自 `data`（被调者改过的字段、全局）时记 `type_range_only`（原来误记 `pointer_stepping`）；
       lit `callee-writes.test` 守住"被调者改了字段 / 全局后不再用旧值证明安全"（做 mod-ref 之前的保守做法）。
 - [x] **S5b-1 `MaxBlocks`**（SPEC-0037）：CFG 块数超过 `MaxBlocks`（默认 5000）的函数不降级函数体（`cfg_too_large`），建不出 CFG 的（`no_cfg`，原来悄悄当成空函数）同样
@@ -185,6 +185,7 @@
 - [x] **S7d-3 `ret_new` 效果**（SPEC-0024）：每条返回路径都是同一个堆对象或空指针 → `ret_new`（`eff_depth` 逐层加 1）；调用方拿到 `heap@<调用点>`、
       实参写 `eff_depth`；`RunInline` 按 FIR 调用图自底向上解释，`Dump=summary` / `state` 取同一份结果。**LV4-01 端到端一致（16 个金标准用例 9 个）**；
       `run.py csa`：LV4-01 TP POSSIBLE、LV4-02 TP DEFINITE、LV7-01（柔性数组）TP DEFINITE / TN SAFE——**通过 72、漏报 14**，回退 0（尺子：账本判定同一处有 SAFE 就算证明）。
+- [x] **DEFINITE / POSSIBLE 文字的对象名兜底**（SPEC-0109）：对象代换不过来时用被调者的形参名（原来写 `'?'`）。
 - [x] **`AssumeNoWrap` 第 2 步**（SPEC-0108 §2.2）：访问点末端写成含局部的线性式、同类项抵消（A-41）、用关系与区间消去局部；模型字节数的符号式；
       选项打开时不做忠实判断。打开后 `run.py csa` 通过 110（LV3-07、LV8-01 不再"级别不同"），`engine_check` 15/16（LV2-03 只差上传条数）。
 - [x] **`AssumeNoWrap` 第 1 步**（SPEC-0108）：选项（默认关）；局部符号与 `SymOf` / `SymPtr`；条件边记局部线性关系 `rels`，赋值时失效、汇合取交集；`Dump=state` 的 `rels:`。
@@ -334,11 +335,8 @@
 
 ## 等用户提供 / 在公司做的
 
-* **等用户确认（LV3-07、LV8-01 的"级别不同"）**：两个用例的检查都是 `if (ulOff + len > total) break;`，`ulOff` 被加宽到 `[0, +∞)`，`ulOff + len`
-  可能回绕。SPEC-0016 §2.1 定过：这种检查可能被绕过，不当守卫、不收窄（召回优先）。所以现在 TP 报 SUSPECT（已报出，只是标签不是 POSSIBLE）、
-  TN 报 SUSPECT（G2 下算"通过+S"）。要做到 TP POSSIBLE / TN 不报，必须假设检查里不回绕，并在状态里加"局部线性关系"（A-13 / A-41）。
-  用户 2026-10-17 同意做成默认关的选项 `AssumeNoWrap`（SPEC-0108，已实现）。**公司实测**：`AssumeNoWrap=false` / `true` 各跑一遍，比 SUSPECT 条数，
-  抽查打开后不再报的是否确实不会回绕。
+* **已决定（2026-10-17，LV3-07、LV8-01 的"级别不同"）**：检查可能回绕，默认按 SPEC-0016 §2.1 不用；做成默认关的选项 `AssumeNoWrap`（SPEC-0108，已实现）。
+  **公司实测**：`AssumeNoWrap=false` / `true` 各跑一遍，比 SUSPECT 条数，抽查打开后不再报的是否确实不会回绕。
 * **用户决定（2026-10-17，D25）**：取舍做成选项，用户在公司按参数实测再选。`CharAlias` 加第三个值 `verify`（假设不别名、在调用点核对，开发中）；
   内层界加选项（每一维都报 / 标签按常规判 / 只在越出整个对象时报）。**公司实测**：`CharAlias=false / true / verify`、`Subobject=suspect / label / off`
   各跑一遍，比 SUSPECT / alias_unverified / subobject_overflow 的条数并抽查（本地 compiler-rt 的对照见 SPEC-0106 §3）。
@@ -364,8 +362,6 @@
 
 ## 已知问题与注意
 
-* （SPEC-0107 测试中发现，原来就有）形参所指结构体里的成员数组的反向 Req 在调用点判 DEFINITE 时，告警文字的对象名是 `'?'`
-  （`before '?' (0 bytes available before the pointer)`）：代换不过来的成员对象只在 SUSPECT / SAFE 文字里用被调者的形参名兜底，DEFINITE / POSSIBLE（`alert::AlertMessage`）没有。只影响文字。
 
 * **"先访问、后检查"的循环推不出界**（2026-10-16 探针）：`do { p[i] = 0; } while (++i < n);`、`while (1) { p[i] = 0; if (++i >= n) break; }`、`goto` 回跳：
   循环头要汇合入口的 0 与回边的 `[0, n − 1]`，真实上界是 `max(0, n − 1)`，符号界表示不了 → 被调者里记 `type_range_only`（照样报出，不漏）。要做得剥第一轮或分情形。

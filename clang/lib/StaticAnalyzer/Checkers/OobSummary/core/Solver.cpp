@@ -272,6 +272,7 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bo
                         ++out.up;
                     } else if (mine.outcome == "L1" || mine.outcome == "L2") {
                         result.reps.push_back(apply::RepOf(mine, sc.call, s.fn, s, rj));
+                        result.repCallee.push_back({callee, r.obj});  // SPEC-0109
                         ++out.rep;
                     }
                     result.sites.push_back({call.site, callee, mine, r});
@@ -298,6 +299,7 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bo
             for (const DerivedReq &r : result.reqs) {
                 if (llvm::Optional<std::string> level = EntryLevel(r, subLabel)) {
                     result.reps.push_back(EntryRep(*level, r, s));
+                    result.repCallee.push_back({"", ""});
                     ++out.rep;
                     continue;
                 }

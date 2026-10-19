@@ -58,7 +58,9 @@ struct AliasCheck {
 struct FunctionResult {
     std::vector<DerivedReq> reqs;  // 覆盖合并之后
     std::vector<SiteOutcome> sites;  // 调用点上的每个结局（判出 L1 / L2 的另在 reps，上传的并进 reqs）
-    std::vector<summary::Rep> reps;       // 本函数判出的（L1 / L2）
+    std::vector<summary::Rep> reps;  // 本函数判出的（L1 / L2）
+    // 与 reps 对齐：(被调者的键, 被调者那一侧的对象)，告警文字里对象代换不过来（"?"）时用被调者的形参名写（SPEC-0109）；入口自己的为空
+    std::vector<std::pair<std::string, std::string>> repCallee;
     std::vector<std::string> entryOpens;  // 入口函数：每条推出的 Req 的账本原因
     bool entry = false;                   // 没有调用方
     // CharAlias=verify（SPEC-0106）：本函数的不别名假设（自己的 + 被调者传上来的）与各调用点 / 入口的核对结论

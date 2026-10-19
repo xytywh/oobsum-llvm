@@ -404,7 +404,8 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             }
             return x.obj != "?" && y.obj == "?";
         };
-        for (const summary::Rep &rep : result.reps) {
+        for (size_t ri = 0; ri < result.reps.size(); ++ri) {
+            const summary::Rep &rep = result.reps[ri];
             Decision d = base(rep.level == "L1" ? Label::Definite : Label::Possible, "", fn);
             d.site = sitesOf(fn).Of(rep.site);
             d.kind = rep.kind;
@@ -418,6 +419,13 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.effDepth = static_cast<unsigned>(rep.effDepth);
             d.chain = allSites.Chain(rep.chain);
             d.msg = alert::AlertMessage(rep, s.params);
+            // 对象代换不过来（成员的 Req 落到调用方的局部上）：用被调者的形参名写成员（同 SUSPECT / SAFE，SPEC-0109）
+            if (rep.obj == "?" && ri < result.repCallee.size() &&
+                out.summaries.count(result.repCallee[ri].first) != 0) {
+                summary::Rep shown = rep;
+                shown.obj = result.repCallee[ri].second;
+                d.msg = alert::AlertMessage(shown, out.summaries.at(result.repCallee[ri].first).params);
+            }
             d.fp = rep.fp;
             std::string key = rep.site + "|" + rep.access.key + "@" + rep.access.at + "|" + rep.kind + "|" + rep.dir;
             repKeys.push_back(key);
