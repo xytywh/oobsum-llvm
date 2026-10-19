@@ -332,16 +332,95 @@ def _read_logs(wd, srcs, root):
     return decs, [s for s in srcs if os.path.normpath(s) not in seen]
 
 
+def cmd_cdb(a):
+    """给全部用例生成 compile_commands.json（公司用 bxen 跑用例、再 csa --from-workdir 对照，SPEC-0111）"""
+    root = os.path.abspath(a.cases or HERE)
+    out = os.path.abspath(a.out or 'oobsum-cases-cdb')
+    os.makedirs(out, exist_ok=True)
+    cmds = []
+    for _, _, srcs, _ in units(root):
+        for s in srcs:
+            cmds.append({'directory': os.path.dirname(s), 'file': s, 'command': '%s -c %s -o /dev/null' % (a.cc, s)})
+    path = os.path.join(out, 'compile_commands.json')
+    json.dump(cmds, open(path, 'w', encoding='utf-8'), indent=1)
+    print('已写 %s：%d 个源文件（编译器 %s）' % (path, len(cmds), a.cc))
+    return 0
+
+
+def _rel_path(path, base, root):
+    """判定日志里的路径改成相对用例根目录：远端（公司）的根目录 base 优先，其次本地根目录"""
+    path = path.replace('\\', '/')
+    if base and path.startswith(base):
+        return path[len(base):]
+    return os.path.relpath(path, root) if os.path.isabs(path) else path
+
+
+def _workdirs(wd):
+    """WD 本身是 WorkDir（有 decisions/）；否则取它下面每个是 WorkDir 的子目录（按子目录分开跑的，SPEC-0111）"""
+    if os.path.isdir(os.path.join(wd, 'decisions')):
+        return [wd]
+    subs = [os.path.join(wd, d) for d in sorted(os.listdir(wd))] if os.path.isdir(wd) else []
+    return [d for d in subs if os.path.isdir(os.path.join(d, 'decisions'))]
+
+
+def _load_workdir(wd, root):
+    """读现成的 WorkDir（例如公司 bxen 跑完全部用例的，SPEC-0111）：按源文件（相对用例根目录）拆判定；TU → (源文件, WorkDir)"""
+    rels = [os.path.relpath(s, root) for _, _, srcs, _ in units(root) for s in srcs]
+    by_src, tu_src = {}, {}
+    files = [(w, os.path.join(w, 'decisions', f)) for w in _workdirs(wd)
+             for f in sorted(os.listdir(os.path.join(w, 'decisions')))]
+    for w, path in files:
+        lines = [json.loads(ln) for ln in open(path, encoding='utf-8') if ln.strip()]
+        if not lines or lines[0].get('schema') != 'oobsum-decisions/1':
+            continue
+        file = lines[0]['file'].replace('\\', '/')
+        rel = next((r for r in rels if file == r or file.endswith('/' + r)), None)
+        if rel is None:
+            continue
+        base = file[:len(file) - len(rel)]
+        tu_src[lines[0].get('tu', os.path.basename(path).split('.')[0])] = (rel, w)
+        by_src.setdefault(rel, [])  # 零条判定的 TU 也算跑到了
+        for d in lines[1:]:
+            path, line, col = d['site'].rsplit(':', 2)
+            d['site'] = '%s:%s:%s' % (_rel_path(path, base, root), line, col)
+            if d.get('chain'):
+                apath, aline = d['chain'][-1].split('@', 1)[1].rsplit(':', 1)
+                d['access_site'] = '%s:%s' % (_rel_path(apath, base, root), aline)
+            by_src.setdefault(rel, []).append(d)
+    return by_src, tu_src
+
+
+def _dump_summaries(wd, tu):
+    """WorkDir/dump/<tu>/summary/<函数名>.json：Dump=summary 写出的摘要（每个函数一份）"""
+    d = os.path.join(wd, 'dump', tu, 'summary')
+    out = []
+    for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+        try:
+            out.append(json.load(open(os.path.join(d, f), encoding='utf-8')))
+        except ValueError:
+            continue
+    return out
+
+
 def cmd_csa(a):
     root = os.path.abspath(a.cases or HERE)
     clang = a.clang or os.path.join(REPO, 'cmake-build-release', 'bin', 'clang')
+    fromwd = os.path.abspath(a.from_workdir) if a.from_workdir else None
     out = os.path.abspath(a.out or os.path.join(REPO, 'cmake-build-release', 'oobsum-csa'))
     baseline = a.baseline or os.path.join(root, 'csa-baseline.json')
     if a.save and a.only:
         sys.exit('--save 不能与 --only 同用（基线必须覆盖全部用例）')
-    if not os.access(clang, os.X_OK):
+    if fromwd:
+        # 不调 clang：读现成的 WorkDir（SPEC-0111）；多文件用例按单 TU（inline）对照
+        if not _workdirs(fromwd):
+            sys.exit('%s 下没有 decisions/（bxen 跑的时候要带 WorkDir=…）' % fromwd)
+        pre_by_src, pre_tu = _load_workdir(fromwd, root)
+        clang = 'WorkDir ' + fromwd
+        res = ''
+    elif not os.access(clang, os.X_OK):
         sys.exit('找不到 clang：%s（先 ninja -C cmake-build-release clang，或用 --clang）' % clang)
-    res = subprocess.run([clang, '-print-resource-dir'], capture_output=True, text=True).stdout.strip()
+    else:
+        res = subprocess.run([clang, '-print-resource-dir'], capture_output=True, text=True).stdout.strip()
     only = set(a.only.split(',')) if a.only else None
 
     entries, emitted, others, errors = [], [], [], []
@@ -358,12 +437,13 @@ def cmd_csa(a):
             continue
         ran.add(cid)
         wd = os.path.join(out, cid)
-        if os.path.isdir(wd):
-            shutil.rmtree(wd)
-        os.makedirs(wd)
+        if not fromwd:
+            if os.path.isdir(wd):
+                shutil.rmtree(wd)
+            os.makedirs(wd)
         edges = {}  # 函数键 → 被调者的键（Dump=summary 的 calls，SPEC-0047）
         names_of = {}  # 函数键 → 函数名
-        xtu = len(srcs) > 1 and not any(kv.startswith('Phase=') for kv in a.config)  # 多文件：三阶段（SPEC-0055）
+        xtu = len(srcs) > 1 and not fromwd and not any(kv.startswith('Phase=') for kv in a.config)  # 多文件：三阶段（SPEC-0055）
         want_dump = not any(kv.startswith('Dump=') for kv in a.config)
 
         def cc1(src, extra, err):
@@ -393,25 +473,41 @@ def cmd_csa(a):
                             resolved_calls.add((cid, sm['key']) + tuple(c['site'].rsplit(':', 1)))
 
         dump = ['Dump=summary'] if want_dump else []  # 取调用图（SPEC-0047），不影响结果
-        with open(os.path.join(wd, 'stderr.txt'), 'w', encoding='utf-8') as err:
-            if xtu:
-                for s in srcs:
-                    ntu += 1
-                    cc1(s, ['Phase=export'], err)
-                stub_dir = os.path.join(wd, 'solve_stub')
-                os.makedirs(stub_dir, exist_ok=True)
-                stub = os.path.join(stub_dir, 'stub.c')
-                open(stub, 'w', encoding='utf-8').write('void oobsum_solve_stub(void) {}\n')
-                cc1(stub, ['Phase=solve'] + dump, err)
-                for s in srcs:
-                    cc1(s, ['Phase=report'], err)
-            else:
-                for s in srcs:
-                    ntu += 1
-                    cc1(s, dump, err)
-        decs, missing = _read_logs(wd, srcs, root)
-        for s in missing:
-            errors.append('%s：没有写出判定日志（checker 没跑？）' % os.path.relpath(s, root))
+        if fromwd:
+            unit_rels = {os.path.relpath(s, root) for s in srcs}
+            decs = [d for r in sorted(unit_rels) for d in pre_by_src.get(r, [])]
+            for s in srcs:
+                if os.path.relpath(s, root) not in pre_by_src:
+                    errors.append('%s：WorkDir 里没有它的判定日志（bxen 没跑到这个文件？）' % os.path.relpath(s, root))
+            for tu, (r, w) in pre_tu.items():
+                if r not in unit_rels:
+                    continue
+                for sm in _dump_summaries(w, tu):  # 调用图：bxen 跑的时候带 Dump=summary 才有
+                    names_of[sm['key']] = sm['fn']
+                    edges.setdefault(sm['key'], set()).update(c.get('callee_key', '') for c in sm.get('calls', []))
+                    for c in sm.get('calls', []):
+                        if c.get('ind'):
+                            resolved_calls.add((cid, sm['key']) + tuple(c['site'].rsplit(':', 1)))
+        else:
+            with open(os.path.join(wd, 'stderr.txt'), 'w', encoding='utf-8') as err:
+                if xtu:
+                    for s in srcs:
+                        ntu += 1
+                        cc1(s, ['Phase=export'], err)
+                    stub_dir = os.path.join(wd, 'solve_stub')
+                    os.makedirs(stub_dir, exist_ok=True)
+                    stub = os.path.join(stub_dir, 'stub.c')
+                    open(stub, 'w', encoding='utf-8').write('void oobsum_solve_stub(void) {}\n')
+                    cc1(stub, ['Phase=solve'] + dump, err)
+                    for s in srcs:
+                        cc1(s, ['Phase=report'], err)
+                else:
+                    for s in srcs:
+                        ntu += 1
+                        cc1(s, dump, err)
+            decs, missing = _read_logs(wd, srcs, root)
+            for s in missing:
+                errors.append('%s：没有写出判定日志（checker 没跑？）' % os.path.relpath(s, root))
 
         names = {e['entry'] for e in m['expect']}
         for e in m['expect']:
@@ -532,7 +628,7 @@ def cmd_csa(a):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('mode', choices=['index', 'check', 'infer', 'doc', 'csa'])
+    ap.add_argument('mode', choices=['index', 'check', 'infer', 'doc', 'csa', 'cdb'])
     ap.add_argument('--cc', default='clang')
     ap.add_argument('--infer')
     ap.add_argument('--only')
@@ -544,6 +640,7 @@ def main():
     ap.add_argument('--save', action='store_true', help='csa：把这次结果写成新基线（有意改变时）')
     ap.add_argument('--config', action='append', default=[], metavar='K=V', help='csa：追加 checker 选项')
     ap.add_argument('--cc1-arg', action='append', default=[], metavar='ARG', help='csa：追加 cc1 参数（写成 --cc1-arg=-DX）')
+    ap.add_argument('--from-workdir', metavar='WD', help='csa：不调 clang，读现成的 WorkDir（公司 bxen 跑完全部用例的）对照（SPEC-0111）')
     a = ap.parse_args()
     if a.mode == 'index':
         cmd_index(a)
@@ -553,6 +650,8 @@ def main():
         sys.exit(cmd_check(a))
     elif a.mode == 'csa':
         sys.exit(cmd_csa(a))
+    elif a.mode == 'cdb':
+        sys.exit(cmd_cdb(a))
     else:
         if not a.infer:
             sys.exit('infer 模式需要 --infer')

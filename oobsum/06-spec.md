@@ -277,7 +277,7 @@ bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/report_cdb/compile_commands.js
 | `explain <指纹 \| 函数名>` | F-42 |
 | `stats` | 打印 `stats.json`：告警按级别 / 层数、账本按原因、耗时 |
 | `sqlite` | 生成 `WorkDir/oobsum.sqlite`（§4.6） |
-| `check --cases <cases 目录>` | 把结果与用例头里的 `@expect` 对照（验收用，§10） |
+| `check --cases <cases 目录>` | 把结果与用例头里的 `@expect` 对照（验收用，§10）〔SPEC-0111：由 `run.py csa --from-workdir` 实现〕 |
 
 ### 4.4 配置
 

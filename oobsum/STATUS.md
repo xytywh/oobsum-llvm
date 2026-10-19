@@ -185,6 +185,8 @@
 - [x] **S7d-3 `ret_new` 效果**（SPEC-0024）：每条返回路径都是同一个堆对象或空指针 → `ret_new`（`eff_depth` 逐层加 1）；调用方拿到 `heap@<调用点>`、
       实参写 `eff_depth`；`RunInline` 按 FIR 调用图自底向上解释，`Dump=summary` / `state` 取同一份结果。**LV4-01 端到端一致（16 个金标准用例 9 个）**；
       `run.py csa`：LV4-01 TP POSSIBLE、LV4-02 TP DEFINITE、LV7-01（柔性数组）TP DEFINITE / TN SAFE——**通过 72、漏报 14**，回退 0（尺子：账本判定同一处有 SAFE 就算证明）。
+- [x] **WP10 `check`**（SPEC-0111）：`run.py cdb` 给用例生成编译数据库；`run.py csa --from-workdir <WD>` 读 bxen 跑完的 WorkDir 对照 `@expect` 与基线
+      （COMPANY.md §3.1）。本地模拟公司路径：通过 106、需跨TU 2、回退 0。WP10 剩 `stats` / `explain` / `sqlite`。
 - [x] **两边都是区间的比较也收窄**（SPEC-0110）：`n = len > 16 ? 16 : len; for (i < n) dst[i]` 现在按 `n` 的上界收窄 `i`（只用代码给出的界）——
       目的 8 字节 POSSIBLE、16 字节不报（原来都在被调者里记账）。S7c-2 剩 `do { … } while (i < n)`。
 - [x] **DEFINITE / POSSIBLE 文字的对象名兜底**（SPEC-0109）：对象代换不过来时用被调者的形参名（原来写 `'?'`）。

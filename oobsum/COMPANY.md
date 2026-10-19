@@ -60,6 +60,22 @@ python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /tmp/oobsum-tc
 其中 2 条没报（`safe`、`inline_depth`）。引擎接上之后（SPEC-0021，默认 `Phase=inline`）：多一条 `Tc_Engine_TP` 处的
 `[OOB-DEFINITE] Definite out-of-bound write through a 3-level call chain`，共 4 条告警、7 条判定（`Dump=stats`：`decisions=7 emitted=4`）。每个版本的预期写在 `TC_OobSummaryChecker.c` 的文件头与对应 SPEC 的"公司侧验证"一节。
 
+### 3.1 用 bxen 跑 67 个分级用例，和本地的 `run.py csa` 对照（SPEC-0111）
+
+```bash
+cd /usr1/oobsum-llvm
+python3 oobsum/cases/run.py cdb --out /usr1/oobsum-cases-cdb --cc gcc        # --cc 换成公司编译用例要用的编译器
+mkdir -p /usr1/oobsum-cases-wd
+/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa \
+  -cc_json=/usr1/oobsum-cases-cdb/ -analysis_folder=/usr1/oobsum-llvm/oobsum/cases \
+  -checker=rb.enhance.ipa.OobSummary \
+  "-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-cases-wd -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+python3 oobsum/cases/run.py csa --from-workdir /usr1/oobsum-cases-wd       # 不调 clang，读 bxen 写的 WorkDir 对照
+```
+
+预期（与本地同一版本）：`合计 134 个入口：通过 106，通过+S 20，级别不同 2，超出预期 4，需跨TU 2`、`回退 0 条`（单 TU 跑，跨文件的 LV1-07、LV6-01 显示"需跨TU"）。
+`Dump=summary` 必须带（对照要用调用图）。不一致就把这张表贴回来；按子目录分开跑、每个子目录一个 WorkDir 也行，`--from-workdir` 给它们的父目录。
+
 * rb.enhance.ipa 规则：`-extra_args` 里**不加** `-analyzer-config ipa=none`（它不走 CSA 的 inline，只挂 TU 级回调）。
 * `-analyzer-config` 的列表值用 `+` 连接（`Dump=options+stats`），逗号会被当成分隔符。
 
