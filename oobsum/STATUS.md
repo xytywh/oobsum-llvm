@@ -187,6 +187,8 @@
       `run.py csa`：LV4-01 TP POSSIBLE、LV4-02 TP DEFINITE、LV7-01（柔性数组）TP DEFINITE / TN SAFE——**通过 72、漏报 14**，回退 0（尺子：账本判定同一处有 SAFE 就算证明）。
 - [x] **WP10 `check`**（SPEC-0111）：`run.py cdb` 给用例生成编译数据库；`run.py csa --from-workdir <WD>` 读 bxen 跑完的 WorkDir 对照 `@expect` 与基线
       （COMPANY.md §3.1）。本地模拟公司路径：通过 106、需跨TU 2、回退 0。
+- [x] **WP13 规则 README**：`oobsum/testcase/OobSummaryChecker/README.md`（`csa-checker-dev` 合并版模板：目的、风险、检测策略、支持场景、
+      TP / TN / FP / FN 取舍、示例与预期告警、测试覆盖、注册构建、运行与选项表、备注），随 TestCase 目录同步到公司。WP13 剩验收报告（G4，等公司结果）。
 - [x] **WP10 `stats` / `explain`**（SPEC-0112）：`oobsum_run.py stats`（标签 × 层数、原因、热点）、`explain <函数名 | 指纹>`（判定的来龙去脉与链上各函数的摘要）。
       WP10 剩 `sqlite`（可选）与断点续跑（`local` / `bxen` 已按阶段分开，`status` 能看到哪一步）。
 - [x] **两边都是区间的比较也收窄**（SPEC-0110）：`n = len > 16 ? 16 : len; for (i < n) dst[i]` 现在按 `n` 的上界收窄 `i`（只用代码给出的界）——
