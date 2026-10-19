@@ -1185,6 +1185,7 @@ struct RawAccess {
     Tag tag = Tag::Exact;
     std::string at;
     std::vector<std::string> guard;  // 与 have / end 有公共符号的守卫（ShowLe0）
+    int64_t effDepth = 0;  // 堆对象经过了几层 ret_new（本函数里直接访问封装分配器返回的对象，SPEC-0113）
 };
 
 class Analyzer {
@@ -2378,6 +2379,7 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
     Tag bytesTag = bytes.kind == IntVal::Kind::Exact ? Tag::Exact : bytes.tag;
     a.tag = WorseTag(offTag, bytesTag);
     a.at = at;
+    a.effDepth = addr.kind == BaseKind::Heap ? addr.effDepth : 0;  // SPEC-0113
     // 符号式给出的界更紧（或原来没有）就用它
     SymEnv env = Env(s);
     if (symHi && (a.hi.IsUnknown() || (symHi->first != a.hi && EntailsLe0(symHi->first - a.hi, s.guards, env)))) {
@@ -2942,6 +2944,7 @@ summary::Req Analyzer::ToReq(const RawAccess &a, size_t number) const
     r.id = "R" + std::to_string(number);
     r.kind = a.kind;
     r.dir = a.dir;
+    r.effDepth = a.effDepth;  // SPEC-0113
     r.have = a.have.Show();
     r.obj = a.obj;
     r.endLo = a.lo.Show();

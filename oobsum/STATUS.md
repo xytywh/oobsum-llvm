@@ -187,6 +187,8 @@
       `run.py csa`：LV4-01 TP POSSIBLE、LV4-02 TP DEFINITE、LV7-01（柔性数组）TP DEFINITE / TN SAFE——**通过 72、漏报 14**，回退 0（尺子：账本判定同一处有 SAFE 就算证明）。
 - [x] **WP10 `check`**（SPEC-0111）：`run.py cdb` 给用例生成编译数据库；`run.py csa --from-workdir <WD>` 读 bxen 跑完的 WorkDir 对照 `@expect` 与基线
       （COMPANY.md §3.1）。本地模拟公司路径：通过 106、需跨TU 2、回退 0。
+- [x] **P0-8 / WP6 链长用例**（SPEC-0113）：`cases/gen_chain.py` 四类模板 × N ∈ {2, 3, 5, 10, 17, 20}，`--check` 按 G1 口径判，24 个全部符合；
+      顺带修了封装分配器链在本函数里访问时 `eff_depth` 为 0、被层数过滤的问题。
 - [x] **WP13 规则 README**：`oobsum/testcase/OobSummaryChecker/README.md`（`csa-checker-dev` 合并版模板：目的、风险、检测策略、支持场景、
       TP / TN / FP / FN 取舍、示例与预期告警、测试覆盖、注册构建、运行与选项表、备注），随 TestCase 目录同步到公司。WP13 剩验收报告（G4，等公司结果）。
 - [x] **WP10 `stats` / `explain`**（SPEC-0112）：`oobsum_run.py stats`（标签 × 层数、原因、热点）、`explain <函数名 | 指纹>`（判定的来龙去脉与链上各函数的摘要）。

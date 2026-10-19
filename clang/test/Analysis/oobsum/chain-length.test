@@ -1,0 +1,13 @@
+# 链长用例（oobsum/specs/SPEC-0113；06- T-04、G1）：四类模板（形参透传、偏移累加、封装分配器链、跨 TU 链）× N ∈ {2, 3, 5, 10, 17, 20}。
+# G1：N >= 3 的 TP 报 DEFINITE，N = 2 不报（交现有规则，日志 inline_depth），所有 TN 不报 DEFINITE / POSSIBLE。
+#
+# RUN: rm -rf %t
+# RUN: %python %S/../../../../oobsum/cases/gen_chain.py --out %t --check --clang %clang | FileCheck %s
+
+CHECK: 已生成 24 个链
+CHECK-DAG: 模板 1  N=2   通过  TP 不报（inline_depth）、TN 不报
+CHECK-DAG: 模板 1  N=20  通过  TP 报 DEFINITE、TN 不报
+CHECK-DAG: 模板 2  N=17  通过  TP 报 DEFINITE、TN 不报
+CHECK-DAG: 模板 3  N=3   通过  TP 报 DEFINITE、TN 不报
+CHECK-DAG: 模板 4  N=10  通过  TP 报 DEFINITE、TN 不报
+CHECK: 合计 24 个，不符合 0 个
