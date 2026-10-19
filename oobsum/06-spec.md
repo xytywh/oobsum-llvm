@@ -274,8 +274,8 @@ bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/report_cdb/compile_commands.js
 | `run` | 依次 export → solve → report；`--from <阶段>` 断点续跑 |
 | `export` / `solve` / `report` | 单独跑一个阶段 |
 | `status` | 各阶段产物是否齐全、TU 失败清单、函数状态统计 |
-| `explain <指纹 \| 函数名>` | F-42 |
-| `stats` | 打印 `stats.json`：告警按级别 / 层数、账本按原因、耗时 |
+| `explain <指纹 \| 函数名>` | F-42〔SPEC-0112：`oobsum_run.py explain`〕 |
+| `stats` | 打印 `stats.json`：告警按级别 / 层数、账本按原因、耗时〔SPEC-0112：`oobsum_run.py stats` 读判定日志，不含耗时〕 |
 | `sqlite` | 生成 `WorkDir/oobsum.sqlite`（§4.6） |
 | `check --cases <cases 目录>` | 把结果与用例头里的 `@expect` 对照（验收用，§10）〔SPEC-0111：由 `run.py csa --from-workdir` 实现〕 |
 

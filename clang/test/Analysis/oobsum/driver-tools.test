@@ -1,0 +1,26 @@
+# 驱动的 stats / explain（oobsum/specs/SPEC-0112；06- I-30、F-42）：读 WorkDir 里的判定日志与 Dump=summary 写的摘要。
+#
+# RUN: rm -rf %t && mkdir -p %t
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --workdir %t/w --clang %clang --config InlineDepth=0 --config Dump=summary \
+# RUN:   %S/Inputs/solve/a.c %S/Inputs/solve/b.c > %t/local.txt
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py stats --workdir %t/w | FileCheck %s --check-prefix=STATS
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py explain --workdir %t/w Top_A | FileCheck %s --check-prefix=EXPLAIN
+# RUN: not %python %S/../../../../oobsum/tools/oobsum_run.py explain --workdir %t/w No_Such_Fn | FileCheck %s --check-prefix=NONE
+
+STATS: == 4 条判定，报出 3 条（2 个 TU）
+STATS: definite        0      1      0      0      0       1
+STATS: possible        0      1      0      0      0       1
+STATS: suspect         1      0      0      0      0       1
+STATS: 报出的 SUSPECT：按原因
+STATS: 没报的：按原因（not_emitted_because）
+
+EXPLAIN: == [POSSIBLE] {{.*}}a.c:16:0  指纹 {{[0-9a-f]+}}
+EXPLAIN: 函数 Top_A；报出；末端 ['1', '17']；大小 16；来源 loop；层数 1 / 0
+EXPLAIN: Top_A@{{.*}}a.c:16
+EXPLAIN: └ Fill@{{.*}}b.c:16
+EXPLAIN: -- 摘要 Top_A（）
+EXPLAIN: 调用 Fill @a.c:16 实参 [{"back": "0", "have": "16", "obj": "local:aucBuf"}, "17"]
+EXPLAIN: -- 摘要 Fill（p0=pucBuf, p1=ulLen）
+EXPLAIN: W *p0 需 [1, p1] <= ext(p0)  守卫 p1 >= 1  @b.c:16
+
+NONE: 没有指纹或函数名是 No_Such_Fn 的判定

@@ -126,6 +126,7 @@
 | [SPEC-0092](SPEC-0092-caller-param-passthrough.md) | 调用方把自己的形参传给被调者时，返回值式子照样代换；文本不露 `_unknown<k>` | 已实现 |
 | [SPEC-0093](SPEC-0093-effect-param-passthrough.md) | 写效应的值就是被调者的形参时，按实参的值写（实参是区间也行） | 已实现 |
 | [SPEC-0094](SPEC-0094-ret-ptr-range.md) | `ret_ptr` 的多条返回偏移不同：记常数区间 | 已实现 |
+| [SPEC-0112](SPEC-0112-driver-stats-explain.md) | 驱动的 `stats` 与 `explain` | 已实现 |
 | [SPEC-0111](SPEC-0111-check-from-workdir.md) | `run.py cdb` 与 `run.py csa --from-workdir`：公司用 bxen 跑用例、读现成的 WorkDir 对照 | 已实现 |
 | [SPEC-0110](SPEC-0110-range-range-narrowing.md) | 两边都是区间的比较也收窄（长度夹到上限再循环） | 已实现 |
 | [SPEC-0109](SPEC-0109-rep-object-name.md) | DEFINITE / POSSIBLE 的告警文字：对象代换不过来时用被调者的形参名 | 已实现 |

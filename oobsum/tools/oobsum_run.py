@@ -165,6 +165,107 @@ def cmd_status(a):
     return 0
 
 
+def _decisions(workdir):
+    """WorkDir/decisions/*.jsonl 的全部判定（每条加 _tu：所在 TU 的源文件）"""
+    out = []
+    for f in sorted(glob.glob(os.path.join(workdir, 'decisions', '*.jsonl'))):
+        lines = [json.loads(l) for l in open(f, encoding='utf-8') if l.strip()]
+        if not lines or lines[0].get('schema') != 'oobsum-decisions/1':
+            continue
+        for d in lines[1:]:
+            d['_tu'] = lines[0].get('file', '')
+            d['_tuid'] = lines[0].get('tu', '')
+            out.append(d)
+    return out
+
+
+def _name(fn):
+    return fn.split(':')[-1]
+
+
+def cmd_stats(a):
+    """stats（06- I-30，SPEC-0112）：报出的按标签 × 层数、SUSPECT 按原因、没报的按原因、报出最多的函数与 TU"""
+    ds = _decisions(a.workdir)
+    if not ds:
+        print('%s 下没有判定日志' % a.workdir)
+        return 1
+    emitted = [d for d in ds if d.get('emitted')]
+    print('== %d 条判定，报出 %d 条（%d 个 TU）' % (len(ds), len(emitted), len({d['_tu'] for d in ds})))
+    buckets = ['0', '1', '2', '3', '4+']
+    def bucket(d):
+        n = max(d.get('depth', 0), d.get('eff_depth', 0))
+        return buckets[min(n, 4)]
+    print('\n报出：标签 × 层数（max(depth, eff_depth)）')
+    print('%-10s' % '' + ''.join('%7s' % b for b in buckets) + '%8s' % '合计')
+    for label in ['definite', 'possible', 'suspect']:
+        row = [d for d in emitted if d['label'] == label]
+        print('%-10s' % label + ''.join('%7d' % sum(1 for d in row if bucket(d) == b) for b in buckets) + '%8d' % len(row))
+    def table(title, rows, key):
+        counts = {}
+        for d in rows:
+            counts[key(d)] = counts.get(key(d), 0) + 1
+        print('\n' + title)
+        for k, n in sorted(counts.items(), key=lambda x: (-x[1], x[0]))[:a.top]:
+            print('  %6d  %s' % (n, k))
+    table('报出的 SUSPECT：按原因', [d for d in emitted if d['label'] == 'suspect'], lambda d: d.get('reason', '-'))
+    table('没报的：按原因（not_emitted_because）', [d for d in ds if not d.get('emitted')],
+          lambda d: '%s / %s' % (d['label'], d.get('not_emitted_because', '-')))
+    table('报出最多的函数（前 %d）' % a.top, emitted, lambda d: _name(d.get('fn', '?')))
+    table('报出最多的 TU（前 %d）' % a.top, emitted, lambda d: os.path.basename(d['_tu']))
+    return 0
+
+
+def _summary_of(workdir, tuid, fn):
+    """dump/<tu>/summary/<函数名>.json（Dump=summary 写的）；没有就 None"""
+    p = os.path.join(workdir, 'dump', tuid, 'summary', fn + '.json')
+    if not os.path.isfile(p):
+        hits = glob.glob(os.path.join(workdir, 'dump', '*', 'summary', fn + '.json'))
+        p = hits[0] if len(hits) == 1 else None
+    return json.load(open(p, encoding='utf-8')) if p else None
+
+
+def cmd_explain(a):
+    """explain <指纹 | 函数名>（06- F-42，SPEC-0112）：判定的来龙去脉——标签、原因、文字、末端与大小、调用链；
+    带 Dump=summary 跑过时，链上每个函数的摘要（Req 与调用点的实参）"""
+    ds = _decisions(a.workdir)
+    hits = [d for d in ds if d.get('fp') == a.what or _name(d.get('fn', '')) == a.what]
+    if not a.all:
+        hits = [d for d in hits if d['label'] != 'safe' or d.get('fp') == a.what]
+    if not hits:
+        print('没有指纹或函数名是 %s 的判定（加 --all 连 SAFE 一起找）' % a.what)
+        return 1
+    for d in hits:
+        print('== [%s%s] %s  指纹 %s' % (d['label'].upper(), ':' + d['reason'] if d.get('reason') else '',
+                                       d.get('site', '?'), d.get('fp', '?')))
+        print('   %s' % d.get('msg', ''))
+        print('   函数 %s；%s；末端 %s；大小 %s；来源 %s；层数 %s / %s%s' % (
+            _name(d.get('fn', '?')), '报出' if d.get('emitted') else '没报（%s）' % d.get('not_emitted_because', '-'),
+            d.get('end', '-'), d.get('have', '-'), d.get('bound', '-'), d.get('depth', 0), d.get('eff_depth', 0),
+            '；同一次访问已报的：%s' % d['dup_of'] if d.get('dup_of') else ''))
+        chain = d.get('chain', [])
+        for i, hop in enumerate(chain):
+            print('   %s%s' % ('  ' * i + ('└ ' if i else ''), hop))
+        for hop in chain:
+            fn = hop.split('@', 1)[0]
+            sm = _summary_of(a.workdir, d.get('_tuid', ''), fn)
+            if sm is None:
+                continue
+            params = ', '.join('p%d=%s' % (i, p.get('name', '?')) for i, p in enumerate(sm.get('params', [])))
+            print('   -- 摘要 %s（%s）' % (fn, params))
+            for r in sm.get('reqs', []):
+                print('      %s %s%s 需 [%s, %s] <= %s%s  @%s' % (
+                    r.get('kind'), r.get('obj'), ' (' + r['dir'] + ')' if r.get('dir') else '', r['end'][0], r['end'][1],
+                    r.get('have'), '  守卫 ' + ' ∧ '.join(r['guard']) if r.get('guard') else '', r.get('access', {}).get('at', '?')))
+            for c in sm.get('calls', []):
+                locs = ', '.join('%s∈[%s, %s]' % (k, v['range'][0], v['range'][1]) for k, v in sorted((c.get('locals') or {}).items())
+                                 if isinstance(v, dict) and len(v.get('range', [])) == 2)
+                print('      调用 %s @%s 实参 %s%s' % (c.get('callee'), c.get('site'), json.dumps(c.get('args', []), ensure_ascii=False),
+                                               '；局部 ' + locs if locs else ''))
+    if not glob.glob(os.path.join(a.workdir, 'dump', '*', 'summary')):
+        print('（WorkDir 里没有 dump/*/summary：跑的时候加 Dump=summary 才能看到链上各函数的摘要）')
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest='cmd', required=True)
@@ -184,8 +285,16 @@ def main():
     p.add_argument('--run', action='store_true')
     p = sub.add_parser('status')
     p.add_argument('--workdir', required=True)
+    p = sub.add_parser('stats', help='报出的按标签 × 层数、SUSPECT 按原因、没报的按原因、报出最多的函数 / TU')
+    p.add_argument('--workdir', required=True)
+    p.add_argument('--top', type=int, default=10)
+    p = sub.add_parser('explain', help='一条判定（指纹）或一个函数的判定的来龙去脉')
+    p.add_argument('--workdir', required=True)
+    p.add_argument('--all', action='store_true', help='连 SAFE 一起列')
+    p.add_argument('what', help='判定指纹，或函数名')
     a = ap.parse_args()
-    sys.exit({'local': cmd_local, 'bxen': cmd_bxen, 'status': cmd_status}[a.cmd](a))
+    sys.exit({'local': cmd_local, 'bxen': cmd_bxen, 'status': cmd_status, 'stats': cmd_stats,
+              'explain': cmd_explain}[a.cmd](a))
 
 
 if __name__ == '__main__':

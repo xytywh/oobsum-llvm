@@ -108,6 +108,13 @@ python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py status --workdir /usr1/oobs
 `-analyzer-config rb.enhance.ipa.OobSummary:ModelFile=<路径>`；`Dump=models` 看实际生效的表（SPEC-0033）。模型文件留在公司，不带回。
 定位问题时加 `-analyzer-config rb.enhance.ipa.OobSummary:Dump=summary+apply -analyzer-config rb.enhance.ipa.OobSummary:DumpFilter=<函数名正则>`。
 
+看结果（SPEC-0112，只读 WorkDir）：
+
+```bash
+python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py stats --workdir /usr1/oobsum-work          # 标签 × 层数、SUSPECT 按原因、没报的原因、热点函数 / TU
+python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py explain --workdir /usr1/oobsum-work <函数名或指纹>   # 一条判定的来龙去脉（带 Dump=summary 跑的会列链上各函数的摘要）
+```
+
 ### 4.1 选项对照（D25：取舍都做成了选项，按实测选）
 
 同一批目录、**每种取值一个 WorkDir**，各跑一遍，比 `decisions.py` 的计数表。`-extra_args` 里在上面那条命令的基础上加一个 `-analyzer-config`：
