@@ -92,6 +92,25 @@ python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py status --workdir /usr1/oobs
 `-analyzer-config rb.enhance.ipa.OobSummary:ModelFile=<路径>`；`Dump=models` 看实际生效的表（SPEC-0033）。模型文件留在公司，不带回。
 定位问题时加 `-analyzer-config rb.enhance.ipa.OobSummary:Dump=summary+apply -analyzer-config rb.enhance.ipa.OobSummary:DumpFilter=<函数名正则>`。
 
+### 4.1 选项对照（D25：取舍都做成了选项，按实测选）
+
+同一批目录、**每种取值一个 WorkDir**，各跑一遍，比 `decisions.py` 的计数表。`-extra_args` 里在上面那条命令的基础上加一个 `-analyzer-config`：
+
+| 跑哪一遍 | 加的选项 | 看什么 |
+|---|---|---|
+| 基线（默认） | （不加） | 计数表作对照 |
+| char 写别名 | `rb.enhance.ipa.OobSummary:CharAlias=true`、`…:CharAlias=verify` | SUSPECT 条数；`verify` 下 `alias_unverified` 的条数，抽几条看是否真有别名（SPEC-0103 / 0106） |
+| 内层界 | `rb.enhance.ipa.OobSummary:Subobject=label`、`…:Subobject=off` | `subobject_overflow` 条数；`label` 下内层的 DEFINITE / POSSIBLE（SPEC-0104 / 0105） |
+| 不回绕假设 | `rb.enhance.ipa.OobSummary:AssumeNoWrap=true` | SUSPECT 少了多少；抽几条打开后不再报的，看检查是否确实不会回绕（SPEC-0108） |
+
+```bash
+python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /usr1/oobsum-work-base                       # 计数表
+python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /usr1/oobsum-work-base --reason subobject_overflow   # 只看某个原因（默认只列报了的）
+python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /usr1/oobsum-work-base --label definite --jsonl d.jsonl
+```
+
+带回来的只是计数与结论；要说明某类误报 / 漏报，**用自己的话描述写法、或写一个不含业务代码的最小例子**，不要贴业务代码与告警原文。
+
 ## 5. 更新与撤掉
 
 ```bash
