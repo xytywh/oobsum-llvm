@@ -4466,6 +4466,39 @@ bool Analyzer::AssumeCmp(fir::CmpOp op, ExprId a, ExprId b, State &s)
         }
         narrowed = EvalInt(b, s);  // SPEC-0098
         AtomsOfRange(ib, m, ia.value, atoms);
+    } else if (ia.kind == IntVal::Kind::Range && ib.kind == IntVal::Kind::Range && b != fir::kNone) {
+        // 两边都是区间（SPEC-0110）：a < b ≤ hi(b) → 按 hi(b) 收窄 a；b > a ≥ lo(a) → 按 lo(a) 收窄 b；只用代码给出的界
+        auto bound = [](const IntVal &v, bool upper) {
+            llvm::Optional<LinExpr> x = upper ? v.Upper() : v.Lower();
+            return x && !x->IsUnknown() && IsCodeTag(v.tag) ? x : llvm::None;
+        };
+        IntVal oa = ia;  // ia / ib 引用着 va / vb，收窄 a 之后还要用原来的界
+        IntVal ob = ib;
+        bool less = op == fir::CmpOp::Lt || op == fir::CmpOp::Le;
+        bool greater = op == fir::CmpOp::Gt || op == fir::CmpOp::Ge;
+        bool eq = op == fir::CmpOp::Eq;
+        fir::CmpOp toA = op;
+        fir::CmpOp toB = mirrored[static_cast<int>(op)];
+        if (less || eq) {
+            llvm::Optional<LinExpr> h = bound(ob, true);
+            llvm::Optional<LinExpr> l = bound(oa, false);
+            if (h && !Narrow(a, eq ? fir::CmpOp::Le : toA, *h, s)) {
+                return false;
+            }
+            if (l && !Narrow(b, eq ? fir::CmpOp::Ge : toB, *l, s)) {
+                return false;
+            }
+        }
+        if (greater || eq) {
+            llvm::Optional<LinExpr> l = bound(ob, false);
+            llvm::Optional<LinExpr> h = bound(oa, true);
+            if (l && !Narrow(a, eq ? fir::CmpOp::Ge : toA, *l, s)) {
+                return false;
+            }
+            if (h && !Narrow(b, eq ? fir::CmpOp::Le : toB, *h, s)) {
+                return false;
+            }
+        }
     }
     for (const LinExpr &atom : atoms) {
         if (atom.IsUnknown()) {

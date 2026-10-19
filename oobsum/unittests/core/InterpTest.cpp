@@ -2096,3 +2096,41 @@ TEST(Interp, AssumeNoWrapAccess)
     EXPECT_EQ(Reqs(facts), "W have=ext(p0) obj=*p0 end=[1, p1 + 1] bound=check at=t.c:8 +W[p1, p1]");
     EXPECT_TRUE(Reqs(b.Run()).find("open type_range_only") != std::string::npos);
 }
+
+TEST(Interp, RangeRangeNarrowing)
+{
+    // SPEC-0110：i 从缓冲区读（[0, 255]，数据）、n = c ? 16 : 3（[3, 16]，分支）；i < n 的真边上按 n 的上界收窄 → i ≤ 15
+    Builder b;
+    uint32_t p = b.Param("p", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t q = b.Param("q", b.m.Intern(Type::Ptr(b.u8)));
+    uint32_t c = b.Param("c", b.u32);
+    uint32_t i = b.LocalVar("i", b.u32);
+    uint32_t n = b.LocalVar("n", b.u32);
+    Diamond d;
+    d.yes.insts = {b.Store(b.PAdd(b.L(p), b.L(i)), 1, b.C(0), 7)};
+    d.no.succ = {{0, kNone}};
+    ExprId lt = b.f.Add(Expr::Cmp(CmpOp::Lt, b.L(i), b.L(n), false));
+    ExprId ge = b.f.Add(Expr::Cmp(CmpOp::Ge, b.L(i), b.L(n), false));
+    d.Install(b, lt, ge);
+    Block pre;  // i = q[0]；按 c 分两路给 n 赋常数，汇合到菱形的入口 5
+    pre.id = 6;
+    Block big;
+    big.id = 7;
+    Block small;
+    small.id = 8;
+    pre.insts = {b.Load(i, b.L(q), 1, 5)};
+    ExprId ne = b.f.Add(Expr::Cmp(CmpOp::Ne, b.L(c), b.C(0), false));
+    ExprId eq = b.f.Add(Expr::Cmp(CmpOp::Eq, b.L(c), b.C(0), false));
+    pre.succ = {{7, ne}, {8, eq}};
+    big.insts = {b.Set(n, b.C(16))};
+    big.succ = {{5, kNone}};
+    small.insts = {b.Set(n, b.C(3))};
+    small.succ = {{5, kNone}};
+    b.f.blocks.push_back(pre);
+    b.f.blocks.push_back(big);
+    b.f.blocks.push_back(small);
+    b.f.entry = 6;
+    std::string reqs = Reqs(b.Run());
+    EXPECT_TRUE(reqs.find("W have=ext(p0) obj=*p0 end=[1, 16]") != std::string::npos);
+    EXPECT_TRUE(reqs.find("open type_range_only at=t.c:7") == std::string::npos);
+}

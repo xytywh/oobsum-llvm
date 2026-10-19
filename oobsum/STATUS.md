@@ -185,6 +185,8 @@
 - [x] **S7d-3 `ret_new` 效果**（SPEC-0024）：每条返回路径都是同一个堆对象或空指针 → `ret_new`（`eff_depth` 逐层加 1）；调用方拿到 `heap@<调用点>`、
       实参写 `eff_depth`；`RunInline` 按 FIR 调用图自底向上解释，`Dump=summary` / `state` 取同一份结果。**LV4-01 端到端一致（16 个金标准用例 9 个）**；
       `run.py csa`：LV4-01 TP POSSIBLE、LV4-02 TP DEFINITE、LV7-01（柔性数组）TP DEFINITE / TN SAFE——**通过 72、漏报 14**，回退 0（尺子：账本判定同一处有 SAFE 就算证明）。
+- [x] **两边都是区间的比较也收窄**（SPEC-0110）：`n = len > 16 ? 16 : len; for (i < n) dst[i]` 现在按 `n` 的上界收窄 `i`（只用代码给出的界）——
+      目的 8 字节 POSSIBLE、16 字节不报（原来都在被调者里记账）。S7c-2 剩 `do { … } while (i < n)`。
 - [x] **DEFINITE / POSSIBLE 文字的对象名兜底**（SPEC-0109）：对象代换不过来时用被调者的形参名（原来写 `'?'`）。
 - [x] **`AssumeNoWrap` 第 2 步**（SPEC-0108 §2.2）：访问点末端写成含局部的线性式、同类项抵消（A-41）、用关系与区间消去局部；模型字节数的符号式；
       选项打开时不做忠实判断。打开后 `run.py csa` 通过 110（LV3-07、LV8-01 不再"级别不同"），`engine_check` 15/16（LV2-03 只差上传条数）。

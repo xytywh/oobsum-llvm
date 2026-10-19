@@ -1,0 +1,12 @@
+# 两边都是区间的比较也收窄（oobsum/specs/SPEC-0110）：n ∈ [0, 16]（两条路各自的守卫下）、i < n → i ≤ 15。只用代码给出的界。
+#
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:Dump=state \
+# RUN:   -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Clamp$' -w %S/Inputs/rangecmp/m.c 2>&1 | FileCheck %s
+
+CHECK-DAG: [oobsum:state] fn Clamp b{{[0-9]+}}: pucDst=*p0+0 ulLen=p1 n=[0, 16]:check i=[0, 16]:loop (head)
+CHECK-DAG: m.c:5:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 16 of 'a' (8 bytes) may be accessed; the bound comes from a loop condition
+# 上界只来自类型：照旧记账（不判 POSSIBLE）
+CHECK-DAG: m.c:8:1: warning: [OOB-SUSPECT:type_range_only]
+CHECK-NOT: m.c:6:1: warning: [OOB-
+CHECK-NOT: [OOB-POSSIBLE]{{.*}}'a' (16 bytes)
