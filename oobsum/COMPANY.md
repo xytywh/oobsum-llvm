@@ -115,6 +115,27 @@ python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py stats --workdir /usr1/oobsu
 python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py explain --workdir /usr1/oobsum-work <函数名或指纹>   # 一条判定的来龙去脉（带 Dump=summary 跑的会列链上各函数的摘要）
 ```
 
+### 4.0 业务代码一步一步（给一个 compile_commands.json，同其他 CSA 规则的跑法）
+
+1. **更新**：`cd /usr1/oobsum-llvm && git pull`；`land.py … --apply`（§2，头文件搜索路径会自动补，不用手改）；`make -j16`。
+2. **默认模式跑**（单 TU，一条 bxen 命令；先挑一两个子目录，不加 `-analysis_folder` 就是整个 cdb）：
+   ```bash
+   mkdir -p /usr1/oobsum-work/base
+   time /usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa \
+     -cc_json=<compile_commands.json 所在的目录>/ -analysis_folder=<子目录1>,<子目录2> \
+     -checker=rb.enhance.ipa.OobSummary \
+     "-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work/base -analyzer-config rb.enhance.ipa.OobSummary:Dump=stats -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+   ```
+   * 被调者在别的文件里：记 `SUSPECT:not_in_tu`（跨文件用第 5 步）。
+   * 1–2 层就能判的 DEFINITE / POSSIBLE 默认不报（交现有规则）；想全看加 `-analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0`。
+   * 要用 `explain` 看链上各函数的摘要：`Dump=stats+summary`。
+3. **看结果**：`decisions.py <WorkDir>`（计数）、`oobsum_run.py stats --workdir <WorkDir>`（标签 × 层数、原因、热点）、
+   `oobsum_run.py explain --workdir <WorkDir> <函数名或指纹>`（单条判定的来龙去脉）。
+4. **选项对照**：同一子目录、每种取值一个 WorkDir（§4.1）。
+5. **跨文件（可选）**：`oobsum_run.py bxen --workdir … --bxen … --cc-json <目录> --analysis-folder … --extra "…" --run`（下面的命令块）；`status` 看到哪一步。
+6. **发回**（§7）：`git log --oneline -1`、子目录文件数与耗时、每种取值的 `stats` 计数、有没有崩溃（退出码、栈里 OobSummary 的几行）、
+   误报 / 漏报用自己的话或不含业务代码的最小例子描述。不带业务代码、函数名、告警原文。
+
 ### 4.1 选项对照（D25：取舍都做成了选项，按实测选）
 
 同一批目录、**每种取值一个 WorkDir**，各跑一遍，比 `decisions.py` 的计数表。`-extra_args` 里在上面那条命令的基础上加一个 `-analyzer-config`：
