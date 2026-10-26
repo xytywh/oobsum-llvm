@@ -61,11 +61,12 @@
 ## C. 带回公司的验证结果
 
 ```text
-这是公司环境（BXPlugin + bxen）的验证结果：
-<粘贴：编译报错原文 / bxen 输出里的告警行 / decisions.py 的计数表 / fork-facts.txt / 探针输出>
+这是公司环境（BXPlugin + bxen）的验证结果，按 oobsum/COMPANY.md §0（清单版本 <版本号>）的带回模板填的：
+<粘贴：带回模板 / 编译报错原文 / stats --counts-only 的输出 / fork-facts.txt>
 
 请：1) 把结论记进 oobsum/STATUS.md 的"公司验证结果"一节（只记不敏感的结论）；2) 判断哪些与本地不一致、原因是什么；
-3) 需要改的按小步流程修（SPEC → 代码 → 测试 → 提交推送）；4) 列出我下次去公司要跑的具体命令（引用 oobsum/COMPANY.md）。
+3) 需要改的按小步流程修（SPEC → 代码 → 测试 → 提交推送）；4) 按 CLAUDE.md §5 第 8 条重写 oobsum/COMPANY.md §0（下次在公司按顺序做的清单、
+预期、带回模板），对话里只告诉我清单版本号和改了什么。
 ```
 
 ---
