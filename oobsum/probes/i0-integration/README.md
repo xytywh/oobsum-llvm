@@ -59,13 +59,7 @@ make -j16
 
 ```bash
 mkdir -p /tmp/osp-tc
-/usr1/BXPlugin/cmake-build-release-release/bxen \
-  -exec_mode=onlySa \
-  -cc_json=/usr1/BXPlugin/cmake-build-release-release/ \
-  -analysis_folder=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryProbeChecker/src/ \
-  -checker=rb.enhance.core.OobSummaryProbe \
-  "-extra_args=-analyzer-max-loop 3 -analyzer-config ipa=none -analyzer-stats -analyzer-config rb.enhance.core.OobSummaryProbe:EmitProbeReport=true -analyzer-config rb.enhance.core.OobSummaryProbe:WorkDir=/tmp/osp-tc -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini" \
-  > r1.txt 2>&1
+/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=/usr1/BXPlugin/cmake-build-release-release/ -analysis_folder=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryProbeChecker/src/ -checker=rb.enhance.core.OobSummaryProbe -extra_args="-analyzer-max-loop 3 -analyzer-config ipa=none -analyzer-stats -analyzer-config rb.enhance.core.OobSummaryProbe:EmitProbeReport=true -analyzer-config rb.enhance.core.OobSummaryProbe:WorkDir=/tmp/osp-tc -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini" > r1.txt 2>&1
 grep -c '^\[OSP\]' r1.txt; grep 'Path exploration time' r1.txt || echo "no ExprEngine (expected)"
 ```
 
@@ -77,11 +71,7 @@ grep -c '^\[OSP\]' r1.txt; grep 'Path exploration time' r1.txt || echo "no ExprE
 
 ```bash
 mkdir -p /tmp/osp-one
-/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa \
-  -cc_json=<业务工程>/compile_commands.json -analysis_file=<任选一个业务 .c> \
-  -checker=rb.enhance.core.OobSummaryProbe \
-  "-extra_args=-analyzer-max-loop 3 -analyzer-config ipa=none -analyzer-config rb.enhance.core.OobSummaryProbe:WorkDir=/tmp/osp-one -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini" \
-  2>&1 | grep '^\[OSP\] tu'
+/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=<compile_commands.json 所在的目录>/ -analysis_file=<任选一个业务 .c> -checker=rb.enhance.core.OobSummaryProbe -extra_args="-analyzer-max-loop 3 -analyzer-config ipa=none -analyzer-config rb.enhance.core.OobSummaryProbe:WorkDir=/tmp/osp-one -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini" 2>&1 | grep '^\[OSP\] tu'
 ```
 
 `ptr=4 long=4` → fork 按 ILP32 分析业务代码，字节布局可信；`ptr=8` → 现有规则和摘要通道都按 LP64 布局算，
@@ -91,11 +81,7 @@ mkdir -p /tmp/osp-one
 
 ```bash
 mkdir -p /usr1/osp-full
-time /usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa \
-  -cc_json=<业务工程>/compile_commands.json \
-  -checker=rb.enhance.core.OobSummaryProbe \
-  "-extra_args=-analyzer-max-loop 3 -analyzer-config ipa=none -analyzer-config rb.enhance.core.OobSummaryProbe:WorkDir=/usr1/osp-full -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini" \
-  > r3.log 2>&1
+time /usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=<compile_commands.json 所在的目录>/ -checker=rb.enhance.core.OobSummaryProbe -extra_args="-analyzer-max-loop 3 -analyzer-config ipa=none -analyzer-config rb.enhance.core.OobSummaryProbe:WorkDir=/usr1/osp-full -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini" > r3.log 2>&1
 grep -c 'write-failed' r3.log
 python3 probe_stats.py /usr1/osp-full --wall-seconds <time 的 real 秒数> --md probe-full.md --json probe-full.json
 ```

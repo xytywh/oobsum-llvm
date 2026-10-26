@@ -126,6 +126,7 @@
 | [SPEC-0092](SPEC-0092-caller-param-passthrough.md) | 调用方把自己的形参传给被调者时，返回值式子照样代换；文本不露 `_unknown<k>` | 已实现 |
 | [SPEC-0093](SPEC-0093-effect-param-passthrough.md) | 写效应的值就是被调者的形参时，按实参的值写（实参是区间也行） | 已实现 |
 | [SPEC-0094](SPEC-0094-ret-ptr-range.md) | `ret_ptr` 的多条返回偏移不同：记常数区间 | 已实现 |
+| [SPEC-0115](SPEC-0115-cdb-system-includes.md) | `run.py cdb` 写编译器的系统头文件目录（bxen 找不到 `stddef.h`）；文档里的 bxen 命令写成一行 | 已实现 |
 | [SPEC-0114](SPEC-0114-xir-integration-fixes.md) | 公司 xir 集成反馈：头文件搜索路径（land.py）、`Decision::msg` 改名、WorkDir 的 JSON 缩进写 | 已实现 |
 | [SPEC-0113](SPEC-0113-chain-length.md) | 链长用例生成与检查（T-04、G1）；本函数里访问封装分配器的对象带 eff_depth | 已实现 |
 | [SPEC-0112](SPEC-0112-driver-stats-explain.md) | 驱动的 `stats` 与 `explain` | 已实现 |

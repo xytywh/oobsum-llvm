@@ -233,38 +233,25 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 **单文件 / 单目录（Phase=inline，同 TU 内的多层链）**——与 `csa-checker-dev` 的标准命令一致，只换 `-checker=`，ipa 包不加 `ipa=none`：
 
 ```bash
-/usr1/BXPlugin/cmake-build-release-release/bxen \
-  -exec_mode=onlySa \
-  -cc_json=/usr1/BXPlugin/cmake-build-release-release/ \
-  -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/src/lv1_01_stat_enum_butt.c \
-  -checker=rb.enhance.ipa.OobSummary \
-  "-extra_args=-analyzer-max-loop 3 -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=/usr1/BXPlugin/cmake-build-release-release/ -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/src/lv1_01_stat_enum_butt.c -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
 ```
 
 **全量 / 跨 TU（export → solve → report）**——用驱动，一条命令：
 
 ```bash
 python3 /usr1/BXPlugin/xir/llvm_ast/StaticAnalyzer/Checkers/OobSummary/tools/oobsum.py run \
-  --bxen /usr1/BXPlugin/cmake-build-release-release/bxen \
-  --cc-json <业务工程>/compile_commands.json \
-  --work /usr1/oobsum-work \
-  --alloc-config /usr1/clang_check/src/cfg/ini/config.ini \
-  --rbchecker-config /usr1/clang_check/src/cfg/ini/config.ini \
-  --funcptr-config /usr1/clang_check/src/cfg/ini/config_funcptr.ini
+  --bxen /usr1/BXPlugin/cmake-build-release-release/bxen --cc-json <业务工程>/compile_commands.json --work /usr1/oobsum-work --alloc-config /usr1/clang_check/src/cfg/ini/config.ini --rbchecker-config /usr1/clang_check/src/cfg/ini/config.ini --funcptr-config /usr1/clang_check/src/cfg/ini/config_funcptr.ini
 ```
 
 驱动拼出的三条 bxen 命令会原样打印出来（可单独重跑），形如：
 
 ```bash
 # ① export：全量，每个 TU 写 fir/<tu>.json
-bxen -exec_mode=onlySa -cc_json=<业务工程>/compile_commands.json -checker=rb.enhance.ipa.OobSummary \
-  "-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:Phase=export -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work -rbchecker-config=... -funcptr-config=..."
+bxen -exec_mode=onlySa -cc_json=<compile_commands.json 所在的目录>/ -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:Phase=export -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work -rbchecker-config=... -funcptr-config=..."
 # ② solve：驱动生成的桩 TU（WorkDir/solve_stub/），一次
-bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/solve_stub/ -analysis_file=/usr1/oobsum-work/solve_stub/stub.c -checker=rb.enhance.ipa.OobSummary \
-  "-extra_args=-analyzer-config rb.enhance.ipa.OobSummary:Phase=solve -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work ..."
+bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/solve_stub/ -analysis_file=/usr1/oobsum-work/solve_stub/stub.c -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-config rb.enhance.ipa.OobSummary:Phase=solve -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work ..."
 # ③ report：只含有判定的 TU 的 cdb（WorkDir/report_cdb/compile_commands.json）
-bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/report_cdb/compile_commands.json -checker=rb.enhance.ipa.OobSummary \
-  "-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:Phase=report -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work ..."
+bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/report_cdb/ -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:Phase=report -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work ..."
 ```
 
 **I-30 驱动子命令**（`oobsum.py`，Python 3.6+ 标准库）：

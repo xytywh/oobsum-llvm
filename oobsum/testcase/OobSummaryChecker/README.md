@@ -150,12 +150,7 @@ cd /usr1/BXPlugin/cmake-build-release-release && make -j16
 ## 9. 运行方式
 
 ```bash
-/usr1/BXPlugin/cmake-build-release-release/bxen \
-  -exec_mode=onlySa \
-  -cc_json=/usr1/BXPlugin/cmake-build-release-release/ \
-  -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/TC_OobSummaryChecker.c \
-  -checker=rb.enhance.ipa.OobSummary \
-  "-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/tmp/oobsum-tc -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=/usr1/BXPlugin/cmake-build-release-release/ -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/TC_OobSummaryChecker.c -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/tmp/oobsum-tc -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
 ```
 
 本规则**不加** `-analyzer-config ipa=none`（它不走 CSA 的 inline，只挂 TU 级回调）。多文件用 `-analysis_folder=<目录>`。

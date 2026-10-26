@@ -34,7 +34,7 @@
 | LLVM/Clang | `/usr1/llvm-project-14/cmake-build-release`，clang 14.0.0 | `~/llvm-project-14/cmake-build-release`，GitHub `llvmorg-14.0.0`（提交 `329fda39`）；或 Ubuntu 22.04 的 `clang-14`（同为 14.0.0【文档】） | 版本一致；公司那份是否改过，看 `fork-facts.sh` 第 3 节 |
 | CSA 宿主 | xir 内嵌 / 搬移的 CSA（`xir/llvm_ast/StaticAnalyzer`），可能有定制 | 上游 clang 14.0.0 的 CSA | **未知**——`fork-facts.sh` 第 6 节给出差异计数 |
 | checker 注册 | `Checkers.td` 包块 + 源码 `CMakeLists.txt`，`make -j16` | 日常：**插件**（`-DOOBSUM_PLUGIN_BUILD`，`clang -cc1 -load`）；带去之前：**本地预演** `Checkers.td` 注册（§4.4） | 同一份源码两种注册方式，探针已验证 |
-| 运行 | `bxen -exec_mode=onlySa … -checker=rb.enhance.… "-extra_args=…"` | `cc1-run.sh -checker=rb.enhance.… 文件.c`（`clang -cc1 -analyze`，同样带 `-analyzer-max-loop 3`） | checker 名、`-analyzer-config` 写法一致；bxen 另外加载的 `config.ini` / 函数指针配置本地没有 |
+| 运行 | `bxen -exec_mode=onlySa … -checker=rb.enhance.… -extra_args="…"` | `cc1-run.sh -checker=rb.enhance.… 文件.c`（`clang -cc1 -analyze`，同样带 `-analyzer-max-loop 3`） | checker 名、`-analyzer-config` 写法一致；bxen 另外加载的 `config.ini` / 函数指针配置本地没有 |
 | 目标 ABI | 业务代码是 aarch64_be + ILP32（4 字节指针、大端） | 上游 clang 14 **不支持 aarch64 ILP32**：`aarch64_be-linux-gnu_ilp32` 仍按 8 字节指针算，`-mabi=ilp32` 报 `unknown target ABI`【实测数据】；本地近似用 `TRIPLE=armebv7-linux-gnueabi`（4 字节指针 + 大端） | 结构体偏移只能在公司确认（探针 R2） |
 | 代码与数据 | 业务代码、全量 `compile_commands.json` | **只有我们自己的代码和 67 个用例**；业务代码不出公司 | |
 

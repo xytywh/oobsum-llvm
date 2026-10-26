@@ -332,18 +332,41 @@ def _read_logs(wd, srcs, root):
     return decs, [s for s in srcs if os.path.normpath(s) not in seen]
 
 
+def _system_includes(cc):
+    """编译器默认的头文件搜索路径（`cc -E -x c - -v` 里 "#include <...> search starts here:" 到 "End of search list." 之间），按顺序。
+    bxen 把 compile_commands.json 里的命令换成自己的分析器，不会自己去找 gcc 的系统头文件，所以要显式写成 -isystem（SPEC-0115）"""
+    try:
+        r = subprocess.run([cc, '-E', '-x', 'c', '-', '-v'], input='', capture_output=True, text=True)
+    except OSError:
+        return []
+    dirs, on = [], False
+    for line in r.stderr.splitlines():
+        if line.startswith('#include <...> search starts here:'):
+            on = True
+        elif line.startswith('End of search list.'):
+            break
+        elif on and line.strip():
+            dirs.append(os.path.normpath(line.strip().split(' (framework directory)')[0]))
+    return dirs
+
+
 def cmd_cdb(a):
     """给全部用例生成 compile_commands.json（公司用 bxen 跑用例、再 csa --from-workdir 对照，SPEC-0111）"""
     root = os.path.abspath(a.cases or HERE)
     out = os.path.abspath(a.out or 'oobsum-cases-cdb')
     os.makedirs(out, exist_ok=True)
+    sysinc = [] if a.no_sysinc else _system_includes(a.cc)
+    flags = ''.join(' -isystem %s' % d for d in sysinc) + (' ' + a.flags if a.flags else '')
     cmds = []
     for _, _, srcs, _ in units(root):
         for s in srcs:
-            cmds.append({'directory': os.path.dirname(s), 'file': s, 'command': '%s -c %s -o /dev/null' % (a.cc, s)})
+            cmds.append({'directory': os.path.dirname(s), 'file': s,
+                         'command': '%s%s -c %s -o /dev/null' % (a.cc, flags, s)})
     path = os.path.join(out, 'compile_commands.json')
     json.dump(cmds, open(path, 'w', encoding='utf-8'), indent=1)
-    print('已写 %s：%d 个源文件（编译器 %s）' % (path, len(cmds), a.cc))
+    print('已写 %s：%d 个源文件（编译器 %s，系统头文件目录 %d 个）' % (path, len(cmds), a.cc, len(sysinc)))
+    if not sysinc and not a.no_sysinc:
+        print('警告：没有从 %s 拿到系统头文件目录，bxen 可能报找不到 <stddef.h>；用 --flags "-isystem …" 手工补' % a.cc)
     return 0
 
 
@@ -640,6 +663,8 @@ def main():
     ap.add_argument('--save', action='store_true', help='csa：把这次结果写成新基线（有意改变时）')
     ap.add_argument('--config', action='append', default=[], metavar='K=V', help='csa：追加 checker 选项')
     ap.add_argument('--cc1-arg', action='append', default=[], metavar='ARG', help='csa：追加 cc1 参数（写成 --cc1-arg=-DX）')
+    ap.add_argument('--flags', default='', help='cdb：追加到每条编译命令的参数，写成 --flags="…"（如 -isystem / -D / 目标参数）')
+    ap.add_argument('--no-sysinc', action='store_true', help='cdb：不自动写编译器的系统头文件目录')
     ap.add_argument('--from-workdir', metavar='WD', help='csa：不调 clang，读现成的 WorkDir（公司 bxen 跑完全部用例的）对照（SPEC-0111）')
     a = ap.parse_args()
     if a.mode == 'index':

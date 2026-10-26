@@ -190,6 +190,14 @@
 - [x] **公司集成反馈（2026-10-26）**（SPEC-0114）：xir 编译时 `OobSummary/core/*.h` 找不到 → `land.py` 自动给 Checkers 的 `target_include_directories` 补
       `${CMAKE_CURRENT_SOURCE_DIR}`；`Decision::msg` 与别处冲突 → 改名 `warnMsg`；`fir/`、`solved/` 的 JSON 缩进写；lit 目录加 README。
       **公司结果**：编译通过（手改两处后）；TestCase 4 条告警、`decisions=7 emitted=4`，与本地一致。
+- [x] **公司集成反馈 2（2026-10-26）**（SPEC-0115）：pull 后 land、编译、TestCase 都与预期相同（4 条告警、`decisions=7 emitted=4`）；
+      按 §3.1 用 bxen 跑 67 个用例时每个 TU 都找不到 `stddef.h`——`run.py cdb` 只写了 `cc -c`，bxen 不会自己找 gcc 的系统头文件。现在用 `cc -E -x c - -v`
+      问出系统头文件目录写成 `-isystem`（`--flags` 追加、`--no-sysinc` 不写）；本地模拟 bxen（cc1 不给 resource-dir）复现了报错，修好后 0 失败、
+      `--from-workdir` 通过 106 / 需跨TU 2 / 回退 0。文档里的 bxen 命令统一写成一行 `-extra_args="…"`、`-cc_json` 给目录。
+      **fork-facts（只记结论）**：宿主 x86_64、gcc 14.3.0；公司 clang 14.0.0 Release、断言关、RTTI / EH 关、全部目标后端；llvm-project-14 是导入的快照
+      （没有上游历史，判断不了与 14.0.0 是否逐字相同）；xir 内嵌的 CSA 改过 Core 12 个文件（CoreEngine、ExprEngine、RangeConstraintManager、RegionStore…）、
+      Frontend 的 AnalysisConsumer、include 8 个。本规则只挂 `ASTDecl<TranslationUnitDecl>`、不用 ExprEngine / 约束管理器 / Store，TestCase 结果与本地一致
+      → 这些改动目前不影响本规则；还不知道的是 fork 对业务目标（aarch64_be + ILP32）的处理（I0 R2，或业务文件 `Dump=fir` 的 `module` 行）。
 - [x] **P0-8 / WP6 链长用例**（SPEC-0113）：`cases/gen_chain.py` 四类模板 × N ∈ {2, 3, 5, 10, 17, 20}，`--check` 按 G1 口径判，24 个全部符合；
       顺带修了封装分配器链在本函数里访问时 `eff_depth` 为 0、被层数过滤的问题。
 - [x] **WP13 规则 README**：`oobsum/testcase/OobSummaryChecker/README.md`（`csa-checker-dev` 合并版模板：目的、风险、检测策略、支持场景、
@@ -361,9 +369,10 @@
 * **跨 TU 的 bxen 命令格式**（SPEC-0031 §8）：bxen 跑多个文件时 `-cc_json` 给目录还是文件、`-analysis_folder` 与过滤后的 cdb 怎么配合。驱动的模板按 COMPANY.md §4
   的写法猜的；在公司先用 `oobsum_run.py bxen …`（不加 `--run`）打印三段命令，跑一遍 TestCase 目录，不对就把正确的写法告诉我。
 
-* 公司（可选，很快）：bxen 命令加 `-analyzer-config rb.enhance.ipa.OobSummary:Dump=fir` 跑 TestCase，看 `module` 行是否 `ptr=4 long=4 big-endian`
+* 公司（可选，很快）：bxen 命令加 `-analyzer-config rb.enhance.ipa.OobSummary:Dump=fir`，用**业务 cdb 里任选一个 .c**（TestCase 是宿主 gcc 编的，
+  一定是 x86_64）跑，看 `module` 行是否 `ptr=4 long=4 big-endian`
   （fork 是否按 ILP32 分析，对应探针 R2），以及 `char` 字段是否 `u8`。只带回"是/否"。
-* 公司：`oobsum/devenv/fork-facts.sh` 的输出；I0 探针 R1–R3；TestCase 在 bxen 下的结果（**现在预期 4 条告警 + 判定日志 7 条**：
+* 公司：~~`fork-facts.sh` 的输出~~（2026-10-26 已收到，结论见上）；I0 探针 R1–R3；TestCase 在 bxen 下的结果（**现在预期 4 条告警 + 判定日志 7 条**：
   骨架的 3 条 + 引擎的三层链 `Tc_Engine_TP` 一条 DEFINITE；`Dump=stats` 应为 `decisions=7 emitted=4`）。
 * 公司（可选）：引擎已在默认的 `Phase=inline` 下跑。拿 bxen 跑一个业务子目录，
   带回各标签 / 原因的条数与耗时（`tools/decisions.py` 汇总，只要数字），用来定 `SuspectReasons` 的默认值（`not_in_tu`、`typed_field` 预计很多）。

@@ -6,11 +6,13 @@
 # RUN:   --baseline %t/base.json --config Phase=report --save | FileCheck %s --check-prefix=FIRST
 # RUN: FileCheck %s --check-prefix=BASE < %t/base.json
 #
-# 读现成的 WorkDir（公司 bxen 跑完用例后对照，SPEC-0111）：不调 clang，结论与直接跑的相同；给用例生成编译数据库
+# 读现成的 WorkDir（公司 bxen 跑完用例后对照，SPEC-0111）：不调 clang，结论与直接跑的相同；给用例生成编译数据库（命令里带编译器的系统头文件目录，SPEC-0115）
 # RUN: %python %S/../../../../oobsum/cases/run.py csa --cases %S/Inputs/cases --from-workdir %t/out \
 # RUN:   --baseline %t/base.json | FileCheck %s --check-prefix=FROMWD
 # RUN: %python %S/../../../../oobsum/cases/run.py cdb --cases %S/Inputs/cases --out %t/cdb --cc gcc | FileCheck %s --check-prefix=CDB
 # RUN: FileCheck %s --check-prefix=CDBJSON < %t/cdb/compile_commands.json
+# RUN: %python %S/../../../../oobsum/cases/run.py cdb --cases %S/Inputs/cases --out %t/cdb2 --cc gcc --no-sysinc --flags=-DX=1 > /dev/null
+# RUN: FileCheck %s --check-prefix=CDBFLAGS < %t/cdb2/compile_commands.json
 #
 # 同一处 SUSPECT 变成 SAFE（证明了安全）：不算回退，退出码 0
 # RUN: %python %S/../../../../oobsum/cases/run.py csa --clang %clang --cases %S/Inputs/cases --out %t/out \
@@ -65,5 +67,6 @@ FROMWD: == clang=WorkDir {{.*}}out  triple=armebv7-linux-gnueabi  用例 5 个�
 FROMWD: 合计 11 个入口：通过 5，通过+S 1，级别不同 1，漏报 1，误报 1，超出预期 1，需跨TU 1；其它报出 1 条
 FROMWD: 基线 {{.*}}base.json：回退 0 条
 
-CDB: 已写 {{.*}}compile_commands.json：6 个源文件（编译器 gcc）
-CDBJSON: "command": "gcc -c {{.*}}mini_01.c -o /dev/null"
+CDB: 已写 {{.*}}compile_commands.json：6 个源文件（编译器 gcc，系统头文件目录 {{[0-9]+}} 个）
+CDBJSON: "command": "gcc {{(-isystem [^ ]+ )*}}-c {{.*}}mini_01.c -o /dev/null"
+CDBFLAGS: "command": "gcc -DX=1 -c {{.*}}mini_01.c -o /dev/null"

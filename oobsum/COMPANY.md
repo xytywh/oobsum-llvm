@@ -47,12 +47,7 @@ cd /usr1/BXPlugin/cmake-build-release-release && make -j16
 
 ```bash
 mkdir -p /tmp/oobsum-tc
-/usr1/BXPlugin/cmake-build-release-release/bxen \
-  -exec_mode=onlySa \
-  -cc_json=/usr1/BXPlugin/cmake-build-release-release/ \
-  -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/TC_OobSummaryChecker.c \
-  -checker=rb.enhance.ipa.OobSummary \
-  "-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/tmp/oobsum-tc -analyzer-config rb.enhance.ipa.OobSummary:Dump=options+stats -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=/usr1/BXPlugin/cmake-build-release-release/ -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/TC_OobSummaryChecker.c -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/tmp/oobsum-tc -analyzer-config rb.enhance.ipa.OobSummary:Dump=options+stats -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
 python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /tmp/oobsum-tc
 ```
 
@@ -64,18 +59,18 @@ python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /tmp/oobsum-tc
 
 ```bash
 cd /usr1/oobsum-llvm
-python3 oobsum/cases/run.py cdb --out /usr1/oobsum-cases-cdb --cc gcc        # --cc 换成公司编译用例要用的编译器
+python3 oobsum/cases/run.py cdb --out /usr1/oobsum-cases-cdb --cc /usr/local/bin/cc   # 与 TestCase 同一个编译器；自动写它的系统头文件目录（SPEC-0115）
 mkdir -p /usr1/oobsum-cases-wd
-/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa \
-  -cc_json=/usr1/oobsum-cases-cdb/ -analysis_folder=/usr1/oobsum-llvm/oobsum/cases \
-  -checker=rb.enhance.ipa.OobSummary \
-  "-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-cases-wd -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-cases-cdb/ -analysis_folder=/usr1/oobsum-llvm/oobsum/cases -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-cases-wd -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
 python3 oobsum/cases/run.py csa --from-workdir /usr1/oobsum-cases-wd       # 不调 clang，读 bxen 写的 WorkDir 对照
 ```
 
 预期（与本地同一版本）：`合计 134 个入口：通过 106，通过+S 20，级别不同 2，超出预期 4，需跨TU 2`、`回退 0 条`（单 TU 跑，跨文件的 LV1-07、LV6-01 显示"需跨TU"）。
 `Dump=summary` 必须带（对照要用调用图）。不一致就把这张表贴回来；按子目录分开跑、每个子目录一个 WorkDir 也行，`--from-workdir` 给它们的父目录。
 
+* bxen 不会自己找 gcc 的系统头文件（`stddef.h` 等），`compile_commands.json` 的命令里要显式写 `-isystem`（TestCase 的 CMakeLists 就是这么加的）。
+  `run.py cdb` 用 `<cc> -E -x c - -v` 问出这些目录、按顺序写进去，打印"系统头文件目录 K 个"；和 BXPlugin 的 `compile_commands.json` 里 TestCase 那条的
+  `-isystem` 对一下应当相同。还缺参数用 `--flags="…"` 追加（要带等号，因为值以 `-` 开头；SPEC-0115）。
 * rb.enhance.ipa 规则：`-extra_args` 里**不加** `-analyzer-config ipa=none`（它不走 CSA 的 inline，只挂 TU 级回调）。
 * `-analyzer-config` 的列表值用 `+` 连接（`Dump=options+stats`），逗号会被当成分隔符。
 
@@ -83,10 +78,7 @@ python3 oobsum/cases/run.py csa --from-workdir /usr1/oobsum-cases-wd       # 不
 
 ```bash
 mkdir -p /usr1/oobsum-work
-/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa \
-  -cc_json=<compile_commands.json 所在的目录>/ -analysis_folder=<目录1>,<目录2> \
-  -checker=rb.enhance.ipa.OobSummary \
-  "-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=<compile_commands.json 所在的目录>/ -analysis_folder=<目录1>,<目录2> -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
 python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /usr1/oobsum-work                 # 按标签 / 原因计数
 python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /usr1/oobsum-work --emitted --jsonl review.jsonl   # 给大模型复核
 ```
@@ -95,8 +87,7 @@ python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /usr1/oobsum-work --emitted 
 
 ```bash
 python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py bxen --workdir /usr1/oobsum-work \
-  --bxen /usr1/BXPlugin/cmake-build-release-release/bxen --cc-json <业务工程目录> --analysis-folder <目录1>,<目录2> \
-  --extra "-analyzer-max-loop 3 -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+  --bxen /usr1/BXPlugin/cmake-build-release-release/bxen --cc-json <业务工程目录> --analysis-folder <目录1>,<目录2> --extra "-analyzer-max-loop 3 -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
 # 打印 export、solve 两段（solve 用生成的桩 TU：/usr1/oobsum-work/solve_stub/）；跑完这两段后再执行同一条命令，打印 report 那段
 #（report 的 cdb 从原 cdb 原样复制有判定的 TU：/usr1/oobsum-work/report_cdb/）。加 --run 直接执行；status 子命令看到哪一步了
 python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py status --workdir /usr1/oobsum-work
@@ -121,10 +112,7 @@ python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py explain --workdir /usr1/oob
 2. **默认模式跑**（单 TU，一条 bxen 命令；先挑一两个子目录，不加 `-analysis_folder` 就是整个 cdb）：
    ```bash
    mkdir -p /usr1/oobsum-work/base
-   time /usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa \
-     -cc_json=<compile_commands.json 所在的目录>/ -analysis_folder=<子目录1>,<子目录2> \
-     -checker=rb.enhance.ipa.OobSummary \
-     "-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work/base -analyzer-config rb.enhance.ipa.OobSummary:Dump=stats -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+   time /usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=<compile_commands.json 所在的目录>/ -analysis_folder=<子目录1>,<子目录2> -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work/base -analyzer-config rb.enhance.ipa.OobSummary:Dump=stats -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
    ```
    * 被调者在别的文件里：记 `SUSPECT:not_in_tu`（跨文件用第 5 步）。
    * 1–2 层就能判的 DEFINITE / POSSIBLE 默认不报（交现有规则）；想全看加 `-analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0`。

@@ -20,7 +20,7 @@ STATUS: report：2 条命令
 STATUS: 下一步：完成
 
 BXEN: # report 的 cdb：2 个 TU（原 cdb 3 个）
-BXEN: $ /usr1/bxen -exec_mode=onlySa -cc_json={{.*}}cdb -checker=rb.enhance.ipa.OobSummary '-extra_args=-analyzer-config rb.enhance.ipa.OobSummary:Phase=export
+BXEN: $ /usr1/bxen -exec_mode=onlySa -cc_json={{.*}}cdb -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-config rb.enhance.ipa.OobSummary:Phase=export
 BXEN: $ /usr1/bxen -exec_mode=onlySa -cc_json={{.*}}solve_stub -analysis_file={{.*}}stub.c {{.*}}Phase=solve
 BXEN: $ /usr1/bxen -exec_mode=onlySa -cc_json={{.*}}report_cdb {{.*}}Phase=report
 

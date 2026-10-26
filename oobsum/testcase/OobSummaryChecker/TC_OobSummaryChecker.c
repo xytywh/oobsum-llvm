@@ -12,7 +12,7 @@
  *     -cc_json=/usr1/BXPlugin/cmake-build-release-release/ \
  *     -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/TC_OobSummaryChecker.c \
  *     -checker=rb.enhance.ipa.OobSummary \
- *     "-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/tmp/oobsum-tc -analyzer-config rb.enhance.ipa.OobSummary:Dump=options+stats -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+ *     -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/tmp/oobsum-tc -analyzer-config rb.enhance.ipa.OobSummary:Dump=options+stats -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
  *   # rb.enhance.ipa 规则：不加 ipa=none；它自己不走 CSA 的 inline，只挂 TU 级回调
  *   # 判定日志：/tmp/oobsum-tc/decisions/<tu-id>.jsonl（报了的、没报的都在）
  *   # 多个调试种类用 '+' 连接（-analyzer-config 把逗号当分隔符）

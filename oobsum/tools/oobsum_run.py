@@ -18,9 +18,21 @@ CHECKER = 'rb.enhance.ipa.OobSummary'
 STUB = '/* oobsum_run.py 生成的桩 TU（06- X-04）：只当 Phase=solve 的宿主。 */\nvoid oobsum_solve_stub(void) {}\n'
 
 
+def show(cmd):
+    """打印用的命令行：-extra_args="…" 写成与 COMPANY.md 相同的样子（bash 与 IDE 的运行配置都能直接粘贴，SPEC-0115），其余按 shell 引用"""
+    out = []
+    for c in cmd:
+        key, _, val = c.partition('=')
+        if key == '-extra_args' and not any(ch in val for ch in '"$`\\!'):
+            out.append('-extra_args="%s"' % val)
+        else:
+            out.append(shlex.quote(c))
+    return ' '.join(out)
+
+
 def run(cmd, workdir, phase):
     """打印、执行，输出追加到 logs/<阶段>.log；返回退出码。"""
-    text = ' '.join(shlex.quote(c) for c in cmd)
+    text = show(cmd)
     print('$ ' + text, flush=True)
     os.makedirs(os.path.join(workdir, 'logs'), exist_ok=True)
     with open(os.path.join(workdir, 'logs', phase + '.log'), 'a', encoding='utf-8') as log:
@@ -32,7 +44,7 @@ def run(cmd, workdir, phase):
 
 def stop(phase, cmd):
     sys.exit('✗ %s 阶段失败（输出见 logs/%s.log）；修好后单独重跑这一段：\n  %s' % (
-        phase, phase, ' '.join(shlex.quote(c) for c in cmd)))
+        phase, phase, show(cmd)))
 
 
 def solved(workdir):
@@ -139,7 +151,7 @@ def cmd_bxen(a):
             if run(cmd, workdir, phase) != 0:
                 stop(phase, cmd)
         else:
-            print('$ ' + ' '.join(shlex.quote(c) for c in cmd))
+            print('$ ' + show(cmd))
     return 0
 
 
