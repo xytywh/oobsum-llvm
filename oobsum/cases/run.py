@@ -257,13 +257,21 @@ def _pad(s, w):
     return s + ' ' * max(0, w - sum(2 if unicodedata.east_asian_width(ch) in 'WF' else 1 for ch in s))
 
 
+def _rep_key(d):
+    """挑代表判定的次序：标签最强的在前；同标签按原因、对象、末端、位置（文件名 + 行）排——与判定在日志里的先后无关。
+    日志的先后随源文件路径的哈希变（键里有文件 id），同一份用例换个目录跑，取"第一条"会显示不同的原因（SPEC-0116）"""
+    site = d.get('site') or ''
+    return (-STRENGTH.get(d['label'], -1), d.get('reason') or '', d.get('obj') or '', json.dumps(d.get('end')),
+            os.path.basename(site), d.get('kind') or '')
+
+
 def _entry_actual(ds):
     """入口的实际（SPEC-0002 §2.2）：(显示文本, 报出的最强标签——不含 safe，没有为 None)"""
     em = [d for d in ds if d.get('emitted')]
     pool = em or ds
     if not pool:
         return '未判', None
-    best = max(pool, key=lambda d: STRENGTH.get(d['label'], -1))
+    best = min(pool, key=_rep_key)
     if not em:
         return '%s(未报出:%s)' % (_tag(best), best.get('not_emitted_because', '?')), None
     text = _tag(best) + ('×%d' % len(em) if len(em) > 1 else '')
@@ -542,7 +550,7 @@ def cmd_csa(a):
                 # L1 / L2 可以判在入口调用链上的汇合点（SPEC-0048）：取那里报出的最强 DEFINITE / POSSIBLE
                 strong = [d for d in decs if d.get('emitted') and d['label'] in ('definite', 'possible') and d['fn'] in reach]
                 if strong:
-                    best = max(strong, key=lambda d: STRENGTH.get(d['label'], -1))
+                    best = min(strong, key=_rep_key)
                     rep = best['label']
                     actual = '%s@%s' % (_tag(best), names_of.get(best['fn'], _fn_name(best['fn']))) + \
                         ('×%d' % len(strong) if len(strong) > 1 else '')
@@ -551,7 +559,8 @@ def cmd_csa(a):
                 sus = [d for d in decs if d.get('emitted') and d['label'] == 'suspect' and d['fn'] in reach]
                 if sus:
                     rep = 'suspect'
-                    actual = '%s@%s' % (_tag(sus[0]), names_of.get(sus[0]['fn'], _fn_name(sus[0]['fn']))) + \
+                    rep0 = min(sus, key=lambda d: (_rep_key(d), names_of.get(d['fn'], _fn_name(d['fn']))))
+                    actual = '%s@%s' % (_tag(rep0), names_of.get(rep0['fn'], _fn_name(rep0['fn']))) + \
                         ('×%d' % len(sus) if len(sus) > 1 else '')
             nsus = len([d for d in decs if _fn_name(d['fn']) == e['entry'] and d.get('emitted') and d['label'] == 'suspect'])
             entries.append({'case': cid, 'kind': e['kind'], 'entry': e['entry'], 'pa': pa, 'actual': actual,

@@ -12,7 +12,8 @@
    "entry": "Cell_OnSetupTimeout_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV1-01",
@@ -20,7 +21,8 @@
    "entry": "Cell_OnSetupTimeout_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV1-02",
@@ -28,7 +30,8 @@
    "entry": "Ue_ShowInfo_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV1-02",
@@ -36,7 +39,8 @@
    "entry": "Ue_ShowInfo_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV1-03",
@@ -44,7 +48,8 @@
    "entry": "Msg_Build_TP",
    "pa": "L2",
    "actual": "POSSIBLE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV1-03",
@@ -52,7 +57,8 @@
    "entry": "Msg_Build_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV1-04",
@@ -60,15 +66,17 @@
    "entry": "Cell_Setup_TP",
    "pa": "L2",
    "actual": "POSSIBLE@Cell_InitNbrList",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 1
   },
   {
    "case": "LV1-04",
    "kind": "TN",
    "entry": "Cell_Setup_TN",
    "pa": "-",
-   "actual": "SUSPECT:typed_field×2",
-   "verdict": "通过+S"
+   "actual": "SUSPECT:entry_unproven×2",
+   "verdict": "通过+S",
+   "nsus": 2
   },
   {
    "case": "LV1-05",
@@ -76,7 +84,8 @@
    "entry": "Ue_OnDetach_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV1-05",
@@ -84,7 +93,8 @@
    "entry": "Ue_OnDetach_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV1-06",
@@ -92,7 +102,8 @@
    "entry": "Sched_InitDefault_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV1-06",
@@ -100,7 +111,8 @@
    "entry": "Sched_InitDefault_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV1-07",
@@ -108,7 +120,8 @@
    "entry": "Alm_ReportAll_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV1-07",
@@ -116,7 +129,8 @@
    "entry": "Alm_ReportAll_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV1-08",
@@ -124,7 +138,8 @@
    "entry": "Cfg_InitDefault_TP",
    "pa": "L1",
    "actual": "DEFINITE×2",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 1
   },
   {
    "case": "LV1-08",
@@ -132,7 +147,8 @@
    "entry": "Cfg_InitDefault_TN",
    "pa": "-",
    "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV2-01",
@@ -140,7 +156,8 @@
    "entry": "Erab_OnSetupReq_TP",
    "pa": "L2",
    "actual": "POSSIBLE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-01",
@@ -148,7 +165,8 @@
    "entry": "Erab_OnSetupReq_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-02",
@@ -156,7 +174,8 @@
    "entry": "Msg_Entry_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-02",
@@ -164,7 +183,8 @@
    "entry": "Msg_Entry_TN",
    "pa": "-",
    "actual": "SAFE:local_entailed(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-03",
@@ -172,7 +192,8 @@
    "entry": "Pkt_Build_TP",
    "pa": "L1",
    "actual": "DEFINITE×2",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 1
   },
   {
    "case": "LV2-03",
@@ -180,7 +201,8 @@
    "entry": "Pkt_Build_TN",
    "pa": "-",
    "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV2-04",
@@ -188,7 +210,8 @@
    "entry": "List_Create_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-04",
@@ -196,7 +219,8 @@
    "entry": "List_Create_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-05",
@@ -204,7 +228,8 @@
    "entry": "Cell_ResetUeMap_TP",
    "pa": "L2",
    "actual": "POSSIBLE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-05",
@@ -212,7 +237,8 @@
    "entry": "Cell_ResetUeMap_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-06",
@@ -220,7 +246,8 @@
    "entry": "Cell_RefreshActive_TP",
    "pa": "L2",
    "actual": "POSSIBLE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-06",
@@ -228,7 +255,8 @@
    "entry": "Cell_RefreshActive_TN",
    "pa": "-",
    "actual": "SAFE:local_entailed(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-07",
@@ -236,15 +264,17 @@
    "entry": "Tbl_OnAddReq_TP",
    "pa": "L2",
    "actual": "POSSIBLE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-07",
    "kind": "TN",
    "entry": "Tbl_OnAddReq_TN",
    "pa": "-",
-   "actual": "SAFE:local_entailed(未报出:safe)",
-   "verdict": "通过"
+   "actual": "SAFE:guard_entailed(未报出:safe)",
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-08",
@@ -252,7 +282,8 @@
    "entry": "Frame_Build_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-08",
@@ -260,7 +291,8 @@
    "entry": "Frame_Build_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-09",
@@ -268,15 +300,17 @@
    "entry": "Ue_CheckJitter_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV2-09",
    "kind": "TN",
    "entry": "Ue_CheckJitter_TN",
    "pa": "-",
-   "actual": "SAFE:local_entailed(未报出:safe)",
-   "verdict": "通过"
+   "actual": "SAFE:guard_false(未报出:safe)",
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV3-01",
@@ -284,7 +318,8 @@
    "entry": "Cell_OnSetupReq_TP",
    "pa": "L2",
    "actual": "POSSIBLE×2",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 1
   },
   {
    "case": "LV3-01",
@@ -292,7 +327,8 @@
    "entry": "Cell_OnSetupReq_TN",
    "pa": "-",
    "actual": "SUSPECT:typed_field",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV3-02",
@@ -300,7 +336,8 @@
    "entry": "Ue_OnAttach_TP",
    "pa": "L2",
    "actual": "POSSIBLE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV3-02",
@@ -308,7 +345,8 @@
    "entry": "Ue_OnAttach_TN",
    "pa": "-",
    "actual": "SAFE:guard_entailed(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV3-03",
@@ -316,7 +354,8 @@
    "entry": "Board_OnCfgMsg_TP",
    "pa": "L2",
    "actual": "POSSIBLE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV3-03",
@@ -324,7 +363,8 @@
    "entry": "Board_InitDefault_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV3-04",
@@ -332,7 +372,8 @@
    "entry": "Cell_OnNbrUpdate_TP",
    "pa": "L2",
    "actual": "POSSIBLE×2",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 1
   },
   {
    "case": "LV3-04",
@@ -340,7 +381,8 @@
    "entry": "Cell_OnNbrUpdate_TN",
    "pa": "-",
    "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV3-05",
@@ -348,7 +390,8 @@
    "entry": "Cell_SetDefaultName_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV3-05",
@@ -356,7 +399,8 @@
    "entry": "Cell_SetDefaultName_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV3-06",
@@ -364,7 +408,8 @@
    "entry": "Ue_OnCapInfo_TP",
    "pa": "L2",
    "actual": "POSSIBLE×2",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 1
   },
   {
    "case": "LV3-06",
@@ -372,7 +417,8 @@
    "entry": "Ue_OnCapInfo_TN",
    "pa": "-",
    "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV3-07",
@@ -380,7 +426,8 @@
    "entry": "Msg_Encode_TP",
    "pa": "L2",
    "actual": "SUSPECT:entry_unproven",
-   "verdict": "级别不同"
+   "verdict": "级别不同",
+   "nsus": 1
   },
   {
    "case": "LV3-07",
@@ -388,7 +435,8 @@
    "entry": "Msg_Encode_TN",
    "pa": "-",
    "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV3-08",
@@ -396,7 +444,8 @@
    "entry": "Cell_ResetAll_TP",
    "pa": "L2",
    "actual": "POSSIBLE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV3-08",
@@ -404,7 +453,8 @@
    "entry": "Cell_ResetAll_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV3-09",
@@ -412,7 +462,8 @@
    "entry": "Sched_InitGrid_TP",
    "pa": "L2",
    "actual": "POSSIBLE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV3-09",
@@ -420,7 +471,8 @@
    "entry": "Sched_InitGrid_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV3-10",
@@ -428,7 +480,8 @@
    "entry": "Ue_OnHoPrepare_TP",
    "pa": "L2",
    "actual": "POSSIBLE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV3-10",
@@ -436,7 +489,8 @@
    "entry": "Ue_OnHoPrepare_TN",
    "pa": "-",
    "actual": "SUSPECT:type_range_only",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV4-01",
@@ -444,7 +498,8 @@
    "entry": "Ue_ModuleInit_TP",
    "pa": "L2",
    "actual": "POSSIBLE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV4-01",
@@ -452,7 +507,8 @@
    "entry": "Ue_ModuleInit_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV4-02",
@@ -460,7 +516,8 @@
    "entry": "Ue_CreateSec_TP",
    "pa": "L1",
    "actual": "DEFINITE×2",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 1
   },
   {
    "case": "LV4-02",
@@ -468,7 +525,8 @@
    "entry": "Ue_CreateSec_TN",
    "pa": "-",
    "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV4-03",
@@ -476,7 +534,8 @@
    "entry": "Msg_MakeText_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV4-03",
@@ -484,7 +543,8 @@
    "entry": "Msg_MakeText_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV4-04",
@@ -492,7 +552,8 @@
    "entry": "Rpt_Send_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV4-04",
@@ -500,7 +561,8 @@
    "entry": "Rpt_Send_TN",
    "pa": "-",
    "actual": "SAFE:local_entailed(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV4-05",
@@ -508,7 +570,8 @@
    "entry": "Ue_OnReconfig_TP",
    "pa": "L2",
    "actual": "POSSIBLE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV4-05",
@@ -516,7 +579,8 @@
    "entry": "Ue_OnReconfig_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV4-06",
@@ -524,7 +588,8 @@
    "entry": "Cell_OnDelReq_TP",
    "pa": "L2",
    "actual": "POSSIBLE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV4-06",
@@ -532,7 +597,8 @@
    "entry": "Cell_OnDelReq_TN",
    "pa": "-",
    "actual": "SAFE:guard_entailed(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV4-07",
@@ -540,7 +606,8 @@
    "entry": "Pool_UseBlock_TP",
    "pa": "记账",
    "actual": "SUSPECT:untracked_pointer",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 1
   },
   {
    "case": "LV4-07",
@@ -548,7 +615,8 @@
    "entry": "Pool_UseBlock_TN",
    "pa": "-",
    "actual": "SUSPECT:untracked_pointer",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV5-01",
@@ -556,7 +624,8 @@
    "entry": "Rrc_EncodeMsg_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV5-01",
@@ -564,7 +633,8 @@
    "entry": "Rrc_EncodeMsg_TN",
    "pa": "-",
    "actual": "SAFE:local_entailed(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV5-02",
@@ -572,7 +642,8 @@
    "entry": "Rrc_EncodeSib_TP",
    "pa": "记账",
    "actual": "DEFINITE",
-   "verdict": "超出预期"
+   "verdict": "超出预期",
+   "nsus": 0
   },
   {
    "case": "LV5-02",
@@ -580,7 +651,8 @@
    "entry": "Rrc_EncodeSib_TN",
    "pa": "记账",
    "actual": "SAFE:local_entailed(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV5-03",
@@ -588,7 +660,8 @@
    "entry": "Ue_OnIeInd_TP",
    "pa": "L2",
    "actual": "POSSIBLE×2",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 1
   },
   {
    "case": "LV5-03",
@@ -596,7 +669,8 @@
    "entry": "Ue_OnIeInd_TN",
    "pa": "-",
    "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV5-04",
@@ -604,7 +678,8 @@
    "entry": "Rrc_EncodeExt_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV5-04",
@@ -612,7 +687,8 @@
    "entry": "Rrc_EncodeExt_TN",
    "pa": "-",
    "actual": "SAFE:local_entailed(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV5-05",
@@ -620,7 +696,8 @@
    "entry": "Ue_OnSetup_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV5-05",
@@ -628,7 +705,8 @@
    "entry": "Ue_OnSetup_TN",
    "pa": "-",
    "actual": "SAFE:local_entailed(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV5-06",
@@ -636,7 +714,8 @@
    "entry": "Rpt_Flush_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV5-06",
@@ -644,7 +723,8 @@
    "entry": "Rpt_Flush_TN",
    "pa": "-",
    "actual": "SAFE:local_entailed(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV6-01",
@@ -652,7 +732,8 @@
    "entry": "Port_OnLinkDown_TP",
    "pa": "L1",
    "actual": "DEFINITE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV6-01",
@@ -660,7 +741,8 @@
    "entry": "Port_OnLinkDown_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV6-02",
@@ -668,7 +750,8 @@
    "entry": "Cell_ResetUe_TP",
    "pa": "记账",
    "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 1
   },
   {
    "case": "LV6-02",
@@ -676,7 +759,8 @@
    "entry": "Cell_ResetUe_TN",
    "pa": "记账",
    "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV6-03",
@@ -684,7 +768,8 @@
    "entry": "Svc_OnSetReq_TP",
    "pa": "记账",
    "actual": "SUSPECT:untracked_pointer@Tbl_Set",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV6-03",
@@ -692,7 +777,8 @@
    "entry": "Svc_OnSetReq_TN",
    "pa": "记账",
    "actual": "未判",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV6-04",
@@ -700,7 +786,8 @@
    "entry": "Board_InitPorts_TP",
    "pa": "记账",
    "actual": "SUSPECT:type_range_only@Port_ResetAll",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV6-04",
@@ -708,7 +795,8 @@
    "entry": "Board_InitPorts_TN",
    "pa": "-",
    "actual": "未判",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV6-05",
@@ -716,7 +804,8 @@
    "entry": "Om_SaveTrace_TP",
    "pa": "记账",
    "actual": "SUSPECT:untracked_pointer@Shm_WriteAt",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV6-05",
@@ -724,7 +813,8 @@
    "entry": "Om_SaveTrace_TN",
    "pa": "记账",
    "actual": "未判",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV7-01",
@@ -732,7 +822,8 @@
    "entry": "List_Build_TP",
    "pa": "记账",
    "actual": "DEFINITE",
-   "verdict": "超出预期"
+   "verdict": "超出预期",
+   "nsus": 0
   },
   {
    "case": "LV7-01",
@@ -740,7 +831,8 @@
    "entry": "List_Build_TN",
    "pa": "记账",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV7-02",
@@ -748,7 +840,8 @@
    "entry": "Sched_OnSlot_TP",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV7-02",
@@ -756,7 +849,8 @@
    "entry": "Sched_OnSlot_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV7-03",
@@ -764,7 +858,8 @@
    "entry": "Om_OnShortMsg_TP",
    "pa": "记账",
    "actual": "DEFINITE",
-   "verdict": "超出预期"
+   "verdict": "超出预期",
+   "nsus": 0
   },
   {
    "case": "LV7-03",
@@ -772,7 +867,8 @@
    "entry": "Om_OnShortMsg_TN",
    "pa": "记账",
    "actual": "SAFE:local_entailed(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV7-04",
@@ -780,7 +876,8 @@
    "entry": "Om_DumpReg_TP",
    "pa": "记账",
    "actual": "SUSPECT:pointer_stepping@Buf_CopyStep",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV7-04",
@@ -788,7 +885,8 @@
    "entry": "Om_DumpReg_TN",
    "pa": "记账",
    "actual": "SAFE:local_entailed(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV7-05",
@@ -796,7 +894,8 @@
    "entry": "Cell_Rename_TP",
    "pa": "-",
    "actual": "POSSIBLE",
-   "verdict": "超出预期"
+   "verdict": "超出预期",
+   "nsus": 0
   },
   {
    "case": "LV7-05",
@@ -804,7 +903,8 @@
    "entry": "Cell_Rename_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV7-06",
@@ -812,7 +912,8 @@
    "entry": "Cell_BuildMap_TP",
    "pa": "记账",
    "actual": "SUSPECT:entry_unproven@Map_Fill",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV7-06",
@@ -820,7 +921,8 @@
    "entry": "Cell_BuildMap_TN",
    "pa": "记账",
    "actual": "未判",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV8-01",
@@ -828,7 +930,8 @@
    "entry": "Om_OnCfgMsg_TP",
    "pa": "L2",
    "actual": "SUSPECT:entry_unproven",
-   "verdict": "级别不同"
+   "verdict": "级别不同",
+   "nsus": 1
   },
   {
    "case": "LV8-01",
@@ -836,7 +939,8 @@
    "entry": "Om_OnCfgMsg_TN",
    "pa": "-",
    "actual": "SUSPECT:entry_unproven",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV8-02",
@@ -844,7 +948,8 @@
    "entry": "Om_OnBatchMsg_TP",
    "pa": "记账",
    "actual": "SUSPECT:type_range_only@Tlv_SumLen×3",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV8-02",
@@ -852,7 +957,8 @@
    "entry": "Om_OnBatchMsg_TN",
    "pa": "记账",
    "actual": "未判",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV8-03",
@@ -860,7 +966,8 @@
    "entry": "Cell_SetDefault_TP",
    "pa": "记账",
    "actual": "SUSPECT:pointer_stepping@Str_CopyRaw×3",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV8-03",
@@ -868,7 +975,8 @@
    "entry": "Cell_SetDefault_TN",
    "pa": "记账",
    "actual": "未判",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV8-04",
@@ -876,7 +984,8 @@
    "entry": "Phy_BuildGrid_TP",
    "pa": "记账",
    "actual": "SUSPECT:entry_unproven@Grid_Fill",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV8-04",
@@ -884,7 +993,8 @@
    "entry": "Phy_BuildGrid_TN",
    "pa": "记账",
    "actual": "未判",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV8-05",
@@ -892,7 +1002,8 @@
    "entry": "Om_Trace_TP",
    "pa": "记账",
    "actual": "SUSPECT:entry_unproven×2",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 2
   },
   {
    "case": "LV8-05",
@@ -900,7 +1011,8 @@
    "entry": "Om_Trace_TN",
    "pa": "记账",
    "actual": "SUSPECT:entry_unproven×2",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 2
   },
   {
    "case": "LV9-01",
@@ -908,7 +1020,8 @@
    "entry": "Ue_OnCap_TP",
    "pa": "L2",
    "actual": "POSSIBLE",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV9-01",
@@ -916,7 +1029,8 @@
    "entry": "Ue_OnCap_TN",
    "pa": "-",
    "actual": "SAFE:within(未报出:safe)",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV9-02",
@@ -924,7 +1038,8 @@
    "entry": "Msg_OnRecv_TP",
    "pa": "记账",
    "actual": "SUSPECT:fptr@Msg_Dispatch",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV9-02",
@@ -932,7 +1047,8 @@
    "entry": "Msg_OnRecv_TN",
    "pa": "记账",
    "actual": "未判",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV9-03",
@@ -940,7 +1056,8 @@
    "entry": "Evt_FireCellUp_TP",
    "pa": "记账",
    "actual": "SUSPECT:fptr@Evt_Fire",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV9-03",
@@ -948,7 +1065,8 @@
    "entry": "Evt_FireCellUp_TN",
    "pa": "记账",
    "actual": "未判",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV9-04",
@@ -956,7 +1074,8 @@
    "entry": "Om_ReadChip_TP",
    "pa": "记账",
    "actual": "SUSPECT:not_in_tu@Chip_ReadStatus",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV9-04",
@@ -964,7 +1083,8 @@
    "entry": "Om_ReadChip_TN",
    "pa": "记账",
    "actual": "未判",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV9-05",
@@ -972,7 +1092,8 @@
    "entry": "Cfg_DumpTree_TP",
    "pa": "记账",
    "actual": "SUSPECT:typed_field",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 1
   },
   {
    "case": "LV9-05",
@@ -980,7 +1101,8 @@
    "entry": "Cfg_DumpTree_TN",
    "pa": "记账",
    "actual": "SUSPECT:typed_field",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV9-06",
@@ -988,7 +1110,8 @@
    "entry": "Om_OnPortCfg_TP",
    "pa": "记账",
    "actual": "SUSPECT:not_in_tu",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 1
   },
   {
    "case": "LV9-06",
@@ -996,23 +1119,26 @@
    "entry": "Om_OnPortCfg_TN",
    "pa": "记账",
    "actual": "SUSPECT:not_in_tu",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV10-01",
    "kind": "TP",
    "entry": "Drv_OnRxPkt_TP",
    "pa": "记账",
-   "actual": "SUSPECT:typed_field×3",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven×3",
+   "verdict": "通过",
+   "nsus": 3
   },
   {
    "case": "LV10-01",
    "kind": "TN",
    "entry": "Drv_OnRxPkt_TN",
    "pa": "记账",
-   "actual": "SUSPECT:typed_field×3",
-   "verdict": "通过+S"
+   "actual": "SUSPECT:entry_unproven×3",
+   "verdict": "通过+S",
+   "nsus": 3
   },
   {
    "case": "LV10-02",
@@ -1020,7 +1146,8 @@
    "entry": "Om_QueryDev_TP",
    "pa": "记账",
    "actual": "SUSPECT:not_in_tu@Dev_Read",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV10-02",
@@ -1028,7 +1155,8 @@
    "entry": "Om_QueryDev_TN",
    "pa": "记账",
    "actual": "未判",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 0
   },
   {
    "case": "LV10-03",
@@ -1036,7 +1164,8 @@
    "entry": "Port_SetSpeed_TP",
    "pa": "记账",
    "actual": "SUSPECT:type_range_only",
-   "verdict": "通过"
+   "verdict": "通过",
+   "nsus": 1
   },
   {
    "case": "LV10-03",
@@ -1044,39 +1173,44 @@
    "entry": "Port_SetSpeed_TN",
    "pa": "记账",
    "actual": "SUSPECT:type_range_only",
-   "verdict": "通过+S"
+   "verdict": "通过+S",
+   "nsus": 1
   },
   {
    "case": "LV10-04",
    "kind": "TP",
    "entry": "Om_OnSaveCfg_TP",
    "pa": "记账",
-   "actual": "SUSPECT:typed_field×3",
-   "verdict": "通过"
+   "actual": "SUSPECT:type_range_only×3",
+   "verdict": "通过",
+   "nsus": 3
   },
   {
    "case": "LV10-04",
    "kind": "TN",
    "entry": "Om_OnSaveCfg_TN",
    "pa": "记账",
-   "actual": "SUSPECT:typed_field×3",
-   "verdict": "通过+S"
+   "actual": "SUSPECT:type_range_only×3",
+   "verdict": "通过+S",
+   "nsus": 3
   },
   {
    "case": "LV10-05",
    "kind": "TP",
    "entry": "Cell_OnNbrMsg_TP",
    "pa": "记账",
-   "actual": "SUSPECT:typed_field×3",
-   "verdict": "通过"
+   "actual": "SUSPECT:entry_unproven×3",
+   "verdict": "通过",
+   "nsus": 3
   },
   {
    "case": "LV10-05",
    "kind": "TN",
    "entry": "Cell_OnNbrMsg_TN",
    "pa": "-",
-   "actual": "SUSPECT:typed_field×3",
-   "verdict": "通过+S"
+   "actual": "SUSPECT:entry_unproven×3",
+   "verdict": "通过+S",
+   "nsus": 3
   }
  ],
  "emitted": [
@@ -1918,15 +2052,6 @@
    "access": "lv6/lv6_04_global_cfg_from_file.c:52"
   },
   {
-   "case": "LV6-04",
-   "site": "lv6/lv6_04_global_cfg_from_file.c:64:0",
-   "kind": "",
-   "fn": "F@c8fefac454ea733d:Port_ResetAll_OK",
-   "label": "suspect",
-   "reason": "type_range_only",
-   "access": "lv6/lv6_04_global_cfg_from_file.c:64"
-  },
-  {
    "case": "LV6-05",
    "site": "lv6/lv6_05_global_ptr_into_pool.c:29:0",
    "kind": "",
@@ -1943,6 +2068,15 @@
    "label": "definite",
    "reason": "",
    "access": "lv7/lv7_01_flexible_array.c:42"
+  },
+  {
+   "case": "LV7-02",
+   "site": "lv7/lv7_02_2d_row_overflow.c:46:0",
+   "kind": "W",
+   "fn": "F@22513a70b5aeecea:Sched_Alloc",
+   "label": "suspect",
+   "reason": "subobject_overflow",
+   "access": "lv7/lv7_02_2d_row_overflow.c:28"
   },
   {
    "case": "LV7-03",
