@@ -59,7 +59,7 @@ bool DecisionFromJson(const llvm::json::Value &value, Decision &out, std::string
     std::string site;
     if (!str("label", label) || !str("reason", out.reason) || !str("site", site) || !str("fn", out.fn) ||
         !str("kind", out.kind) || !str("obj", out.obj) || !str("have", out.have) || !str("bound", out.bound) ||
-        !str("msg", out.msg) || !str("fp", out.fp) || !str("origin", out.origin)) {
+        !str("msg", out.warnMsg) || !str("fp", out.fp) || !str("origin", out.origin)) {
         return false;
     }
     if (llvm::Optional<llvm::StringRef> dup = o->getString("dup_of")) {
@@ -126,7 +126,7 @@ llvm::json::Object DecisionToJson(const Decision &decision, const Disposition &d
         {"depth", static_cast<int64_t>(decision.depth)},
         {"eff_depth", static_cast<int64_t>(decision.effDepth)},
         {"chain", std::move(chain)},
-        {"msg", decision.msg},
+        {"msg", decision.warnMsg},
         {"fp", decision.fp},
         {"origin", decision.origin},
     };

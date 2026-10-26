@@ -13,6 +13,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/raw_ostream.h"
@@ -948,7 +949,7 @@ bool WriteSummaryFile(llvm::StringRef path, const Summary &s, std::string &error
             error = "cannot write " + tmp + ": " + ec.message();
             return false;
         }
-        os << SummaryToJson(s) << "\n";
+        os << llvm::formatv("{0:1}", SummaryToJson(s)) << "\n";  // 缩进写（SPEC-0114）
         os.close();
         if (os.has_error()) {
             error = "cannot write " + tmp + ": " + os.error().message();

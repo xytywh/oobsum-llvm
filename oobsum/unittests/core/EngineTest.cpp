@@ -28,7 +28,7 @@ std::vector<std::string> Decisions(const engine::InlineResult &r)
     for (const Decision &d : r.decisions) {
         std::string fn = d.fn.substr(d.fn.rfind(':') + 1);
         out.push_back(LabelName(d.label).str() + (d.reason.empty() ? "" : ":" + d.reason) + " " + fn + " " +
-                      llvm::sys::path::filename(d.site.file).str() + ":" + std::to_string(d.site.line) + " | " + d.msg);
+                      llvm::sys::path::filename(d.site.file).str() + ":" + std::to_string(d.site.line) + " | " + d.warnMsg);
     }
     std::sort(out.begin(), out.end());
     return out;
@@ -188,7 +188,7 @@ TEST(Engine, DecisionJsonRoundTrip)
                   d.site.file + ":" + std::to_string(d.site.line));
         EXPECT_EQ(back.fn, d.fn);
         EXPECT_EQ(back.endHi, d.endHi);
-        EXPECT_EQ(back.msg, d.msg);
+        EXPECT_EQ(back.warnMsg, d.warnMsg);
         EXPECT_EQ(back.fp, d.fp);
         EXPECT_EQ(back.dupOf, d.dupOf);
         EXPECT_EQ(back.depth, d.depth);

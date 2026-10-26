@@ -12,6 +12,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -1009,7 +1010,7 @@ bool WriteModuleFile(llvm::StringRef path, const Module &module, std::string &er
             error = "cannot write " + tmp + ": " + ec.message();
             return false;
         }
-        os << ModuleToJson(module) << "\n";
+        os << llvm::formatv("{0:1}", ModuleToJson(module)) << "\n";  // 缩进写，人能读（SPEC-0114）
         os.close();
         if (os.has_error()) {
             error = "cannot write " + tmp + ": " + os.error().message();

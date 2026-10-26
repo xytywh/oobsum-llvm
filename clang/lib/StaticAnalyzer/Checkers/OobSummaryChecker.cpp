@@ -101,7 +101,7 @@ public:
         decision.fn = currentFunction;
         decision.kind = "W";
         decision.depth = static_cast<unsigned>(depthValue.Val.getInt().getZExtValue());
-        decision.msg = "debug decision from oobsum_debug_emit()";
+        decision.warnMsg = "debug decision from oobsum_debug_emit()";
         decision.origin = "debug-intrinsic";
         decision.fp = oobsum::DecisionFingerprint(oobsum::LabelName(decision.label), currentFunction, "debug",
                                                   decision.kind, std::to_string(loc.getLine()), decision.reason);
@@ -273,10 +273,10 @@ void OobSummaryChecker::solveAll() const
             llvm::errs() << "[oobsum] warning: cannot write " << tmp << ": " << wec.message() << "\n";
             continue;
         }
-        os << llvm::json::Value(llvm::json::Object{{"schema", "oobsum-solved/1"},
-                                                   {"tu", mods[i]->tu},
-                                                   {"file", mods[i]->file},
-                                                   {"decisions", std::move(byModule[i])}})
+        os << llvm::formatv("{0:1}", llvm::json::Value(llvm::json::Object{{"schema", "oobsum-solved/1"},
+                                                                          {"tu", mods[i]->tu},
+                                                                          {"file", mods[i]->file},
+                                                                          {"decisions", std::move(byModule[i])}}))
            << "\n";
         os.close();
         if (std::error_code rec = llvm::sys::fs::rename(tmp, path)) {

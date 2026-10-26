@@ -187,6 +187,9 @@
       `run.py csa`：LV4-01 TP POSSIBLE、LV4-02 TP DEFINITE、LV7-01（柔性数组）TP DEFINITE / TN SAFE——**通过 72、漏报 14**，回退 0（尺子：账本判定同一处有 SAFE 就算证明）。
 - [x] **WP10 `check`**（SPEC-0111）：`run.py cdb` 给用例生成编译数据库；`run.py csa --from-workdir <WD>` 读 bxen 跑完的 WorkDir 对照 `@expect` 与基线
       （COMPANY.md §3.1）。本地模拟公司路径：通过 106、需跨TU 2、回退 0。
+- [x] **公司集成反馈（2026-10-26）**（SPEC-0114）：xir 编译时 `OobSummary/core/*.h` 找不到 → `land.py` 自动给 Checkers 的 `target_include_directories` 补
+      `${CMAKE_CURRENT_SOURCE_DIR}`；`Decision::msg` 与别处冲突 → 改名 `warnMsg`；`fir/`、`solved/` 的 JSON 缩进写；lit 目录加 README。
+      **公司结果**：编译通过（手改两处后）；TestCase 4 条告警、`decisions=7 emitted=4`，与本地一致。
 - [x] **P0-8 / WP6 链长用例**（SPEC-0113）：`cases/gen_chain.py` 四类模板 × N ∈ {2, 3, 5, 10, 17, 20}，`--check` 按 G1 口径判，24 个全部符合；
       顺带修了封装分配器链在本函数里访问时 `eff_depth` 为 0、被层数过滤的问题。
 - [x] **WP13 规则 README**：`oobsum/testcase/OobSummaryChecker/README.md`（`csa-checker-dev` 合并版模板：目的、风险、检测策略、支持场景、

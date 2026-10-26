@@ -227,6 +227,29 @@ def cmake_entries(text, into):
     return re.findall(r'[\w./+-]+\.(?:cpp|cc|c)\b', ''.join(lines[start:end + 1]))
 
 
+def cmake_include(text):
+    """bxplugin 的 Checkers/CMakeLists.txt：源码里 #include "OobSummary/core/…" 要能从 Checkers/ 找到——
+    target_include_directories(<add_library 的目标> …) 里补上 ${CMAKE_CURRENT_SOURCE_DIR}；没有这一行就在 add_library 之后加一行（SPEC-0114）。
+    返回 (新文本, 改了没有)。"""
+    want = '${CMAKE_CURRENT_SOURCE_DIR}'
+    m = re.search(r'add_library\(\s*([\w.+-]+)', text)
+    if m is None:
+        return text, False
+    target = m.group(1)
+    inc = re.search(r'target_include_directories\(\s*%s\b[^)]*\)' % re.escape(target), text)
+    if inc:
+        if want in inc.group(0):
+            return text, False
+        call = inc.group(0)[:-1].rstrip() + ' ' + want + ')'
+        return text[:inc.start()] + call + text[inc.end():], True
+    lines = text.splitlines(keepends=True)
+    start, end, _ = cmake_block(lines, 'bxplugin')
+    if end is None:
+        return text, False
+    lines.insert(end + 1, 'target_include_directories(%s PRIVATE %s)\n' % (target, want))
+    return ''.join(lines), True
+
+
 def cmake_add(text, srcs, into):
     """在 add_library / add_clang_library 的源文件列表末尾追加（保持相邻行的缩进），已有的跳过。"""
     lines = text.splitlines(keepends=True)
@@ -311,8 +334,11 @@ def plan_land(args, m, plan):
     extra = [e for e in entries if e.split('/', 1)[0] in m['owned_dirs'] and '/' in e and e not in m['srcs']]
     if extra:
         new, _ = cmake_remove(new, extra)
+    included = False
+    if args.into == 'bxplugin' and m['owned_dirs']:
+        new, included = cmake_include(new)  # 子目录里的头文件按 "OobSummary/…" 包含（SPEC-0114）
     plan.edit(cm, new)
-    if not added and not extra:
+    if not added and not extra and not included:
         plan.notes.append('CMakeLists.txt 已登记')
     # ③ Checkers.td：没有就插到包块最后；有但内容不同就整段替换
     td = os.path.join(root, lay['td'])

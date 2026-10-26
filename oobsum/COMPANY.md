@@ -84,7 +84,7 @@ python3 oobsum/cases/run.py csa --from-workdir /usr1/oobsum-cases-wd       # 不
 ```bash
 mkdir -p /usr1/oobsum-work
 /usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa \
-  -cc_json=<业务工程>/compile_commands.json -analysis_folder=<目录1>,<目录2> \
+  -cc_json=<compile_commands.json 所在的目录>/ -analysis_folder=<目录1>,<目录2> \
   -checker=rb.enhance.ipa.OobSummary \
   "-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
 python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /usr1/oobsum-work                 # 按标签 / 原因计数

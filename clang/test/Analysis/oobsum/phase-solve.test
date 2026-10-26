@@ -12,7 +12,7 @@
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=solve -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t \
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=stats %S/Inputs/solve/stub.c 2>&1 | FileCheck %s --check-prefix=STATS
 # RUN: ls %t/solved/*.json | count 2
-# RUN: cat %t/solved/*.json | FileCheck %s
+# RUN: %python %S/../../../../oobsum/tools/json_compact.py %t/solved/*.json | FileCheck %s
 
 STATS: [oobsum] warning: skip {{.*}}broken.json
 STATS: [oobsum:stats] solve tus=2 functions=5 decisions=4

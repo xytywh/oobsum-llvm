@@ -418,13 +418,13 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.depth = static_cast<unsigned>(rep.depth);
             d.effDepth = static_cast<unsigned>(rep.effDepth);
             d.chain = allSites.Chain(rep.chain);
-            d.msg = alert::AlertMessage(rep, s.params);
+            d.warnMsg = alert::AlertMessage(rep, s.params);
             // 对象代换不过来（成员的 Req 落到调用方的局部上）：用被调者的形参名写成员（同 SUSPECT / SAFE，SPEC-0109）
             if (rep.obj == "?" && ri < result.repCallee.size() &&
                 out.summaries.count(result.repCallee[ri].first) != 0) {
                 summary::Rep shown = rep;
                 shown.obj = result.repCallee[ri].second;
-                d.msg = alert::AlertMessage(shown, out.summaries.at(result.repCallee[ri].first).params);
+                d.warnMsg = alert::AlertMessage(shown, out.summaries.at(result.repCallee[ri].first).params);
             }
             d.fp = rep.fp;
             std::string key = rep.site + "|" + rep.access.key + "@" + rep.access.at + "|" + rep.kind + "|" + rep.dir;
@@ -482,8 +482,8 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             // 调用点上不知道的被调者符号按被调者的形参名写（SPEC-0067）
             std::string shownEnd =
                 calleeSummary != out.summaries.end() ? Readable(d.endHi, &calleeSummary->second.params) : d.endHi;
-            d.msg = safe ? SafeMessage(object, d.have, d.endHi, d.dir)
-                         : SuspectMessage(d.kind, d.depth, object, d.have, shownEnd, d.dir);
+            d.warnMsg = safe ? SafeMessage(object, d.have, d.endHi, d.dir)
+                             : SuspectMessage(d.kind, d.depth, object, d.have, shownEnd, d.dir);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, so.req.access.key, d.kind, so.req.access.end,
                                        apply::FingerprintObj(d.obj, d.dir));
             out.decisions.push_back(std::move(d));
@@ -507,7 +507,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
                 d.depth = static_cast<unsigned>(r.depth);
                 d.effDepth = static_cast<unsigned>(r.effDepth);
                 d.chain = allSites.Chain(r.path);
-                d.msg = SuspectMessage(d.kind, d.depth, alert::ObjName(d.obj, s.params), d.have, d.endHi, d.dir);
+                d.warnMsg = SuspectMessage(d.kind, d.depth, alert::ObjName(d.obj, s.params), d.have, d.endHi, d.dir);
                 d.fp = DecisionFingerprint(LabelName(d.label), s.key, r.access.key, d.kind, r.access.end,
                                            apply::FingerprintObj(d.obj, d.dir));
                 auto first = firstFp.emplace(r.access.key + "@" + r.access.at + "|" + d.kind, d.fp);
@@ -558,13 +558,13 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.site = sitesOf(fn).Of(at);
             d.chain = {allSites.HopOf(s.fn + "@" + at)};
             if (c.verdict == "entry") {
-                d.msg = "Cannot prove the accesses stay within bounds: " + pair +
-                        ", which cannot be checked at an entry function" + more;
+                d.warnMsg = "Cannot prove the accesses stay within bounds: " + pair +
+                            ", which cannot be checked at an entry function" + more;
             } else {
-                d.msg = "Cannot prove the accesses in '" + calleeName + "' stay within bounds: " + pair +
-                        (c.verdict == "same" ? ", but here both are " + alert::ObjName(c.detail, s.params)
-                                             : ", which is not known here") +
-                        more;
+                d.warnMsg = "Cannot prove the accesses in '" + calleeName + "' stay within bounds: " + pair +
+                            (c.verdict == "same" ? ", but here both are " + alert::ObjName(c.detail, s.params)
+                                                 : ", which is not known here") +
+                            more;
             }
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, at, "", "", "alias_unverified:" + c.callee);
             out.decisions.push_back(std::move(d));
@@ -587,7 +587,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.bound = r.bound;
             d.dir = r.dir;
             d.chain = allSites.Chain(r.path);
-            d.msg = SafeMessage(alert::ObjName(d.obj, s.params), d.have, d.endHi, d.dir);
+            d.warnMsg = SafeMessage(alert::ObjName(d.obj, s.params), d.have, d.endHi, d.dir);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, r.access.key, d.kind, r.access.end,
                                        apply::FingerprintObj(d.obj, d.dir));
             out.decisions.push_back(std::move(d));
@@ -597,7 +597,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             Decision d = base(Label::Suspect, o.reason, fn);
             d.site = sitesOf(fn).Of(o.at);
             d.chain = {allSites.HopOf(s.fn + "@" + o.at)};
-            d.msg = LedgerMessage(o.reason);
+            d.warnMsg = LedgerMessage(o.reason);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, o.at, "", "", o.reason);
             out.decisions.push_back(std::move(d));
         }
@@ -607,7 +607,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             std::string reason = "unanalyzed:" + status.split(':').second.str();
             Decision d = base(Label::Suspect, reason, fn);
             d.site = sitesOf(fn).Of(s.loc);
-            d.msg = LedgerMessage(reason);
+            d.warnMsg = LedgerMessage(reason);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, s.loc, "", "", reason);
             out.decisions.push_back(std::move(d));
         }
@@ -629,7 +629,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             Decision d = base(Label::Suspect, reason, fn);
             d.site = sitesOf(fn).Of(c.site);
             d.chain = {allSites.HopOf(s.fn + "@" + c.site)};
-            d.msg = LedgerMessage(reason, c.callee);
+            d.warnMsg = LedgerMessage(reason, c.callee);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, c.site, "", "", reason + ":" + c.callee);
             out.decisions.push_back(std::move(d));
             if (linked) {
@@ -649,7 +649,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
     }
     // 告警正文里不露内部链接全局符号的身份后缀（SPEC-0086）
     for (auto &d : out.decisions) {
-        d.msg = StripGlobalSuffix(d.msg);
+        d.warnMsg = StripGlobalSuffix(d.warnMsg);
     }
     return out;
 }

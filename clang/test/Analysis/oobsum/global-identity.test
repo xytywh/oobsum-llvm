@@ -6,9 +6,10 @@
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=export -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t %S/Inputs/gident/$f.c; done
 # RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=solve -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t %S/Inputs/gident/stub.c
-# RUN: cat %t/solved/*.json | FileCheck %s
+# RUN: %python %S/../../../../oobsum/tools/json_compact.py %t/solved/*.json > %t/solved.txt
+# RUN: FileCheck %s < %t/solved.txt
 # 这几处不再有"访问 'a' 证明安全"
-# RUN: not grep -hE '"fn":"F:Top_(B|L|X)".*"label":"safe","msg":"Proven within bounds: up to byte [0-9]+ of .a.' %t/solved/*.json
+# RUN: not grep -hE '"fn":"F:Top_(B|L|X)".*"label":"safe","msg":"Proven within bounds: up to byte [0-9]+ of .a.' %t/solved.txt
 
 # ① ② 不知道被调者那个 static 的值 → 入口未证明；正文里不露后缀
 CHECK-DAG: "end":["g:g_len__S{{[0-9a-f]+}} + 1",{{.*}}"fn":"F:Top_B"{{.*}}"label":"suspect","msg":"Cannot prove the write through a 1-level call chain stays within 'a' (4 bytes): up to byte g:g_len + 1 may be accessed"{{.*}}"reason":"entry_unproven"

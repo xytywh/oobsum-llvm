@@ -4,7 +4,7 @@
 // RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=export -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t/w \
 // RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=stats -verify %s 2>&1 | FileCheck %s --check-prefix=STATS
 // RUN: ls %t/w/fir/*.json | count 1
-// RUN: cat %t/w/fir/*.json | FileCheck %s --check-prefix=FIR
+// RUN: %python %S/../../../../oobsum/tools/json_compact.py %t/w/fir/*.json | FileCheck %s --check-prefix=FIR
 // RUN: not ls %t/w/decisions
 // inline + WorkDir：判定照常，另写一份 fir/（X-06）
 // RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \

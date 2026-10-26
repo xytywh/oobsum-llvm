@@ -31,7 +31,7 @@ std::string Reporter::FullMessage(const Decision &decision)
         tag += ":" + decision.reason;
     }
     tag += "]";
-    return decision.msg.empty() ? tag : tag + " " + decision.msg;
+    return decision.warnMsg.empty() ? tag : tag + " " + decision.warnMsg;
 }
 
 const BugType *Reporter::TypeOf(Label label) const
@@ -96,7 +96,7 @@ std::vector<std::pair<Decision, Disposition>> Reporter::Flush(BugReporter &br, c
             if (loc.isInvalid()) {
                 // 位置换不出来：不丢告警，退回主文件开头，原位置写进文本（06- A-91）
                 loc = sm.getLocForStartOfFile(sm.getMainFileID());
-                decision.msg += " (at " + decision.site.file + ":" + std::to_string(decision.site.line) + ")";
+                decision.warnMsg += " (at " + decision.site.file + ":" + std::to_string(decision.site.line) + ")";
             }
             auto report = std::make_unique<BasicBugReport>(*TypeOf(decision.label), FullMessage(decision),
                                                            PathDiagnosticLocation(loc, sm));

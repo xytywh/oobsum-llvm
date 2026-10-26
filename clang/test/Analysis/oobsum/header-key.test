@@ -11,7 +11,7 @@
 # RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=export -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t %S/Inputs/hdrkey/c.c
 # 三个 TU 两种函数体 → 两个键
-# RUN: cat %t/fir/*.json | grep -o '"key":"F@[0-9a-f]*:Buf_Put#[0-9a-f]*"' | sort -u | count 2
+# RUN: %python %S/../../../../oobsum/tools/json_compact.py %t/fir/*.json | grep -o '"key":"F@[0-9a-f]*:Buf_Put#[0-9a-f]*"' | sort -u | count 2
 # RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=solve -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t \
 # RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=stats %S/Inputs/solve/stub.c 2>&1 | FileCheck %s --check-prefix=STATS
