@@ -5,6 +5,14 @@
 # RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --workdir %t/w --clang %clang --config InlineDepth=0 --config Dump=summary \
 # RUN:   %S/Inputs/solve/a.c %S/Inputs/solve/b.c > %t/local.txt
 # RUN: %python %S/../../../../oobsum/tools/oobsum_run.py stats --workdir %t/w | FileCheck %s --check-prefix=STATS
+# --counts-only 不列函数名 / 文件名（SPEC-0119）
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py stats --workdir %t/w --counts-only | FileCheck %s --check-prefix=COUNTS
+# cdb：条目 / 文件 / 重复，--under 过滤、--out 写出（SPEC-0119）
+# RUN: mkdir -p %t/cdb
+# RUN: %python -c "import json; d='%S/Inputs/solve'; json.dump([{'directory': d, 'file': f, 'arguments': ['cc', '-c', f]} for f in ['a.c', 'a.c', 'b.c']] + [{'directory': '/elsewhere', 'file': 'x.c', 'arguments': ['cc', '-c', 'x.c']}], open('%t/cdb/compile_commands.json', 'w'))"
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py cdb --cc-json %t/cdb | FileCheck %s --check-prefix=CDB
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py cdb --cc-json %t/cdb --under %S/Inputs/solve --out %t/sub | FileCheck %s --check-prefix=CDBSUB
+# RUN: %python -c "import json; print(len(json.load(open('%t/sub/compile_commands.json'))))" | FileCheck %s --check-prefix=CDBN
 # RUN: %python %S/../../../../oobsum/tools/oobsum_run.py explain --workdir %t/w Top_A | FileCheck %s --check-prefix=EXPLAIN
 # RUN: not %python %S/../../../../oobsum/tools/oobsum_run.py explain --workdir %t/w No_Such_Fn | FileCheck %s --check-prefix=NONE
 
@@ -26,3 +34,13 @@ EXPLAIN: -- 摘要 Fill（p0=pucBuf, p1=ulLen）
 EXPLAIN: W *p0 需 [1, p1] <= ext(p0)  守卫 p1 >= 1  @b.c:16
 
 NONE: 没有指纹或函数名是 No_Such_Fn 的判定
+
+COUNTS: 报出：标签 × 层数
+COUNTS: 报出的 SUSPECT：按原因
+COUNTS-NOT: 报出最多的函数
+COUNTS: --counts-only：不列函数名 / 文件名
+
+CDB: compile_commands.json：4 条，文件 3 个，出现多次的文件 1 个
+CDBSUB: compile_commands.json：4 条（过滤后 3 条），文件 2 个，出现多次的文件 1 个
+CDBSUB: 已写 {{.*}}sub/compile_commands.json：3 条
+CDBN: 3

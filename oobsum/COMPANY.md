@@ -4,6 +4,96 @@
 > **不要在 xir 里直接改 OobSummary 的代码**——要改就在 WSL 里改、推上来，再同步过去；否则下次同步会把它覆盖。
 > 公司电脑能否访问个人 GitHub 私有仓库、能否把结果带出来，以公司规定为准；下面的命令只是技术上怎么做。
 
+## 0. 下一次在公司按顺序做（2026-10-26 版，做完一步再做下一步）
+
+> 每一步都写了"预期"。不符合就停下，把那一步的输出贴回来——只贴计数和**我们自己代码**的报错；不贴业务代码、函数名、文件名、告警原文。
+> 下面 `<…>` 是要换成你那边的路径的地方。bxen 命令都是一行，IDE 的运行配置和终端都能直接粘贴。
+
+**第 1 步　更新、编译（约 20 分钟）**
+
+```bash
+cd /usr1/oobsum-llvm && git pull && git log --oneline -1
+ninja -C cmake-build-release clang
+cmake-build-release/bin/llvm-lit -s cmake-build-release/tools/clang/test/Analysis/oobsum
+python3 oobsum/cases/run.py csa
+python3 oobsum/devenv/land.py --drop oobsum/landing/OobSummaryChecker.manifest --into bxplugin --root /usr1/BXPlugin --apply
+cd /usr1/BXPlugin/cmake-build-release-release && make -j16
+```
+
+预期：lit `Passed: 105`；`run.py csa` 最后两行 `通过 108，通过+S 20，级别不同 2，超出预期 4`、`回退 0 条`；make 不报错（这次多了一个头文件 `OobSummary/core/AtomicFile.h`，land.py 会一起同步）。
+
+**第 2 步　TestCase（2 分钟）**：§3 的命令原样跑。预期 4 条告警、`[oobsum:stats] … decisions=7 emitted=4`。
+
+**第 3 步　67 个用例对照（5 分钟）**：cdb 用上次生成的 `/usr1/oobsum-cases-cdb`，不用重新生成；WorkDir 先清空。
+
+```bash
+rm -rf /usr1/oobsum-cases-wd && mkdir -p /usr1/oobsum-cases-wd
+# 跑 §3.1 的那条 bxen 命令（-cc_json=/usr1/oobsum-cases-cdb/ … WorkDir=/usr1/oobsum-cases-wd … Dump=summary）
+python3 /usr1/oobsum-llvm/oobsum/cases/run.py csa --from-workdir /usr1/oobsum-cases-wd
+```
+
+预期：`通过 106，通过+S 20，级别不同 2，超出预期 4，需跨TU 2`；G2 那行 `0 个`；`回退 0 条`；"变化"只有 5 行——LV1-07、LV6-01 各两行（单文件跑，要跨 TU）、
+LV9-02 一行（64 位上多 2 条 SUSPECT）。
+
+**第 4 步　几个架构的目标（1 分钟）**：上次每个架构跑过一个文件的 WorkDir，各执行一次：
+
+```bash
+python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py stats --workdir <那个架构的 WorkDir> | head -1
+```
+
+记下每个的"目标："一行（§3.2 有解释）。不管结果怎样都接着往下做；单板的 cdb 如果显示 `x86_64 … ptr=8`，告诉我，我来处理。
+
+**第 5 步　看全量 cdb、挑一个子系统（5 分钟）**：用**单板架构**的 cdb（不是 x86 仿真版），挑一个几百个文件的子系统目录。
+
+```bash
+python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py cdb --cc-json <全量 cdb 目录>
+python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py cdb --cc-json <全量 cdb 目录> --under <子系统目录> --out /usr1/oobsum-cdb/sub
+```
+
+第一条打印全量的条目数、文件数、出现多次的文件数；第二条写出只含这个子系统的 `/usr1/oobsum-cdb/sub/compile_commands.json`，下面让 clang_check 用它
+（clang_check 自己能按目录过滤的话，用它自己的办法也行）。
+
+**第 6 步　子系统上跑 A：默认模式（§4.2 A）**
+
+1. clang_check：`-checker=rb.enhance.ipa.OobSummary`，`-extra_args` 用 §4.2 A 那串，WorkDir 写 `/usr1/oobsum-work/sub-a`（先确认这个目录不存在或是空的）。记下总耗时。
+2. 跑完：
+   ```bash
+   python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py stats --workdir /usr1/oobsum-work/sub-a --counts-only
+   du -sh /usr1/oobsum-work/sub-a
+   ```
+   `--counts-only` 只打印计数，整段可以带回；不加它会多两张表，列出报得最多的函数名、文件名，那两张只给你自己看。
+3. 抽查：在 clang_check 的报告里，DEFINITE、POSSIBLE 各挑 5–10 条，你判断是不是真问题。只带回条数，误报用你自己的话描述它是什么写法
+   （或写一个不含业务代码的最小例子）。
+
+**第 7 步　子系统上跑 B：跨文件（§4.2 B）**
+
+1. clang_check 第 1 遍：A 那串再加 `-analyzer-config rb.enhance.ipa.OobSummary:Phase=export`，WorkDir 写 `/usr1/oobsum-work/sub-b`。记下耗时。
+2. solve，在终端里跑（要用 `time` 量耗时和内存）：
+   ```bash
+   python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py solve --workdir /usr1/oobsum-work/sub-b --bxen /usr1/BXPlugin/cmake-build-release-release/bxen --extra "-rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+   /usr/bin/time -v python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py solve --workdir /usr1/oobsum-work/sub-b --bxen /usr1/BXPlugin/cmake-build-release-release/bxen --extra "-rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini" --run
+   ```
+   第一条只打印命令，看一眼；第二条执行，记下 `time -v` 输出里的 `Elapsed (wall clock) time` 和 `Maximum resident set size`。
+3. clang_check 第 2 遍：同一个 cdb，`Phase=export` 换成 `Phase=report`，WorkDir 不变。记下耗时。
+4. `stats --workdir /usr1/oobsum-work/sub-b --counts-only`、`du -sh /usr1/oobsum-work/sub-b`。
+
+**第 8 步　带回来**（照这个格式填，贴进对话就行）
+
+```text
+1. git log -1：
+2. lit / run.py csa：Passed __；通过 __、回退 __
+3. TestCase：告警 __ 条；decisions=__ emitted=__
+4. 用例对照：合计那行；G2 那行；"变化" __ 行
+5. 目标：<架构 1> → ____；<架构 2> → ____；<架构 3> → ____
+6. 全量 cdb：__ 条、文件 __ 个、重复 __ 个；子系统：__ 条
+7. A：耗时 __；du __；stats --counts-only 全文
+8. B：export 耗时 __；solve Elapsed __、Maximum resident set size __；report 耗时 __；du __；stats --counts-only 全文
+9. 抽查：DEFINITE 看了 __ 条、真问题 __ 条；POSSIBLE 看了 __ 条、真问题 __ 条；误报是什么写法（自己的话）
+10. 有没有崩溃 / 报错：bxen 退出码；崩溃栈里带 OobSummary 的那几行
+```
+
+全量（整个 cdb）和选项对照（§4.1）等这些数回来、我看过再做。
+
 ## 1. 第一次：只取需要的部分（不用拉整个 llvm-project 源码）
 
 ```bash
@@ -174,7 +264,7 @@ python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /usr1/oobsum-work-base --lab
 ```
 
 告警由 clang_check 照常收集；被调者在别的文件里的记 `SUSPECT:not_in_tu`。跑完看
-`python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py stats --workdir /usr1/oobsum-work/full-1383`：第一行"目标："的 TU 数是成功分析的 TU 数，
+`python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py stats --workdir /usr1/oobsum-work/full-1383`（带回时加 `--counts-only`，不列函数名 / 文件名）：第一行"目标："的 TU 数是成功分析的 TU 数，
 比 cdb 的文件数少多少就是失败 / 超时多少。
 
 **B. 跨文件（export → solve → report）——clang_check 跑两遍，中间一条 solve**

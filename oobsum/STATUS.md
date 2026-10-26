@@ -201,6 +201,8 @@
 - [x] **公司集成反馈 3（2026-10-26）**（SPEC-0116、SPEC-0117）：bxen 跑 67 个用例 → `--from-workdir` 通过 106 / 需跨TU 2 / 回退 0，与预期相同；
       多出的几行"变化"（LV1-04 TN、LV10-04 TN 的 SUSPECT 原因）是 `run.py` 并列时取日志第一条、而判定先后随源文件路径的哈希变——改成与先后无关的键、重写基线。
       64 位上真实的差异只有 LV9-02 多 2 条 SUSPECT。`stats` 第一行打印分析时用的目标（`fir/*.json` 的 `target`）；I0 探针改为可选。
+- [x] **公司清单**（SPEC-0119）：COMPANY.md §0 列出下一次在公司按顺序做的 8 步与带回模板；`oobsum_run.py cdb`（条目 / 文件 / 重复、按目录过滤）、
+      `stats --counts-only`（不列函数名 / 文件名，可以整段带回）。
 - [x] **clang_check 跑全量**（SPEC-0118）：公司的单文件规则由 clang_check 按 cdb 每个文件起一个 bxen 进程、线程池约 40 路并行。WorkDir 的所有文件改为
       `<路径>.<进程号>.tmp` 写完改名（`core/AtomicFile.h`）；`oobsum_run.py solve` 只做 solve；COMPANY.md §4.2：A 默认模式一遍，B 跨文件 export 一遍 → solve → report 一遍。
       本地模拟（67 个用例、8 路线程池）三遍 0 失败、跨文件的 LV1-07 / LV6-01 报出、没有 `.tmp`。

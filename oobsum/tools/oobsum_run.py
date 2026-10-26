@@ -272,8 +272,34 @@ def cmd_stats(a):
     table('报出的 SUSPECT：按原因', [d for d in emitted if d['label'] == 'suspect'], lambda d: d.get('reason', '-'))
     table('没报的：按原因（not_emitted_because）', [d for d in ds if not d.get('emitted')],
           lambda d: '%s / %s' % (d['label'], d.get('not_emitted_because', '-')))
+    if a.counts_only:
+        print('\n（--counts-only：不列函数名 / 文件名，可以直接带回，SPEC-0119）')
+        return 0
     table('报出最多的函数（前 %d）' % a.top, emitted, lambda d: _name(d.get('fn', '?')))
     table('报出最多的 TU（前 %d）' % a.top, emitted, lambda d: os.path.basename(d['_tu']))
+    return 0
+
+
+def cmd_cdb(a):
+    """看 / 过滤编译数据库（SPEC-0119）：条目数、文件数、出现多次的文件数；--under 只留这些目录下的文件，--out 写过滤后的 compile_commands.json"""
+    src = os.path.join(a.cc_json, 'compile_commands.json') if os.path.isdir(a.cc_json) else a.cc_json
+    cdb = json.load(open(src, encoding='utf-8'))
+
+    def path_of(e):
+        return os.path.normpath(os.path.join(e.get('directory', ''), e['file']))
+    unders = [os.path.normpath(os.path.abspath(u)) + os.sep for u in a.under]
+    keep = [e for e in cdb if not unders or any(path_of(e).startswith(u) for u in unders)]
+    counts = {}
+    for e in keep:
+        counts[path_of(e)] = counts.get(path_of(e), 0) + 1
+    print('%s：%d 条%s，文件 %d 个，出现多次的文件 %d 个' % (
+        src, len(cdb), '（过滤后 %d 条）' % len(keep) if unders else '', len(counts), sum(1 for n in counts.values() if n > 1)))
+    if a.out:
+        os.makedirs(a.out, exist_ok=True)
+        out = os.path.join(os.path.abspath(a.out), 'compile_commands.json')
+        with open(out, 'w', encoding='utf-8') as f:
+            json.dump(keep, f, indent=1, ensure_ascii=False)
+        print('已写 %s：%d 条' % (out, len(keep)))
     return 0
 
 
@@ -355,12 +381,17 @@ def main():
     p = sub.add_parser('stats', help='报出的按标签 × 层数、SUSPECT 按原因、没报的按原因、报出最多的函数 / TU')
     p.add_argument('--workdir', required=True)
     p.add_argument('--top', type=int, default=10)
+    p.add_argument('--counts-only', action='store_true', help='只打印计数，不列函数名 / 文件名（带回用）')
+    p = sub.add_parser('cdb', help='看 / 过滤 compile_commands.json：条目数、文件数、重复；--under 过滤、--out 写出（SPEC-0119）')
+    p.add_argument('--cc-json', required=True, help='compile_commands.json 所在的目录（或文件本身）')
+    p.add_argument('--under', action='append', default=[], metavar='DIR', help='只留这个目录下的文件（可给多个）')
+    p.add_argument('--out', help='把过滤后的写到 <OUT>/compile_commands.json')
     p = sub.add_parser('explain', help='一条判定（指纹）或一个函数的判定的来龙去脉')
     p.add_argument('--workdir', required=True)
     p.add_argument('--all', action='store_true', help='连 SAFE 一起列')
     p.add_argument('what', help='判定指纹，或函数名')
     a = ap.parse_args()
-    sys.exit({'local': cmd_local, 'bxen': cmd_bxen, 'solve': cmd_solve, 'status': cmd_status, 'stats': cmd_stats,
+    sys.exit({'local': cmd_local, 'bxen': cmd_bxen, 'solve': cmd_solve, 'cdb': cmd_cdb, 'status': cmd_status, 'stats': cmd_stats,
               'explain': cmd_explain}[a.cmd](a))
 
 
