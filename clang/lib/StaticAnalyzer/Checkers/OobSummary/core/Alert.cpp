@@ -147,7 +147,7 @@ Alert MakeAlert(const std::string &fn, const summary::Summary &caller, const sum
     a.level = rep.level;
     a.fn = fn;
     a.loc = rep.site;
-    a.msg = AlertMessage(rep, caller.params);
+    a.warnMsg = AlertMessage(rep, caller.params);
     a.notes.push_back("Call chain: " + ChainText(rep.chain));
     std::string here = FileOf(rep.site);
     for (size_t i = 0; i < rep.chain.size(); ++i) {
@@ -174,7 +174,7 @@ llvm::json::Value AlertToJson(const Alert &a)
     }
     return llvm::json::Object{
         {"checker", a.checker}, {"bug_type", a.bugType}, {"category", a.category},    {"level", a.level}, {"fn", a.fn},
-        {"loc", a.loc},         {"msg", a.msg},          {"notes", std::move(notes)}, {"fp", a.fp}};
+        {"loc", a.loc},         {"msg", a.warnMsg},      {"notes", std::move(notes)}, {"fp", a.fp}};
 }
 
 }  // namespace alert

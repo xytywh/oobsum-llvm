@@ -23,10 +23,10 @@ struct Alert {
     std::string checker = "OobSummary";
     std::string bugType;
     std::string category = "Memory error";
-    std::string level;               // L1 / L2
-    std::string fn;                  // 汇合点函数
-    std::string loc;                 // 汇合点调用（F-30）
-    std::string msg;                 // F-32
+    std::string level;  // L1 / L2
+    std::string fn;     // 汇合点函数
+    std::string loc;    // 汇合点调用（F-30）
+    std::string warnMsg;  // F-32（原名 msg，与 Decision::warnMsg 同理改名，避免与 xir 里的同名符号冲突，SPEC-0114）
     std::vector<std::string> notes;  // F-33
     std::string fp;                  // F-34
 };

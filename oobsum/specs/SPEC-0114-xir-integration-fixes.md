@@ -11,7 +11,7 @@
    `add_library(<目标> …)` 的目标已有 `target_include_directories(<目标> …)` → 行内补 `${CMAKE_CURRENT_SOURCE_DIR}`（与用户手改的相同）；没有 → 在 `add_library` 之后加一行
    `target_include_directories(<目标> PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})`。重复执行不重复加；`--remove` 不删（留着无害）。
 2. **`Decision::msg` 改名 `warnMsg`**：在 xir 里与别处的同名符号冲突（用户改成 `warnMsg` 后编译通过）。只改 C++ 成员名；判定日志的 JSON 键仍是 `"msg"`。
-   `Alert::msg` 没有冲突，不改。
+   `Alert::msg` 虽然没报错，用户要求同样改成 `warnMsg`（隐患相同）；`apply` 回放里的局部变量 `msg` 改成 `lineText`。代码里不再有叫 `msg` 的标识符。
 3. **WorkDir 里的 JSON 缩进写**：`fir/<tu>.json`、`solved/<tu>.json`、`WriteSummaryFile` 写的摘要原来整个写成一行，人不好读；改成 `formatv("{0:1}")` 缩进写
    （与 `Dump=summary` 写的 `dump/<tu>/summary/*.json` 相同）。`decisions/<tu>.jsonl` 仍是一行一条（JSONL：方便按行 grep、追加、流式读）。
    读的一方都是 JSON 解析，不受影响；lit 用例要按一行匹配时先过新工具 `oobsum/tools/json_compact.py`（键排序、无空格、中文不转义，与 LLVM 紧凑写法逐字相同）。

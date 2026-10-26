@@ -1205,10 +1205,11 @@ CheckResult CheckCase(const std::string &caseId, const std::map<std::string, Sum
                 if (anyConst) {
                     showEnd += std::string("，守卫在此") + (anyFalse ? "不成立" : "成立");
                 }
-                std::string msg = "    · " + call.callee + "." + r->id + (res.parent ? "（外层）" : "") + "：末端 " +
-                                  showEnd + "，对象 " + mine.obj + "（" + Show(mine.have) + " 字节）→ " + mine.outcome;
+                std::string lineText = "    · " + call.callee + "." + r->id + (res.parent ? "（外层）" : "") +
+                                       "：末端 " + showEnd + "，对象 " + mine.obj + "（" + Show(mine.have) +
+                                       " 字节）→ " + mine.outcome;
                 if (!mine.why.empty()) {
-                    msg += "（" + mine.why + "）";
+                    lineText += "（" + mine.why + "）";
                 }
                 bool ok = mine.outcome == res.outcome;
                 if (ok && mine.outcome == "up") {
@@ -1224,10 +1225,10 @@ CheckResult CheckCase(const std::string &caseId, const std::map<std::string, Sum
                     if (mineReq != nullptr && mineReq->dir != r->dir) {
                         probs.push_back("dir: JSON " + mineReq->dir + " / 被调者 " + r->dir);  // SPEC-0039
                     }
-                    msg += " → 本函数 " + res.as;
+                    lineText += " → 本函数 " + res.as;
                     if (!probs.empty()) {
                         ok = false;
-                        msg += " ✗ " + Join(probs, "；");
+                        lineText += " ✗ " + Join(probs, "；");
                     }
                 }
                 if (ok && (mine.outcome == "L1" || mine.outcome == "L2")) {
@@ -1242,26 +1243,26 @@ CheckResult CheckCase(const std::string &caseId, const std::map<std::string, Sum
                         rep != nullptr ? DiffRep(*rep, got) : std::vector<std::string>{"JSON 里没有 " + res.report};
                     if (!bad.empty()) {
                         ok = false;
-                        msg += " ✗ 判定记录不一致：" + Join(bad, "；");
+                        lineText += " ✗ 判定记录不一致：" + Join(bad, "；");
                     } else {
-                        msg += " → " + res.report + "（depth " + std::to_string(mine.depth) + ", eff_depth " +
-                               std::to_string(mine.effDepth) + "，" +
-                               (got.reported ? std::string("报")
-                                             : "≤ " + std::to_string(kInlineDepth) + " 层，交现有规则") +
-                               "）";
+                        lineText += " → " + res.report + "（depth " + std::to_string(mine.depth) + ", eff_depth " +
+                                    std::to_string(mine.effDepth) + "，" +
+                                    (got.reported ? std::string("报")
+                                                  : "≤ " + std::to_string(kInlineDepth) + " 层，交现有规则") +
+                                    "）";
                     }
                 }
                 if (ok && mine.outcome == "open" && mine.reason != res.reason) {
                     ok = false;
-                    msg += " ✗ 账本原因 JSON " + res.reason + " / 回放 " + mine.reason;
+                    lineText += " ✗ 账本原因 JSON " + res.reason + " / 回放 " + mine.reason;
                 }
                 if (!ok && mine.outcome != res.outcome) {
-                    msg += " ✗ JSON 记的是 " + res.outcome;
+                    lineText += " ✗ JSON 记的是 " + res.outcome;
                 }
                 if (!ok) {
                     out.errors.push_back(caseId + " " + fn + " @ " + call.site + " " + r->id);
                 }
-                out.lines.push_back(msg);
+                out.lines.push_back(lineText);
             }
         }
         if (callees.count(fn) == 0 && !s.reqs.empty()) {
