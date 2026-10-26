@@ -5,6 +5,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "OobSummary/debug/DumpSink.h"
+#include "OobSummary/core/AtomicFile.h"
 
 #include "OobSummary/core/Policy.h"
 
@@ -72,12 +73,11 @@ std::string DumpSink::File(llvm::StringRef relPath, llvm::StringRef content) con
     if (llvm::sys::fs::create_directories(llvm::sys::path::parent_path(path))) {
         return "";
     }
-    std::error_code ec;
-    llvm::raw_fd_ostream os(path, ec, llvm::sys::fs::OF_Text);
-    if (ec) {
+    std::string error;
+    if (!WriteFileAtomic(
+            path, [&](llvm::raw_ostream &os) { os << content; }, error)) {  // SPEC-0118
         return "";
     }
-    os << content;
     return std::string(path);
 }
 

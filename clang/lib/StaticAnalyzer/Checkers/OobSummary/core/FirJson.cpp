@@ -6,6 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "OobSummary/core/FirJson.h"
+#include "OobSummary/core/AtomicFile.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
@@ -1002,27 +1003,9 @@ bool ModuleFromJson(const llvm::json::Value &value, Module &out, std::string &er
 
 bool WriteModuleFile(llvm::StringRef path, const Module &module, std::string &error)
 {
-    std::string tmp = (path + ".tmp").str();
-    {
-        std::error_code ec;
-        llvm::raw_fd_ostream os(tmp, ec, llvm::sys::fs::OF_Text);
-        if (ec) {
-            error = "cannot write " + tmp + ": " + ec.message();
-            return false;
-        }
-        os << llvm::formatv("{0:1}", ModuleToJson(module)) << "\n";  // 缩进写，人能读（SPEC-0114）
-        os.close();
-        if (os.has_error()) {
-            error = "cannot write " + tmp + ": " + os.error().message();
-            os.clear_error();
-            return false;
-        }
-    }
-    if (std::error_code ec = llvm::sys::fs::rename(tmp, path)) {
-        error = "cannot rename " + tmp + " to " + path.str() + ": " + ec.message();
-        return false;
-    }
-    return true;
+    // 缩进写，人能读（SPEC-0114）；临时文件带进程号、写完改名（SPEC-0118）
+    return WriteFileAtomic(
+        path, [&](llvm::raw_ostream &os) { os << llvm::formatv("{0:1}", ModuleToJson(module)) << "\n"; }, error);
 }
 
 bool ReadModuleFile(llvm::StringRef path, Module &out, std::string &error)

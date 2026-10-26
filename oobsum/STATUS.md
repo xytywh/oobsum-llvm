@@ -201,6 +201,9 @@
 - [x] **公司集成反馈 3（2026-10-26）**（SPEC-0116、SPEC-0117）：bxen 跑 67 个用例 → `--from-workdir` 通过 106 / 需跨TU 2 / 回退 0，与预期相同；
       多出的几行"变化"（LV1-04 TN、LV10-04 TN 的 SUSPECT 原因）是 `run.py` 并列时取日志第一条、而判定先后随源文件路径的哈希变——改成与先后无关的键、重写基线。
       64 位上真实的差异只有 LV9-02 多 2 条 SUSPECT。`stats` 第一行打印分析时用的目标（`fir/*.json` 的 `target`）；I0 探针改为可选。
+- [x] **clang_check 跑全量**（SPEC-0118）：公司的单文件规则由 clang_check 按 cdb 每个文件起一个 bxen 进程、线程池约 40 路并行。WorkDir 的所有文件改为
+      `<路径>.<进程号>.tmp` 写完改名（`core/AtomicFile.h`）；`oobsum_run.py solve` 只做 solve；COMPANY.md §4.2：A 默认模式一遍，B 跨文件 export 一遍 → solve → report 一遍。
+      本地模拟（67 个用例、8 路线程池）三遍 0 失败、跨文件的 LV1-07 / LV6-01 报出、没有 `.tmp`。
 - [x] **P0-8 / WP6 链长用例**（SPEC-0113）：`cases/gen_chain.py` 四类模板 × N ∈ {2, 3, 5, 10, 17, 20}，`--check` 按 G1 口径判，24 个全部符合；
       顺带修了封装分配器链在本函数里访问时 `eff_depth` 为 0、被层数过滤的问题。
 - [x] **WP13 规则 README**：`oobsum/testcase/OobSummaryChecker/README.md`（`csa-checker-dev` 合并版模板：目的、风险、检测策略、支持场景、
@@ -369,7 +372,7 @@
   ③ 多维数组每一维、成员数组都查内层界，越出内层没越出外层记 SUSPECT（新原因；D24：每个越界都报，不加关掉的选项）；④ `strcpy_s` 族出错时写多少：公司确认后在模型文件里按需配置
   （出错按 destMax 清零 → 去掉 `upto`），不影响开发；确认后再按 SPEC 改 LV7-05 的 `@expect`。
 
-* **跨 TU 的 bxen 命令格式**（SPEC-0031 §8）：bxen 跑多个文件时 `-cc_json` 给目录还是文件、`-analysis_folder` 与过滤后的 cdb 怎么配合。驱动的模板按 COMPANY.md §4
+* ~~**跨 TU 的 bxen 命令格式**~~（2026-10-26 定了：用 clang_check 逐文件跑，SPEC-0118）（SPEC-0031 §8）：bxen 跑多个文件时 `-cc_json` 给目录还是文件、`-analysis_folder` 与过滤后的 cdb 怎么配合。驱动的模板按 COMPANY.md §4
   的写法猜的；在公司先用 `oobsum_run.py bxen …`（不加 `--run`）打印三段命令，跑一遍 TestCase 目录，不对就把正确的写法告诉我。
 
 * **公司（下一步，很快）**：业务的几个架构的 cdb（每个已跑过一个文件）各执行 `oobsum_run.py stats --workdir <WorkDir> | head -3`，带回"目标："那一行

@@ -5,6 +5,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "OobSummary/core/DecisionLog.h"
+#include "OobSummary/core/AtomicFile.h"
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/FileSystem.h"
@@ -156,22 +157,22 @@ std::string WriteDecisionLog(const std::string &workDir, const std::string &tuId
     }
     llvm::SmallString<256> path(dir);
     llvm::sys::path::append(path, tuId + ".jsonl");
-    std::error_code ec;
-    llvm::raw_fd_ostream os(path, ec, llvm::sys::fs::OF_Text);
-    if (ec) {
-        error = "cannot write " + std::string(path) + ": " + ec.message();
-        return "";
-    }
-    // 第一行是 TU 头，后面每条判定一行
-    os << llvm::json::Value(llvm::json::Object{{"schema", "oobsum-decisions/1"},
-                                               {"tu", tuId},
-                                               {"file", mainFile},
-                                               {"count", static_cast<int64_t>(entries.size())}})
-       << "\n";
-    for (const auto &entry : entries) {
-        os << llvm::json::Value(DecisionToJson(entry.first, entry.second)) << "\n";
-    }
-    return std::string(path);
+    // 临时文件带进程号、写完改名（SPEC-0118：clang_check 几十个进程并行写同一个 WorkDir）
+    bool ok = WriteFileAtomic(
+        path,
+        [&](llvm::raw_ostream &os) {
+            // 第一行是 TU 头，后面每条判定一行
+            os << llvm::json::Value(llvm::json::Object{{"schema", "oobsum-decisions/1"},
+                                                       {"tu", tuId},
+                                                       {"file", mainFile},
+                                                       {"count", static_cast<int64_t>(entries.size())}})
+               << "\n";
+            for (const auto &entry : entries) {
+                os << llvm::json::Value(DecisionToJson(entry.first, entry.second)) << "\n";
+            }
+        },
+        error);
+    return ok ? std::string(path) : "";
 }
 
 }  // namespace oobsum

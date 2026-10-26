@@ -124,12 +124,39 @@ def bxen_cmd(a, cc_json, phase, workdir, analysis_file=None, folder=None):
     return cmd + ['-checker=' + CHECKER, '-extra_args=' + extra]
 
 
-def cmd_bxen(a):
-    workdir = os.path.abspath(a.workdir)
-    os.makedirs(workdir, exist_ok=True)
+def write_stub_cdb(workdir):
+    """桩 TU 与只含它的 compile_commands.json（X-04）→ (目录, 桩文件)"""
     stub_dir, stub = write_stub(workdir)
     json.dump([{'directory': stub_dir, 'file': stub, 'arguments': ['cc', '-c', stub]}],
               open(os.path.join(stub_dir, 'compile_commands.json'), 'w', encoding='utf-8'), indent=1)
+    return stub_dir, stub
+
+
+def cmd_solve(a):
+    """只做 solve（SPEC-0118）：export / report 两遍由 clang_check 按 cdb 每个文件一个进程并行跑，中间这一步单进程"""
+    workdir = os.path.abspath(a.workdir)
+    nfir = len(glob.glob(os.path.join(workdir, 'fir', '*.json')))
+    if nfir == 0:
+        print('✗ %s/fir/ 下没有文件：先用 clang_check 跑一遍 Phase=export（或带 WorkDir 的默认模式）' % workdir)
+        return 1
+    stub_dir, stub = write_stub_cdb(workdir)
+    cmd = bxen_cmd(a, stub_dir, 'solve', workdir, stub)
+    print('# fir/ 里 %d 个 TU；solve 单进程读全部 FIR，写 solved/<tu>.json' % nfir)
+    if not a.run:
+        print('$ ' + show(cmd))
+        return 0
+    if run(cmd, workdir, 'solve') != 0:
+        stop('solve', cmd)
+    table = solved(workdir)
+    print('solve 完成：solved/ %d 个 TU，判定 %d 条（%d 个 TU 有判定）；下一步 clang_check 跑 Phase=report' % (
+        len(table), sum(n for _, n in table), sum(1 for _, n in table if n > 0)))
+    return 0
+
+
+def cmd_bxen(a):
+    workdir = os.path.abspath(a.workdir)
+    os.makedirs(workdir, exist_ok=True)
+    stub_dir, stub = write_stub_cdb(workdir)
     cmds = [('export', bxen_cmd(a, os.path.abspath(a.cc_json), 'export', workdir, folder=a.analysis_folder)),
             ('solve', bxen_cmd(a, stub_dir, 'solve', workdir, stub))]
     # report 的 cdb：从原 cdb 原样复制 solved 里判定不为空的 TU 的条目（X-05）；solve 之后才有
@@ -318,6 +345,11 @@ def main():
     p.add_argument('--extra', default='')
     p.add_argument('--analysis-folder', help='export / report 两段带 -analysis_folder=（逗号分隔的目录）')
     p.add_argument('--run', action='store_true')
+    p = sub.add_parser('solve', help='只做 solve：export / report 由 clang_check 并行跑（SPEC-0118）')
+    p.add_argument('--workdir', required=True)
+    p.add_argument('--bxen', required=True)
+    p.add_argument('--extra', default='')
+    p.add_argument('--run', action='store_true')
     p = sub.add_parser('status')
     p.add_argument('--workdir', required=True)
     p = sub.add_parser('stats', help='报出的按标签 × 层数、SUSPECT 按原因、没报的按原因、报出最多的函数 / TU')
@@ -328,7 +360,7 @@ def main():
     p.add_argument('--all', action='store_true', help='连 SAFE 一起列')
     p.add_argument('what', help='判定指纹，或函数名')
     a = ap.parse_args()
-    sys.exit({'local': cmd_local, 'bxen': cmd_bxen, 'status': cmd_status, 'stats': cmd_stats,
+    sys.exit({'local': cmd_local, 'bxen': cmd_bxen, 'solve': cmd_solve, 'status': cmd_status, 'stats': cmd_stats,
               'explain': cmd_explain}[a.cmd](a))
 
 

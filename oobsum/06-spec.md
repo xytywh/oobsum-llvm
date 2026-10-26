@@ -656,7 +656,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 
 | 编号 | 阶段 | 规格 |
 |---|---|---|
-| **X-01** | export | 每个 TU 导出主文件与头文件里所有有函数体的函数、所有全局声明 / 定义（带类型与大小）、用到的记录类型、目标信息；写 `fir/<tu>.json`（紧凑 JSON，先写 `.tmp` 再改名）。重跑覆盖，幂等 |
+| **X-01** | export | 每个 TU 导出主文件与头文件里所有有函数体的函数、所有全局声明 / 定义（带类型与大小）、用到的记录类型、目标信息；写 `fir/<tu>.json`（紧凑 JSON，先写 `.tmp` 再改名〔由 SPEC-0114 / SPEC-0118 修订：缩进写；临时文件 `<路径>.<进程号>.tmp`〕）。重跑覆盖，幂等 |
 | **X-02** | export | 不做任何求解，不发告警；只挂 `ASTDecl<TranslationUnitDecl>`（D11），因此**不触发 ExprEngine** |
 | **X-03** | solve | 读 `fir/` 下全部文件（单进程）；按 §6.8 求解；写 `summaries/`、`decisions/`、`reports.json`、`ledger.jsonl`、`stats.json`。缺文件 / 坏文件跳过并记日志 〔由 SPEC-0029 修订：本步写 `solved/<tu>.json`，判定日志在 report 阶段写〕 |
 | **X-04** | solve 的宿主 | **默认**：驱动生成一个桩 TU（`solve_stub/stub.c` 与只含它的 `compile_commands.json`），用 bxen 跑 `Phase=solve`，checker 在桩 TU 的回调里完成求解——**不需要在 BXPlugin 里新增可执行目标**。**可选**：独立命令 `oobsum-solve`（只链接 LLVM Support 与 `core/`），需要在 BXPlugin 的 CMake 里加一个可执行目标（`07-` 输入 I1） |

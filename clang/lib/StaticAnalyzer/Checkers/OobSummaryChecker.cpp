@@ -41,6 +41,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "OobSummary/core/Decision.h"
+#include "OobSummary/core/AtomicFile.h"
 #include "OobSummary/core/DecisionLog.h"
 
 #include <memory>
@@ -266,21 +267,15 @@ void OobSummaryChecker::solveAll() const
     for (size_t i = 0; i < mods.size(); ++i) {
         llvm::SmallString<256> path(outDir);
         llvm::sys::path::append(path, mods[i]->tu + ".json");
-        std::string tmp = path.str().str() + ".tmp";
-        std::error_code wec;
-        llvm::raw_fd_ostream os(tmp, wec, llvm::sys::fs::OF_Text);
-        if (wec) {
-            llvm::errs() << "[oobsum] warning: cannot write " << tmp << ": " << wec.message() << "\n";
-            continue;
-        }
-        os << llvm::formatv("{0:1}", llvm::json::Value(llvm::json::Object{{"schema", "oobsum-solved/1"},
-                                                                          {"tu", mods[i]->tu},
-                                                                          {"file", mods[i]->file},
-                                                                          {"decisions", std::move(byModule[i])}}))
-           << "\n";
-        os.close();
-        if (std::error_code rec = llvm::sys::fs::rename(tmp, path)) {
-            llvm::errs() << "[oobsum] warning: cannot rename " << tmp << ": " << rec.message() << "\n";
+        llvm::json::Value value(llvm::json::Object{{"schema", "oobsum-solved/1"},
+                                                   {"tu", mods[i]->tu},
+                                                   {"file", mods[i]->file},
+                                                   {"decisions", std::move(byModule[i])}});
+        std::string error;
+        // 缩进写（SPEC-0114）；临时文件带进程号、写完改名（SPEC-0118）
+        if (!oobsum::WriteFileAtomic(
+                path, [&](llvm::raw_ostream &os) { os << llvm::formatv("{0:1}", value) << "\n"; }, error)) {
+            llvm::errs() << "[oobsum] warning: " << error << "\n";
         }
     }
     if (dump.On("stats")) {
@@ -321,7 +316,7 @@ void OobSummaryChecker::loadSolved(const std::string &tuId, std::vector<oobsum::
     }
 }
 
-// WorkDir/fir/<tu-id>.json（06- X-01，SPEC-0028）：紧凑 JSON，先写 .tmp 再改名；返回路径（没写成为空）
+// WorkDir/fir/<tu-id>.json（06- X-01，SPEC-0028）：缩进 JSON（SPEC-0114），先写 <路径>.<进程号>.tmp 再改名（SPEC-0118）；返回路径（没写成为空）
 std::string OobSummaryChecker::writeFir(const oobsum::fir::Module &module, const std::string &tuId) const
 {
     if (workDir.empty()) {

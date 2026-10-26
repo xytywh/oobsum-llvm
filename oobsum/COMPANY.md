@@ -113,8 +113,7 @@ python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py bxen --workdir /usr1/oobsum
 python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py status --workdir /usr1/oobsum-work
 ```
 
-**待确认**：bxen 跑多个文件的写法（`-cc_json` 给目录还是文件、`-analysis_folder` 与过滤后的 cdb 怎么配合）——模板是按本节上面的命令猜的，
-不对就告诉我正确的写法改 `oobsum_run.py` 的 `bxen_cmd`。
+上面两种都是"一条 bxen 命令跑几个目录"的写法，只用于挑子目录试跑。**全量用 clang_check 逐个文件并行跑，见 §4.2。**
 业务的分配器、拷贝封装、纯函数（07- 输入 I5 / I8 / I9）写进模型文件：复制 `oobsum/config/oob_models.example.yaml` 改，`-extra_args` 里加
 `-analyzer-config rb.enhance.ipa.OobSummary:ModelFile=<路径>`；`Dump=models` 看实际生效的表（SPEC-0033）。模型文件留在公司，不带回。
 定位问题时加 `-analyzer-config rb.enhance.ipa.OobSummary:Dump=summary+apply -analyzer-config rb.enhance.ipa.OobSummary:DumpFilter=<函数名正则>`。
@@ -129,7 +128,7 @@ python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py explain --workdir /usr1/oob
 ### 4.0 业务代码一步一步（给一个 compile_commands.json，同其他 CSA 规则的跑法）
 
 1. **更新**：`cd /usr1/oobsum-llvm && git pull`；`land.py … --apply`（§2，头文件搜索路径会自动补，不用手改）；`make -j16`。
-2. **默认模式跑**（单 TU，一条 bxen 命令；先挑一两个子目录，不加 `-analysis_folder` 就是整个 cdb）：
+2. **默认模式跑**（单 TU，一条 bxen 命令先挑一两个子目录试；**全量用 clang_check，见 §4.2**）：
    ```bash
    mkdir -p /usr1/oobsum-work/base
    time /usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=<compile_commands.json 所在的目录>/ -analysis_folder=<子目录1>,<子目录2> -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work/base -analyzer-config rb.enhance.ipa.OobSummary:Dump=stats -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
@@ -162,6 +161,47 @@ python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /usr1/oobsum-work-base --lab
 ```
 
 带回来的只是计数与结论；要说明某类误报 / 漏报，**用自己的话描述写法、或写一个不含业务代码的最小例子**，不要贴业务代码与告警原文。
+
+### 4.2 用 clang_check 跑全量（cdb 每个文件一个 bxen 进程、线程池并行，SPEC-0118）
+
+和其他单文件规则一样交给 clang_check。本规则只要求：`-checker=rb.enhance.ipa.OobSummary`，`-extra_args` 里带下面这些（clang_check 平时加的
+`-rbchecker-config`、`-funcptr-config` 照旧）；**所有进程用同一个 WorkDir（绝对路径），每一轮用一个新的空目录**（旧文件会混进 solve 和统计）。
+
+**A. 默认模式（单 TU，先做这个）——clang_check 跑一遍**
+
+```text
+-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work/full-1383 -analyzer-config rb.enhance.ipa.OobSummary:Dump=stats
+```
+
+告警由 clang_check 照常收集；被调者在别的文件里的记 `SUSPECT:not_in_tu`。跑完看
+`python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py stats --workdir /usr1/oobsum-work/full-1383`：第一行"目标："的 TU 数是成功分析的 TU 数，
+比 cdb 的文件数少多少就是失败 / 超时多少。
+
+**B. 跨文件（export → solve → report）——clang_check 跑两遍，中间一条 solve**
+
+1. clang_check 第 1 遍，`-extra_args` 用 A 的那串再加 `-analyzer-config rb.enhance.ipa.OobSummary:Phase=export`（WorkDir 换成 `…/xtu-1383`）：
+   每个 TU 写 `fir/<tu>.json`，不报告警、不跑引擎（比 A 快）。
+2. solve（单进程，读全部 FIR，写 `solved/`）：
+   ```bash
+   python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py solve --workdir /usr1/oobsum-work/xtu-1383 --bxen /usr1/BXPlugin/cmake-build-release-release/bxen --extra "-rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+   # 先看打印的命令；再加 --run 执行（建议在命令前加 /usr/bin/time -v，记下耗时和峰值内存）
+   ```
+3. clang_check 第 2 遍，同一个全量 cdb，`Phase=export` 换成 `Phase=report`：每个 TU 读自己的 `solved/<tu>.json` 报告警（只解析源码、不跑引擎），
+   告警由 clang_check 照常收集。
+
+`oobsum_run.py status --workdir …` 看 `fir/`、`solved/`、`decisions/` 各有多少。A 跑过的 WorkDir 里已经有 `fir/`（默认模式设了 WorkDir 就会写），
+可以跳过第 1 步直接 solve——但第 3 步会覆盖 `decisions/`，要留 A 的结果就先复制一份。solve 在 1 万个 TU 上还没实测：
+**先拿一个子系统的 cdb（过滤出一部分文件）试**，再全量。
+
+**注意**
+
+* 磁盘：WorkDir 大约是源码大小的 10 倍（`fir/` 缩进写占大头；本地 67 个用例 146 KB 源码 → `fir/` 0.9 MB、`decisions/` 0.4 MB）。全量前在子系统上
+  `du -sh` 估一下。全量不要加 `Dump=summary`（`dump/` 还要再大 2 倍）；要看某个函数时只对那个文件单独跑，加 `Dump=summary+apply` 和 `DumpFilter=<函数名>`。
+* cdb 里同一个文件出现多次（不同宏各编一次）：TU id 只按路径算，判定日志 / FIR 只留最后写的那份（告警不受影响）。数一下有多少（条目数、文件数、重复的文件数）：
+  ```bash
+  python3 -c "import json,os,collections; d=json.load(open('<cdb 目录>/compile_commands.json')); c=collections.Counter(os.path.normpath(os.path.join(e.get('directory',''),e['file'])) for e in d); print(len(d), len(c), sum(1 for v in c.values() if v>1))"
+  ```
+* 进程被超时杀掉：只会留下 `*.tmp`，不会有写了一半的 `.json`（读的一方看不到 `.tmp`）。
 
 ## 5. 更新与撤掉
 

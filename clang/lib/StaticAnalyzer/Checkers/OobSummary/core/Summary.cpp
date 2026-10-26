@@ -5,6 +5,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "OobSummary/core/Summary.h"
+#include "OobSummary/core/AtomicFile.h"
 
 #include "OobSummary/core/LinExpr.h"
 #include "OobSummary/core/Range.h"
@@ -941,27 +942,9 @@ bool ReadSummaryFile(llvm::StringRef path, Summary &out, std::string &error)
 
 bool WriteSummaryFile(llvm::StringRef path, const Summary &s, std::string &error)
 {
-    std::string tmp = (path + ".tmp").str();
-    {
-        std::error_code ec;
-        llvm::raw_fd_ostream os(tmp, ec, llvm::sys::fs::OF_Text);
-        if (ec) {
-            error = "cannot write " + tmp + ": " + ec.message();
-            return false;
-        }
-        os << llvm::formatv("{0:1}", SummaryToJson(s)) << "\n";  // 缩进写（SPEC-0114）
-        os.close();
-        if (os.has_error()) {
-            error = "cannot write " + tmp + ": " + os.error().message();
-            os.clear_error();
-            return false;
-        }
-    }
-    if (std::error_code ec = llvm::sys::fs::rename(tmp, path)) {
-        error = "cannot rename " + tmp + " to " + path.str() + ": " + ec.message();
-        return false;
-    }
-    return true;
+    // 缩进写（SPEC-0114）；临时文件带进程号、写完改名（SPEC-0118）
+    return WriteFileAtomic(
+        path, [&](llvm::raw_ostream &os) { os << llvm::formatv("{0:1}", SummaryToJson(s)) << "\n"; }, error);
 }
 
 }  // namespace summary

@@ -1,0 +1,8 @@
+# oobsum/specs/SPEC-0118：clang_check 按 cdb 每个文件起一个 bxen 进程、几十个并行，全部写同一个 WorkDir。
+# 8 个进程同时分析同一个文件（cdb 里同一文件出现多次时就是这样）：退出码都是 0、判定日志 / FIR / dump 都能解析、没有留下 .tmp。
+#
+# RUN: rm -rf %t && mkdir -p %t
+# RUN: %python %S/Inputs/parallel/run_parallel.py %clang %t/w %S/Inputs/solve/a.c 8 | FileCheck %s
+
+CHECK: 8 个进程退出码都是 0
+CHECK: decisions 全部可解析；fir 全部可解析；dump 全部可解析；.tmp 0 个

@@ -9,6 +9,9 @@
 # RUN: %python -c "import json,sys; d='%S/Inputs/solve'; json.dump([{'directory': d, 'file': f, 'arguments': ['cc', '-c', f]} for f in ['a.c', 'b.c', 'stub.c']], open('%t/cdb/compile_commands.json', 'w'))"
 # RUN: %python %S/../../../../oobsum/tools/oobsum_run.py bxen --workdir %t/w --bxen /usr1/bxen --cc-json %t/cdb | FileCheck %s --check-prefix=BXEN
 # RUN: %python -c "import json; print(len(json.load(open('%t/w/report_cdb/compile_commands.json'))))" | FileCheck %s --check-prefix=RCDB
+# solve 子命令（SPEC-0118：export / report 由 clang_check 并行跑，中间只做 solve）：只打印 solve 那一条；fir/ 为空时提示先跑 export
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py solve --workdir %t/w --bxen /usr1/bxen | FileCheck %s --check-prefix=SOLVE
+# RUN: not %python %S/../../../../oobsum/tools/oobsum_run.py solve --workdir %t/empty --bxen /usr1/bxen | FileCheck %s --check-prefix=NOFIR
 
 LOCAL: $ {{.*}}Phase=export{{.*}}a.c
 LOCAL: $ {{.*}}Phase=solve{{.*}}solve_stub/stub.c
@@ -25,3 +28,7 @@ BXEN: $ /usr1/bxen -exec_mode=onlySa -cc_json={{.*}}solve_stub -analysis_file={{
 BXEN: $ /usr1/bxen -exec_mode=onlySa -cc_json={{.*}}report_cdb {{.*}}Phase=report
 
 RCDB: 2
+
+SOLVE: # fir/ 里 2 个 TU；solve 单进程读全部 FIR
+SOLVE-NEXT: $ /usr1/bxen -exec_mode=onlySa -cc_json={{.*}}solve_stub -analysis_file={{.*}}stub.c -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-config rb.enhance.ipa.OobSummary:Phase=solve
+NOFIR: fir/ 下没有文件：先用 clang_check 跑一遍 Phase=export

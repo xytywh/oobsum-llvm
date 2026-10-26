@@ -126,6 +126,7 @@
 | [SPEC-0092](SPEC-0092-caller-param-passthrough.md) | 调用方把自己的形参传给被调者时，返回值式子照样代换；文本不露 `_unknown<k>` | 已实现 |
 | [SPEC-0093](SPEC-0093-effect-param-passthrough.md) | 写效应的值就是被调者的形参时，按实参的值写（实参是区间也行） | 已实现 |
 | [SPEC-0094](SPEC-0094-ret-ptr-range.md) | `ret_ptr` 的多条返回偏移不同：记常数区间 | 已实现 |
+| [SPEC-0118](SPEC-0118-clang-check-parallel.md) | 用 clang_check 跑全量：并行写同一个 WorkDir（临时文件带进程号、写完改名）；`oobsum_run.py solve` | 已实现 |
 | [SPEC-0117](SPEC-0117-stats-target.md) | `oobsum_run.py stats` 打印分析时用的目标（三元组、指针 / long 字节数、大小端）；多架构的跑法；I0 探针改为可选 | 已实现 |
 | [SPEC-0116](SPEC-0116-rep-decision-order.md) | `run.py` 挑入口的代表判定与判定在日志里的先后无关（换路径跑不再出现假"变化"） | 已实现 |
 | [SPEC-0115](SPEC-0115-cdb-system-includes.md) | `run.py cdb` 写编译器的系统头文件目录（bxen 找不到 `stddef.h`）；文档里的 bxen 命令写成一行 | 已实现 |
