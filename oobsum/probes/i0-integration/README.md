@@ -1,6 +1,10 @@
 # I0 集成探针：写正式代码之前，在 fork 里跑一次（约 1 小时，其中全量那一遍挂机）
 
 > 调研包 v3.12 · 2026-10-13 · 对应 `07-dev-plan.md` 的输入 **I2 / I2′ / I4** 与 `06-spec.md` §12 的待定项。
+>
+> **2026-10-26 起可选**（SPEC-0117）：正式规则已在 bxen 里跑通，下表 1、2、4–7 已由 TestCase 与 `fork-facts.sh` 确认；3（目标 ABI）用
+> `oobsum_run.py stats --workdir <WorkDir>` 的"目标："一行看（COMPANY.md §3.2）。R1、R2 不用再跑；R3（全量规模、多进程写）想要数据时再跑，
+> 或者直接用正式规则全量跑（COMPANY.md §4.0）。
 
 一个只读的 CSA checker（`rb.enhance.core.OobSummaryProbe`），不报任何缺陷，只打印 `[OSP]` 开头的行、
 按需每个 TU 写一份 JSON。跑三次就能回答正式 checker 依赖的宿主能力和全量代码的形态，

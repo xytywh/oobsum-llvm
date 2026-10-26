@@ -198,6 +198,9 @@
       （没有上游历史，判断不了与 14.0.0 是否逐字相同）；xir 内嵌的 CSA 改过 Core 12 个文件（CoreEngine、ExprEngine、RangeConstraintManager、RegionStore…）、
       Frontend 的 AnalysisConsumer、include 8 个。本规则只挂 `ASTDecl<TranslationUnitDecl>`、不用 ExprEngine / 约束管理器 / Store，TestCase 结果与本地一致
       → 这些改动目前不影响本规则；还不知道的是 fork 对业务目标（aarch64_be + ILP32）的处理（I0 R2，或业务文件 `Dump=fir` 的 `module` 行）。
+- [x] **公司集成反馈 3（2026-10-26）**（SPEC-0116、SPEC-0117）：bxen 跑 67 个用例 → `--from-workdir` 通过 106 / 需跨TU 2 / 回退 0，与预期相同；
+      多出的几行"变化"（LV1-04 TN、LV10-04 TN 的 SUSPECT 原因）是 `run.py` 并列时取日志第一条、而判定先后随源文件路径的哈希变——改成与先后无关的键、重写基线。
+      64 位上真实的差异只有 LV9-02 多 2 条 SUSPECT。`stats` 第一行打印分析时用的目标（`fir/*.json` 的 `target`）；I0 探针改为可选。
 - [x] **P0-8 / WP6 链长用例**（SPEC-0113）：`cases/gen_chain.py` 四类模板 × N ∈ {2, 3, 5, 10, 17, 20}，`--check` 按 G1 口径判，24 个全部符合；
       顺带修了封装分配器链在本函数里访问时 `eff_depth` 为 0、被层数过滤的问题。
 - [x] **WP13 规则 README**：`oobsum/testcase/OobSummaryChecker/README.md`（`csa-checker-dev` 合并版模板：目的、风险、检测策略、支持场景、
@@ -369,10 +372,10 @@
 * **跨 TU 的 bxen 命令格式**（SPEC-0031 §8）：bxen 跑多个文件时 `-cc_json` 给目录还是文件、`-analysis_folder` 与过滤后的 cdb 怎么配合。驱动的模板按 COMPANY.md §4
   的写法猜的；在公司先用 `oobsum_run.py bxen …`（不加 `--run`）打印三段命令，跑一遍 TestCase 目录，不对就把正确的写法告诉我。
 
-* 公司（可选，很快）：bxen 命令加 `-analyzer-config rb.enhance.ipa.OobSummary:Dump=fir`，用**业务 cdb 里任选一个 .c**（TestCase 是宿主 gcc 编的，
-  一定是 x86_64）跑，看 `module` 行是否 `ptr=4 long=4 big-endian`
+* **公司（下一步，很快）**：业务的几个架构的 cdb（每个已跑过一个文件）各执行 `oobsum_run.py stats --workdir <WorkDir> | head -3`，带回"目标："那一行
+  （COMPANY.md §3.2；单板产品应为 `ptr=4 long=4 big-endian`）。原写法：bxen 命令加 `Dump=fir`，看 `module` 行是否 `ptr=4 long=4 big-endian`
   （fork 是否按 ILP32 分析，对应探针 R2），以及 `char` 字段是否 `u8`。只带回"是/否"。
-* 公司：~~`fork-facts.sh` 的输出~~（2026-10-26 已收到，结论见上）；I0 探针 R1–R3；TestCase 在 bxen 下的结果（**现在预期 4 条告警 + 判定日志 7 条**：
+* 公司：~~`fork-facts.sh` 的输出~~（2026-10-26 已收到，结论见上）；I0 探针（可选，SPEC-0117）；TestCase 在 bxen 下的结果（**现在预期 4 条告警 + 判定日志 7 条**：
   骨架的 3 条 + 引擎的三层链 `Tc_Engine_TP` 一条 DEFINITE；`Dump=stats` 应为 `decisions=7 emitted=4`）。
 * 公司（可选）：引擎已在默认的 `Phase=inline` 下跑。拿 bxen 跑一个业务子目录，
   带回各标签 / 原因的条数与耗时（`tools/decisions.py` 汇总，只要数字），用来定 `SuspectReasons` 的默认值（`not_in_tu`、`typed_field` 预计很多）。

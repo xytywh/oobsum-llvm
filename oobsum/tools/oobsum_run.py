@@ -195,8 +195,31 @@ def _name(fn):
     return fn.split(':')[-1]
 
 
+def _targets(workdir):
+    """W/fir/*.json 的 target（分析时用的目标：三元组、指针 / long 字节数、大小端）→ {显示文本: TU 数}（SPEC-0116）。
+    target 在缩进写的文件末尾附近，只解析那一段，不读整个 FIR"""
+    counts = {}
+    dec = json.JSONDecoder()
+    for p in glob.glob(os.path.join(workdir, 'fir', '*.json')):
+        text = open(p, encoding='utf-8').read()
+        i = text.rfind('"target"')
+        try:
+            t = dec.raw_decode(text, text.index('{', i))[0] if i >= 0 else None
+        except ValueError:
+            t = None
+        key = ('%s ptr=%s long=%s %s' % (t.get('triple'), t.get('ptr'), t.get('long'),
+                                         'big-endian' if t.get('big_endian') else 'little-endian')) if t else '（读不出 target）'
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
 def cmd_stats(a):
     """stats（06- I-30，SPEC-0112）：报出的按标签 × 层数、SUSPECT 按原因、没报的按原因、报出最多的函数与 TU"""
+    targets = _targets(a.workdir)
+    for t, n in sorted(targets.items(), key=lambda x: (-x[1], x[0])):
+        print('目标：%s（%d 个 TU）' % (t, n))
+    if not targets:
+        print('目标：（%s 下没有 fir/*.json）' % a.workdir)
     ds = _decisions(a.workdir)
     if not ds:
         print('%s 下没有判定日志' % a.workdir)

@@ -1,4 +1,5 @@
 # 驱动的 stats / explain（oobsum/specs/SPEC-0112；06- I-30、F-42）：读 WorkDir 里的判定日志与 Dump=summary 写的摘要。
+# stats 第一行起是分析时用的目标（fir/*.json 的 target，SPEC-0116）。
 #
 # RUN: rm -rf %t && mkdir -p %t
 # RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --workdir %t/w --clang %clang --config InlineDepth=0 --config Dump=summary \
@@ -7,6 +8,7 @@
 # RUN: %python %S/../../../../oobsum/tools/oobsum_run.py explain --workdir %t/w Top_A | FileCheck %s --check-prefix=EXPLAIN
 # RUN: not %python %S/../../../../oobsum/tools/oobsum_run.py explain --workdir %t/w No_Such_Fn | FileCheck %s --check-prefix=NONE
 
+STATS: 目标：{{.*}} ptr=4 long=4 big-endian（2 个 TU）
 STATS: == 4 条判定，报出 3 条（2 个 TU）
 STATS: definite        0      1      0      0      0       1
 STATS: possible        0      1      0      0      0       1

@@ -74,6 +74,26 @@ python3 oobsum/cases/run.py csa --from-workdir /usr1/oobsum-cases-wd       # 不
 * rb.enhance.ipa 规则：`-extra_args` 里**不加** `-analyzer-config ipa=none`（它不走 CSA 的 inline，只挂 TU 级回调）。
 * `-analyzer-config` 的列表值用 `+` 连接（`Dump=options+stats`），逗号会被当成分隔符。
 
+### 3.2 看分析时用的目标（几个架构的 cdb 各跑各的，SPEC-0117）
+
+每次运行都会在 `WorkDir/fir/<tu>.json` 里记下 bxen 分析这个 TU 时用的目标（不用加 `Dump`）。`stats` 的第一行起就是它：
+
+```bash
+python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py stats --workdir /usr1/1383-all | head -3
+# 目标：<三元组> ptr=<指针字节数> long=<long 字节数> <big-endian 大端 | little-endian 小端>（K 个 TU）
+```
+
+| 看到的 | 意思 | 怎么办 |
+|---|---|---|
+| `ptr=4 long=4 big-endian` | 按单板（ILP32 + 大端）算字节布局 | 可信，什么都不用改 |
+| `ptr=8 long=8 little-endian`（`x86_64…`），而这个 cdb 是单板产品 | bxen 按宿主 x86_64 算：含指针 / `long` 的结构体大小、成员偏移会算大；纯 `UINT8/16/32` 的数组、下标、常数长度不受影响 | 把这一行带回来，我们再定（SPEC-0117 §9） |
+| x86 仿真版本（如 `lx86`）显示 `ptr=8 … little-endian` | 本来就是 64 位 x86 | 正确 |
+
+* **布局本来就会影响结果，这是对的**：越界是按字节算的，同一个结构体在 32 位上 8 字节、在 64 位上 16 字节，`memcpy_s(&st, 8, …)` 在一个架构上安全、另一个上越界。
+  要保证的是"每个 cdb 都按它自己真实的目标算"，不是"几个架构结果一样"。67 个用例上实测：32 位和 64 位的判据完全相同，只有 LV9-02 在 64 位上多 2 条
+  SUSPECT（`UINT32` → 64 位 `size_t`），以及字段偏移这类字节数不同。
+* 几个架构都要看时：每个 cdb 一条 bxen 命令、各自一个 WorkDir（`/usr1/oobsum-work/1383`、`…/1380`、`…/lx86`），分别看 `stats`；以产品实际运行的架构为准。
+
 ## 4. 跑业务代码（引擎接上之后）
 
 ```bash
@@ -158,7 +178,8 @@ python3 oobsum/devenv/land.py --drop oobsum/landing/OobSummaryChecker.manifest -
 
 1. `bash oobsum/devenv/fork-facts.sh > fork-facts.txt`：公司 clang 的版本、llvm-project-14 是否上游 14.0.0、构建开关、
    xir 内嵌 CSA 与上游的差异计数（只读，不输出业务代码；贴回之前自己过一眼）。
-2. I0 探针（`oobsum/probes/i0-integration/README.md`）：
+2. （**可选，2026-10-26 起不再要求**：它要确认的事大部分已由 TestCase、fork-facts、§3.2 确认，见 SPEC-0117；
+   想要全量的规模数据再跑它的 R3，或者直接用 §4.0 的正式规则全量跑 + `stats`）I0 探针（`oobsum/probes/i0-integration/README.md`）：
    `python3 oobsum/devenv/land.py --drop oobsum/probes/i0-integration --into bxplugin --root /usr1/BXPlugin --apply`，编译后跑 R1–R3，
    用完 `--remove --apply` 撤掉。R2 的 `[OSP] tu … ptr= long= endian=` 决定摘要里的字节布局能不能信（上游 clang 14 不支持 aarch64 ILP32）。
 
