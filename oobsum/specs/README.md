@@ -126,6 +126,7 @@
 | [SPEC-0092](SPEC-0092-caller-param-passthrough.md) | 调用方把自己的形参传给被调者时，返回值式子照样代换；文本不露 `_unknown<k>` | 已实现 |
 | [SPEC-0093](SPEC-0093-effect-param-passthrough.md) | 写效应的值就是被调者的形参时，按实参的值写（实参是区间也行） | 已实现 |
 | [SPEC-0094](SPEC-0094-ret-ptr-range.md) | `ret_ptr` 的多条返回偏移不同：记常数区间 | 已实现 |
+| [SPEC-0121](SPEC-0121-cxx-tu.md) | C++ 的 TU 照常分析（C 写法与 C 相同；引用按指针；重载 / 模板用 mangle 键；成员调用 / 构造保守 `cxx_call`）；修 `.cpp` 上的崩溃 | 已实现（第 1 步） |
 | [SPEC-0120](SPEC-0120-env-config.md) | 环境变量 `OOBSUM_CONFIG` 传选项（clang_check 不用改）；`oobsum_run.py report`；COMPANY.md 重排 | 已实现 |
 | [SPEC-0119](SPEC-0119-company-checklist-tools.md) | 公司侧按顺序的清单（COMPANY.md §0）；`oobsum_run.py cdb`（数 / 过滤 cdb）、`stats --counts-only` | 已实现 |
 | [SPEC-0118](SPEC-0118-clang-check-parallel.md) | 用 clang_check 跑全量：并行写同一个 WorkDir（临时文件带进程号、写完改名）；`oobsum_run.py solve` | 已实现 |

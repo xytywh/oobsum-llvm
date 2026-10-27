@@ -8,7 +8,10 @@
 
 #include "OobSummary/core/Key.h"
 
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclBase.h"
+#include "clang/AST/DeclCXX.h"
+#include "clang/AST/Mangle.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/FileEntry.h"
 
@@ -52,6 +55,70 @@ static bool IsGlobal(const VarDecl *vd)
     return vd->isFileVarDecl() || const_cast<VarDecl *>(vd)->isLocalExternDecl();
 }
 
+KeyMaker::KeyMaker(const SourceManager &sm) : sm(sm)
+{
+}
+
+KeyMaker::~KeyMaker() = default;
+
+void KeyMaker::SetContext(ASTContext &context)
+{
+    ctx = &context;
+    mangler = context.getLangOpts().CPlusPlus ? std::make_unique<ASTNameGenerator>(context) : nullptr;
+}
+
+static bool IsExternC(const NamedDecl *d)
+{
+    if (const auto *fd = dyn_cast<FunctionDecl>(d)) {
+        return fd->isExternC();
+    }
+    if (const auto *vd = dyn_cast<VarDecl>(d)) {
+        return vd->isExternC();
+    }
+    return false;
+}
+
+std::string KeyMaker::NameOf(const NamedDecl *d)
+{
+    // C++ 链接的函数 / 全局（SPEC-0121）：mangle 名；模板原型（依赖上下文）不 mangle（ASTNameGenerator 会失败），也不会被降级
+    if (mangler != nullptr && (isa<FunctionDecl>(d) || isa<VarDecl>(d)) && !IsExternC(d) &&
+        !d->getDeclContext()->isDependentContext()) {
+        std::string name = mangler->getName(d);
+        if (!name.empty()) {
+            return name;
+        }
+    }
+    return d->getIdentifier() != nullptr ? d->getName().str() : d->getNameAsString();
+}
+
+// 一层的名字：不带模板实参（getQualifiedNameAsString 会把类模板特化的实参整个打印出来，嵌套的模板能长到打印不完——
+// 上游 CodeGenCXX/pr29160.cpp 实测超时）；类型转换函数的名字里是目标类型，同理不打印
+static std::string PartName(const NamedDecl *d)
+{
+    if (d->getIdentifier() != nullptr) {
+        return d->getName().str();
+    }
+    if (isa<CXXConversionDecl>(d)) {
+        return "operator conversion";
+    }
+    std::string name = d->getNameAsString();
+    return name.empty() ? "(anonymous)" : name;
+}
+
+std::string DisplayName(const NamedDecl *d)
+{
+    std::string name = PartName(d);
+    if (!d->getASTContext().getLangOpts().CPlusPlus) {
+        return name;
+    }
+    for (const DeclContext *dc = d->getDeclContext(); dc != nullptr && !dc->isTranslationUnit(); dc = dc->getParent()) {
+        if (const auto *scope = dyn_cast<NamedDecl>(dc)) {
+            name = PartName(scope) + "::" + name;
+        }
+    }
+    return name;
+}
+
 SourceLocation KeyMaker::HomeLoc(const Decl *home) const
 {
     return sm.getExpansionLoc(home->getLocation());
@@ -74,14 +141,14 @@ std::string KeyMaker::ForFunction(const FunctionDecl *fd)
     const FunctionDecl *home = HomeOf(fd);
     bool external = home->isExternallyVisible();
     std::string fileId = external ? "" : FileOf(sm.getFileID(HomeLoc(home))).second;
-    return FunctionKey(home->getName(), external, fileId);
+    return FunctionKey(NameOf(home), external, fileId);
 }
 
 std::string KeyMaker::ForVar(const VarDecl *vd)
 {
     if (vd->isStaticLocal()) {
         const auto *owner = dyn_cast_or_null<FunctionDecl>(vd->getParentFunctionOrMethod());
-        return owner != nullptr ? StaticLocalKey(ForFunction(owner), vd->getName()) : "";
+        return owner != nullptr ? StaticLocalKey(ForFunction(owner), vd->getNameAsString()) : "";
     }
     if (!IsGlobal(vd)) {
         return "";
@@ -89,7 +156,7 @@ std::string KeyMaker::ForVar(const VarDecl *vd)
     const VarDecl *home = HomeOf(vd);
     bool external = home->isExternallyVisible();
     std::string fileId = external ? "" : FileOf(sm.getFileID(HomeLoc(home))).second;
-    return GlobalKey(home->getName(), external, fileId);
+    return GlobalKey(NameOf(home), external, fileId);
 }
 
 bool KeyMaker::Describe(const Decl *d, KeyInfo &info)
@@ -100,7 +167,7 @@ bool KeyMaker::Describe(const Decl *d, KeyInfo &info)
         info.key = ForFunction(fd);
         info.kind = "func";
         info.def = fd->getDefinition() != nullptr;
-        info.scopeName = fd->getName().str();
+        info.scopeName = DisplayName(fd);
     } else if (const auto *vd = dyn_cast<VarDecl>(d)) {
         info.key = ForVar(vd);
         if (info.key.empty()) {
@@ -110,7 +177,7 @@ bool KeyMaker::Describe(const Decl *d, KeyInfo &info)
         info.kind = vd->isStaticLocal() ? "static" : "global";
         info.def = VarDefinition(vd) != nullptr;
         const auto *owner = dyn_cast_or_null<FunctionDecl>(vd->getParentFunctionOrMethod());
-        info.scopeName = (vd->isStaticLocal() && owner != nullptr ? owner->getName() : vd->getName()).str();
+        info.scopeName = vd->isStaticLocal() && owner != nullptr ? DisplayName(owner) : DisplayName(vd);
     } else {
         return false;
     }
@@ -133,9 +200,15 @@ public:
     {
     }
 
+    // C++ 的模板只看实例化，原型（依赖上下文）跳过（SPEC-0121）
+    bool shouldVisitTemplateInstantiations() const
+    {
+        return true;
+    }
+
     bool VisitFunctionDecl(FunctionDecl *fd)
     {
-        if (!fd->isImplicit() && fd->doesThisDeclarationHaveABody()) {
+        if (!fd->isImplicit() && fd->doesThisDeclarationHaveABody() && !fd->isDependentContext()) {
             add(fd->getCanonicalDecl());
         }
         return true;
@@ -143,7 +216,8 @@ public:
 
     bool VisitVarDecl(VarDecl *vd)
     {
-        if (!vd->isImplicit() && !isa<ParmVarDecl>(vd)) {
+        if (!vd->isImplicit() && !isa<ParmVarDecl>(vd) && !vd->getDeclContext()->isDependentContext() &&
+            !vd->getType()->isDependentType()) {
             add(vd->getCanonicalDecl());
         }
         return true;

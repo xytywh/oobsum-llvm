@@ -318,6 +318,13 @@ def cmd_cdb(a):
         counts[path_of(e)] = counts.get(path_of(e), 0) + 1
     print('%s：%d 条%s，文件 %d 个，出现多次的文件 %d 个' % (
         src, len(cdb), '（过滤后 %d 条）' % len(keep) if unders else '', len(counts), sum(1 for n in counts.values() if n > 1)))
+    # 按扩展名数语言（C++ 的 TU 照常分析，C++ 特有的写法保守处理，SPEC-0121）
+    lang = {'C（.c）': 0, 'C++（.cpp / .cc / .cxx）': 0, '其它': 0}
+    for f in counts:
+        ext = os.path.splitext(f)[1]
+        key = 'C（.c）' if ext == '.c' else 'C++（.cpp / .cc / .cxx）' if ext in ('.cpp', '.cc', '.cxx', '.c++', '.C') else '其它'
+        lang[key] += 1
+    print('  文件按语言：' + '、'.join('%s %d 个' % kv for kv in lang.items()))
     if a.out:
         os.makedirs(a.out, exist_ok=True)
         out = os.path.join(os.path.abspath(a.out), 'compile_commands.json')

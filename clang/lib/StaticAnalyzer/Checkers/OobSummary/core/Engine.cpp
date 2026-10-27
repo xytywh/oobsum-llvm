@@ -197,6 +197,8 @@ std::string LedgerMessage(const std::string &reason, const std::string &callee)
         phrase = "the value comes from a structure passed or returned by value";
     } else if (reason == "inline_asm") {
         phrase = "the value is written by inline assembly";
+    } else if (reason == "cxx_call") {
+        phrase = "a pointer is passed to a C++ member function or constructor, which is not modeled";  // SPEC-0121
     } else if (reason == "fptr") {
         phrase = "a pointer is passed through a function pointer whose target is not resolved";  // SPEC-0057
     } else if (reason == "not_in_tu") {

@@ -83,7 +83,9 @@ public:
     bool VisitCallExpr(const CallExpr *call)
     {
         const FunctionDecl *callee = call->getDirectCallee();
-        if (callee == nullptr || callee->getName() != "oobsum_debug_emit" || call->getNumArgs() != 3) {
+        // 运算符、构造函数等的名字不是简单标识符，不能调 getName()（SPEC-0121）
+        if (callee == nullptr || callee->getIdentifier() == nullptr || callee->getName() != "oobsum_debug_emit" ||
+            call->getNumArgs() != 3) {
             return true;
         }
         const auto *labelLit = dyn_cast<StringLiteral>(call->getArg(0)->IgnoreParenCasts());
@@ -172,7 +174,7 @@ void OobSummaryChecker::dumpCallGraph(const TranslationUnitDecl *tu, oobsum::Key
         std::string line;
         for (const CallGraphNode *node : *it) {
             const auto *fd = dyn_cast_or_null<FunctionDecl>(node->getDecl());
-            if (fd == nullptr || !fd->hasBody() || !dump.Wants("callgraph", fd->getName())) {
+            if (fd == nullptr || !fd->hasBody() || !dump.Wants("callgraph", oobsum::DisplayName(fd))) {
                 continue;
             }
             line += (line.empty() ? "" : " ") + keys.ForFunction(fd);
@@ -416,6 +418,7 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
     std::string mainFile = mainEntry != nullptr ? mainEntry->getName().str() : "<unknown>";
     std::string tuId = oobsum::TuId(mainFile);
     oobsum::KeyMaker keys(sm);
+    keys.SetContext(mgr.getASTContext());  // C++ 的 TU：C++ 链接的函数 / 全局用 mangle 名做键（SPEC-0121）
 
     if (dump.On("options")) {
         dump.Line("options", optionsText);

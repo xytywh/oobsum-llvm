@@ -12,7 +12,9 @@
 #include "OobSummary/lower/TypeLayout.h"
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Basic/Builtins.h"
@@ -77,7 +79,42 @@ private:
     llvm::DenseMap<FileID, uint32_t> indices;
 };
 
-// 函数体里被取过地址的变量（&x）：它们是内存对象（D-11 的 obj）
+// 调用的形参类型（直接调用取被调者，间接调用取函数指针的类型）；拿不到（K&R 声明、成员指针调用）为 null
+const FunctionProtoType *ProtoOf(const CallExpr *call)
+{
+    if (const FunctionDecl *callee = call->getDirectCallee()) {
+        return callee->getType()->getAs<FunctionProtoType>();
+    }
+    QualType t = call->getCallee()->getType();
+    if (const auto *pt = t->getAs<PointerType>()) {
+        t = pt->getPointeeType();
+    } else if (const auto *rt = t->getAs<ReferenceType>()) {
+        t = rt->getPointeeType();
+    }
+    return t->getAs<FunctionProtoType>();
+}
+
+// 第 i 个形参是引用（C++，SPEC-0121）：实参传它的地址
+bool ByReference(const FunctionProtoType *proto, unsigned i)
+{
+    return proto != nullptr && i < proto->getNumParams() && proto->getParamType(i)->isReferenceType();
+}
+
+// C++ 成员函数的调用（obj.f()、p->f()、成员运算符 a[i]、虚函数）：this 不建模（SPEC-0121）
+bool IsMemberCall(const CallExpr *call)
+{
+    if (isa<CXXMemberCallExpr>(call)) {
+        return true;
+    }
+    if (const auto *op = dyn_cast<CXXOperatorCallExpr>(call)) {
+        const auto *method = dyn_cast_or_null<CXXMethodDecl>(op->getDirectCallee());
+        return method != nullptr && method->isInstance();
+    }
+    return false;
+}
+
+// 函数体里被取过地址的变量（&x）：它们是内存对象（D-11 的 obj）。C++（SPEC-0121）：绑定到引用上的变量、成员调用的对象
+// 也算——引用按指针建模，传过去的是它的地址
 class AddressTaken : public RecursiveASTVisitor<AddressTaken> {
 public:
     bool VisitUnaryOperator(UnaryOperator *op)
@@ -85,14 +122,71 @@ public:
         if (op->getOpcode() == UO_AddrOf) {
             if (const auto *ref = dyn_cast<DeclRefExpr>(op->getSubExpr()->IgnoreParens())) {
                 if (const auto *vd = dyn_cast<VarDecl>(ref->getDecl())) {
-                    vars.insert(vd->getCanonicalDecl());
+                    if (!vd->getType()->isReferenceType()) {  // &r 取的是所引对象的地址，r 本身没被取地址
+                        vars.insert(vd->getCanonicalDecl());
+                    }
                 }
             }
         }
         return true;
     }
 
+    bool VisitVarDecl(VarDecl *vd)
+    {
+        if (vd->getType()->isReferenceType()) {
+            Mark(vd->getInit());
+        }
+        return true;
+    }
+
+    bool VisitCallExpr(CallExpr *call)
+    {
+        unsigned first = 0;
+        if (const auto *member = dyn_cast<CXXMemberCallExpr>(call)) {
+            const auto *me = dyn_cast<MemberExpr>(member->getCallee()->IgnoreParens());
+            if (me != nullptr && !me->isArrow()) {
+                Mark(me->getBase());
+            }
+        } else if (IsMemberCall(call)) {
+            Mark(call->getArg(0));
+            first = 1;
+        }
+        const FunctionProtoType *proto = ProtoOf(call);
+        for (unsigned i = first; i < call->getNumArgs(); ++i) {
+            if (ByReference(proto, i - first)) {
+                Mark(call->getArg(i));
+            }
+        }
+        return true;
+    }
+
+    bool VisitCXXConstructExpr(CXXConstructExpr *ce)
+    {
+        const FunctionProtoType *proto = ce->getConstructor()->getType()->getAs<FunctionProtoType>();
+        for (unsigned i = 0; i < ce->getNumArgs(); ++i) {
+            if (ByReference(proto, i)) {
+                Mark(ce->getArg(i));
+            }
+        }
+        return true;
+    }
+
     llvm::SmallPtrSet<const VarDecl *, 8> vars;
+
+private:
+    void Mark(const Expr *e)
+    {
+        if (e == nullptr) {
+            return;
+        }
+        if (const auto *ref = dyn_cast<DeclRefExpr>(e->IgnoreParenImpCasts())) {
+            if (const auto *vd = dyn_cast<VarDecl>(ref->getDecl())) {
+                if (!vd->getType()->isReferenceType()) {
+                    vars.insert(vd->getCanonicalDecl());
+                }
+            }
+        }
+    }
 };
 
 // 函数体里的局部变量（不含形参、函数内 static、块作用域 extern），遍历顺序
@@ -136,18 +230,21 @@ public:
     {
         fir::Function f;
         f.key = keys.ForFunction(fd);
-        f.name = fd->getNameAsString();
+        f.name = DisplayName(fd);  // C++：带作用域、运算符等不是简单标识符的名字也能取（SPEC-0121）
         f.ext = fd->isExternallyVisible();
         f.loc = files.LocOf(fd->getLocation());
         f.ret = layout.Map(fd->getReturnType());
         fn = &f;
+        decl = fd;
         memo.clear();
         localIds.clear();
+        ctorTarget.clear();
         tmpCount = 0;
         callOrd = 0;
         LowerLocals(fd, f);
         LowerBody(fd, f);
         fn = nullptr;
+        decl = nullptr;
         cur = nullptr;
         return f;
     }
@@ -186,6 +283,12 @@ private:
         }
         for (const VarDecl *vd : collector.vars) {
             AddLocal(vd, -1, taken);
+            // C++ 构造的局部对象（SPEC-0121）：构造函数在 CFG 里是单独的元素，降它时要知道构造的是哪个对象
+            if (const Expr *init = vd->getInit()) {
+                if (const auto *ce = dyn_cast<CXXConstructExpr>(init->IgnoreImplicit())) {
+                    ctorTarget[ce] = vd;
+                }
+            }
         }
     }
 
@@ -503,7 +606,9 @@ private:
     int64_t SizeOf(QualType t) const
     {
         QualType c = t.getCanonicalType();
-        if (c->isIncompleteType() || c->isFunctionType()) {
+        // C++ 的占位类型（绑定的成员函数、重载集）、依赖类型、未推导的 auto：ASTContext 算不出大小、会断言（SPEC-0121）
+        if (c->isIncompleteType() || c->isFunctionType() || c->isPlaceholderType() || c->isDependentType() ||
+            c->isUndeducedType()) {
             return 0;
         }
         if (c->isVariablyModifiedType() && c->isArrayType()) {
@@ -513,7 +618,12 @@ private:
     }
     unsigned Width(QualType t) const
     {
-        return static_cast<unsigned>(ctx.getTypeSize(t.getCanonicalType()));
+        QualType c = t.getCanonicalType();
+        if (c->isIncompleteType() || c->isFunctionType() || c->isPlaceholderType() || c->isDependentType() ||
+            c->isUndeducedType()) {
+            return 0;  // 同 SizeOf（SPEC-0121）
+        }
+        return static_cast<unsigned>(ctx.getTypeSize(c));
     }
     bool Signed(QualType t) const
     {
@@ -684,6 +794,31 @@ private:
         if (isa<ImplicitValueInitExpr>(e) && e->getType()->isScalarType()) {
             return R(Const(0));
         }
+        // C++（SPEC-0121）：包装节点看里面；构造、new 当作目标未知的调用；其余 C++ 特有的写法落到下面的未知（A-08）
+        if (const auto *cleanups = dyn_cast<ExprWithCleanups>(e)) {
+            return ValueOf(cleanups->getSubExpr());
+        }
+        if (const auto *bind = dyn_cast<CXXBindTemporaryExpr>(e)) {
+            return ValueOf(bind->getSubExpr());
+        }
+        if (const auto *ce = dyn_cast<CXXConstructExpr>(e)) {
+            auto target = ctorTarget.find(ce);
+            fir::ExprId object = fir::kNone;
+            if (target != ctorTarget.end()) {
+                auto local = localIds.find(target->second->getCanonicalDecl());
+                if (local != localIds.end() && fn->locals[local->second].obj) {
+                    object = Add(fir::Expr::LAddr(fn->locals[local->second].id));
+                }
+            }
+            CtorCall(ce, object, e);
+            return e->isGLValue() ? Mem(Unknown("cxx_temporary"), SizeOf(e->getType())) : R(Unknown("struct_by_value"));
+        }
+        if (const auto *ne = dyn_cast<CXXNewExpr>(e)) {
+            if (const CXXConstructExpr *ce = ne->getConstructExpr()) {
+                CtorCall(ce, fir::kNone, e);
+            }
+            return R(Unknown("cxx_new"));
+        }
         if (e->isGLValue()) {
             return Mem(Unknown(e->getStmtClassName()), SizeOf(e->getType()));
         }
@@ -694,6 +829,9 @@ private:
     {
         const ValueDecl *decl = ref->getDecl();
         if (const auto *vd = dyn_cast<VarDecl>(decl)) {
+            if (vd->getType()->isReferenceType()) {
+                return RefVar(vd, ref);
+            }
             auto it = localIds.find(vd->getCanonicalDecl());
             if (it != localIds.end()) {
                 const fir::Local &local = fn->locals[it->second];
@@ -712,6 +850,17 @@ private:
             return R(Add(fir::Expr::FAddr(keys.ForFunction(fd))));
         }
         return R(Unknown("decl_ref"));
+    }
+
+    // C++ 的引用变量 / 引用形参（SPEC-0121）：按指针建模——它的值是所引对象的地址，用它就是访问那个对象
+    Val RefVar(const VarDecl *vd, const DeclRefExpr *ref)
+    {
+        int64_t size = SizeOf(ref->getType());
+        auto it = localIds.find(vd->getCanonicalDecl());
+        if (it != localIds.end() && !fn->locals[it->second].obj) {
+            return Mem(Local(fn->locals[it->second].id), size);
+        }
+        return Mem(Unknown("cxx_reference"), size);  // 全局的引用等：所引对象不跟踪
     }
 
     Val Cast(const CastExpr *cast)
@@ -1082,6 +1231,9 @@ private:
         if (field == nullptr) {
             return Mem(Unknown("member"), SizeOf(me->getType()));
         }
+        if (field->getType()->isReferenceType()) {
+            return Mem(Unknown("cxx_reference_field"), SizeOf(me->getType()));  // SPEC-0121：引用成员所引的对象不跟踪
+        }
         fir::ExprId base = me->isArrow() ? RValueOf(me->getBase()) : AddrOf(ValueOf(me->getBase()), me->getBase());
         const RecordDecl *parent = field->getParent();
         const ASTRecordLayout &rl = ctx.getASTRecordLayout(parent);
@@ -1105,7 +1257,7 @@ private:
                 return Mem(Offset(base, off), 0);  // D-37：不按成员收窄
             }
             // D-31：数组成员以成员为界
-            return Mem(Add(fir::Expr::Fld(base, off, SizeOf(ft), field->getName())), SizeOf(ft));
+            return Mem(Add(fir::Expr::Fld(base, off, SizeOf(ft), field->getNameAsString())), SizeOf(ft));
         }
         return Mem(Offset(base, off), SizeOf(ft));
     }
@@ -1121,10 +1273,14 @@ private:
     Val Call(const CallExpr *call)
     {
         const FunctionDecl *callee = call->getDirectCallee();
+        if (IsMemberCall(call)) {
+            return MemberCall(call);
+        }
         fir::Inst inst;
         inst.op = fir::InstOp::Call;
         if (callee != nullptr) {
-            llvm::StringRef name = callee->getName();
+            // 运算符、构造函数等的名字不是简单标识符，不能调 getName()（SPEC-0121）
+            llvm::StringRef name = callee->getIdentifier() != nullptr ? callee->getName() : llvm::StringRef();
             if (callee->getBuiltinID() == Builtin::BI__builtin_expect && call->getNumArgs() >= 1) {
                 return ValueOf(call->getArg(0));  // A-05：__builtin_expect(x, c) → x
             }
@@ -1135,21 +1291,97 @@ private:
         } else {
             inst.calleeExpr = RValueOf(call->getCallee());
         }
-        for (const Expr *arg : call->arguments()) {
-            inst.args.push_back(arg->getType()->isRecordType() ? Unknown("struct_by_value") : RValueOf(arg));
+        const FunctionProtoType *proto = ProtoOf(call);
+        for (unsigned i = 0; i < call->getNumArgs(); ++i) {
+            inst.args.push_back(ArgValue(call->getArg(i), proto, i));
         }
-        QualType ret = call->getType();
-        bool hasValue = !ret->isVoidType() && !ret->isRecordType();
+        return CallResult(std::move(inst), call);
+    }
+
+    // 实参：引用形参传地址（SPEC-0121）；结构体按值不跟踪
+    fir::ExprId ArgValue(const Expr *arg, const FunctionProtoType *proto, unsigned i)
+    {
+        if (ByReference(proto, i)) {
+            return AddrOf(ValueOf(arg), arg);
+        }
+        return arg->getType()->isRecordType() ? Unknown("struct_by_value") : RValueOf(arg);
+    }
+
+    // 调用的结果：返回引用时是所引对象的地址，调用表达式本身是那个对象（SPEC-0121）
+    Val CallResult(fir::Inst inst, const CallExpr *call)
+    {
+        QualType ret = call->getCallReturnType(ctx);
+        QualType value = call->getType();
+        bool byRef = ret->isReferenceType();
+        bool hasValue = byRef || (!value->isVoidType() && !value->isRecordType());
         if (hasValue) {
-            inst.dst = NewTemp(ret);
+            inst.dst = NewTemp(byRef ? ret : value);
         }
         inst.ord = callOrd++;
         uint32_t dst = inst.dst;
         Emit(std::move(inst), call);
-        if (ret->isRecordType()) {
+        if (byRef) {
+            return Mem(Local(dst), SizeOf(value));
+        }
+        if (value->isRecordType()) {
             return R(Unknown("struct_by_value"));
         }
         return hasValue ? R(Local(dst)) : R(Unknown("void"));
+    }
+
+    // C++ 成员函数的调用（SPEC-0121）：this 不建模，当作目标未知的调用——对象的地址与实参都交出去（经它们可达的内存失效，
+    // 调用点记 SUSPECT cxx_call），绝不因此推出 SAFE；虚函数也走这里
+    Val MemberCall(const CallExpr *call)
+    {
+        fir::Inst inst;
+        inst.op = fir::InstOp::Call;
+        inst.calleeExpr = Unknown("cxx_call");
+        unsigned first = 0;
+        const Expr *object = nullptr;
+        bool arrow = false;
+        if (const auto *member = dyn_cast<CXXMemberCallExpr>(call)) {
+            if (const auto *me = dyn_cast<MemberExpr>(member->getCallee()->IgnoreParens())) {
+                object = me->getBase();
+                arrow = me->isArrow();
+            }
+        } else {
+            object = call->getArg(0);
+            first = 1;
+        }
+        if (object == nullptr) {
+            inst.args.push_back(Unknown("cxx_this"));
+        } else {
+            inst.args.push_back(arrow ? RValueOf(object) : AddrOf(ValueOf(object), object));
+        }
+        const FunctionProtoType *proto = ProtoOf(call);
+        for (unsigned i = first; i < call->getNumArgs(); ++i) {
+            inst.args.push_back(ArgValue(call->getArg(i), proto, i - first));
+        }
+        return CallResult(std::move(inst), call);
+    }
+
+    // 构造函数（SPEC-0121）：平凡的什么也不做（默认构造）或者就是结构体拷贝（拷贝 / 移动，与 C 的赋值相同）；
+    // 其余当作目标未知的调用（被构造的对象的地址 + 实参）
+    void CtorCall(const CXXConstructExpr *ce, fir::ExprId object, const Stmt *at)
+    {
+        const CXXConstructorDecl *ctor = ce->getConstructor();
+        if (ctor->isTrivial()) {
+            if (object != fir::kNone && ce->getNumArgs() == 1 && ctor->isCopyOrMoveConstructor() &&
+                !ce->getType()->isArrayType()) {
+                StructCopy(object, ce->getArg(0), SizeOf(ce->getType()), at);
+            }
+            return;
+        }
+        fir::Inst inst;
+        inst.op = fir::InstOp::Call;
+        inst.calleeExpr = Unknown("cxx_call");
+        inst.args.push_back(object != fir::kNone ? object : Unknown("cxx_this"));
+        const FunctionProtoType *proto = ctor->getType()->getAs<FunctionProtoType>();
+        for (unsigned i = 0; i < ce->getNumArgs(); ++i) {
+            inst.args.push_back(ArgValue(ce->getArg(i), proto, i));
+        }
+        inst.ord = callOrd++;
+        Emit(std::move(inst), at);
     }
 
     void LowerDecl(const VarDecl *vd)
@@ -1166,6 +1398,13 @@ private:
         } else {
             target.kind = Val::LocalLV;
             target.local = local.id;
+        }
+        if (vd->getType()->isReferenceType()) {
+            Store(target, AddrOf(ValueOf(init), init), init);  // 引用 = 所引对象的地址（SPEC-0121）
+            return;
+        }
+        if (ctorTarget.count(dyn_cast<CXXConstructExpr>(init->IgnoreImplicit())) != 0) {
+            return;  // 构造函数已在它自己的 CFG 元素里降过（SPEC-0121）
         }
         QualType t = vd->getType().getCanonicalType();
         if (t->isArrayType() || t->isRecordType()) {
@@ -1246,7 +1485,11 @@ private:
         fir::Inst inst;
         inst.op = fir::InstOp::Ret;
         if (const Expr *value = rs->getRetValue()) {
-            inst.val = value->getType()->isRecordType() ? Unknown("struct_by_value") : RValueOf(value);
+            if (decl != nullptr && decl->getReturnType()->isReferenceType()) {
+                inst.val = AddrOf(ValueOf(value), value);  // 返回引用 = 返回所引对象的地址（SPEC-0121）
+            } else {
+                inst.val = value->getType()->isRecordType() ? Unknown("struct_by_value") : RValueOf(value);
+            }
         }
         Emit(std::move(inst), rs);
     }
@@ -1257,10 +1500,12 @@ private:
     TypeLayout &layout;
     FileTable &files;
     fir::Function *fn = nullptr;
+    const FunctionDecl *decl = nullptr;  // 正在降级的函数
     fir::Block *cur = nullptr;
     llvm::DenseMap<const Expr *, Val> memo;
     llvm::DenseMap<const VarDecl *, uint32_t> localIds;
     llvm::DenseMap<const Expr *, uint32_t> mergeTmps;  // 当值用的 ?: / && / || → 临时局部（SPEC-0009 §2.3）
+    llvm::DenseMap<const CXXConstructExpr *, const VarDecl *> ctorTarget;  // C++ 构造的局部对象（SPEC-0121）
     unsigned tmpCount = 0;
     uint32_t callOrd = 0;
 };
@@ -1273,9 +1518,16 @@ public:
     {
     }
 
+    // C++ 的模板只降实例化，原型（依赖上下文）跳过（SPEC-0121）
+    bool shouldVisitTemplateInstantiations() const
+    {
+        return true;
+    }
+
     bool VisitVarDecl(VarDecl *vd)
     {
-        if (isa<ParmVarDecl>(vd) || vd->isImplicit()) {
+        if (isa<ParmVarDecl>(vd) || vd->isImplicit() || vd->getDeclContext()->isDependentContext() ||
+            vd->getType()->isDependentType()) {
             return true;
         }
         std::string key = keys.ForVar(vd);
@@ -1297,8 +1549,20 @@ public:
 
     bool VisitFunctionDecl(FunctionDecl *fd)
     {
-        if (!fd->isImplicit() && fd->doesThisDeclarationHaveABody()) {
+        if (!fd->isImplicit() && fd->doesThisDeclarationHaveABody() && !fd->isDependentContext() &&
+            !fd->isInvalidDecl()) {
             module.funcs.push_back(lowerer.Lower(fd));
+        }
+        return true;
+    }
+
+    // C++ 的 lambda（SPEC-0121）：函数体是闭包类的 operator()（隐式的类，上面遍历不到）；捕获的变量经 this，不跟踪
+    bool VisitLambdaExpr(LambdaExpr *lambda)
+    {
+        const CXXMethodDecl *call = lambda->getCallOperator();
+        if (call != nullptr && call->doesThisDeclarationHaveABody() && !call->isDependentContext() &&
+            !call->isInvalidDecl()) {
+            module.funcs.push_back(lowerer.Lower(call));
         }
         return true;
     }

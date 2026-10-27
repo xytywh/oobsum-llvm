@@ -17,9 +17,14 @@
 
 #include "llvm/ADT/DenseMap.h"
 
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
+
+namespace clang {
+class ASTNameGenerator;
+}  // namespace clang
 
 namespace oobsum {
 
@@ -38,9 +43,14 @@ struct KeyInfo {
 
 class KeyMaker {
 public:
-    explicit KeyMaker(const clang::SourceManager &sm) : sm(sm)
-    {
-    }
+    explicit KeyMaker(const clang::SourceManager &sm);
+    ~KeyMaker();
+
+    // C++ 的 TU（SPEC-0121）：C++ 链接的函数 / 变量用 mangle 后的名字做键（重载、命名空间、模板实参各不相同），
+    // extern "C" 的与 C 的 TU 相同（C 与 C++ 互相调用时键对得上）。不调用时一律用原名（C 的 TU 与原来逐字相同）
+    void SetContext(clang::ASTContext &ctx);
+    // 键里的名字：见 SetContext
+    std::string NameOf(const clang::NamedDecl *d);
 
     std::string ForFunction(const clang::FunctionDecl *fd);
     // 没有键（普通局部、形参）返回空串
@@ -55,7 +65,13 @@ private:
 
     const clang::SourceManager &sm;
     llvm::DenseMap<clang::FileID, std::pair<std::string, std::string>> files;
+    clang::ASTContext *ctx = nullptr;
+    std::unique_ptr<clang::ASTNameGenerator> mangler;
 };
+
+// 给人看的名字（SPEC-0121）：C 的 TU 与原来相同（标识符本身）；C++ 带作用域（Buf::operator[]）。名字不是简单标识符
+// （运算符、构造 / 析构、类型转换函数）时不能调 NamedDecl::getName()——它会断言失败
+std::string DisplayName(const clang::NamedDecl *d);
 
 // 变量的定义：真正的定义；没有就取源码里最早的暂定定义（C 的 int a[10]; 在文件作用域是暂定定义）；都没有为 null。
 // 注意 VarDecl::getActingDefinition() 只在"这一条本身是暂定定义"时非空，在 extern 那条上调用拿不到（实测）。

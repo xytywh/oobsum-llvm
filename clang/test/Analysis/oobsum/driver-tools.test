@@ -44,6 +44,7 @@ COUNTS-NOT: 报出最多的函数
 COUNTS: --counts-only：不列函数名 / 文件名
 
 CDB: compile_commands.json：4 条，文件 3 个，出现多次的文件 1 个
+CDB-NEXT: 文件按语言：C（.c） 3 个、C++（.cpp / .cc / .cxx） 0 个、其它 0 个
 CDBSUB: compile_commands.json：4 条（过滤后 3 条），文件 2 个，出现多次的文件 1 个
 CDBSUB: 已写 {{.*}}sub/compile_commands.json：3 条
 CDBN: 3

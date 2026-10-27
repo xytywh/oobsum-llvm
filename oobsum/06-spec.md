@@ -56,7 +56,7 @@
 
 ### 1.3 不做（P0）
 
-C++；函数指针的指向分析（只做同函数内常量赋值，S9.1 尽力）；递归的 SCC 不动点（环上保守回退）；
+C++〔由 SPEC-0121 修订：不为 C++ 特性专门建模；C++ 的 TU 照常分析，C 的写法与 C 相同，C++ 特有的写法保守〕；函数指针的指向分析（只做同函数内常量赋值，S9.1 尽力）；递归的 SCC 不动点（环上保守回退）；
 二维数组行级越界 #18 `[P1]`；`strcpy_s` 族的源串长度 `[2027]`（`destMax` 一半可在 P1 顺带）；
 字段级不变式、跨任务消息、AI 注入 `[2027]`；增量分析、CI 门禁 `[2027]`；路径解释（CSA 侧 `checkPreCall`）`[P1]`；
 S2 级（符号可疑）输出。
@@ -506,6 +506,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
   `untracked_pointer`（指针来自数组元素或超过两层的字段，不跟踪它指向多大）。
   〔SPEC-0106〕加 `alias_unverified`：`CharAlias=verify` 的不别名假设在调用点不成立 / 不知道 / 到了入口。
   〔SPEC-0104〕加 `subobject_overflow`：访问可能越出成员数组 / 多维数组的一行（整个对象没越出时由它报 SUSPECT，D22）。
+  〔SPEC-0121〕加 `cxx_call`：经 C++ 成员函数 / 构造函数 / 虚函数的调用交出指针（`this` 不建模，当作目标未知的调用）。
 * **D-28 状态**〔由 SPEC-0037 修订：加 `skipped:no_cfg`；`partial:*` / `skipped:*` 在声明处报 SUSPECT `unanalyzed:<后缀>`〕 `status`：`analyzed`；`partial:iter_limit|cond_truncated`；`skipped:cfg_too_large|timeout|no_body`。
 
 **D-29 可读输出**：`doc.text`、`Dump=summary` 与 `oobsum.py show / explain` 都用形参名渲染（`ulNum >= 1 ⇒ 写 4 字节 @ *pstTbl，末端 [4, 16*ulNum - 12]；需 16*ulNum - 12 <= ext(pstTbl)`），

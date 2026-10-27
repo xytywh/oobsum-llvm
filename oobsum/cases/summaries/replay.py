@@ -467,7 +467,7 @@ OBJ = re.compile(r'^(?:(?:g|local):\w+|heap@[\w./-]+:\d+|\*?p\d+(?:->\w+)?)$')
 VIA = re.compile(r'^(?:g|local):\w+\.\w+$')
 REASONS = {'fptr', 'unknown_callee', 'recursion', 'msg_edge', 'global_value', 'global_ptr_target', 'field_written_by_callee',
            'alloc_size_unknown', 'flexible_array', 'struct_overlay', 'pointer_stepping', 'string_length', 'nonlinear',
-           'type_range_only', 'entry_unproven', 'cond_truncated', 'ambiguous_callee', 'not_exported', 'not_in_tu',
+           'type_range_only', 'entry_unproven', 'cond_truncated', 'ambiguous_callee', 'not_exported', 'not_in_tu', 'cxx_call',
            'cfg_too_large', 'timeout', 'iter_limit', 'unsupported_construct', 'struct_by_value', 'inline_asm',
            'imprecise_join', 'untracked_pointer', 'typed_field', 'subobject_overflow', 'alias_unverified'}
 

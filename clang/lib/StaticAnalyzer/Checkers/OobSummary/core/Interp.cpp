@@ -3773,11 +3773,14 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s, bool alt)
         return;
     }
     if (inst.calleeExpr != fir::kNone) {
-        // 间接调用解析不出目标（06- A-60 ①）：实参里有指针时记账 fptr，经函数指针交出去的路径不能悄悄断掉（SPEC-0057）
+        // 间接调用解析不出目标（06- A-60 ①）：实参里有指针时记账 fptr，经函数指针交出去的路径不能悄悄断掉（SPEC-0057）。
+        // C++ 的成员函数 / 构造函数调用（this 不建模，降级成目标未知的调用）记 cxx_call（SPEC-0121）
+        const fir::Expr &target = f.exprs[inst.calleeExpr];
+        const char *reason = target.op == ExprOp::Unk && target.text == "cxx_call" ? "cxx_call" : "fptr";
         for (ExprId arg : inst.args) {
             Value v = Eval(arg, s);
             if (v.isPtr && v.p.kind != BaseKind::Func) {
-                AddOpen("fptr", SiteOf(m, inst.loc));
+                AddOpen(reason, SiteOf(m, inst.loc));
                 break;
             }
         }

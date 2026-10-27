@@ -34,6 +34,7 @@ namespace {
 const std::set<std::string> &Reasons()
 {
     static const std::set<std::string> reasons = {"fptr",
+                                                  "cxx_call",  // SPEC-0121
                                                   "unknown_callee",
                                                   "recursion",
                                                   "msg_edge",

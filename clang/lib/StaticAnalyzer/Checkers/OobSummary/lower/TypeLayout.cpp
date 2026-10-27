@@ -34,8 +34,9 @@ std::string TypeLayout::RecordName(const RecordDecl *record) const
     if (it != typedefNames.end()) {
         return it->second;
     }
-    if (!record->getName().empty()) {
-        return record->getName().str();
+    std::string name = record->getNameAsString();  // C++ 的类名可能不是简单标识符（SPEC-0121）
+    if (!name.empty()) {
+        return name;
     }
     return "<anonymous struct/union>";
 }
@@ -61,7 +62,7 @@ uint32_t TypeLayout::RecordId(const RecordDecl *definition)
             continue;  // 填充
         }
         fir::Field out;
-        out.name = field->getName().str();
+        out.name = field->getNameAsString();
         uint64_t bits = layout.getFieldOffset(field->getFieldIndex());
         out.off = static_cast<int64_t>(bits / 8);
         if (field->isBitField()) {
@@ -83,6 +84,13 @@ fir::TypeId TypeLayout::Map(QualType type)
     QualType t = type.getCanonicalType().getUnqualifiedType();
     if (t.isNull() || t->isVoidType()) {
         return module.Intern(fir::Type::Void());
+    }
+    // C++（SPEC-0121）：模板原型里的依赖类型、未推导的 auto 算不出大小（ASTContext 会断言）；引用按指针建模
+    if (t->isDependentType() || t->isUndeducedType() || t->isPlaceholderType()) {
+        return module.Intern(fir::Type::Other(0));
+    }
+    if (const auto *ref = t->getAs<ReferenceType>()) {
+        return module.Intern(fir::Type::Ptr(Map(ref->getPointeeType())));
     }
     if (const auto *atomic = t->getAs<AtomicType>()) {
         return Map(atomic->getValueType());
@@ -111,7 +119,7 @@ fir::TypeId TypeLayout::Map(QualType type)
     }
     if (const auto *rt = t->getAs<RecordType>()) {
         const RecordDecl *definition = rt->getDecl()->getDefinition();
-        if (definition == nullptr || definition->isInvalidDecl()) {
+        if (definition == nullptr || definition->isInvalidDecl() || definition->isDependentType()) {
             return module.Intern(fir::Type::Other(0));
         }
         return module.Intern(fir::Type::Rec(RecordId(definition)));

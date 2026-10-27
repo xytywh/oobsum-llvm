@@ -1,0 +1,53 @@
+# oobsum/specs/SPEC-0121：C++ 的 TU 照常分析（不跳过——.cpp 里 C 写法的代码照样要查）。C 的写法与 C 相同；引用按指针建模；
+# 重载 / 模板实例化各有各的键（mangle 名）；成员函数调用、构造函数、虚函数保守（SUSPECT cxx_call，不推 SAFE）；
+# 运算符、构造 / 析构等名字不是简单标识符、成员函数的占位类型——原来 NamedDecl::getName() / getTypeSizeInChars 断言失败（公司 release 版段错误）。
+#
+# RUN: rm -rf %t && mkdir -p %t
+# RUN: %clang_analyze_cc1 -x c++ -analyzer-checker=rb.enhance.ipa.OobSummary %S/Inputs/cxx/cases.cpp 2>&1 | FileCheck %s --check-prefix=CASES
+# RUN: %clang_analyze_cc1 -x c++ -analyzer-checker=rb.enhance.ipa.OobSummary -analyzer-config rb.enhance.ipa.OobSummary:Dump=keys \
+# RUN:   %S/Inputs/cxx/cases.cpp 2>&1 | FileCheck %s --check-prefix=KEYS
+# 原来崩溃的写法：所有 Dump 种类都打开也不崩
+# RUN: %clang_analyze_cc1 -x c++ -analyzer-checker=rb.enhance.ipa.OobSummary -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t/m \
+# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=all %S/Inputs/cxx/mixed.cpp 2>&1 | FileCheck %s --check-prefix=MIXED
+# C 文件调用 .cpp 里 extern "C" 的函数：键与 C 相同，三阶段接得上
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --workdir %t/x --clang %clang %S/Inputs/cxx/impl.cpp %S/Inputs/cxx/ccall.c \
+# RUN:   | FileCheck %s --check-prefix=XLANG
+# RUN: cat %t/x/decisions/*.jsonl | FileCheck %s --check-prefix=XLANGLOG
+
+# ① C 的写法 ② 引用形参 ③ 经引用写回 / 引用局部 ④ 重载 ⑦ 模板：TP 报 DEFINITE，TN 不报
+CASES-NOT: cases.cpp:11:{{.*}}warning
+CASES: cases.cpp:10:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 3-level call chain: up to byte 17 of 'a' (16 bytes)
+CASES-NOT: cases.cpp:11:{{.*}}warning
+CASES: cases.cpp:17:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 3-level call chain
+CASES-NOT: cases.cpp:18:{{.*}}warning
+CASES: cases.cpp:22:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 3-level call chain
+CASES-NOT: cases.cpp:23:{{.*}}warning
+CASES: cases.cpp:24:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 3-level call chain
+CASES: cases.cpp:31:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 3-level call chain
+CASES-NOT: cases.cpp:32:{{.*}}warning
+# ⑤ 成员函数 / 构造函数改了对象之后，长度不当成原来的值：照样报（不推 SAFE）
+CASES: cases.cpp:42:1: warning: [OOB-SUSPECT:cxx_call] Cannot prove this access is within bounds: a pointer is passed to a C++ member function or constructor, which is not modeled
+CASES: cases.cpp:42:1: warning: [OOB-SUSPECT:type_range_only]
+CASES: cases.cpp:43:1: warning: [OOB-SUSPECT:cxx_call]
+CASES: cases.cpp:43:1: warning: [OOB-SUSPECT:type_range_only]
+# ⑥ 平凡的结构体拷贝与 C 相同（拷过去的 15 照样知道）
+CASES-NOT: cases.cpp:49:{{.*}}warning
+CASES: cases.cpp:55:1: warning: [OOB-DEFINITE] Definite out-of-bound write through a 3-level call chain
+CASES-NOT: cases.cpp:56:{{.*}}warning
+# ⑧ 虚函数调用：保守
+CASES: cases.cpp:62:1: warning: [OOB-SUSPECT:cxx_call]
+
+# 重载、模板实例化的键不同；extern "C" 以外的 C++ 函数用 mangle 名
+KEYS-DAG: [oobsum:keys] F@{{[0-9a-f]+}}:_ZL3PutPhj func def {{.*}}cases.cpp:27:13
+KEYS-DAG: [oobsum:keys] F@{{[0-9a-f]+}}:_ZL3PutPh func def {{.*}}cases.cpp:28:13
+KEYS-DAG: [oobsum:keys] F@{{[0-9a-f]+}}:_ZL5TLeafIhEvPT_j func def
+KEYS-DAG: [oobsum:keys] F@{{[0-9a-f]+}}:_ZL5TLeafIjEvPT_j func def
+KEYS-DAG: [oobsum:keys] F:_ZN4Base4FillEPhj func def
+
+MIXED: [oobsum:stats] tu={{[0-9a-f]+}} decisions={{[0-9]+}} emitted={{[0-9]+}}
+MIXED-NOT: Assertion
+MIXED-NOT: Stack dump
+
+XLANG: export 2 个 TU；solve 判定 {{[0-9]+}} 条；report 1 个 TU，告警 1 条
+XLANGLOG: "emitted":true{{.*}}"fn":"F:X_TP"{{.*}}"label":"definite"
+XLANGLOG-NOT: "fn":"F:X_TN"{{.*}}"label":"definite"
