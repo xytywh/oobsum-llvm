@@ -201,6 +201,13 @@
 - [x] **公司集成反馈 3（2026-10-26）**（SPEC-0116、SPEC-0117）：bxen 跑 67 个用例 → `--from-workdir` 通过 106 / 需跨TU 2 / 回退 0，与预期相同；
       多出的几行"变化"（LV1-04 TN、LV10-04 TN 的 SUSPECT 原因）是 `run.py` 并列时取日志第一条、而判定先后随源文件路径的哈希变——改成与先后无关的键、重写基线。
       64 位上真实的差异只有 LV9-02 多 2 条 SUSPECT。`stats` 第一行打印分析时用的目标（`fir/*.json` 的 `target`）；I0 探针改为可选。
+- [x] **公司结果 5（2026-10-27）+ C++ 的 TU 不再崩溃**（SPEC-0121）：清单 2026-10-27-1 的第 1–3 步都与预期相同（环境变量经 clang_check 传到了每个 bxen 进程）。
+      子系统 116 个文件：A 判定日志报出 20684（report.json 3644）、B 报出 3519（report.json 3169），**全部是 SUSPECT**（B：untracked_pointer 1093、typed_field 953、
+      unknown_callee 844、entry_unproven 249、type_range_only 168、fptr 164…）；B 的 export 18 s、solve 9 s / 257 MB、report 18 s。A / B 的条数差：A 每个 TU 各记一遍头文件 inline 函数，
+      clang_check 按文件 + 行 + 正文去重。**一个 .cpp 文件 bxen 段错误**（getName() 断言）：用户要求不能跳过 C++ 文件——改成 C++ 的 TU 照常分析，C 写法与 C 相同，
+      引用按指针，重载 / 模板用 mangle 键，成员调用 / 构造 / 虚函数保守（新原因 cxx_call）；上游 2473 个 .cpp 压力测试 0 崩溃 0 超时。
+      用户的 `project_cfg.py` 把本规则加进 `IPA_CMN_RULE_CHECKER`（对结果没影响）。COMPANY.md 加 §1.6 各原因的意思与怎么判断、§1.7 C++、§2.10 接入 CI。清单 **2026-10-27-2**：
+      重跑崩溃的文件、整个单板 cdb 跑 B、按原因抽查。
 - [x] **公司结果 4（2026-10-27）+ clang_check 不用改**（SPEC-0120）：清单 2026-10-26-1 的第 1–4 步都与预期相同（lit 105、通过 108 / 回退 0、TestCase 4 条、
       用例对照 106 / 需跨TU 2 / "变化" 5 行）；**三个架构的 cdb 都是 ILP32**：32 位 ARM 大端、`aarch64_be-…-gnuilp32`（fork 支持 AArch64 ILP32）、i386——字节布局可信。
       用户说明了 clang_check 的用法（每个文件的命令里不带本规则的选项）：加环境变量 `OOBSUM_CONFIG`（优先于 `-analyzer-config`，我们的驱动忽略它），
