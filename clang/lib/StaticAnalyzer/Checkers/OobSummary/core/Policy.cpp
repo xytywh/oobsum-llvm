@@ -13,6 +13,29 @@
 
 namespace oobsum {
 
+bool ParseKeyValues(llvm::StringRef text, std::map<std::string, std::string> &out, std::string &bad)
+{
+    llvm::SmallVector<llvm::StringRef, 16> parts;
+    text.split(parts, ' ', -1, false);
+    for (llvm::StringRef part : parts) {
+        llvm::SmallVector<llvm::StringRef, 4> sub;
+        part.split(sub, ';', -1, false);
+        for (llvm::StringRef item : sub) {
+            item = item.trim();  // 制表符、换行也当分隔
+            if (item.empty()) {
+                continue;
+            }
+            size_t eq = item.find('=');
+            if (eq == llvm::StringRef::npos || eq == 0) {
+                bad = item.str();
+                return false;
+            }
+            out[item.substr(0, eq).str()] = item.substr(eq + 1).str();
+        }
+    }
+    return true;
+}
+
 std::set<std::string> SplitList(llvm::StringRef text)
 {
     std::set<std::string> out;

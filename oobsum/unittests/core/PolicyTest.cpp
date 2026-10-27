@@ -10,6 +10,7 @@
 #include "OobSummary/core/Label.h"
 #include "OobSummary/core/Policy.h"
 
+#include <map>
 #include <set>
 #include <string>
 
@@ -145,4 +146,32 @@ TEST(Policy, SubobjectNotFilteredByDepth)
     Decision back = Make(Label::Possible, 1);
     back.dir = "back";
     EXPECT_EQ(Why(back, recall), "drop:inline_depth");
+}
+
+// OOBSUM_CONFIG（SPEC-0120）
+TEST(Policy, ParseKeyValues)
+{
+    std::map<std::string, std::string> out;
+    std::string bad;
+    EXPECT_TRUE(oobsum::ParseKeyValues("  WorkDir=/a/b Phase=export;Dump=stats+summary  SuspectReasons= ", out, bad));
+    EXPECT_EQ(out.size(), static_cast<size_t>(4));
+    EXPECT_EQ(out["WorkDir"], "/a/b");
+    EXPECT_EQ(out["Phase"], "export");
+    EXPECT_EQ(out["Dump"], "stats+summary");
+    EXPECT_EQ(out["SuspectReasons"], "");
+    // 后面的为准
+    EXPECT_TRUE(oobsum::ParseKeyValues("Phase=inline Phase=report", out, bad));
+    EXPECT_EQ(out["Phase"], "report");
+    // 值里可以有 '='
+    EXPECT_TRUE(oobsum::ParseKeyValues("DumpFilter=a=b", out, bad));
+    EXPECT_EQ(out["DumpFilter"], "a=b");
+    // 空串：什么都没有
+    std::map<std::string, std::string> none;
+    EXPECT_TRUE(oobsum::ParseKeyValues("", none, bad));
+    EXPECT_TRUE(none.empty());
+    // 没有 '='、键为空
+    EXPECT_FALSE(oobsum::ParseKeyValues("WorkDir=/a export", out, bad));
+    EXPECT_EQ(bad, "export");
+    EXPECT_FALSE(oobsum::ParseKeyValues("=x", out, bad));
+    EXPECT_EQ(bad, "=x");
 }

@@ -13,6 +13,9 @@
 # RUN: %python %S/../../../../oobsum/tools/oobsum_run.py cdb --cc-json %t/cdb | FileCheck %s --check-prefix=CDB
 # RUN: %python %S/../../../../oobsum/tools/oobsum_run.py cdb --cc-json %t/cdb --under %S/Inputs/solve --out %t/sub | FileCheck %s --check-prefix=CDBSUB
 # RUN: %python -c "import json; print(len(json.load(open('%t/sub/compile_commands.json'))))" | FileCheck %s --check-prefix=CDBN
+# report：clang_check 的 report.json 里本规则的告警按标签 / SUSPECT 原因计数（SPEC-0120）；别的规则、空的 {} 不算
+# RUN: %python -c "import json; r = lambda t: {'description': 'rb.enhance.ipa.OobSummary', 'file': 'x.c', 'line': 1, 'reason': 'warning: [OOB-' + t + '] m [rb.enhance.ipa.OobSummary]'}; json.dump({'module': 'allfiles', 'problems': [r('DEFINITE'), r('POSSIBLE'), r('SUSPECT:not_in_tu'), r('SUSPECT:not_in_tu'), r('SUSPECT:entry_unproven'), {'description': 'rb.enhance.core.Other', 'reason': 'warning: x [rb.enhance.core.Other]'}, {}]}, open('%t/report.json', 'w'))"
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py report %t/report.json | FileCheck %s --check-prefix=REPORT
 # RUN: %python %S/../../../../oobsum/tools/oobsum_run.py explain --workdir %t/w Top_A | FileCheck %s --check-prefix=EXPLAIN
 # RUN: not %python %S/../../../../oobsum/tools/oobsum_run.py explain --workdir %t/w No_Such_Fn | FileCheck %s --check-prefix=NONE
 
@@ -44,3 +47,6 @@ CDB: compile_commands.json：4 条，文件 3 个，出现多次的文件 1 个
 CDBSUB: compile_commands.json：4 条（过滤后 3 条），文件 2 个，出现多次的文件 1 个
 CDBSUB: 已写 {{.*}}sub/compile_commands.json：3 条
 CDBN: 3
+
+REPORT: report.json：problems 6 条，其中 rb.enhance.ipa.OobSummary 5 条：DEFINITE 1、POSSIBLE 1、SUSPECT 3
+REPORT-NEXT: SUSPECT 按原因：not_in_tu 2、entry_unproven 1

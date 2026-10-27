@@ -21,6 +21,8 @@
 只依赖 Python 3 标准库。
 """
 import argparse, json, os, re, shutil, subprocess, sys
+if os.environ.pop('OOBSUM_CONFIG', None) is not None:  # 本工具自己传选项；用户为 clang_check 设的环境变量不能混进来（SPEC-0120）
+    print('注意：忽略环境变量 OOBSUM_CONFIG', file=sys.stderr)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEVELS = ['lv%d' % i for i in range(1, 11)]

@@ -38,12 +38,14 @@
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "OobSummary/core/Decision.h"
 #include "OobSummary/core/AtomicFile.h"
 #include "OobSummary/core/DecisionLog.h"
 
+#include <map>
 #include <memory>
 #include "OobSummary/core/Fingerprint.h"
 #include "OobSummary/core/FirJson.h"
@@ -517,28 +519,78 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
     auto *chk = mgr.registerChecker<OobSummaryChecker>();
     const AnalyzerOptions &opts = mgr.getAnalyzerOptions();
 
-    chk->phase = opts.getCheckerStringOption(chk, "Phase").str();
+    // 环境变量 OOBSUM_CONFIG（SPEC-0120）："Key=Value …"，优先于 -analyzer-config。公司的 clang_check 按 cdb 每个文件起一个 bxen 进程、
+    // 不改它就传不进本规则的选项；在 clang_check 的命令前面加 OOBSUM_CONFIG="WorkDir=… Phase=…" 即可（子进程继承环境变量）。
+    // 键名按本规则在 Checkers.td 里登记的选项查（AnalyzerOptions::Config 里有 "<checker>:<键>" 的才算）。
+    std::map<std::string, std::string> envConfig;
+    llvm::Optional<std::string> envText = llvm::sys::Process::GetEnv("OOBSUM_CONFIG");
+    if (envText) {
+        std::string bad;
+        if (!oobsum::ParseKeyValues(*envText, envConfig, bad)) {
+            mgr.reportInvalidCheckerOptionValue(chk, "OOBSUM_CONFIG",
+                                                "space-separated Key=Value pairs; got '" + bad + "'");
+        }
+        for (auto it = envConfig.begin(); it != envConfig.end();) {
+            if (opts.Config.count((chk->getTagDescription() + ":" + it->first).str()) == 0) {
+                mgr.reportInvalidCheckerOptionValue(
+                    chk, "OOBSUM_CONFIG",
+                    "Key=Value pairs whose keys are options of this checker; got '" + it->first + "'");
+                it = envConfig.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+    auto getString = [&](llvm::StringRef name) -> std::string {
+        auto it = envConfig.find(name.str());
+        return it != envConfig.end() ? it->second : opts.getCheckerStringOption(chk, name).str();
+    };
+    auto getInteger = [&](llvm::StringRef name) -> int {
+        auto it = envConfig.find(name.str());
+        int value = 0;
+        if (it == envConfig.end()) {
+            return opts.getCheckerIntegerOption(chk, name);
+        }
+        if (llvm::StringRef(it->second).getAsInteger(10, value)) {
+            mgr.reportInvalidCheckerOptionValue(chk, name, "an integer (from OOBSUM_CONFIG)");
+            return opts.getCheckerIntegerOption(chk, name);
+        }
+        return value;
+    };
+    auto getBoolean = [&](llvm::StringRef name) -> bool {
+        auto it = envConfig.find(name.str());
+        if (it == envConfig.end()) {
+            return opts.getCheckerBooleanOption(chk, name);
+        }
+        if (it->second != "true" && it->second != "false") {
+            mgr.reportInvalidCheckerOptionValue(chk, name, "either 'true' or 'false' (from OOBSUM_CONFIG)");
+            return opts.getCheckerBooleanOption(chk, name);
+        }
+        return it->second == "true";
+    };
+
+    chk->phase = getString("Phase");
     if (chk->phase != "inline" && chk->phase != "export" && chk->phase != "solve" && chk->phase != "report") {
         mgr.reportInvalidCheckerOptionValue(chk, "Phase", "one of 'inline', 'export', 'solve', 'report'");
     }
-    chk->workDir = opts.getCheckerStringOption(chk, "WorkDir").str();
+    chk->workDir = getString("WorkDir");
 
-    std::string policyName = opts.getCheckerStringOption(chk, "Policy").str();
+    std::string policyName = getString("Policy");
     if (policyName != "recall" && policyName != "balanced") {
         mgr.reportInvalidCheckerOptionValue(chk, "Policy", "either 'recall' or 'balanced'");
     }
     chk->policy.recall = policyName != "balanced";
-    int inlineDepth = opts.getCheckerIntegerOption(chk, "InlineDepth");
+    int inlineDepth = getInteger("InlineDepth");
     if (inlineDepth < 0) {
         mgr.reportInvalidCheckerOptionValue(chk, "InlineDepth", "a non-negative integer");
         inlineDepth = 0;
     }
     chk->policy.inlineDepth = static_cast<unsigned>(inlineDepth);
-    chk->policy.reportSafe = opts.getCheckerBooleanOption(chk, "ReportSafe");
-    chk->policy.suspectReasons = oobsum::SplitList(opts.getCheckerStringOption(chk, "SuspectReasons"));
+    chk->policy.reportSafe = getBoolean("ReportSafe");
+    chk->policy.suspectReasons = oobsum::SplitList(getString("SuspectReasons"));
 
-    chk->dumpKinds = opts.getCheckerStringOption(chk, "Dump").str();
-    chk->dumpFilter = opts.getCheckerStringOption(chk, "DumpFilter").str();
+    chk->dumpKinds = getString("Dump");
+    chk->dumpFilter = getString("DumpFilter");
     std::string unknownKind;
     if (!chk->dump.Configure(chk->dumpKinds, chk->dumpFilter, chk->workDir, unknownKind)) {
         mgr.reportInvalidCheckerOptionValue(chk, "Dump",
@@ -548,23 +600,23 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
                                             "got '" +
                                                 unknownKind + "'");
     }
-    int maxBlocks = opts.getCheckerIntegerOption(chk, "MaxBlocks");
+    int maxBlocks = getInteger("MaxBlocks");
     if (maxBlocks < 0) {
         mgr.reportInvalidCheckerOptionValue(chk, "MaxBlocks", "a non-negative integer");
         maxBlocks = 0;
     }
     chk->maxBlocks = static_cast<unsigned>(maxBlocks);
     // CharAlias（SPEC-0103，用户决定 D20）：char / void 的写当成可能改了任何外部内存
-    std::string charAlias = opts.getCheckerStringOption(chk, "CharAlias").str();
+    std::string charAlias = getString("CharAlias");
     chk->interpOptions.charAlias = charAlias == "true";
     chk->interpOptions.charVerify = charAlias == "verify";  // SPEC-0106，用户决定 D25
     if (charAlias != "false" && charAlias != "true" && charAlias != "verify") {
         mgr.reportInvalidCheckerOptionValue(chk, "CharAlias", "one of 'false', 'true', 'verify'");
     }
     // AssumeNoWrap（SPEC-0108）：检查与地址计算按数学整数、记局部线性关系；默认关（召回优先）
-    chk->interpOptions.assumeNoWrap = opts.getCheckerBooleanOption(chk, "AssumeNoWrap");
+    chk->interpOptions.assumeNoWrap = getBoolean("AssumeNoWrap");
     // Subobject（SPEC-0105，用户决定 D24 / D25）：内层界（成员数组、多维数组的一行）怎么报
-    std::string subobject = opts.getCheckerStringOption(chk, "Subobject").str();
+    std::string subobject = getString("Subobject");
     if (subobject == "label") {
         chk->interpOptions.subobject = oobsum::interp::SubMode::Label;
     } else if (subobject == "off") {
@@ -573,7 +625,7 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
         mgr.reportInvalidCheckerOptionValue(chk, "Subobject", "one of 'suspect', 'label', 'off'");
     }
     // ModelFile（SPEC-0033 §2.1）：读不了、YAML 错 → 选项错误；坏条目跳过并提示
-    chk->modelFile = opts.getCheckerStringOption(chk, "ModelFile").str();
+    chk->modelFile = getString("ModelFile");
     if (!chk->modelFile.empty()) {
         auto buffer = llvm::MemoryBuffer::getFile(chk->modelFile);
         std::vector<std::string> warnings;
@@ -593,11 +645,12 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
     chk->optionsText = "Phase=" + chk->phase + " WorkDir=\"" + chk->workDir + "\" Policy=" + policyName +
                        " InlineDepth=" + std::to_string(chk->policy.inlineDepth) +
                        " ReportSafe=" + (chk->policy.reportSafe ? "true" : "false") + " SuspectReasons=\"" +
-                       opts.getCheckerStringOption(chk, "SuspectReasons").str() + "\" Dump=\"" + chk->dumpKinds +
-                       "\" DumpFilter=\"" + chk->dumpFilter + "\" ModelFile=\"" + chk->modelFile +
+                       getString("SuspectReasons") + "\" Dump=\"" + chk->dumpKinds + "\" DumpFilter=\"" +
+                       chk->dumpFilter + "\" ModelFile=\"" + chk->modelFile +
                        "\" MaxBlocks=" + std::to_string(chk->maxBlocks) + " CharAlias=" + charAlias +
                        " Subobject=" + subobject +
-                       " AssumeNoWrap=" + (chk->interpOptions.assumeNoWrap ? "true" : "false");
+                       " AssumeNoWrap=" + (chk->interpOptions.assumeNoWrap ? "true" : "false") +
+                       (envText ? " OOBSUM_CONFIG=\"" + *envText + "\"" : "");
 }
 
 bool ento::shouldRegisterOobSummaryChecker(const CheckerManager &mgr)

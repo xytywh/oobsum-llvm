@@ -11,6 +11,8 @@ local：本仓库的 clang 逐文件跑 cc1（参数同 run.py csa）；bxen：�
 import sys
 sys.dont_write_bytecode = True
 import argparse, glob, json, os, shlex, subprocess
+if os.environ.pop('OOBSUM_CONFIG', None) is not None:  # 本工具自己传选项；用户为 clang_check 设的环境变量不能混进来（SPEC-0120）
+    print('注意：忽略环境变量 OOBSUM_CONFIG', file=sys.stderr)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -120,14 +122,15 @@ def bxen_cmd(a, cc_json, phase, workdir, analysis_file=None, folder=None):
     if analysis_file:
         cmd.append('-analysis_file=' + analysis_file)
     elif folder:
-        cmd.append('-analysis_folder=' + folder)  # COMPANY.md §4 的写法（多个目录用逗号）
+        cmd.append('-analysis_folder=' + folder)  # 一条 bxen 命令跑几个目录（多个目录用逗号；试跑用，全量用 clang_check）
     return cmd + ['-checker=' + CHECKER, '-extra_args=' + extra]
 
 
 def write_stub_cdb(workdir):
     """桩 TU 与只含它的 compile_commands.json（X-04）→ (目录, 桩文件)"""
     stub_dir, stub = write_stub(workdir)
-    json.dump([{'directory': stub_dir, 'file': stub, 'arguments': ['cc', '-c', stub]}],
+    # command 写法：与公司 TestCase 的 compile_commands.json 相同（bxen 自己解析 -cc_json，SPEC-0120）
+    json.dump([{'directory': stub_dir, 'file': stub, 'command': 'cc -c ' + stub}],
               open(os.path.join(stub_dir, 'compile_commands.json'), 'w', encoding='utf-8'), indent=1)
     return stub_dir, stub
 
@@ -280,6 +283,27 @@ def cmd_stats(a):
     return 0
 
 
+def cmd_report(a):
+    """clang_check 的 report.json（SPEC-0120）：本规则的告警按标签、SUSPECT 按原因计数——只有数字，可以带回"""
+    import re
+    data = json.load(open(a.path, encoding='utf-8'))
+    probs = [p for p in (data.get('problems', []) if isinstance(data, dict) else []) if isinstance(p, dict) and p]
+    mine = [p for p in probs if p.get('description') == CHECKER or '[%s]' % CHECKER in str(p.get('reason', ''))]
+    labels, reasons = {}, {}
+    for p in mine:
+        m = re.search(r'\[OOB-([A-Z]+)(?::([A-Za-z0-9_]+))?\]', str(p.get('reason', '')))
+        label = m.group(1) if m else '?'
+        labels[label] = labels.get(label, 0) + 1
+        if label == 'SUSPECT':
+            reasons[m.group(2) or '-'] = reasons.get(m.group(2) or '-', 0) + 1
+    order = ['DEFINITE', 'POSSIBLE', 'SUSPECT', 'SAFE', '?']
+    print('%s：problems %d 条，其中 %s %d 条：%s' % (os.path.basename(a.path), len(probs), CHECKER, len(mine),
+                                              '、'.join('%s %d' % (k, labels[k]) for k in order if k in labels) or '无'))
+    if reasons:
+        print('  SUSPECT 按原因：' + '、'.join('%s %d' % kv for kv in sorted(reasons.items(), key=lambda x: (-x[1], x[0]))))
+    return 0
+
+
 def cmd_cdb(a):
     """看 / 过滤编译数据库（SPEC-0119）：条目数、文件数、出现多次的文件数；--under 只留这些目录下的文件，--out 写过滤后的 compile_commands.json"""
     src = os.path.join(a.cc_json, 'compile_commands.json') if os.path.isdir(a.cc_json) else a.cc_json
@@ -382,6 +406,8 @@ def main():
     p.add_argument('--workdir', required=True)
     p.add_argument('--top', type=int, default=10)
     p.add_argument('--counts-only', action='store_true', help='只打印计数，不列函数名 / 文件名（带回用）')
+    p = sub.add_parser('report', help='clang_check 的 report.json：本规则的告警按标签 / 原因计数（SPEC-0120）')
+    p.add_argument('path', help='report.json 的路径')
     p = sub.add_parser('cdb', help='看 / 过滤 compile_commands.json：条目数、文件数、重复；--under 过滤、--out 写出（SPEC-0119）')
     p.add_argument('--cc-json', required=True, help='compile_commands.json 所在的目录（或文件本身）')
     p.add_argument('--under', action='append', default=[], metavar='DIR', help='只留这个目录下的文件（可给多个）')
@@ -391,7 +417,7 @@ def main():
     p.add_argument('--all', action='store_true', help='连 SAFE 一起列')
     p.add_argument('what', help='判定指纹，或函数名')
     a = ap.parse_args()
-    sys.exit({'local': cmd_local, 'bxen': cmd_bxen, 'solve': cmd_solve, 'cdb': cmd_cdb, 'status': cmd_status, 'stats': cmd_stats,
+    sys.exit({'local': cmd_local, 'bxen': cmd_bxen, 'solve': cmd_solve, 'cdb': cmd_cdb, 'report': cmd_report, 'status': cmd_status, 'stats': cmd_stats,
               'explain': cmd_explain}[a.cmd](a))
 
 

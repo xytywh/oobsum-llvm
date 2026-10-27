@@ -13,6 +13,7 @@
 
 #include "llvm/ADT/StringRef.h"
 
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -38,6 +39,10 @@ std::vector<Disposition> ClassifyBatch(const std::vector<Decision> &decisions, c
 // "a+b + c" → {"a","b","c"}。分隔符用 '+'：-analyzer-config 会把逗号当成多个键值对的分隔（实测：
 // Dump=options,stats 报 "analyzer-config option 'stats' has a key but no value"）。逗号也认，供将来从配置文件读入。
 std::set<std::string> SplitList(llvm::StringRef text);
+
+// 环境变量 OOBSUM_CONFIG 的内容（SPEC-0120）："Key=Value Key=Value"（空白或 ';' 分隔，值可以为空）→ out。
+// 不认识的写法（没有 '='、键为空）返回 false，bad 是那一段；同一个键出现两次以后面的为准。键名是否是本规则的选项由调用方查。
+bool ParseKeyValues(llvm::StringRef text, std::map<std::string, std::string> &out, std::string &bad);
 
 }  // namespace oobsum
 

@@ -15,6 +15,8 @@
 import sys
 sys.dont_write_bytecode = True  # 不在 cases/summaries 里留 __pycache__
 import argparse, importlib.util, json, os, re, shutil, subprocess, sys, tempfile
+if os.environ.pop('OOBSUM_CONFIG', None) is not None:  # 本工具自己传选项；用户为 clang_check 设的环境变量不能混进来（SPEC-0120）
+    print('注意：忽略环境变量 OOBSUM_CONFIG', file=sys.stderr)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))

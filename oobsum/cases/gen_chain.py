@@ -18,6 +18,8 @@ import os
 import shutil
 import subprocess
 import sys
+if os.environ.pop('OOBSUM_CONFIG', None) is not None:  # 本工具自己传选项；用户为 clang_check 设的环境变量不能混进来（SPEC-0120）
+    print('注意：忽略环境变量 OOBSUM_CONFIG', file=sys.stderr)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
