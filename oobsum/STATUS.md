@@ -186,7 +186,7 @@
       实参写 `eff_depth`；`RunInline` 按 FIR 调用图自底向上解释，`Dump=summary` / `state` 取同一份结果。**LV4-01 端到端一致（16 个金标准用例 9 个）**；
       `run.py csa`：LV4-01 TP POSSIBLE、LV4-02 TP DEFINITE、LV7-01（柔性数组）TP DEFINITE / TN SAFE——**通过 72、漏报 14**，回退 0（尺子：账本判定同一处有 SAFE 就算证明）。
 - [x] **WP10 `check`**（SPEC-0111）：`run.py cdb` 给用例生成编译数据库；`run.py csa --from-workdir <WD>` 读 bxen 跑完的 WorkDir 对照 `@expect` 与基线
-      （COMPANY.md §3.1）。本地模拟公司路径：通过 106、需跨TU 2、回退 0。
+      （COMPANY.md §2.3）。本地模拟公司路径：通过 106、需跨TU 2、回退 0。
 - [x] **公司集成反馈（2026-10-26）**（SPEC-0114）：xir 编译时 `OobSummary/core/*.h` 找不到 → `land.py` 自动给 Checkers 的 `target_include_directories` 补
       `${CMAKE_CURRENT_SOURCE_DIR}`；`Decision::msg` 与别处冲突 → 改名 `warnMsg`；`fir/`、`solved/` 的 JSON 缩进写；lit 目录加 README。
       **公司结果**：编译通过（手改两处后）；TestCase 4 条告警、`decisions=7 emitted=4`，与本地一致。
@@ -201,10 +201,14 @@
 - [x] **公司集成反馈 3（2026-10-26）**（SPEC-0116、SPEC-0117）：bxen 跑 67 个用例 → `--from-workdir` 通过 106 / 需跨TU 2 / 回退 0，与预期相同；
       多出的几行"变化"（LV1-04 TN、LV10-04 TN 的 SUSPECT 原因）是 `run.py` 并列时取日志第一条、而判定先后随源文件路径的哈希变——改成与先后无关的键、重写基线。
       64 位上真实的差异只有 LV9-02 多 2 条 SUSPECT。`stats` 第一行打印分析时用的目标（`fir/*.json` 的 `target`）；I0 探针改为可选。
+- [x] **公司结果 4（2026-10-27）+ clang_check 不用改**（SPEC-0120）：清单 2026-10-26-1 的第 1–4 步都与预期相同（lit 105、通过 108 / 回退 0、TestCase 4 条、
+      用例对照 106 / 需跨TU 2 / "变化" 5 行）；**三个架构的 cdb 都是 ILP32**：32 位 ARM 大端、`aarch64_be-…-gnuilp32`（fork 支持 AArch64 ILP32）、i386——字节布局可信。
+      用户说明了 clang_check 的用法（每个文件的命令里不带本规则的选项）：加环境变量 `OOBSUM_CONFIG`（优先于 `-analyzer-config`，我们的驱动忽略它），
+      `oobsum_run.py report` 数 report.json 里本规则的告警；COMPANY.md 重排（§0 已完成表 + 本次步骤、§1 规则怎么跑、§2 各项操作）。清单 **2026-10-27-1**。
 - [x] **公司清单**（SPEC-0119）：COMPANY.md §0 列出下一次在公司按顺序做的 8 步与带回模板；`oobsum_run.py cdb`（条目 / 文件 / 重复、按目录过滤）、
       `stats --counts-only`（不列函数名 / 文件名，可以整段带回）。
 - [x] **clang_check 跑全量**（SPEC-0118）：公司的单文件规则由 clang_check 按 cdb 每个文件起一个 bxen 进程、线程池约 40 路并行。WorkDir 的所有文件改为
-      `<路径>.<进程号>.tmp` 写完改名（`core/AtomicFile.h`）；`oobsum_run.py solve` 只做 solve；COMPANY.md §4.2：A 默认模式一遍，B 跨文件 export 一遍 → solve → report 一遍。
+      `<路径>.<进程号>.tmp` 写完改名（`core/AtomicFile.h`）；`oobsum_run.py solve` 只做 solve；COMPANY.md §2.5：A 默认模式一遍，B 跨文件 export 一遍 → solve → report 一遍。
       本地模拟（67 个用例、8 路线程池）三遍 0 失败、跨文件的 LV1-07 / LV6-01 报出、没有 `.tmp`。
 - [x] **P0-8 / WP6 链长用例**（SPEC-0113）：`cases/gen_chain.py` 四类模板 × N ∈ {2, 3, 5, 10, 17, 20}，`--check` 按 G1 口径判，24 个全部符合；
       顺带修了封装分配器链在本函数里访问时 `eff_depth` 为 0、被层数过滤的问题。
@@ -364,7 +368,7 @@
 
 ## 等用户提供 / 在公司做的
 
-* **用户决定（2026-10-26）**：只提高精度、不影响检出的几项**先不做**，等公司业务代码跑完（COMPANY.md §0 第 6、7 步的 `stats --counts-only`），
+* **用户决定（2026-10-26）**：只提高精度、不影响检出的几项**先不做**，等公司业务代码跑完（COMPANY.md §0 里子系统上 A / B 两步的 `stats --counts-only`），
   按 SUSPECT 各原因的条数再排优先级：符号形的返回值范围（钳到形参，SPEC-0054 以后）、递归环上求不动点（SPEC-0066 目前每个环上调用点记 SUSPECT `recursion`）、
   `do { … } while (i < n)`（S7c-2）、指针字段与长度字段配对的界（LV10-01）。在这之前只做公司反馈要求的修改。
 
@@ -381,9 +385,7 @@
 * ~~**跨 TU 的 bxen 命令格式**~~（2026-10-26 定了：用 clang_check 逐文件跑，SPEC-0118）（SPEC-0031 §8）：bxen 跑多个文件时 `-cc_json` 给目录还是文件、`-analysis_folder` 与过滤后的 cdb 怎么配合。驱动的模板按 COMPANY.md §4
   的写法猜的；在公司先用 `oobsum_run.py bxen …`（不加 `--run`）打印三段命令，跑一遍 TestCase 目录，不对就把正确的写法告诉我。
 
-* **公司（下一步，很快）**：业务的几个架构的 cdb（每个已跑过一个文件）各执行 `oobsum_run.py stats --workdir <WorkDir> | head -3`，带回"目标："那一行
-  （COMPANY.md §3.2；单板产品应为 `ptr=4 long=4 big-endian`）。原写法：bxen 命令加 `Dump=fir`，看 `module` 行是否 `ptr=4 long=4 big-endian`
-  （fork 是否按 ILP32 分析，对应探针 R2），以及 `char` 字段是否 `u8`。只带回"是/否"。
+* ~~**公司：各架构的目标**~~（2026-10-27 已带回：三个 cdb 都是 `ptr=4 long=4`，见上）。
 * 公司：~~`fork-facts.sh` 的输出~~（2026-10-26 已收到，结论见上）；I0 探针（可选，SPEC-0117）；TestCase 在 bxen 下的结果（**现在预期 4 条告警 + 判定日志 7 条**：
   骨架的 3 条 + 引擎的三层链 `Tc_Engine_TP` 一条 DEFINITE；`Dump=stats` 应为 `decisions=7 emitted=4`）。
 * 公司（可选）：引擎已在默认的 `Phase=inline` 下跑。拿 bxen 跑一个业务子目录，
