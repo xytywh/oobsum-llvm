@@ -1,6 +1,6 @@
 // 直线代码的指令（oobsum/specs/SPEC-0008 §2.1–§2.7；06- A-01…A-03、A-05、A-07、D-31、D-37）。
-// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=fir %s 2>&1 | FileCheck %s
+// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=fir %s 2>&1 | FileCheck %s
 
 typedef unsigned char UINT8;
 typedef unsigned short UINT16;

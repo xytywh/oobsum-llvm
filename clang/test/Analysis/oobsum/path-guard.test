@@ -1,9 +1,9 @@
 # Req 带上全部守卫，含只关于别的形参的路径条件（oobsum/specs/SPEC-0096）。原来只带与 have / end 有公共符号的守卫，
 # if (c) p[i] = 0; 的调用方传 c = 0 也被报 DEFINITE。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Q$' \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^Q$' \
 # RUN:   %S/Inputs/pguard/g.c 2>&1 | FileCheck %s
 
 CHECK-DAG: [oobsum:summary] {{.*}}"guard":["p2 <= 5","p2 >= 5"]

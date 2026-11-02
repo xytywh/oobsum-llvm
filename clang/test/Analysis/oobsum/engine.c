@@ -1,12 +1,12 @@
 // 引擎接进 checker（oobsum/specs/SPEC-0021）：Phase=inline 时单个 TU 内从摘要推到判定，按标签报出，SAFE 只进日志。
 // RUN: rm -rf %t && mkdir -p %t
-// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=apply+stats %s 2>&1 | FileCheck %s
+// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=apply+stats %s 2>&1 | FileCheck %s
 // RUN: cat %t/decisions/*.jsonl | FileCheck %s --check-prefix=LOG
 // Phase=export 不跑引擎、不报（SPEC-0028；没设 WorkDir 时只提示一行）
-// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Phase=export %s 2>&1 | FileCheck %s --check-prefix=EXPORT --allow-empty
+// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:Phase=export %s 2>&1 | FileCheck %s --check-prefix=EXPORT --allow-empty
 
 typedef unsigned char UINT8;
 typedef unsigned int UINT32;

@@ -1,5 +1,5 @@
 # OobSummary 的模型表示例（oobsum/specs/SPEC-0033；06- §4.4 I-40、I-41）。
-# 用法：复制一份按业务改，-analyzer-config rb.enhance.ipa.OobSummary:ModelFile=<路径>；Dump=models 看实际生效的表。
+# 用法：复制一份按业务改，-analyzer-config rb.enhance.core.OobSummary:ModelFile=<路径>；Dump=models 看实际生效的表。
 # 文件里的条目合并进内置表：同名替换（一个名字只属于一类），新名字追加；defaults: false 先清空内置表。
 # 下面写的就是内置表的内容（不配 ModelFile 时用的就是它）；坏条目跳过并在 stderr 提示一行。
 # 式子：实参写 p0、p1…；bytes / size 是线性式或乘积（"p0*p1"）；when 是比较（"p3 <= p1"）；upto: true 表示 bytes 只是上界。

@@ -2,16 +2,16 @@
 // 块号与 debug.DumpCFG 的 [B<n>] 一致；边上的条件在 fir-branches.c 里测。
 // RUN: rm -rf %t && mkdir -p %t
 // RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -I %S/Inputs \
-// RUN:   -analyzer-checker=rb.enhance.ipa.OobSummary -analyzer-config rb.enhance.ipa.OobSummary:Dump=fir \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t %s 2>&1 | FileCheck %s
+// RUN:   -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Dump=fir \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t %s 2>&1 | FileCheck %s
 // RUN: cat %t/dump/*/fir/*.txt | FileCheck %s --check-prefix=TXT
 // RUN: cat %t/dump/*/fir/*.json | FileCheck %s --check-prefix=JSON
 // RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -I %S/Inputs \
-// RUN:   -analyzer-checker=rb.enhance.ipa.OobSummary -analyzer-config rb.enhance.ipa.OobSummary:Dump=fir \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:DumpFilter=^Mod_Nop$ %s 2>&1 | FileCheck %s --check-prefix=FILTER
+// RUN:   -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Dump=fir \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:DumpFilter=^Mod_Nop$ %s 2>&1 | FileCheck %s --check-prefix=FILTER
 // extern int a[]; 之后的 int a[10];（暂定定义）：键表也要认出是定义（SPEC-0007 §2.3）
 // RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -I %S/Inputs \
-// RUN:   -analyzer-checker=rb.enhance.ipa.OobSummary -analyzer-config rb.enhance.ipa.OobSummary:Dump=keys %s 2>&1 \
+// RUN:   -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Dump=keys %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=KEYS
 
 #include "keys.h"

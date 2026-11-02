@@ -1709,10 +1709,6 @@ def RosaRBEnhanceIpa : Package<"ipa">, ParentPackage<RosaRBEnhance>;
 
 let ParentPackage = RosaRBEnhanceCore in {
 
-} // end "rb.enhance.core"
-
-let ParentPackage = RosaRBEnhanceIpa in {
-
 def OobSummaryChecker : Checker<"OobSummary">,
   HelpText<"Detect out-of-bound memory accesses across multi-level call chains using function summaries">,
   CheckerOptions<[
@@ -1728,7 +1724,7 @@ def OobSummaryChecker : Checker<"OobSummary">,
     CmdLineOption<Integer, "InlineDepth",
                   "Definite/possible decisions with max(depth, effDepth) <= InlineDepth are left to existing "
                   "rules (0: report all); suspect decisions are never filtered by depth",
-                  "2", Released>,
+                  "0", Released>,
     CmdLineOption<Boolean, "ReportSafe",
                   "Also report proven-safe decisions, tagged [OOB-SAFE] (for tests and audits)",
                   "false", Released>,
@@ -1767,5 +1763,9 @@ def OobSummaryChecker : Checker<"OobSummary">,
                   "false", Released>
   ]>,
   Documentation<NotDocumented>;
+
+} // end "rb.enhance.core"
+
+let ParentPackage = RosaRBEnhanceIpa in {
 
 } // end "rb.enhance.ipa"

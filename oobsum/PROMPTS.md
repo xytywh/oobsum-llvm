@@ -8,7 +8,7 @@
 ## A. 首次启动（只用一次）
 
 ```text
-你接手 OobSummary（rb.enhance.ipa.OobSummary，CSA Summary 2.0）的开发：用函数摘要检测跨多层调用的内存越界。
+你接手 OobSummary（rb.enhance.core.OobSummary，CSA Summary 2.0）的开发：用函数摘要检测跨多层调用的内存越界。
 之前的设计与讨论都在别处进行，现在全部在这个仓库里（llvm-project 14.0.0 + 分支 oobsum/dev），提交记录就是历史。
 
 第一步：建立上下文，先不要写代码。

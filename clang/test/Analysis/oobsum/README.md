@@ -14,7 +14,7 @@
 
 ## 怎么读一个用例
 
-* `RUN` 行里的 `%clang_analyze_cc1` 是 `clang -cc1 -analyze`；`-analyzer-config rb.enhance.ipa.OobSummary:<选项>=<值>` 是本规则的选项；
+* `RUN` 行里的 `%clang_analyze_cc1` 是 `clang -cc1 -analyze`；`-analyzer-config rb.enhance.core.OobSummary:<选项>=<值>` 是本规则的选项；
   `%t` 是 lit 给每个用例的临时目录（WorkDir 一般放在那里）。
 * `| FileCheck %s --check-prefix=XXX`：把命令输出与本文件里 `XXX:` 开头的行比对。常见写法：
   * `XXX:` 按顺序出现；`XXX-NEXT:` 紧接上一行；`XXX-DAG:` 不要求顺序；`XXX-NOT:` 不能出现；`{{正则}}` 是正则；

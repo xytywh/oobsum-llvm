@@ -142,7 +142,7 @@ footer p{max-width:none}
 <div class="wrap">
 
 <header class="mast">
-  <div class="eyebrow">CSA Summary 2.0 · rb.enhance.ipa.OobSummary · 调研包 v3.12 · 2026-10-13</div>
+  <div class="eyebrow">CSA Summary 2.0 · rb.enhance.core.OobSummary · 调研包 v3.12 · 2026-10-13</div>
   <h1>跨多层调用越界检测：<span class="due">12 月 15 日</span>交付计划</h1>
   <p class="thesis">在现有 CSA 规则之外新建一条<strong>摘要通道</strong>：一个不走 ExprEngine 的抽象解释引擎，
     给每个函数算出“越界安全条件”摘要，在调用点把形参代换成实参、逐层往上传，传到数组大小和下标都已知的那一层再判定。
@@ -206,7 +206,7 @@ footer p{max-width:none}
   <div class="tw"><table>
     <thead><tr><th>周</th><th>日期</th><th>天</th><th>做什么</th><th>这周结束时拿得出来的东西</th></tr></thead>
     <tbody>
-      <tr><td class="id">W01</td><td class="date">09-22 ~ 09-24</td><td class="num">3</td><td>收输入；新 checker <code>rb.enhance.ipa.OobSummary</code> 在 <code>Checkers.td</code> 注册，<code>check::ASTCodeBody</code> 空跑</td><td>空 checker 能在 fork 里编译、bxen 能调起来</td></tr>
+      <tr><td class="id">W01</td><td class="date">09-22 ~ 09-24</td><td class="num">3</td><td>收输入；新 checker <code>rb.enhance.core.OobSummary</code> 在 <code>Checkers.td</code> 注册，<code>check::ASTCodeBody</code> 空跑</td><td>空 checker 能在 fork 里编译、bxen 能调起来</td></tr>
       <tr><td class="id">W02</td><td class="date">09-28 ~ 09-30</td><td class="num">3</td><td>SummaryDB 表结构（含 AI + 程序分析注入点预留）；驱动脚本雏形（生成过滤后的 <code>compile_commands.json</code> 喂给 bxen）；场景语料第一批（Lv1、Lv2 × 3/5/10/17/20 层）</td><td>语料 + 空跑流水线</td></tr>
       <tr class="gate-row"><td class="id">W03</td><td class="date">10-08 ~ 10-10</td><td class="num">3</td><td><strong>量一次“只建 CFG 的全量空跑”耗时</strong>（定多轮上限）；场景语料第二批（Lv3–Lv5）；真实样例（可选）脱敏入库</td><td><span class="pill gate">G0 · 10-10</span></td></tr>
       <tr><td class="id">W04</td><td class="date">10-12 ~ 10-16</td><td class="num">5</td><td>BoundExpr / Range；AccessPath（形参 / 局部 / 全局 / 字段 / 偏移）</td><td>单测通过</td></tr>
@@ -398,7 +398,7 @@ void *XX_AllocWithHdr(UINT32 n) { char *p = VOS_MemAlloc(PID, 0, n + sizeof(HDR)
       <tr><td class="id">D4</td><td>封装分配器的大小由摘要自底向上推出，不靠参数名</td><td><span class="pill p0">已定</span></td><td>带头部的分配写法下参数名必错</td></tr>
       <tr><td class="id">D5</td><td>跨 TU 执行模型</td><td><span class="pill gate">待确认</span></td><td><s>方案 A：多轮 TU 扫描 + 工作表</s> → <strong>v3.12 建议方案 B</strong>：export → solve → report（<code>06-spec.md</code> D5′）；A 作回退</td></tr>
       <tr><td class="id">D6</td><td>告警在哪判定</td><td><span class="pill gate">待确认</span></td><td>在摘要生成这一遍判定并入库；CSA 侧 checker 只做路径解释（P1）</td></tr>
-      <tr><td class="id">D7</td><td>新 checker 归属</td><td><span class="pill gate">待确认</span></td><td><code>rb.enhance.ipa.OobSummary</code>（跨过程，归 <code>ipa</code> 包）</td></tr>
+      <tr><td class="id">D7</td><td>新 checker 归属</td><td><span class="pill gate">待确认</span></td><td><code>rb.enhance.core.OobSummary</code>（跨过程，归 <code>ipa</code> 包）</td></tr>
       <tr><td class="id">D8</td><td>年内承诺边界</td><td><span class="pill gate">待确认</span></td><td>按 <code>04-scenario-tiers.md</code> 的 26 个承诺场景验收；尽力 7 个统计报出率；其余进 2027 或 AI + 程序分析</td></tr>
     </tbody>
   </table></div>

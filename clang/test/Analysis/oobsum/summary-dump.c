@@ -1,8 +1,8 @@
 // Dump=summary / Dump=state（oobsum/specs/SPEC-0015 §2.3）：每个函数的局部事实写成摘要；每个块入口的状态。
 // RUN: rm -rf %t && mkdir -p %t
-// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary+state \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t %s 2>&1 | FileCheck %s
+// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary+state \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t %s 2>&1 | FileCheck %s
 // RUN: cat %t/dump/*/summary/Top.json | FileCheck %s --check-prefix=FILE
 
 typedef unsigned char UINT8;

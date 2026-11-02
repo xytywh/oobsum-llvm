@@ -1,8 +1,8 @@
 # 返回值范围 ret_int（oobsum/specs/SPEC-0054）：不是常数的返回也推出（截断函数、确切式子），调用方代入。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Num_Clamp|Num_Get|Next|Raw)$' \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(Num_Clamp|Num_Get|Next|Raw)$' \
 # RUN:   %S/Inputs/retint/getter.c 2>&1 | FileCheck %s
 
 CHECK-DAG: [oobsum:summary] {{.*}}"effs":[{"bound":"check","kind":"ret_int","range":["0","8"]}],"fn":"Num_Clamp"

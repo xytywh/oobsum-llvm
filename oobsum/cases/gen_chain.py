@@ -6,7 +6,7 @@
 #   2 偏移累加     F_k(p, i) { F_{k-1}(p + 1, i); }；入口 a[32]，TP / TN 的下标按累加的偏移算到恰好越 1 字节 / 恰好不越
 #   3 封装分配器链 A0(n) { return malloc(n); }、A_k(n) { return A_{k-1}(n); }；入口 p = A_{N-1}(16)，TP 写 p[16]、TN 写 p[15]
 #   4 跨 TU 链     同模板 1，每个函数一个文件（三阶段 export → solve → report）
-# G1 的口径：模板 1、2、4 在 N >= 3 时 TP 报 DEFINITE、N = 2 时不报（层数 ≤ InlineDepth，日志里 inline_depth）；所有 TN 不报 DEFINITE / POSSIBLE。
+# G1 的口径：模板 1、2、4 在 N >= 3 时 TP 报 DEFINITE、N = 2 也报（SPEC-0122，默认 InlineDepth=0）；所有 TN 不报 DEFINITE / POSSIBLE。
 # 模板 3（尽力）：访问点就在入口里，层数看 eff_depth（经过几层 ret_new）。
 #
 #   python3 oobsum/cases/gen_chain.py --out /tmp/chains                 # 只生成
@@ -23,7 +23,7 @@ if os.environ.pop('OOBSUM_CONFIG', None) is not None:  # 本工具自己传选�
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
-CHECKER = 'rb.enhance.ipa.OobSummary'
+CHECKER = 'rb.enhance.core.OobSummary'
 HEAD = 'typedef unsigned char UINT8;\ntypedef unsigned int UINT32;\n'
 NS = [2, 3, 5, 10, 17, 20]
 
@@ -100,7 +100,7 @@ def run_one(clang, triple, wd, srcs, xtu):
     ok = True
     for s in srcs:
         args = [clang, '-cc1', '-triple', triple, '-analyze', '-resource-dir', res, '-internal-isystem',
-                os.path.join(res, 'include'), '-analyzer-checker=' + CHECKER, '-analyzer-config', '%s:WorkDir=%s' % (CHECKER, wd)]
+                os.path.join(res, 'include'), '-analyzer-config', 'ipa=none', '-analyzer-checker=' + CHECKER, '-analyzer-config', '%s:WorkDir=%s' % (CHECKER, wd)]
         if triple.startswith(('arm', 'thumb', 'aarch64')):
             args.append('-fno-signed-char')
         ok = subprocess.run(args + [s], capture_output=True, text=True).returncode == 0 and ok
@@ -108,7 +108,7 @@ def run_one(clang, triple, wd, srcs, xtu):
 
 
 def verdict(t, n, ds):
-    """按 G1 的口径：TP（模板 1、2、4：N >= 3 报 DEFINITE、N = 2 不报但日志里有 DEFINITE）；TN 不报 DEFINITE / POSSIBLE"""
+    """按 G1 的口径：TP（模板 1、2、4：N >= 3 报 DEFINITE、N = 2 也报）；TN 不报 DEFINITE / POSSIBLE"""
     tp = [d for d in ds if d['fn'].endswith(':Top_TP') and d['label'] == 'definite']
     tn = [d for d in ds if d['fn'].endswith(':Top_TN') and d['label'] in ('definite', 'possible') and d.get('emitted')]
     tp_emitted = any(d.get('emitted') for d in tp)
@@ -116,10 +116,8 @@ def verdict(t, n, ds):
         return False, 'TN 报了 %s' % tn[0]['label'].upper()
     if not tp:
         return False, 'TP 没有 DEFINITE 判定'
-    if n >= 3 and not tp_emitted:
-        return False, 'TP 没报（%s）' % tp[0].get('not_emitted_because', '?')
-    if n == 2 and tp_emitted and t != 3:
-        return False, 'N = 2 的 TP 报了（应交现有规则）'
+    if not tp_emitted:
+        return False, 'TP 没有报出（默认所有层数都报告，SPEC-0122）'
     return True, 'TP %s、TN 不报' % ('报 DEFINITE' if tp_emitted else '不报（%s）' % tp[0].get('not_emitted_because', '?'))
 
 

@@ -1,8 +1,8 @@
 # 负偏移（下溢，oobsum/specs/SPEC-0039；06- §3.1）：反向 Req（dir: back），安全条件 −lo <= bext(基址)；调用点实参带 back。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Back_Set|Neg_Checked|Back_OK)$' \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(Back_Set|Neg_Checked|Back_OK)$' \
 # RUN:   %S/Inputs/underflow/under.c 2>&1 | FileCheck %s
 
 # 反向 Req 与实参的 back（Dump=summary）

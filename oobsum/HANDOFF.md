@@ -42,7 +42,7 @@
 | # | 决策 | 一句话理由 |
 |---|---|---|
 | D5′ | 跨 TU：一遍导出 FIR → 离线求解 → 一遍出告警（方案 B） | 遍数固定为 2，与调用链跨多少文件无关 |
-| D7 | `rb.enhance.ipa.OobSummary` / `OobSummaryChecker` | 跨函数规则归 ipa 包 |
+| D7 | `rb.enhance.core.OobSummary` / `OobSummaryChecker` | 跨函数规则归 ipa 包 |
 | D9 | 引擎跑在自己的中间表示 FIR 上，不直接跑 `clang::CFG` | 与 Clang 解耦：可单测、可离线求解、可喂给 AI |
 | D10 | 落盘用 JSON（`llvm::json`），C++ 侧不引入第三方库 | 不动 xir 的依赖 |
 | D11 | 只挂 `check::ASTDecl<TranslationUnitDecl>` | 多挂 `EndOfTranslationUnit` 会让每个函数跑 ExprEngine（实测） |

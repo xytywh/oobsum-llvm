@@ -1,6 +1,6 @@
 // 校验函数的条件效应（oobsum/specs/SPEC-0025）：?: 的校验 → ret_cond，沿返回值再传一层；调用方 != OK 就返回之后带上守卫。
-// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary %s 2>&1 | FileCheck %s
+// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary %s 2>&1 | FileCheck %s
 
 typedef unsigned char UINT8;
 typedef unsigned int UINT32;

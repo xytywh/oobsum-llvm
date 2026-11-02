@@ -181,10 +181,10 @@ D=~/infer-research-kit/08-summary2-design/devenv
 # 编插件（几秒）：入口 + 子目录里的引擎源码
 $D/plugin-build.sh build/OobSummary.so OobSummaryChecker.cpp OobSummary/*/*.cpp -I .
 # 跑一个用例：checker 名与公司完全一致
-$D/cc1-run.sh -load build/OobSummary.so -checker=rb.enhance.ipa.OobSummary \
+$D/cc1-run.sh -load build/OobSummary.so -checker=rb.enhance.core.OobSummary \
     ~/infer-research-kit/08-summary2-design/cases/lv1/lv1_01_stat_enum_butt.c
 # 近似公司的 4 字节指针 + 大端
-TRIPLE=armebv7-linux-gnueabi $D/cc1-run.sh -load build/OobSummary.so -checker=rb.enhance.ipa.OobSummary <文件.c>
+TRIPLE=armebv7-linux-gnueabi $D/cc1-run.sh -load build/OobSummary.so -checker=rb.enhance.core.OobSummary <文件.c>
 ```
 
 （上面的文件名是 WP 代码到了以后的样子；现在可以拿探针把同样的命令走一遍，见 `40-smoke.sh` 第 3、4 步。）

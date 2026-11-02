@@ -1,9 +1,9 @@
 # 指针形参判空产生守卫：接口符号 nn:p<k>（oobsum/specs/SPEC-0099）。原来 if (p != NULL) 不产生信息，
 # 可选出参传 NULL 的调用方被报 SUSPECT untracked_pointer（Get）或 DEFINITE（Opt：判断的是另一个指针）。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Opt$' \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^Opt$' \
 # RUN:   %S/Inputs/nonnull/o.c 2>&1 | FileCheck %s
 
 CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Opt"{{.*}}"guard":["nn:p2 >= 1"]

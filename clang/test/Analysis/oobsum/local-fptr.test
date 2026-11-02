@@ -1,12 +1,12 @@
 # S9.1：只被赋过函数地址常量的局部函数指针当直接调用；多个目标时每个目标一条 alt 调用点记录、只判 POSSIBLE（oobsum/specs/SPEC-0058；06- A-60 ①）。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Dispatch|One)$' \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(Dispatch|One)$' \
 # RUN:   %S/Inputs/fptr/local.c 2>&1 | FileCheck %s
 # 解析出的调用点不再记 fptr
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 %S/Inputs/fptr/local.c 2>&1 | not grep -E 'local.c:1[16]:1: warning: \[OOB-SUSPECT:fptr'
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 %S/Inputs/fptr/local.c 2>&1 | not grep -E 'local.c:1[16]:1: warning: \[OOB-SUSPECT:fptr'
 
 # 两个目标：两条 alt 调用点记录
 CHECK-DAG: [oobsum:summary] {"calls":[{"alt":true,{{.*}}"callee":"Lte_Save",{{.*}}"ind":true,{{.*}}"site":"local.c:11"},{"alt":true,{{.*}}"callee":"Nr_Save",{{.*}}"ind":true,{{.*}}"site":"local.c:11"}],{{.*}}"fn":"Dispatch"

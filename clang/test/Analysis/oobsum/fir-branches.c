@@ -1,7 +1,7 @@
 // 条件边与当值用的 ?: / && / ||（oobsum/specs/SPEC-0009；06- D-14、A-04）。后继 0 是条件为真、后继 1 是条件为假（Clang CFG 的约定），
 // 每个函数的块号、后继顺序与 debug.DumpCFG 对照过（Succs (2): B<真> B<假>）。
-// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=fir %s 2>&1 | FileCheck %s
+// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=fir %s 2>&1 | FileCheck %s
 
 typedef unsigned char UINT8;
 typedef unsigned int UINT32;

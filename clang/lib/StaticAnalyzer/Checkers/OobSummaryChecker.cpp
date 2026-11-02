@@ -1,6 +1,6 @@
 //===-- OobSummaryChecker.cpp - CSA Summary 2.0: cross-call OOB --*- C++ -*-===//
 //
-// rb.enhance.ipa.OobSummary：用函数摘要检测跨多层调用的内存越界（规格 oobsum/06-spec.md，
+// rb.enhance.core.OobSummary：用函数摘要检测跨多层调用的内存越界（规格 oobsum/06-spec.md，
 // 本次改动的 spec 见 oobsum/specs/）。只挂 check::ASTDecl<TranslationUnitDecl>，不挂任何路径敏感回调
 // （06- D11：多挂 EndOfTranslationUnit 会让每个函数跑一遍 ExprEngine，沙箱实测）。
 //
@@ -422,6 +422,7 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
 
     if (dump.On("options")) {
         dump.Line("options", optionsText);
+        dump.File(tuId + "/options.txt", optionsText + "\n");  // SPEC-0122：配置也落盘，便于核查默认值
     }
     if (dump.On("models")) {
         dump.Line("models", "source default" + (modelFile.empty() ? std::string() : "+" + modelFile));

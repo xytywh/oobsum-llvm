@@ -4,9 +4,9 @@
 import glob, json, os, subprocess, sys
 
 clang, wd, src, n = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
-cmd = [clang, '-cc1', '-analyze', '-analyzer-checker=rb.enhance.ipa.OobSummary',
-       '-analyzer-config', 'rb.enhance.ipa.OobSummary:WorkDir=' + wd,
-       '-analyzer-config', 'rb.enhance.ipa.OobSummary:Dump=summary', src]
+cmd = [clang, '-cc1', '-analyze', '-analyzer-checker=rb.enhance.core.OobSummary',
+       '-analyzer-config', 'rb.enhance.core.OobSummary:WorkDir=' + wd,
+       '-analyzer-config', 'rb.enhance.core.OobSummary:Dump=summary', src]
 procs = [subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) for _ in range(n)]
 codes = [p.wait() for p in procs]
 print('%d 个进程退出码%s' % (n, '都是 0' if not any(codes) else '：%s' % codes))

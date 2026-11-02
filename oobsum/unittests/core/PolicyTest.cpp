@@ -47,11 +47,13 @@ TEST(Policy, InlineDepthUsesMaxOfDepthAndEffDepth)
 {
     // F-20：max(depth, effDepth) <= InlineDepth 的交给现有规则（仍写日志）
     PolicyOptions recall;
+    recall.inlineDepth = 2;
     EXPECT_EQ(Why(Make(Label::Definite, 2), recall), "drop:inline_depth");
     EXPECT_EQ(Why(Make(Label::Possible, 1, 2), recall), "drop:inline_depth");
     EXPECT_EQ(Why(Make(Label::Definite, 1, 3), recall), "emit");
     PolicyOptions all;
-    all.inlineDepth = 0;
+    EXPECT_EQ(all.inlineDepth, 0u);
+    EXPECT_EQ(Why(Make(Label::Possible, 1), all), "emit");
     EXPECT_EQ(Why(Make(Label::Definite, 0), all), "emit");
 }
 
@@ -136,6 +138,7 @@ TEST(Policy, SubobjectNotFilteredByDepth)
 {
     // SPEC-0105：内层的判定（dir sub）不按 InlineDepth 过滤——现有规则不查成员数组 / 多维数组的一行
     PolicyOptions recall;
+    recall.inlineDepth = 2;
     Decision inner = Make(Label::Definite, 1);
     inner.dir = "sub";
     EXPECT_EQ(Why(inner, recall), "emit");

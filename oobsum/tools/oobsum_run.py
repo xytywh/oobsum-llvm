@@ -16,7 +16,7 @@ if os.environ.pop('OOBSUM_CONFIG', None) is not None:  # 本工具自己传选�
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
-CHECKER = 'rb.enhance.ipa.OobSummary'
+CHECKER = 'rb.enhance.core.OobSummary'
 STUB = '/* oobsum_run.py 生成的桩 TU（06- X-04）：只当 Phase=solve 的宿主。 */\nvoid oobsum_solve_stub(void) {}\n'
 
 
@@ -86,7 +86,7 @@ def cmd_local(a):
 
     def cc1(phase, src):
         args = [clang, '-cc1', '-triple', a.triple, '-analyze', '-resource-dir', res, '-internal-isystem',
-                os.path.join(res, 'include'), '-analyzer-checker=' + CHECKER,
+                os.path.join(res, 'include'), '-analyzer-checker=' + CHECKER, '-analyzer-config', 'ipa=none',
                 '-analyzer-config', '%s:Phase=%s' % (CHECKER, phase), '-analyzer-config', '%s:WorkDir=%s' % (CHECKER, workdir)]
         if a.triple.startswith(('arm', 'thumb', 'aarch64')):
             args.append('-fno-signed-char')  # 同 run.py csa（SPEC-0007 §2.1）
@@ -115,7 +115,7 @@ def cmd_local(a):
 
 
 def bxen_cmd(a, cc_json, phase, workdir, analysis_file=None, folder=None):
-    extra = '-analyzer-config %s:Phase=%s -analyzer-config %s:WorkDir=%s' % (CHECKER, phase, CHECKER, workdir)
+    extra = '-analyzer-config ipa=none -analyzer-config %s:Phase=%s -analyzer-config %s:WorkDir=%s' % (CHECKER, phase, CHECKER, workdir)
     if a.extra:
         extra += ' ' + a.extra
     cmd = [a.bxen, '-exec_mode=onlySa', '-cc_json=' + cc_json]

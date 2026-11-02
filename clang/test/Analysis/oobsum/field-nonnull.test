@@ -1,8 +1,8 @@
 # 指针字段判空产生守卫：nn:p<k>->f（oobsum/specs/SPEC-0101）。原来 if (pst->pucBuf != NULL) 不产生信息，可选缓冲区置 NULL 的调用方报 SUSPECT。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Clr$' \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^Clr$' \
 # RUN:   %S/Inputs/fnonnull/f.c 2>&1 | FileCheck %s
 
 CHECK-DAG: [oobsum:summary] {{.*}}"guard":["nn:p0->pucBuf >= 1"]

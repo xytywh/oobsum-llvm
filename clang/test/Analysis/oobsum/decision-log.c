@@ -1,8 +1,8 @@
 // 判定日志（oobsum/specs/SPEC-0001 §5）：每条判定一行 JSON，报了的、没报的都在，没报的写明原因。
 // RUN: rm -rf %t && mkdir -p %t
-// RUN: %clang_analyze_cc1 -analyzer-checker=rb.enhance.ipa.OobSummary \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=%t \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=stats -verify %s 2>&1 | FileCheck %s --check-prefix=STATS
+// RUN: %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=stats -verify %s 2>&1 | FileCheck %s --check-prefix=STATS
 // RUN: cat %t/decisions/*.jsonl | FileCheck %s
 
 void oobsum_debug_emit(const char *label, const char *reason, int depth);

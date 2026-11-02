@@ -1,6 +1,6 @@
 # oobsum — CSA Summary 2.0：用函数摘要检测跨多层调用的内存越界
 
-`rb.enhance.ipa.OobSummary` 的全部设计、规格、用例、脚本与历史。代码在 llvm-project 树内
+`rb.enhance.core.OobSummary` 的全部设计、规格、用例、脚本与历史。代码在 llvm-project 树内
 （`clang/lib/StaticAnalyzer/Checkers/OobSummaryChecker.cpp`、`OobSummary/`，lit 用例 `clang/test/Analysis/oobsum/`）。
 
 ## 从哪读起
@@ -36,8 +36,8 @@ oobsum/devenv/30-build-llvm.sh                                        # 第一�
 ninja -C cmake-build-release clang                                    # 增量
 cmake-build-release/bin/llvm-lit -sv cmake-build-release/tools/clang/test/Analysis/oobsum
 oobsum/devenv/40-smoke.sh                                             # 冒烟（7 项）
-oobsum/devenv/cc1-run.sh -checker=rb.enhance.ipa.OobSummary <文件.c> \
-    -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/tmp/w -analyzer-config rb.enhance.ipa.OobSummary:Dump=stats
+oobsum/devenv/cc1-run.sh -checker=rb.enhance.core.OobSummary <文件.c> \
+    -analyzer-config rb.enhance.core.OobSummary:WorkDir=/tmp/w -analyzer-config rb.enhance.core.OobSummary:Dump=stats
 python3 oobsum/tools/decisions.py /tmp/w                              # 判定日志汇总
 python3 oobsum/cases/summaries/replay.py                              # 摘要金标准回放
 ```

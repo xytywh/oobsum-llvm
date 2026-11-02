@@ -1,8 +1,8 @@
 # 汇合时按各自路上的守卫求常数界（oobsum/specs/SPEC-0042）：if (i > 15) i = 15; 这类钳位不再丢界。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Clamp$' \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=state -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^Clamp$' \
 # RUN:   %S/Inputs/clamp/clamp.c 2>&1 | FileCheck %s
 
 # 汇合后的区间（Dump=state）：两条路分别是 i <= 15 与常数 15
@@ -14,9 +14,9 @@ CHECK-DAG: clamp.c:14:1: warning: [OOB-SAFE:within] Proven within bounds: up to 
 CHECK-DAG: clamp.c:18:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 21 of 'a' (16 bytes) may be accessed; the bound comes from a check
 
 # 符号形的钳位（oobsum/specs/SPEC-0043）：if (ulLen > ulDstLen) ulLen = ulDstLen; 后 memcpy_s
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(CopyClamp|SetUpTo)$' \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=state -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(CopyClamp|SetUpTo)$' \
 # RUN:   %S/Inputs/clamp/clamp.c 2>&1 | FileCheck %s --check-prefix=SYM
 SYM: [oobsum:state] fn CopyClamp b0: pucDst=*p0+0 ulDstLen=p1 pucSrc=*p2+0 ulLen=[0, p1]:branch
 SYM: [oobsum:state] fn SetUpTo b0: p=*p0+0 ulMax=p1 i=[0, p1]:branch

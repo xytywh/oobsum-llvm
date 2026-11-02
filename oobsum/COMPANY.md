@@ -7,106 +7,96 @@
 > **怎么用这个文件**：每次需要你在公司做事，Claude 都会重写 §0（带清单版本号，CLAUDE.md §5 第 8 条）——`git pull` 后只看 §0、照着做、把最后的模板填好贴回来。
 > §1 讲这个规则是怎么跑的、告警怎么看；§2 是各项操作的完整命令（§0 里的步骤都来自这里）；§3 是首次搭建（已完成）。
 
-## 0. 这次要做的
+## 0. 下一次在公司按顺序做
 
-**清单版本：2026-10-27-2**　（`git pull` 后先核对版本号；做完一步再做下一步；结果不符合"预期"就停下，把那一步的输出贴回来）
+**清单版本：2026-11-02-1**（SPEC-0122；本次迁入 core、默认报告全部层数；结果不符合预期就停下，带回计数和本规则栈。）
 
-所有命令在**终端（bash）**里执行。先设四个变量——**只有这里要按你那边改**，后面的命令原样粘贴：
+路径只改这里；`OOB_REPORT` 必须指向 JSON 文件，不能是 log 目录：
 
 ```bash
-OOB_CDB=/usr1/518C10/HERT_BBU/project/makesoter/compdb/1383/all        # 单板 cdb 所在的目录（aarch64_be ILP32 那个）
-OOB_REPORT=<clang_check 写的 report.json 的完整路径：在 gbl_config.json 的 log_path 指的目录下>
-OOB_CRASH_CDB=<上次崩溃的那个 .cpp 的单文件 cdb：clang_check 的 log/result/compile_commands_…/compile_commands.json>
-OOB_CRASH_FILE=<上次崩溃的那个 .cpp 文件>
+OOB_REPO=/usr1/oobsum-llvm
+OOB_ROOT=/usr1/BXPlugin
+OOB_BUILD=/usr1/BXPlugin/cmake-build-release-release
+OOB_CDB=/usr1/518C10/HERT_BBU/project/makesoter/compdb/1383/all
+OOB_GBL_OLD=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.ipa.OobSummary/gbl_config.json
+OOB_GBL=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/gbl_config.json
+OOB_REPORT=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/allfiles-buffer_overflow_report.json
+OOB_WD=/usr1/oobsum-work/full-b-v2
+OOB_INI=/usr1/clang_check/src/cfg/ini/config.ini
+OOB_FUNCPTR=/usr1/clang_check/src/cfg/ini/config_funcptr.ini
 ```
 
-### 已经做完、确认没问题的（不用再做）
+### 已经做完、确认没问题的
 
 | 项 | 带回的结果 |
 |---|---|
-| 同步、编译、lit、`run.py csa`（2026-10-27） | lit 106/106；通过 108、回退 0；land.py 更新 3 个文件 |
-| TestCase（2026-10-27） | 4 条告警，`decisions=7 emitted=4` |
-| 67 个用例对照（2026-10-27） | 通过 106、需跨TU 2、G2 0、回退 0、"变化" 5 行——与预期相同 |
-| 几个架构的目标（2026-10-27） | 三个 cdb 都是 `ptr=4 long=4`：32 位 ARM 大端、`aarch64_be…ilp32`、`i386`——字节布局可信 |
-| 选项只靠环境变量传（2026-10-27） | bxen 直接跑、经 clang_check 跑都生效（WorkDir 只写在环境变量里，判定日志写到了那里） |
-| 子系统（116 个文件）上的 A、B（2026-10-27） | 全部是 SUSPECT，没有 DEFINITE / POSSIBLE。A：判定日志报出 20684（report.json 3644）；B：报出 3519（report.json 3169）；B 的 export 18 秒、solve 9 秒 / 257 MB、report 18 秒 |
-| 一个 `.cpp` 文件 bxen 段错误（2026-10-27） | 本地复现、已修（SPEC-0121），第 3 步确认 |
-| `project_cfg.py` 的 `IPA_CMN_RULE_CHECKER` 加了本规则 | 保留即可：本规则不走 CSA 的 inline，`ipa=none` 加不加结果都一样（§2.5） |
-| fork-facts（2026-10-26）；I0 探针 | 结论记在 STATUS；探针不用做（§3.3） |
+| 旧版回归 / TestCase | lit 107；csa 通过 108、回退 0；TestCase 告警 4、decisions=7 emitted=4 |
+| C++ 崩溃修复（SPEC-0121） | Release / Debug 都 exit=0，无断言；decisions=242 emitted=222 |
+| CSA IPA 对照 | 同一 TestCase 加 / 不加 ipa=none：均 7 条判定、4 条告警 |
+| 全板 cdb | 10686 条、10262 个文件、261 个文件出现多次；C 6689、C++ 3573 |
+| 全板 B export | 6m53.384s，FIR 10245；clang_check 成功 10507 / 失败 179（按 cdb 条目计） |
+| 全板 B solve | exit=0；19m49.53s；峰值 30840260 KiB（29.4 GiB）；solved 10245，判定 2211387（9861 个 TU 非空） |
+| 全板 B report | 6m58.762s；成功 10576 / 失败 110；日志判定 2210526、报出 769203；report.json 629741（DEFINITE 478 / POSSIBLE 104 / SUSPECT 629159） |
+| 目标 | FIR 中 10235 个 aarch64_be ILP32、10 个 x86_64 LP64；本版本尚未完成混目标隔离，后续必须分目标求解 |
 
-### 第 1 步　更新、编译（约 20 分钟；这次改了 C++，BXPlugin 要重新编）
+全板有结果不表示每个 TU 都成功：10262−10245=17 个唯一文件无 FIR，report 与 solve 也少了 861 条判定。条目失败数不能直接当成缺失文件数（cdb 有重复）。
 
-```bash
-cd /usr1/oobsum-llvm && git pull && git log --oneline -3
-ninja -C cmake-build-release clang
-cmake-build-release/bin/llvm-lit -s cmake-build-release/tools/clang/test/Analysis/oobsum
-python3 oobsum/cases/run.py csa
-python3 oobsum/devenv/land.py --drop oobsum/landing/OobSummaryChecker.manifest --into bxplugin --root /usr1/BXPlugin --apply
-cd /usr1/BXPlugin/cmake-build-release-release && make -j16
-```
-
-预期：`git log` 里能看到 `SPEC-0121` 的提交；lit `Passed: 107`；`run.py csa` 末尾 `通过 108，通过+S 20，级别不同 2，超出预期 4`、`回退 0 条`；
-land.py 更新 8 个文件（`OobSummaryChecker.cpp`、`OobSummary/lower/` 下 4 个、`OobSummary/core/` 下 3 个）；make 不报错。
-
-### 第 2 步　TestCase（2 分钟）
-
-§2.2 的命令原样跑。预期 4 条告警、`[oobsum:stats] … decisions=7 emitted=4`（与上次相同）。
-
-### 第 3 步　上次崩溃的那个 `.cpp` 单独重跑（2 分钟）
+### 第 1 步：更新、同步、编译和改规则配置
 
 ```bash
-/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=$OOB_CRASH_CDB -analysis_file=$OOB_CRASH_FILE -checker=rb.enhance.ipa.OobSummary -extra_args="-rbchecker-config=/usr1/BXPlugin/config/config.ini -funcptr-config=/usr1/BXPlugin/config/config_funcptr.ini -analyzer-config ipa=none -analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:Dump=stats"; echo "exit=$?"
+cd "$OOB_REPO" && git pull
+ninja -C "$OOB_REPO/cmake-build-release" clang
+"$OOB_REPO/cmake-build-release/bin/llvm-lit" -s "$OOB_REPO/cmake-build-release/tools/clang/test/Analysis/oobsum"
+python3 "$OOB_REPO/oobsum/cases/run.py" csa
+python3 "$OOB_REPO/oobsum/devenv/land.py" --drop "$OOB_REPO/oobsum/landing/OobSummaryChecker.manifest" --into bxplugin --root "$OOB_ROOT" --apply
+make -C "$OOB_BUILD" -j16
+mkdir -p "$(dirname "$OOB_GBL")"
+cp "$OOB_GBL_OLD" "$OOB_GBL"
 ```
 
-预期：不再 `Segmentation fault`；有一行 `[oobsum:stats] tu=… decisions=… emitted=…`；最后 `exit=0`。
-debug 版也重新编译了的话，把命令开头换成 `/usr1/BXPlugin/cmake-build-debug-debug/bxen` 再跑一次更好（断言全开）。
+预期：编译、lit 全通过、csa 回退 0；land.py 将同一个 checker def 从 ipa 块移动到 core 块（不会留下两个 def）。
+检查新 gbl_config 的 log_path 改到新目录；clang_check 项目配置中旧的规则名改为 rb.enhance.core.OobSummary，归到 core / cmn 的分类。
+这两个公司配置文件不在仓库里；保留其它规则的配置。如果报 unknown checker 或旧选项前缀，停下带回本规则相关错误。
 
-### 第 4 步　整个单板 cdb 跑 B：跨文件（正式的跑法，§1.2；挂机约 1–1.5 小时）
+### 第 2 步：TestCase 与 IPA 对照
 
 ```bash
-python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py cdb --cc-json $OOB_CDB
-rm -rf /usr1/oobsum-work/full-b
-time OOBSUM_CONFIG="WorkDir=/usr1/oobsum-work/full-b Phase=export" /usr/local/bin/python3 /usr1/clang_check/src/main.py -e /usr1/BXPlugin/cmake-build-release-release/ -j $OOB_CDB/compile_commands.json -r rb.enhance.ipa.OobSummary -c /usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.ipa.OobSummary/gbl_config.json
-python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py status --workdir /usr1/oobsum-work/full-b
-/usr/bin/time -v python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py solve --workdir /usr1/oobsum-work/full-b --bxen /usr1/BXPlugin/cmake-build-release-release/bxen --extra "-rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini" --run
-time OOBSUM_CONFIG="WorkDir=/usr1/oobsum-work/full-b Phase=report" /usr/local/bin/python3 /usr1/clang_check/src/main.py -e /usr1/BXPlugin/cmake-build-release-release/ -j $OOB_CDB/compile_commands.json -r rb.enhance.ipa.OobSummary -c /usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.ipa.OobSummary/gbl_config.json
-cp "$OOB_REPORT" /usr1/oobsum-work/full-b.report.json
-python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py stats --workdir /usr1/oobsum-work/full-b --counts-only
-python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py report /usr1/oobsum-work/full-b.report.json
-du -sh /usr1/oobsum-work/full-b
+OOBSUM_CONFIG="WorkDir=/tmp/oobsum-tc-core Dump=options+stats" "$OOB_BUILD/bxen" -exec_mode=onlySa -cc_json=$OOB_BUILD -analysis_file=$OOB_ROOT/xir/llvm_ast/TestCase/OobSummaryChecker/TC_OobSummaryChecker.c -checker=rb.enhance.core.OobSummary -extra_args="-analyzer-config ipa=none -analyzer-max-loop 3 -rbchecker-config=$OOB_INI -funcptr-config=$OOB_FUNCPTR"
+python3 "$OOB_REPO/oobsum/tools/decisions.py" /tmp/oobsum-tc-core
 ```
 
-预期：
-* `cdb` 第二行打印"文件按语言：C … 个、C++ … 个"（C++ 的现在也照常分析，§1.7）。
-* export、report 两遍各约 30 分钟（按子系统 116 个文件 18 秒、40 路并行推算）；`status` 里 `fir/` 的个数接近 cdb 的文件数——**少了多少就是失败 / 超时了多少，记下来**；
-  clang_check 如果打印失败的文件数，也记下来。
-* solve 单进程，子系统是 9 秒 / 257 MB，全量估计十几分钟到一小时、几十 GB 以内；**超过 2 小时或内存超过 100 GB 就 Ctrl-C 停掉告诉我**。
-* stats 里 `not_in_tu` 为 0；`unknown_callee`、`entry_unproven`、`typed_field` 应当比子系统按比例少（调用方 / 被调者都在分析范围里了，§1.6）。
+预期：InlineDepth=0；5 条告警；decisions=7 emitted=5。与旧版相比只多浅层 DEFINITE。若不符，带回本 TestCase 的输出（都是我们自己的代码）。
 
-### 第 5 步　按原因抽查（30 分钟；§1.6 有每个原因的意思和怎么判断）
-
-stats 里"报出的 SUSPECT：按原因"条数最多的前 3 个原因，各挑 5 条看：
+### 第 3 步：全板重新跑 B
 
 ```bash
-python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /usr1/oobsum-work/full-b --label suspect --reason <原因> | head -40
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" cdb --cc-json "$OOB_CDB"
+time OOBSUM_CONFIG="WorkDir=$OOB_WD Phase=export" /usr/local/bin/python3 /usr1/clang_check/src/main.py -e "$OOB_BUILD/" -j "$OOB_CDB/compile_commands.json" -r rb.enhance.core.OobSummary -c "$OOB_GBL"
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" status --workdir "$OOB_WD"
+/usr/bin/time -v python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" solve --workdir "$OOB_WD" --bxen "$OOB_BUILD/bxen" --extra "-rbchecker-config=$OOB_INI -funcptr-config=$OOB_FUNCPTR" --run
+time OOBSUM_CONFIG="WorkDir=$OOB_WD Phase=report" /usr/local/bin/python3 /usr1/clang_check/src/main.py -e "$OOB_BUILD/" -j "$OOB_CDB/compile_commands.json" -r rb.enhance.core.OobSummary -c "$OOB_GBL"
+cp "$OOB_REPORT" "$OOB_WD.report.json"
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" stats --workdir "$OOB_WD" --counts-only --top 50
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" report "$OOB_WD.report.json"
 ```
 
-它列出文件:行、函数、告警正文——**只给你自己看**。每条判断：真问题 / 正常写法（误报）/ 看不出来；只带回条数，误报是什么写法用你自己的话描述
-（如"指针来自全局配置表的成员，表在初始化时按固定大小分配"）。另外从 report.json 里挑几条 `[OOB-DEFINITE]` / `[OOB-POSSIBLE]`（有的话）看是不是真问题。
+预期：export 只在 fir/ 写每个 TU 的中间表示，不求解、不告警；solve 读取这些文件，stub.c 只触发一次 checker 回调，不是业务分析对象；report 将预计算的判定交给 CSA 输出并写 decisions/。
+时间基准是上次同一单板约 7 / 20 / 7 分钟，不是承诺值。出现崩溃或 solve 超 2 小时 / 100 GiB 时停止，记录退出码和本规则栈。
+`cp` 的源必须是文件；`cp -r` 复制整个 log 目录不能替代复制 JSON。
 
-### 第 6 步　带回来（照这个格式填，贴进对话）
+### 第 4 步：抽查与带回模板
+
+按 §1.6 的方法抽查；业务代码、名字、路径与告警原文不要带回，只给计数和对写法的概括。
 
 ```text
-清单版本：2026-10-27-2
-1. git log --oneline -1：
-2. lit / run.py csa：Passed __；通过 __、回退 __；land.py 更新了 __ 个文件
-3. TestCase：告警 __ 条；decisions=__ emitted=__
-4. 崩溃的那个文件：exit=__；有没有 [oobsum:stats] 那行：__；（debug 版跑了的话）有没有断言：__
-5. cdb：__ 条、文件 __ 个、重复 __ 个；按语言：C __、C++ __、其它 __
-6. B：export 的 real __；status 那行 __；solve 的 Elapsed __、Maximum resident set size __；report 的 real __；du __；clang_check 报的失败数 __
-7. stats --counts-only 全文；report 那两行
-8. 抽查：原因 1 ____ 看了 __ 条、真问题 __、误报 __、看不出 __，误报的写法：____（原因 2、3 同样）；DEFINITE / POSSIBLE 看了 __ 条、真问题 __ 条
-9. 有没有崩溃 / 报错：哪一步、退出码、崩溃栈里带 OobSummary 的几行
+清单版本：2026-11-02-1
+1. 本地 lit __；csa 回退 __；同步 / 公司编译 __
+2. TestCase：InlineDepth=__ decisions=__ emitted=__，告警 __
+3. cdb 条目 / 唯一文件 / C / C++ __；export 成功 / 失败 __；FIR __
+4. solve Elapsed __；Maximum resident set size __；solved __；判定 __；report 成功 / 失败 __
+5. stats --counts-only 全文；report 两行
+6. 抽查（每个原因）：看了 __、真问题 __、误报 __、看不出 __；写法概括 __
+7. 异常：阶段 __、退出码 __、仅本规则栈 __
 ```
 
 ## 1. 这个规则是怎么跑的
@@ -119,7 +109,7 @@ python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /usr1/oobsum-work/full-b --l
 note 里列出整条调用链。
 
 每条判定都带标签：DEFINITE（明确越界）/ POSSIBLE（在代码给出的界下可能越界）/ SUSPECT（证明不了安全，带原因，§1.6）/ SAFE（证明了安全，默认不报）。
-1–2 层就能判的 DEFINITE / POSSIBLE 默认不报（交给现有规则，`InlineDepth=2`）；SUSPECT 任何层数都报（宁可多报）。
+所有层数的 DEFINITE / POSSIBLE 默认都报（SPEC-0122，`InlineDepth=0`）；SUSPECT 也不按层数过滤。
 
 ### 1.2 两种跑法
 
@@ -170,7 +160,7 @@ OOBSUM_CONFIG="WorkDir=/usr1/oobsum-work/xxx Phase=export" /usr/local/bin/python
 和其他 CSA 规则的格式一样，clang_check 照常收进 report.json：
 
 ```text
-<文件>:<行>:<列>: warning: [OOB-<标签>[:<原因>]] <英文正文> [rb.enhance.ipa.OobSummary]
+<文件>:<行>:<列>: warning: [OOB-<标签>[:<原因>]] <英文正文> [rb.enhance.core.OobSummary]
 <文件>:<行>:<列>: note: Call chain: A (a.c:10) -> B (b.c:20) -> C (c.c:30)
 ```
 
@@ -222,23 +212,23 @@ cd /usr1/BXPlugin/cmake-build-release-release && make -j16
 |---|---|
 | `clang/lib/StaticAnalyzer/Checkers/OobSummaryChecker.cpp`、`OobSummary/**` | `xir/llvm_ast/StaticAnalyzer/Checkers/` 同名路径（`OobSummary/` 里多出来的旧文件会删掉） |
 | 上面的 `.cpp` | `xir/llvm_ast/StaticAnalyzer/Checkers/CMakeLists.txt` 的 `add_library()` 末尾追加；`target_include_directories` 补 `${CMAKE_CURRENT_SOURCE_DIR}`（SPEC-0114） |
-| `Checkers.td` 里的 `def OobSummaryChecker` | `xir/include/clang/StaticAnalyzer/Checkers/Checkers.td` 的 `RosaRBEnhanceIpa` 块最后（已有则整段替换） |
+| `Checkers.td` 里的 `def OobSummaryChecker` | `xir/include/clang/StaticAnalyzer/Checkers/Checkers.td` 的 `RosaRBEnhanceCore` 块最后（已有旧父包则移动，内容同步替换） |
 | `oobsum/testcase/OobSummaryChecker/` | `xir/llvm_ast/TestCase/OobSummaryChecker/`，并在 `TestCase/CMakeLists.txt` 最后追加 `add_subdirectory(OobSummaryChecker)` |
 
-找不到预期结构（比如包块结尾不是 `} // end "rb.enhance.ipa"`）会停下来，不猜；把报错贴回来改脚本。
+找不到预期结构（比如包块结尾不是 `} // end "rb.enhance.core"`）会停下来，不猜；把报错贴回来改脚本。
 改了 `Checkers.td` 后如果新选项不生效，多半是 `Checkers.inc` 没重新生成：做一次完整编译（`csa-checker-dev` 的 TableGen 注意事项）。
 
 ### 2.2 TestCase
 
 ```bash
 rm -rf /tmp/oobsum-tc && mkdir -p /tmp/oobsum-tc
-/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=/usr1/BXPlugin/cmake-build-release-release/ -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/TC_OobSummaryChecker.c -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/tmp/oobsum-tc -analyzer-config rb.enhance.ipa.OobSummary:Dump=options+stats -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=/usr1/BXPlugin/cmake-build-release-release/ -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/TC_OobSummaryChecker.c -checker=rb.enhance.core.OobSummary -extra_args="-analyzer-config ipa=none -analyzer-max-loop 3 -analyzer-config rb.enhance.core.OobSummary:WorkDir=/tmp/oobsum-tc -analyzer-config rb.enhance.core.OobSummary:Dump=options+stats -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
 python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /tmp/oobsum-tc
 ```
 
-预期：4 条告警——调试内建函数的 `[OOB-DEFINITE]`、`[OOB-POSSIBLE]`、`[OOB-SUSPECT:entry_unproven]`，加 `Tc_Engine_TP` 处的
-`[OOB-DEFINITE] Definite out-of-bound write through a 3-level call chain`（带调用链 note）；`[oobsum:stats] … decisions=7 emitted=4`；
-`decisions.py` 显示 7 条判定，其中 3 条没报（2 条 `safe`、1 条 `inline_depth`）。每个版本的预期写在 `TC_OobSummaryChecker.c` 的文件头。
+预期：5 条告警——调试内建函数的浅层 DEFINITE 与 `[OOB-DEFINITE]`、`[OOB-POSSIBLE]`、`[OOB-SUSPECT:entry_unproven]`，加 `Tc_Engine_TP` 处的
+`[OOB-DEFINITE] Definite out-of-bound write through a 3-level call chain`（带调用链 note）；`[oobsum:stats] … decisions=7 emitted=5`；
+`decisions.py` 显示 7 条判定，其中 2 条没报（都是 `safe`；默认不再按层数过滤）。每个版本的预期写在 `TC_OobSummaryChecker.c` 的文件头。
 
 ### 2.3 67 个分级用例：bxen 跑一遍，和本地的 `run.py csa` 对照（SPEC-0111）
 
@@ -246,7 +236,7 @@ python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py /tmp/oobsum-tc
 cd /usr1/oobsum-llvm
 python3 oobsum/cases/run.py cdb --out /usr1/oobsum-cases-cdb --cc /usr/local/bin/cc
 rm -rf /usr1/oobsum-cases-wd && mkdir -p /usr1/oobsum-cases-wd
-/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-cases-cdb/ -analysis_folder=/usr1/oobsum-llvm/oobsum/cases -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-cases-wd -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-cases-cdb/ -analysis_folder=/usr1/oobsum-llvm/oobsum/cases -checker=rb.enhance.core.OobSummary -extra_args="-analyzer-config ipa=none -analyzer-max-loop 3 -analyzer-config rb.enhance.core.OobSummary:WorkDir=/usr1/oobsum-cases-wd -analyzer-config rb.enhance.core.OobSummary:Dump=summary -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
 python3 oobsum/cases/run.py csa --from-workdir /usr1/oobsum-cases-wd
 ```
 
@@ -279,15 +269,15 @@ python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py stats --workdir <WorkDir> |
 
 ```bash
 # A 默认模式
-OOBSUM_CONFIG="WorkDir=<WorkDir>" /usr/local/bin/python3 /usr1/clang_check/src/main.py -e /usr1/BXPlugin/cmake-build-release-release/ -j <cdb 目录>/compile_commands.json -r rb.enhance.ipa.OobSummary -c /usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.ipa.OobSummary/gbl_config.json
+OOBSUM_CONFIG="WorkDir=<WorkDir>" /usr/local/bin/python3 /usr1/clang_check/src/main.py -e /usr1/BXPlugin/cmake-build-release-release/ -j <cdb 目录>/compile_commands.json -r rb.enhance.core.OobSummary -c /usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/gbl_config.json
 # B 跨文件：export 一遍 → solve → report 一遍（同一个 WorkDir、同一个 cdb）
 OOBSUM_CONFIG="WorkDir=<WorkDir> Phase=export" /usr/local/bin/python3 /usr1/clang_check/src/main.py …（同上）
 python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py solve --workdir <WorkDir> --bxen /usr1/BXPlugin/cmake-build-release-release/bxen --extra "-rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini" --run
 OOBSUM_CONFIG="WorkDir=<WorkDir> Phase=report" /usr/local/bin/python3 /usr1/clang_check/src/main.py …（同上）
 ```
 
-* `/usr1/clang_check/src/cfg/project_cfg.py` 的 `IPA_CMN_RULE_CHECKER` 里加上 `rb.enhance.ipa.OobSummary`（不加时 clang_check 给它加 `-analyzer-config ipa=none`）：
-  本规则不走 CSA 的 inline、不跑 ExprEngine，`ipa=none` 加不加结果都一样；加进去与其他 ipa 规则一致，保留即可。
+* 检查 `/usr1/clang_check/src/cfg/project_cfg.py`：本规则旧名应从 `IPA_CMN_RULE_CHECKER` 移除；新 core 名也不要加入该 IPA 清单。
+  本规则不走 CSA 的 inline，`ipa=none` 加不加判定相同；SPEC-0122 起迁入 core，应从 IPA_CMN_RULE_CHECKER 移除，使用 core / cmn 的默认 ipa=none。
 * solve 不加 `--run` 只打印它要执行的那条 bxen 命令。`oobsum_run.py status --workdir <WorkDir>` 看 `fir/`、`solved/`、`decisions/` 各有多少。
 * A 跑过的 WorkDir 里已经有 `fir/`（设了 WorkDir 就会写），可以跳过 export 直接 solve——但 report 会覆盖 `decisions/`，要留 A 的结果就先复制一份。
 * 磁盘：WorkDir 大约是源码大小的 10 倍（`fir/` 缩进写占大头）。全量不要加 `Dump=summary`（`dump/` 还要再大 2 倍）。
@@ -315,7 +305,7 @@ python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py <WorkDir> --emitted --jsonl 
 | char 写别名 | `CharAlias=true`、`CharAlias=verify` | SUSPECT 条数；`verify` 下 `alias_unverified` 的条数，抽几条看是否真有别名（SPEC-0103 / 0106） |
 | 内层界 | `Subobject=label`、`Subobject=off` | `subobject_overflow` 条数；`label` 下内层的 DEFINITE / POSSIBLE（SPEC-0104 / 0105） |
 | 不回绕假设 | `AssumeNoWrap=true` | SUSPECT 少了多少；抽几条打开后不再报的，看检查是否确实不会回绕（SPEC-0108） |
-| 1–2 层也报 | `InlineDepth=0` | 和现有规则重叠的 DEFINITE / POSSIBLE 有多少 |
+| 浅层过滤对照 | `InlineDepth=2`（默认 0） | 浅层被过滤掉多少；默认全报兜底 |
 | 只报某些 SUSPECT | `SuspectReasons=type_range_only+entry_unproven` | 只留这几个原因的 SUSPECT（其余照样写进判定日志） |
 
 业务的分配器、拷贝封装、纯函数（07- 输入 I5 / I8 / I9）写进模型文件：复制 `oobsum/config/oob_models.example.yaml` 改，`OOBSUM_CONFIG` 里加 `ModelFile=<路径>`；
@@ -325,7 +315,7 @@ python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py <WorkDir> --emitted --jsonl 
 
 ```bash
 rm -rf /usr1/oobsum-work/one && mkdir -p /usr1/oobsum-work/one
-/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=<cdb 目录>/ -analysis_file=<那个文件> -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work/one -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary+apply -analyzer-config rb.enhance.ipa.OobSummary:DumpFilter=<函数名正则> -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=<cdb 目录>/ -analysis_file=<那个文件> -checker=rb.enhance.core.OobSummary -extra_args="-analyzer-config ipa=none -analyzer-max-loop 3 -analyzer-config rb.enhance.core.OobSummary:WorkDir=/usr1/oobsum-work/one -analyzer-config rb.enhance.core.OobSummary:Dump=summary+apply -analyzer-config rb.enhance.core.OobSummary:DumpFilter=<函数名正则> -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
 python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py explain --workdir /usr1/oobsum-work/one <函数名或指纹>
 ```
 
@@ -342,14 +332,14 @@ cd /usr1/BXPlugin/cmake-build-release-release && make -j16
 
 CI 只调 clang_check，所以要在 clang_check 里给本规则做两件事（clang_check 是公司的代码，下面只说要加什么，你按它的结构加）：
 
-1. **传选项**：起 bxen 的线程池之前设 `os.environ['OOBSUM_CONFIG'] = 'WorkDir=<本次运行的目录>/oobsum …'`（子进程继承；或者把同样的 `-analyzer-config rb.enhance.ipa.OobSummary:…`
+1. **传选项**：起 bxen 的线程池之前设 `os.environ['OOBSUM_CONFIG'] = 'WorkDir=<本次运行的目录>/oobsum …'`（子进程继承；或者把同样的 `-analyzer-config rb.enhance.core.OobSummary:…`
    拼进本规则的 `-extra_args`，效果相同）。WorkDir 每次运行一个新的空目录。
 2. **跨文件（B）要三步**：本规则跑两遍线程池、中间一条 solve——
    ```text
    第 1 遍：OOBSUM_CONFIG="WorkDir=W Phase=export"，全部文件（这一遍不出告警，report.json 不用它的）
    solve：  python3 <oobsum-llvm>/oobsum/tools/oobsum_run.py solve --workdir W --bxen <bxen> --extra "<rbchecker / funcptr 配置>" --run
             （或者不依赖本仓库：在 W/solve_stub/ 写一个只有 "void oobsum_solve_stub(void) {}" 的 stub.c 和只含它的 compile_commands.json，
-             用 bxen 对它跑一次，-extra_args 里加 -analyzer-config rb.enhance.ipa.OobSummary:Phase=solve 和 …:WorkDir=W）
+             用 bxen 对它跑一次，-extra_args 里加 -analyzer-config rb.enhance.core.OobSummary:Phase=solve 和 …:WorkDir=W）
    第 2 遍：OOBSUM_CONFIG="WorkDir=W Phase=report"，全部文件；report.json 只收这一遍的告警
    ```
    只要 A（单文件）的话，第 1 条就够了，跑一遍。

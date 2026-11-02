@@ -43,7 +43,7 @@
 
 ```
                          ┌──────────── 每一轮（bxen 全量模式，按 TU 并行）─────────────┐
-compile_commands.json ──▶│  rb.enhance.ipa.OobSummary（check::ASTCodeBody，只建 CFG）   │
+compile_commands.json ──▶│  rb.enhance.core.OobSummary（check::ASTCodeBody，只建 CFG）   │
 （第 1 轮全量，           │    ├─ ExtentModel   数组多大（局部/全局/字段/堆，§3.1）      │
  第 2 轮起只跑工作表）    │    ├─ AccessPath    基址怎么表示（形参/全局/字段/偏移，§3.2）│
                          │    ├─ SummaryGen    算摘要：区间 + 阈值 widening（§3.4）       │
@@ -112,7 +112,7 @@ C++ · "在 init 里申请、在别处使用"的字段级 extent 不变式 · �
 
 | 周 | 日期 | 工作日 | 做什么 | 这周结束时拿得出来的东西 |
 |---|---|---|---|---|
-| W01 | 09-22 ~ 09-24 | 3 | 收输入（§8）；新 checker `rb.enhance.ipa.OobSummary` 在 `Checkers.td` 注册、`check::ASTCodeBody` 空跑 | 空 checker 能在 fork 里编译、bxen 能调起来 |
+| W01 | 09-22 ~ 09-24 | 3 | 收输入（§8）；新 checker `rb.enhance.core.OobSummary` 在 `Checkers.td` 注册、`check::ASTCodeBody` 空跑 | 空 checker 能在 fork 里编译、bxen 能调起来 |
 | W02 | 09-28 ~ 09-30 | 3 | SummaryDB 表结构（**含 AI + 程序分析四个注入点的预留**，`04-` §7）；驱动脚本雏形（生成过滤后的 `compile_commands.json` 喂给 bxen）；场景语料第一批（Lv1、Lv2 × 3/5/10/17/20 层） | 语料 + 空跑流水线 |
 | W03 | 10-08 ~ 10-10 | 3 | **量一次"只建 CFG 的全量空跑"耗时**（定多轮上限）；场景语料第二批（Lv3–Lv5）；真实样例（可选）脱敏入库。**v3.11：两批语料已作为 `cases/`（Lv1–Lv10 共 67 个）交付；链长变体生成、与真实业务用例对照归级并入 W04** | **G0（10-10）** |
 | W04 | 10-12 ~ 10-16 | 5 | BoundExpr / Range；AccessPath（形参 / 局部 / 全局 / 字段 / 偏移） | 单测通过 |
@@ -213,7 +213,7 @@ C++ · "在 init 里申请、在别处使用"的字段级 extent 不变式 · �
 |---|---|---|
 | D5 | 跨 TU 执行模型 | ~~方案 A：多轮 TU 扫描 + 工作表~~ → **v3.12 改为建议方案 B**（export → solve → report，`06-` D5′）；A 作回退 |
 | D6 | 告警在哪判定 | 在摘要生成这一遍判定并入库；CSA 侧 checker 只做路径解释（P1），不参与"报不报" |
-| D7 | 新 checker 归属 | `rb.enhance.ipa.OobSummary`（跨过程，归 `ipa` 包） |
+| D7 | 新 checker 归属 | `rb.enhance.core.OobSummary`（跨过程，归 `ipa` 包） |
 | D8 | 年内承诺边界（v3.10） | 按 `04-scenario-tiers.md` 的 **26 个承诺场景**验收；尽力 7 个统计报出率；其余按 `04-` 的标注进 2027 或 AI + 程序分析 |
 | D9–D13 | v3.12 新增 | 引擎跑在 FIR 上；JSON 落盘；只挂 `ASTDecl<TranslationUnitDecl>`；告警报在汇合点、跨文件 trace 进文本；自定义函数 / 全局键。详见 `06-` §12 |
 

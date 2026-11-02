@@ -1,9 +1,9 @@
 # 区间带同余（值 ≡ 锚点 mod 步长，oobsum/specs/SPEC-0084）：条件边收窄时把上界取整到同余类里。
 # 原来：结构体指针循环 SUSPECT（SPEC-0083）、i += 4 循环的界内访问误报 POSSIBLE。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(E1|I4|B1|W4)$' \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=state -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(E1|I4|B1|W4)$' \
 # RUN:   %S/Inputs/cong/c.c 2>&1 | FileCheck %s
 
 CHECK-DAG: [oobsum:state] fn E1 b2: p=*p0+0 n=p1 q=*p0+[0, 16*p1 - 16]:loop%16

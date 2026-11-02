@@ -1,8 +1,8 @@
 # 成员数组当实参（oobsum/specs/SPEC-0035）：调用点记录带外层对象（parent），代换时成员证明了安全还要查外层。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary+stats -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=Msg_Clear$' \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary+stats -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=Msg_Clear$' \
 # RUN:   %S/Inputs/member/member_arg.c 2>&1 | FileCheck %s
 
 CHECK: [oobsum:summary] {"calls":[{"args":[{"back":"0","have":"1024","obj":"p0->aucBody","parent":{"have":"ext(p0) - 4","obj":"*p0"}},"512"]
@@ -20,11 +20,11 @@ CHECK: member_arg.c:55:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove th
 CHECK-NOT: member_arg.c:55:1: warning: [OOB-
 
 # 判定日志里两条都在：外层那条 dup_of 指向报出的那条，不报的原因 duplicate_access；第一条被 SuspectReasons 滤掉时外层那条照常报
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:Dump=decisions \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:Dump=decisions \
 # RUN:   %S/Inputs/member/member_arg.c 2>&1 | grep 'Entry_Msg' | FileCheck %s --check-prefix=DUP
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:SuspectReasons=entry_unproven \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:SuspectReasons=entry_unproven \
 # RUN:   %S/Inputs/member/member_arg.c 2>&1 | FileCheck %s --check-prefix=PICKY
 DUP: [oobsum:decisions] {{.*}}"emitted":true,"end":{{.*}}"fp":"[[FP:[0-9a-f]+]]"{{.*}}"obj":"p0->aucBody"{{.*}}"reason":"type_range_only"
 DUP: [oobsum:decisions] {"bound":{{.*}}"dup_of":"[[FP]]","eff_depth":0,"emitted":false,{{.*}}"not_emitted_because":"duplicate_access","obj":"*p0"{{.*}}"reason":"entry_unproven"

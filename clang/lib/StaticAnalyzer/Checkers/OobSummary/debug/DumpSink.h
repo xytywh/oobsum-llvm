@@ -4,8 +4,8 @@
 // 结果不符合预期时，打开对应的种类看中间数据，定位是哪一步出的问题。只写 stderr 与
 // <WorkDir>/dump/，不影响判定。
 //
-//   -analyzer-config rb.enhance.ipa.OobSummary:Dump=callgraph+decisions   （多个种类用 '+' 连，不能用逗号）
-//   -analyzer-config rb.enhance.ipa.OobSummary:DumpFilter=^Ue_
+//   -analyzer-config rb.enhance.core.OobSummary:Dump=callgraph+decisions   （多个种类用 '+' 连，不能用逗号）
+//   -analyzer-config rb.enhance.core.OobSummary:DumpFilter=^Ue_
 //
 // 种类（Kind）：options callgraph keys fir state summary apply decisions stats；all = 全部（keys 见 SPEC-0003）。
 // 每行以 [oobsum:<种类>] 开头，lit 用例可以直接 FileCheck。不依赖 Clang。

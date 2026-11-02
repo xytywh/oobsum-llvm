@@ -18,7 +18,7 @@
     src=OobSummaryProbeChecker.cpp   src=OobSummary/ProbeSubdirUnit.cpp   hdr=OobSummary/ProbeSubdirUnit.h
     testcase=TestCase/OobSummaryProbeChecker
 仓库内清单（路径相对仓库根；src / hdr 可用通配符，** 表示任意层子目录）：
-    name=OobSummaryChecker   package=ipa
+    name=OobSummaryChecker   package=core
     td_from=clang/include/clang/StaticAnalyzer/Checkers/Checkers.td   td_def=OobSummaryChecker
     src_root=clang/lib/StaticAnalyzer/Checkers
     src=OobSummaryChecker.cpp   src=OobSummary/**/*.cpp   hdr=OobSummary/**/*.h
@@ -348,6 +348,13 @@ def plan_land(args, m, plan):
         text = text.rstrip('\n') + '\n' + LLVM_PACKAGES
     snip, name = m['td_snippet'], def_name(m['td_snippet'])
     old = td_def_block(text, name)
+    # SPEC-0122：改包时不能只替换 def 的内容；原地替换会继续注册在旧父包下。
+    if old is not None:
+        pos = text.index(old)
+        parents = list(re.finditer(r'let\s+ParentPackage\s*=\s*(\w+)\s+in\s*\{', text[:pos]))
+        if parents and parents[-1].group(1) != pkgdef:
+            text = text[:pos] + text[pos + len(old):]
+            old = None
     if old is not None:
         if old.rstrip() == snip.rstrip():
             plan.notes.append('Checkers.td 的 def %s 已是最新' % name)

@@ -1,6 +1,6 @@
 # OobSummaryChecker
 
-> package / 运行名：`rb.enhance.ipa.OobSummary`（跨函数规则）
+> package / 运行名：`rb.enhance.core.OobSummary`（跨函数规则）
 > 设计与每一步修改的依据：本仓库 `oobsum/06-spec.md`（主规格）与 `oobsum/specs/SPEC-NNNN-*.md`（增量规格）。
 
 ## 1. 规则目的
@@ -62,7 +62,7 @@ CSA 现有规则靠路径敏感的 inline，只覆盖 1–2 层；本规则用 *
 | TN | 调用方给的值让守卫为假 | 不报（日志 SAFE:guard_false） | 访问走不到 |
 | FP | 入口函数自己的形参决定的访问、未跟踪的指针（数组元素里的指针、超过两层的字段）、只有类型范围的偏移 | 报 SUSPECT（原因写明） | 证明不了安全；交大模型复核，可用 `SuspectReasons` 按原因筛 |
 | FP | `do { … } while (i < n)`（先访问后检查） | 被调者里报 SUSPECT | 头上的不变式 `i ≤ max(n − 1, 0)` 线性界表示不了（S7c-2） |
-| FN | 1–2 层就能判定的 DEFINITE / POSSIBLE | 默认不报（日志 `inline_depth`） | 交给 CSA 现有规则（F-20，`InlineDepth=2`）；内层判定不受这条限制 |
+| TP | 0–2 层就能判定的 DEFINITE / POSSIBLE | 默认也报告 | SPEC-0122：InlineDepth=0 兜底；显式 2 可恢复浅层过滤 |
 | FN | 经 `char *` / `void *` 写改到别的类型的对象（`F((UINT8 *)&st, &st)`） | 默认可能判 SAFE | 取舍见 `CharAlias`：`true` 不漏但界丢得多，`verify` 在调用点核对（D20 / D25） |
 | FN | `AssumeNoWrap=true` 时检查本身被整数回绕绕过 | 可能不报 | 默认关；只在确认不会回绕时打开（SPEC-0108） |
 | FN | `Subobject=off` 时只越出内层的访问 | 不报 | 默认 `suspect` 报；`off` 只给"业务代码就是这样写"时用（D24） |
@@ -123,7 +123,7 @@ warning: [OOB-SUSPECT:subobject_overflow] Cannot prove the write through a 1-lev
 
 | 场景 | 预期 | 在哪 |
 |---|---|---|
-| 直接违规 (TP)、安全反例 (TN)、层数过滤 (B1)、引擎三层链 (E1 / E2) | 4 条告警、7 条判定（`Dump=stats`：`decisions=7 emitted=4`） | 本目录 `TC_OobSummaryChecker.c` |
+| 直接违规 (TP)、安全反例 (TN)、层数过滤 (B1)、引擎三层链 (E1 / E2) | 5 条告警、7 条判定（`Dump=stats`：`decisions=7 emitted=5`） | 本目录 `TC_OobSummaryChecker.c` |
 | 各 SPEC 的功能与回归 | 103 个 lit 用例全过 | 本仓库 `clang/test/Analysis/oobsum/` |
 | 67 个分级用例（Lv1–Lv10，TP / TN 成对） | 通过 108、通过+S 20、级别不同 2、超出预期 4；TN 入口零 DEFINITE / POSSIBLE | `oobsum/cases/`，`python3 oobsum/cases/run.py csa` |
 | 摘要金标准（16 个用例） | 引擎推出的告警与金标准逐条一致 14 个（`AssumeNoWrap=true` 时 15 个） | `oobsum/cases/summaries/`，`oobsum/tools/engine_check.py` |
@@ -137,7 +137,7 @@ warning: [OOB-SUSPECT:subobject_overflow] Cannot prove the write through a 1-lev
 
 - 源码：`xir/llvm_ast/StaticAnalyzer/Checkers/OobSummaryChecker.cpp` 与 `OobSummary/**`
 - 源码 CMakeLists：`xir/llvm_ast/StaticAnalyzer/Checkers/CMakeLists.txt` 的 `add_library()` 末尾追加
-- Checkers.td：`xir/include/clang/StaticAnalyzer/Checkers/Checkers.td` 的 `rb.enhance.ipa` 包块最后（`def OobSummaryChecker`）
+- Checkers.td：`xir/include/clang/StaticAnalyzer/Checkers/Checkers.td` 的 `rb.enhance.core` 包块最后（`def OobSummaryChecker`）
 - 测试目录：`xir/llvm_ast/TestCase/OobSummaryChecker/`，`TestCase/CMakeLists.txt` 最后追加 `add_subdirectory(OobSummaryChecker)`
 
 ```bash
@@ -150,19 +150,19 @@ cd /usr1/BXPlugin/cmake-build-release-release && make -j16
 ## 9. 运行方式
 
 ```bash
-/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=/usr1/BXPlugin/cmake-build-release-release/ -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/TC_OobSummaryChecker.c -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/tmp/oobsum-tc -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=/usr1/BXPlugin/cmake-build-release-release/ -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/TC_OobSummaryChecker.c -checker=rb.enhance.core.OobSummary -extra_args="-analyzer-config ipa=none -analyzer-max-loop 3 -analyzer-config rb.enhance.core.OobSummary:WorkDir=/tmp/oobsum-tc -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
 ```
 
-本规则**不加** `-analyzer-config ipa=none`（它不走 CSA 的 inline，只挂 TU 级回调）。多文件用 `-analysis_folder=<目录>`。
+本规则统一显式加 `-analyzer-config ipa=none`（SPEC-0122：不依赖 CSA 的 IPA，自己的摘要引擎照常跨函数）。多文件用 `-analysis_folder=<目录>`。
 `-analyzer-config` 的列表值用 `+` 连接（`Dump=options+stats`）。
 
-选项（`-analyzer-config rb.enhance.ipa.OobSummary:<名>=<值>`）：
+选项（`-analyzer-config rb.enhance.core.OobSummary:<名>=<值>`）：
 
 | 选项 | 默认 | 作用 |
 |---|---|---|
 | `Phase` | `inline` | `inline`（单 TU 推到底）/ `export` / `solve` / `report`（跨 TU 三阶段） |
 | `WorkDir` | 空 | 判定日志、FIR、摘要、dump 的目录；三阶段必填 |
-| `InlineDepth` | `2` | DEFINITE / POSSIBLE 层数 ≤ 它的不报（交现有规则）；`0` 全报 |
+| `InlineDepth` | `0` | DEFINITE / POSSIBLE 层数 ≤ 它的不报（交现有规则）；`0` 全报 |
 | `ReportSafe` | `false` | 也把 SAFE 当告警打出来（调试用） |
 | `Policy` | `recall` | `balanced` 时 SUSPECT 不报 |
 | `SuspectReasons` | 空 | 只报这些原因的 SUSPECT（`+` 连接）；空 = 全报 |

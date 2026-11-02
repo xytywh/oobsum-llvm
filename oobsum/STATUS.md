@@ -3,15 +3,25 @@
 > 每次会话开始先读这里；每次提交一批改动后更新这里（"已完成"挪进 CHANGELOG 时可以删）。
 > 规则在 `../CLAUDE.md`，背景与决策在 `HANDOFF.md`，主规格 `06-spec.md`，增量规格 `specs/`。
 
-更新：2026-10-16 · 分支 `oobsum/dev` · 版本 v4.0
+更新：2026-11-02 · 分支 `oobsum/dev` · 版本 v4.0
 
 ## 已完成
+
+* 公司全板结果（2026-11-02 带回）：C++ 原崩溃文件 Release / Debug 均 exit=0、242 判定 / 222 报出；TestCase 的 ipa=none 对照相同。
+  cdb 10686 条 / 10262 文件（C 6689、C++ 3573）；export 6m53s、10245 FIR；solve 19m49.53s / 30840260 KiB、2211387 判定；report 6m59s、日志 2210526 判定 / 769203 报出，
+  report.json 629741（DEFINITE 478、POSSIBLE 104、SUSPECT 629159）。17 个唯一文件无 FIR；report 少 861 判定；失败条目数含重复，不等于缺失文件数。
+  10235 个 ILP32 TU 与 10 个 x86_64 LP64 TU 混在同一 WorkDir，需要按目标分组；用户要求默认全层报告、迁 core、改进 sink 告警 / 进度 / 尾数组与场景统计。
+  业务代码与告警原文未入库。
+* SPEC-0122：迁 rb.enhance.core.OobSummary、默认 InlineDepth=0、land.py 移动父包（模拟同步幂等）；Dump=options 落盘。
+  lit 109/109、core 161、replay 一致、csa 通过 108 / 回退 0 / G2 零强告警；engine_check 维持 14/16。
+  67 个用例的 70 份 TU 日志在 ipa=none / dynamic-bifurcate 下逐字相同。公司清单 2026-11-02-1；后续小步：求解进度与真实摘要、按目标隔离、sink 诊断与尾数组策略、场景统计。
+
 
 * 仓库维护（2026-11-02）：`.gitignore` 忽略 `.codex/`，本地 Codex 配置不入库。
 * 仓库化：调研包 v3.0–v3.15 逐版导入为提交（`git log -- oobsum/`）；`CLAUDE.md`、`HANDOFF.md`、`COMPANY.md`、`specs/` 流程、
   `history/` 纪要；`devenv/` 改为在本仓库里构建（`cmake-build-release/`）；`land.py` 支持仓库内清单（同步语义、`--check-tree`）。
 * checker 骨架（SPEC-0001）：
-  * `rb.enhance.ipa.OobSummary` 注册；选项 `Phase`、`WorkDir`、`Policy`、`InlineDepth`、`ReportSafe`、`SuspectReasons`、`Dump`、`DumpFilter`。
+  * `rb.enhance.core.OobSummary` 注册；选项 `Phase`、`WorkDir`、`Policy`、`InlineDepth`、`ReportSafe`、`SuspectReasons`、`Dump`、`DumpFilter`。
   * 标签 DEFINITE / POSSIBLE / SUSPECT / SAFE（`core/Label`）、判定（`core/Decision`）、报告策略（`core/Policy`）、指纹（`core/Fingerprint`）。
   * 告警：每个标签一个 BugType，消息 `[OOB-<标签>[:<原因>]] …`，按（文件、行、列、指纹）排序（`report/Reporter`）。
   * 判定日志 `WorkDir/decisions/<tu-id>.jsonl`，报了的、没报的都在（`core/DecisionLog`）；`oobsum/tools/decisions.py` 汇总。
@@ -378,7 +388,7 @@
 
 * **用户决定（2026-10-26）**：只提高精度、不影响检出的几项**先不做**，等公司业务代码跑完（COMPANY.md §0 里子系统上 A / B 两步的 `stats --counts-only`），
   按 SUSPECT 各原因的条数再排优先级：符号形的返回值范围（钳到形参，SPEC-0054 以后）、递归环上求不动点（SPEC-0066 目前每个环上调用点记 SUSPECT `recursion`）、
-  `do { … } while (i < n)`（S7c-2）、指针字段与长度字段配对的界（LV10-01）。在这之前只做公司反馈要求的修改。
+  `do { … } while (i < n)`（S7c-2）、指针字段与长度字段配对的界（LV10-01）。在这之前只做公司反馈要求的修改。2026-11-02 已带回全板结果，本轮按该反馈逐项处理。
 
 * **已决定（2026-10-17，LV3-07、LV8-01 的"级别不同"）**：检查可能回绕，默认按 SPEC-0016 §2.1 不用；做成默认关的选项 `AssumeNoWrap`（SPEC-0108，已实现）。
   **公司实测**：`AssumeNoWrap=false` / `true` 各跑一遍，比 SUSPECT 条数，抽查打开后不再报的是否确实不会回绕。
@@ -400,7 +410,7 @@
   带回各标签 / 原因的条数与耗时（`tools/decisions.py` 汇总，只要数字），用来定 `SuspectReasons` 的默认值（`not_in_tu`、`typed_field` 预计很多）。
 * 公司（可选）：业务代码里函数 CFG 块数的分布（P99、最大值），用来定 `MaxBlocks` 的默认值（现在 5000，06- I-18"探针给出 P99 后再定"；SPEC-0037 §8）。
 * **I5 / I8 / I9 现在写进模型文件即可，不用改代码**（SPEC-0033）：复制 `oobsum/config/oob_models.example.yaml`，改 `VOS_MemAlloc` 的 `size`（I5）、
-  加内部封装的拷贝 / 分配函数（I8）、纯函数清单（I9），bxen 命令加 `-analyzer-config rb.enhance.ipa.OobSummary:ModelFile=<路径>`，用 `Dump=models` 确认生效。
+  加内部封装的拷贝 / 分配函数（I8）、纯函数清单（I9），bxen 命令加 `-analyzer-config rb.enhance.core.OobSummary:ModelFile=<路径>`，用 `Dump=models` 确认生效。
   文件留在公司；只带回"哪几类、各多少条"即可（如果想让我把某些通用的放进内置表，告诉我函数原型）。
 * 其余输入见 `HANDOFF.md` §6。
 

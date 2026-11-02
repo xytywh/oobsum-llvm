@@ -273,7 +273,7 @@ footer p{max-width:none}
 <td>bxen 全量模式：是否多进程并行、并发度参数；告警最终落在哪（终端 / 文件 / 平台）及格式</td>
 <td>驱动（X-05、X-10）；T-05 的告警计数</td>
 <td>随 R3</td>
-<td>驱动按串行调用 bxen、从 bxen 输出里按 <code>[rb.enhance.ipa.OobSummary]</code> 计数</td>
+<td>驱动按串行调用 bxen、从 bxen 输出里按 <code>[rb.enhance.core.OobSummary]</code> 计数</td>
 </tr>
 <tr>
 <td><strong>I5</strong></td>
@@ -383,7 +383,7 @@ footer p{max-width:none}
 <tr>
 <td><strong>D7</strong></td>
 <td>包与名字</td>
-<td><code>rb.enhance.ipa.OobSummary</code> / <code>OobSummaryChecker</code></td>
+<td><code>rb.enhance.core.OobSummary</code> / <code>OobSummaryChecker</code></td>
 <td><code>rb.enhance.core.OobSummary</code></td>
 <td>只影响 <code>Checkers.td</code> 的位置与 <code>-checker=</code> 字符串</td>
 </tr>
@@ -493,7 +493,7 @@ footer p{max-width:none}
 <ul>
 <li><strong>你的电脑与我的沙箱用同一套 <code>devenv/</code> 脚本</strong>：我交付前跑过的命令，你在本地原样能跑；你本地复现的问题，我在沙箱里也能复现。</li>
 <li><strong>公司那一趟只做本地做不了的事</strong>：xir 内嵌 CSA 的差异、bxen 的参数与配置、ILP32 布局、业务代码与性能（<code>09-</code> §1 的表）。</li>
-<li><strong>节奏</strong>：每周两次交付（周二、周五），每次一个完整代码包（<code>oob-summary-v0.N</code>）+ 中文提交信息（<code>csa-checker-dev</code> 格式，scope <code>rb.enhance.ipa.OobSummary</code>）+ 验证命令 + 沙箱结果表。</li>
+<li><strong>节奏</strong>：每周两次交付（周二、周五），每次一个完整代码包（<code>oob-summary-v0.N</code>）+ 中文提交信息（<code>csa-checker-dev</code> 格式，scope <code>rb.enhance.core.OobSummary</code>）+ 验证命令 + 沙箱结果表。</li>
 <li><strong>你那边的回路目标</strong>：收到后先在本地过一遍（插件模式 + 用例，十几分钟），再带去公司；1 个工作日内把公司的编译 / 运行结果发回；不一致优先修，当天出补丁版。</li>
 <li><strong>沙箱结果与 fork 不一致时</strong>：以 fork 为准，我在沙箱里补一个复现用例，进 T-03 / T-07。</li>
 <li><strong>每次交付前我必须跑完</strong>：插件构建无告警、T-01 全过、T-03 不回退（已通过的入口不得变成失败）、T-07 无崩溃、规范检查无 FAIL。</li>
@@ -874,7 +874,7 @@ footer p{max-width:none}
 </code></pre>
 <p>本地：<code>plugin-build.sh</code> 编插件、<code>cc1-run.sh</code> 跑；需要时 <code>50-intree-rehearsal.sh &lt;包目录&gt;</code> 预演注册。公司：<code>land.py --into bxplugin --apply</code> 后 <code>make -j16</code>（<code>09-</code> §6）。</p>
 <ul>
-<li>每个包都是<strong>完整的</strong>（不是增量补丁），解压覆盖后 <code>git status</code> 就是这次的改动；配一份中文提交信息（<code>feat(rb.enhance.ipa.OobSummary): …</code>，<code>csa-checker-dev</code> 模板）。</li>
+<li>每个包都是<strong>完整的</strong>（不是增量补丁），解压覆盖后 <code>git status</code> 就是这次的改动；配一份中文提交信息（<code>feat(rb.enhance.core.OobSummary): …</code>，<code>csa-checker-dev</code> 模板）。</li>
 <li>调研包（本包）继续单独维护：规格 / 计划的修订在这里，版本号沿 v3.x。</li>
 <li>每次交付的回复里写清：这次改了什么、在 fork 里怎么验（具体命令）、期望结果、沙箱实测结果。</li>
 </ul>
@@ -930,7 +930,7 @@ footer p{max-width:none}
 </tr>
 <tr>
 <td><strong>D7</strong></td>
-<td>新 checker：<code>rb.enhance.ipa.OobSummary</code>（类 <code>OobSummaryChecker</code>）</td>
+<td>新 checker：<code>rb.enhance.core.OobSummary</code>（类 <code>OobSummaryChecker</code>）</td>
 <td>跨 TU 规则按 <code>csa-checker-dev</code> 约定须与你确认包；它不用 CSA 的 IPA，<code>ipa</code> 取值不影响它</td>
 </tr>
 <tr>
@@ -1041,7 +1041,7 @@ S2 级（符号可疑）输出。</p>
 </section>
 <section id="s-2"><div class="sec-hd"><span class="secno">06- §2</span><h2>运行形态总览</h2></div>
 <pre><code>                    ① Phase=export（bxen 全量模式，按 TU 并行；只做语法遍历，不跑 ExprEngine）
-compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/&lt;tu&gt;.json   （每个 TU 一份 FIR + 全局声明）
+compile_commands ─▶ rb.enhance.core.OobSummary ──▶ WorkDir/fir/&lt;tu&gt;.json   （每个 TU 一份 FIR + 全局声明）
                                                          │
                     ② solve（一次；bxen 跑一个桩 TU 的 Phase=solve，或独立命令 oobsum-solve）
                                                          ▼
@@ -1289,7 +1289,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/&lt;tu&g
 </tr>
 </tbody>
 </table></div>
-<p>命名：类 / 文件 / <code>def</code> / <code>register…</code> 带 <code>Checker</code> 后缀；<code>Checker&lt;"OobSummary"&gt;</code> 与 <code>-checker=rb.enhance.ipa.OobSummary</code> 用短名。</p>
+<p>命名：类 / 文件 / <code>def</code> / <code>register…</code> 带 <code>Checker</code> 后缀；<code>Checker&lt;"OobSummary"&gt;</code> 与 <code>-checker=rb.enhance.core.OobSummary</code> 用短名。</p>
 <h3>4.2 选项（<code>CheckerOptions</code>，全部 <code>Released</code>）</h3>
 <div class="tw"><table>
 <thead>
@@ -1422,7 +1422,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/&lt;tu&g
   -exec_mode=onlySa \
   -cc_json=/usr1/BXPlugin/cmake-build-release-release/ \
   -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/src/lv1_01_stat_enum_butt.c \
-  -checker=rb.enhance.ipa.OobSummary \
+  -checker=rb.enhance.core.OobSummary \
   &quot;-extra_args=-analyzer-max-loop 3 -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini&quot;
 </code></pre>
 <p><strong>全量 / 跨 TU（export → solve → report）</strong>——用驱动，一条命令：</p>
@@ -1436,14 +1436,14 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/&lt;tu&g
 </code></pre>
 <p>驱动拼出的三条 bxen 命令会原样打印出来（可单独重跑），形如：</p>
 <pre><code class="language-bash"># ① export：全量，每个 TU 写 fir/&lt;tu&gt;.json
-bxen -exec_mode=onlySa -cc_json=&lt;业务工程&gt;/compile_commands.json -checker=rb.enhance.ipa.OobSummary \
-  &quot;-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:Phase=export -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work -rbchecker-config=... -funcptr-config=...&quot;
+bxen -exec_mode=onlySa -cc_json=&lt;业务工程&gt;/compile_commands.json -checker=rb.enhance.core.OobSummary \
+  &quot;-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.core.OobSummary:Phase=export -analyzer-config rb.enhance.core.OobSummary:WorkDir=/usr1/oobsum-work -rbchecker-config=... -funcptr-config=...&quot;
 # ② solve：驱动生成的桩 TU（WorkDir/solve_stub/），一次
-bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/solve_stub/ -analysis_file=/usr1/oobsum-work/solve_stub/stub.c -checker=rb.enhance.ipa.OobSummary \
-  &quot;-extra_args=-analyzer-config rb.enhance.ipa.OobSummary:Phase=solve -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work ...&quot;
+bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/solve_stub/ -analysis_file=/usr1/oobsum-work/solve_stub/stub.c -checker=rb.enhance.core.OobSummary \
+  &quot;-extra_args=-analyzer-config rb.enhance.core.OobSummary:Phase=solve -analyzer-config rb.enhance.core.OobSummary:WorkDir=/usr1/oobsum-work ...&quot;
 # ③ report：只含有判定的 TU 的 cdb（WorkDir/report_cdb/compile_commands.json）
-bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/report_cdb/compile_commands.json -checker=rb.enhance.ipa.OobSummary \
-  &quot;-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:Phase=report -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work ...&quot;
+bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/report_cdb/compile_commands.json -checker=rb.enhance.core.OobSummary \
+  &quot;-extra_args=-analyzer-max-loop 3 -analyzer-config rb.enhance.core.OobSummary:Phase=report -analyzer-config rb.enhance.core.OobSummary:WorkDir=/usr1/oobsum-work ...&quot;
 </code></pre>
 <p><strong>I-30 驱动子命令</strong>（<code>oobsum.py</code>，Python 3.6+ 标准库）：</p>
 <div class="tw"><table>
@@ -2730,7 +2730,7 @@ cond   := expr ('&lt;=' | '&lt;' | '&gt;=' | '&gt;' | '==') expr
 <tr>
 <td><strong>D7</strong></td>
 <td>包与名字</td>
-<td><code>rb.enhance.ipa.OobSummary</code> / <code>OobSummaryChecker</code></td>
+<td><code>rb.enhance.core.OobSummary</code> / <code>OobSummaryChecker</code></td>
 <td><code>rb.enhance.core.OobSummary</code></td>
 <td>只影响 <code>Checkers.td</code> 的位置与 <code>-checker=</code> 字符串</td>
 </tr>

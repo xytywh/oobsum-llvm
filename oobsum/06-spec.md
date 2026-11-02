@@ -31,7 +31,7 @@
 | **D11** | checker 只挂 **`check::ASTDecl<TranslationUnitDecl>`**，不挂任何路径敏感回调 | 沙箱实测：多挂一个空的 `EndOfTranslationUnit`，每个函数都会跑一遍 ExprEngine【实测数据】 |
 | **D12** | 告警报在**汇合点的调用表达式**上；跨文件的 trace 写进 note 文本 | CSA 的 note 只能指向本 TU 可见的文件，被调者在别的 `.c` 里时无法定位 |
 | **D13** | 函数 / 全局用**自定义键**（外部链接用名字，内部链接带定义文件），不用 USR | C 没有重载，名字即可；不依赖 `clangIndex`；头文件 static inline 可跨 TU 去重 |
-| **D7** | 新 checker：`rb.enhance.ipa.OobSummary`（类 `OobSummaryChecker`） | 跨 TU 规则按 `csa-checker-dev` 约定须与你确认包；它不用 CSA 的 IPA，`ipa` 取值不影响它 |
+| **D7** | 新 checker：`rb.enhance.core.OobSummary`（类 `OobSummaryChecker`） | 跨 TU 规则按 `csa-checker-dev` 约定须与你确认包；它不用 CSA 的 IPA，`ipa` 取值不影响它 |
 | **D14** | 摘要里的说明文字一律放在键名为 **`doc`** 的字段里，引擎不读；去掉 `doc` 就是完整摘要（§5.3 D-30） | 自然语言静态分析消费不了，只能给人看；分开放才能保证判定与告警不依赖它，也能一键去掉 |
 | **D15** | L2 消息的 `{source}` P0 只写界的种类（`a loop condition`），出处函数靠调用链 note；`bound_at` 留到 P1 | 出处函数要随代换多维护一个字段；先保证消息全部由机器字段生成 |
 
@@ -43,7 +43,7 @@
 
 一个只做语法遍历的 CSA checker 把每个函数降成 FIR；一个与 Clang 无关的抽象解释引擎自底向上给每个函数算出越界摘要
 （前置条件 Req、效果 Eff、已判定 Rep、账本 Open），在调用点代换、逐层上传，在大小和访问都已知的那一层（汇合点）判定；
-判定出的越界按现有告警格式报出，只报现有规则看不到的（> `inlineDepth` 层，CSA 盲区例外）。
+判定出的越界按现有告警格式报出，默认报告所有层数（由 SPEC-0122 修订），显式 InlineDepth>0 时过滤浅层。
 
 ### 1.2 P0 必须支持的场景（验收口径）
 
@@ -80,7 +80,7 @@ S2 级（符号可疑）输出。
 
 ```
                     ① Phase=export（bxen 全量模式，按 TU 并行；只做语法遍历，不跑 ExprEngine）
-compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.json   （每个 TU 一份 FIR + 全局声明）
+compile_commands ─▶ rb.enhance.core.OobSummary ──▶ WorkDir/fir/<tu>.json   （每个 TU 一份 FIR + 全局声明）
                                                          │
                     ② solve（一次；bxen 跑一个桩 TU 的 Phase=solve，或独立命令 oobsum-solve）
                                                          ▼
@@ -148,7 +148,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 ### 3.3 只报现有规则看不到的（通道分工）
 
 * **F-20**〔SPEC-0105：内层的判定（`dir: sub`）不按层数过滤——现有规则不查子对象〕：每条判定带两个层数：`depth`（访问点到汇合点经过的调用边数）与 `effDepth`（判定用到的大小、偏移、长度里，经效果向上传得最远的层数）。
-  报告条件：`max(depth, effDepth) > InlineDepth`（默认 2，取你们现有规则的 inline 上限，`07-` 输入 I6）。
+  报告条件：`InlineDepth == 0 || max(depth, effDepth) > InlineDepth`（由 SPEC-0122 修订：默认 0，即所有层数都报告；非零时使用此阈值）。
   理由：现有规则要 inline 到大小和访问**两侧**才能判，任何一侧超出 inline 深度它就看不到【推断】。
 * **F-21**：`csaBlindSpot` 的判定（F-08、二维数组字段 `[P1]`）**不做层数过滤**。
 * **F-22**：`EvalMode=true` 时不过滤，全报并在消息里带层数，用于和现有规则逐条对比（`03-` T1-5）。
@@ -202,7 +202,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 | 用例目录 | `xir/llvm_ast/TestCase/OobSummaryChecker/`：`src/` 放由 `cases/` 生成的用例（带四块文件头）、`include/` 放公共头 |
 | 用例登记 | `TestCase/CMakeLists.txt` 末尾 `add_subdirectory(OobSummaryChecker)` |
 
-命名：类 / 文件 / `def` / `register…` 带 `Checker` 后缀；`Checker<"OobSummary">` 与 `-checker=rb.enhance.ipa.OobSummary` 用短名。
+命名：类 / 文件 / `def` / `register…` 带 `Checker` 后缀；`Checker<"OobSummary">` 与 `-checker=rb.enhance.core.OobSummary` 用短名。
 
 ### 4.2 选项（`CheckerOptions`，全部 `Released`）
 
@@ -210,7 +210,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 |---|---|---|---|---|
 | I-10 | `Phase` | string | `inline` | `inline` / `export` / `solve` / `report`（§7） |
 | I-11 | `WorkDir` | string | `""` | 工作目录（§4.5）。`export` / `solve` / `report` 必填 |
-| I-12 | `InlineDepth` | int | `2` | F-20 的阈值 |
+| I-12 | `InlineDepth` | int | `0` | F-20 的阈值，0 全报（SPEC-0122） |
 | I-13 | `EvalMode` | bool | `false` | F-22 |
 | I-14 | `ReportL2` | bool | `true` | F-16 |
 | I-15 | `ModelFile` | string | `""` | 模型表（§4.4）；空则用内置的最小模型（安全函数族 + libc） |
@@ -233,7 +233,7 @@ compile_commands ─▶ rb.enhance.ipa.OobSummary ──▶ WorkDir/fir/<tu>.jso
 **单文件 / 单目录（Phase=inline，同 TU 内的多层链）**——与 `csa-checker-dev` 的标准命令一致，只换 `-checker=`，ipa 包不加 `ipa=none`：
 
 ```bash
-/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=/usr1/BXPlugin/cmake-build-release-release/ -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/src/lv1_01_stat_enum_butt.c -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
+/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=/usr1/BXPlugin/cmake-build-release-release/ -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/src/lv1_01_stat_enum_butt.c -checker=rb.enhance.core.OobSummary -extra_args="-analyzer-config ipa=none -analyzer-max-loop 3 -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
 ```
 
 **全量 / 跨 TU（export → solve → report）**——用驱动，一条命令：
@@ -247,11 +247,11 @@ python3 /usr1/BXPlugin/xir/llvm_ast/StaticAnalyzer/Checkers/OobSummary/tools/oob
 
 ```bash
 # ① export：全量，每个 TU 写 fir/<tu>.json
-bxen -exec_mode=onlySa -cc_json=<compile_commands.json 所在的目录>/ -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:Phase=export -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work -rbchecker-config=... -funcptr-config=..."
+bxen -exec_mode=onlySa -cc_json=<compile_commands.json 所在的目录>/ -checker=rb.enhance.core.OobSummary -extra_args="-analyzer-config ipa=none -analyzer-max-loop 3 -analyzer-config rb.enhance.core.OobSummary:Phase=export -analyzer-config rb.enhance.core.OobSummary:WorkDir=/usr1/oobsum-work -rbchecker-config=... -funcptr-config=..."
 # ② solve：驱动生成的桩 TU（WorkDir/solve_stub/），一次
-bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/solve_stub/ -analysis_file=/usr1/oobsum-work/solve_stub/stub.c -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-config rb.enhance.ipa.OobSummary:Phase=solve -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work ..."
+bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/solve_stub/ -analysis_file=/usr1/oobsum-work/solve_stub/stub.c -checker=rb.enhance.core.OobSummary -extra_args="-analyzer-config ipa=none -analyzer-config rb.enhance.core.OobSummary:Phase=solve -analyzer-config rb.enhance.core.OobSummary:WorkDir=/usr1/oobsum-work ..."
 # ③ report：只含有判定的 TU 的 cdb（WorkDir/report_cdb/compile_commands.json）
-bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/report_cdb/ -checker=rb.enhance.ipa.OobSummary -extra_args="-analyzer-max-loop 3 -analyzer-config rb.enhance.ipa.OobSummary:Phase=report -analyzer-config rb.enhance.ipa.OobSummary:WorkDir=/usr1/oobsum-work ..."
+bxen -exec_mode=onlySa -cc_json=/usr1/oobsum-work/report_cdb/ -checker=rb.enhance.core.OobSummary -extra_args="-analyzer-config ipa=none -analyzer-max-loop 3 -analyzer-config rb.enhance.core.OobSummary:Phase=report -analyzer-config rb.enhance.core.OobSummary:WorkDir=/usr1/oobsum-work ..."
 ```
 
 **I-30 驱动子命令**（`oobsum.py`，Python 3.6+ 标准库）：
@@ -594,7 +594,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 2. **A-41 化简**：`D = offExpr + sizeExpr − have(base)` 线性化，**同类项抵消**（局部也参与抵消，LV3-07 的 `ulOff`）。
 3. **A-42 代区间**：`D` 里剩下的局部换成它们的界（系数为正取上界、为负取下界），得到 `D` 的上界 `U` 与下界 `L`（只含接口符号），并记下所用界的来源标签；
    另对 `offExpr` 求下界，检查 `off ≥ 0`。
-4. **A-43 当场判定**：`U`、`L` 不含符号时按 F-10…F-14 判；`depth = 0`，判出的进 `reps`（只有 F-21 / F-22 时才会报出，其余被 F-20 过滤，但照样入 `reports.json` 并标 `filtered`）。
+4. **A-43 当场判定**：`U`、`L` 不含符号时按 F-10…F-14 判；`depth = 0`，判出的进 `reps`（由 SPEC-0122 修订：默认也报告；显式 InlineDepth>0 时才可能被 F-20 过滤，照样入日志）。
 5. **A-44 生成 Req**〔由 SPEC-0014、SPEC-0016、SPEC-0018 修订；SPEC-0096：Req 带上全部守卫（与 have / end 有公共符号的在前），不只相关的〕：含接口符号时，先用守卫判蕴含（§6.5）：`U ≤ 0` 成立 → 安全，丢弃；否则生成 Req：`have`、`end`（末端的 [下界, 上界]）、`start`、`bytes`、`bound`、
    与 Req 符号相关的守卫原子、访问位置与序号、`depth = 0`、`blind`（A-07）。**覆盖合并**：同一 `have`、守卫相同的两条 Req，若一条的 `end[1]` 恒不大于另一条
 （差为非正常数），弱的那条并进强的、记进 `absorbed`（LV1-02 的 `pszName[0]`、`pszName[1]`）；守卫不同的不合并（LV2-03 TN 的 `R3`）。
@@ -783,7 +783,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | # | 决策 | 推荐 | 备选 | 不选推荐的影响 |
 |---|---|---|---|---|
 | **D5′** | 跨 TU 编排 | **B**：export → solve → report（§7） | A：多轮扫描（`01-` §3.11） | A 要多做每轮导入 / 合并 / 去重；轮数取决于探针统计，可能把全量耗时放大数倍 |
-| **D7** | 包与名字 | `rb.enhance.ipa.OobSummary` / `OobSummaryChecker` | `rb.enhance.core.OobSummary` | 只影响 `Checkers.td` 的位置与 `-checker=` 字符串 |
+| **D7** | 包与名字 | `rb.enhance.core.OobSummary` / `OobSummaryChecker` | `rb.enhance.core.OobSummary` | 只影响 `Checkers.td` 的位置与 `-checker=` 字符串 |
 | **D9** | 引擎跑在 FIR 上 | **是** | 直接跑 `clang::CFG` | 否的话 B 不成立（求解要 AST 在内存里），只能走 A；单测要带 Clang |
 | **D10** | 落盘格式 | JSON + Python 侧 SQLite | C++ 侧 SQLite / FlatBuffers（`01-` §3.8） | 要给 xir 加第三方依赖；多进程写同一个库要处理锁 |
 | **D11** | 宿主回调 | 只挂 `ASTDecl<TranslationUnitDecl>` | `ASTCodeBody` + `EndOfTranslationUnit` | 后者会让每个函数跑 ExprEngine【实测数据】 |

@@ -1,8 +1,8 @@
 # 调用点消去调用方局部时也进入不透明项（oobsum/specs/SPEC-0049）：div 单调代入，mod / wrap 在区间内等同内层，否则取 [0, n − 1] / 类型范围。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=apply %S/Inputs/opaque/opaque.c 2>&1 | FileCheck %s
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=apply %S/Inputs/opaque/opaque.c 2>&1 | FileCheck %s
 
 # 位图 idx / 32（LV2-06 同形）：循环 256 → L2（原来"含调用方局部"记账）、64 → SAFE
 CHECK-DAG: opaque.c:6:1: warning: [OOB-POSSIBLE] Possible out-of-bound write through a 1-level call chain: up to byte 32 of 'a' (8 bytes) may be accessed; the bound comes from a loop condition

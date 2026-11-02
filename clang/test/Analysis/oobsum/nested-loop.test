@@ -1,8 +1,8 @@
 # 循环头只对本循环里被赋值的局部做 widening（oobsum/specs/SPEC-0046）：嵌套循环的外层下标在内层循环头不丢界（LV3-09）。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Grid_Clear|Grid_Skew)$' \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=state -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(Grid_Clear|Grid_Skew)$' \
 # RUN:   %S/Inputs/nested/grid.c 2>&1 | FileCheck %s
 
 # 内层循环头：外层的 s 是外层循环体里的区间（原来是 [0, +inf]:widen）

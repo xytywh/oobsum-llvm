@@ -1,5 +1,5 @@
 # 性能探针（SPEC-0080）：G 个 extern 整数全局 + N 层调用链（F_i 调 F_{i-1}(pst, n − 1)，每层写字段、按返回值分支）。
-#   python3 oobsum/devenv/perf-chain.py 2000 300 /tmp/t.c && TRIPLE=armebv7-linux-gnueabi oobsum/devenv/cc1-run.sh -checker=rb.enhance.ipa.OobSummary /tmp/t.c
+#   python3 oobsum/devenv/perf-chain.py 2000 300 /tmp/t.c && TRIPLE=armebv7-linux-gnueabi oobsum/devenv/cc1-run.sh -checker=rb.enhance.core.OobSummary /tmp/t.c
 import sys
 G, N, out = int(sys.argv[1]), int(sys.argv[2]), sys.argv[3]
 lines=['typedef unsigned int UINT32;','typedef unsigned char UINT8;','typedef struct { UINT32 ulId; UINT32 ulLen; UINT8 *pucBuf; } CTX_S;']

@@ -11,7 +11,7 @@
   python3 run.py infer  --infer <infer 可执行文件> [--only lv1,lv2] [--out DIR]
                                                # Infer 当标尺（自动加 -DCASE_SHIM），与 @expect 的 pa= 对照
   python3 run.py csa    [--only lv1,LV2-03] [--config k=v] [--save]
-                                               # 本仓库的 clang 跑 rb.enhance.ipa.OobSummary，按判定日志与 @expect 对照，
+                                               # 本仓库的 clang 跑 rb.enhance.core.OobSummary，按判定日志与 @expect 对照，
                                                # 并与基线 csa-baseline.json 比，原来报出的消失了（且没证明安全）就失败（SPEC-0002）
 
 @expect 的写法：  @expect  TP|TN  <入口函数>  pa=<L1|L2|-|记账>  [later=<…>]  [ai+pa=<…>]
@@ -235,10 +235,10 @@ def cmd_infer(a):
     json.dump(rows, open(os.path.join(out, 'yardstick.json'), 'w'), ensure_ascii=False, indent=1)
 
 
-# ---- csa：本仓库的 clang 跑 rb.enhance.ipa.OobSummary，按判定日志与 @expect 对照（SPEC-0002） ----
+# ---- csa：本仓库的 clang 跑 rb.enhance.core.OobSummary，按判定日志与 @expect 对照（SPEC-0002） ----
 
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
-CHECKER = 'rb.enhance.ipa.OobSummary'
+CHECKER = 'rb.enhance.core.OobSummary'
 STRENGTH = {'definite': 3, 'possible': 2, 'suspect': 1, 'safe': 0}
 PA_LABEL = {'L1': 'definite', 'L2': 'possible', '记账': 'suspect'}
 VERDICTS = ['通过', '通过+S', '级别不同', '漏报', '误报', '超出预期', '需跨TU']
@@ -481,7 +481,7 @@ def cmd_csa(a):
 
         def cc1(src, extra, err):
             args = [clang, '-cc1', '-triple', a.triple, '-analyze', '-resource-dir', res,
-                    '-internal-isystem', os.path.join(res, 'include'), '-analyzer-checker=' + CHECKER,
+                    '-internal-isystem', os.path.join(res, 'include'), '-analyzer-config', 'ipa=none', '-analyzer-checker=' + CHECKER,
                     '-analyzer-config', '%s:WorkDir=%s' % (CHECKER, wd)]
             if a.triple.startswith(('arm', 'thumb', 'aarch64')):
                 args.append('-fno-signed-char')  # driver 对 ARM / AArch64 会加；直接跑 cc1 要自己加（SPEC-0007 §2.1）

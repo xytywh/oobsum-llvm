@@ -1,8 +1,8 @@
 # 经指针传进来的整数：*pK 当成形参符号 pK->_0（oobsum/specs/SPEC-0071）。原来 *pLen 读成 data，只在被调者里记 type_range_only。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Fill$' \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^Fill$' \
 # RUN:   %S/Inputs/scalarptr/s.c 2>&1 | FileCheck %s
 
 CHECK-DAG: [oobsum:summary] {{.*}}"fields":{"p1->_0":{"off":0,"size":4,"type":"u32"}},"fn":"Fill"

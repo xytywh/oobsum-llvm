@@ -1,8 +1,8 @@
 # 数组子对象（oobsum/specs/SPEC-0104，用户决定 D22）：成员数组、多维数组的一行退化成指针时，地址外面包 subobj(…, 子对象大小)，
 # 以后访问时多查一道内层界。整个数组、柔性数组不包。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=fir %S/Inputs/subobj/s.c 2>&1 | FileCheck %s
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=fir %S/Inputs/subobj/s.c 2>&1 | FileCheck %s
 
 # 二维数组 a[2][4]：a[0]、a[j] 都是 4 字节的一行
 CHECK-LABEL: [oobsum:fir] fn F:Grid

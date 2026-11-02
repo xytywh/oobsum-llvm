@@ -1,0 +1,2 @@
+# SPEC-0122：相同内容的 checker def 也必须能迁移父包，重复落地无改动。
+# RUN: %python %S/Inputs/land-package.py %S/../../../../oobsum/devenv/land.py %t

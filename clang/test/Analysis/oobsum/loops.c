@@ -1,7 +1,7 @@
 // 循环（oobsum/specs/SPEC-0017）：不动点上的状态（Dump=state 只打最后记录的那一遍，循环头带 (head)）、循环界的标签 loop、
 // 常数界的循环当场证明安全、指针步进记账 pointer_stepping。
-// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary+state %s 2>&1 | FileCheck %s
+// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary+state %s 2>&1 | FileCheck %s
 
 typedef unsigned char UINT8;
 typedef unsigned int UINT32;

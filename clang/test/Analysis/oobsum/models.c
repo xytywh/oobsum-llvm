@@ -1,6 +1,6 @@
 // 模型表（oobsum/specs/SPEC-0018）：memcpy_s 的目的 / 源与 destMax 的回绕守卫、memset_s、分配器的返回值、纯函数、函数指针实参。
-// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary %s 2>&1 | FileCheck %s
+// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary %s 2>&1 | FileCheck %s
 
 typedef unsigned char UINT8;
 typedef unsigned int UINT32;

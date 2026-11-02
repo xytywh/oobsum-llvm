@@ -1,6 +1,6 @@
 // 返回新对象的效果（oobsum/specs/SPEC-0024）：封装分配器逐层推出 ret_new（eff_depth 1、2），调用方拿到 heap@<调用点>。
-// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary %s 2>&1 | FileCheck %s
+// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary %s 2>&1 | FileCheck %s
 
 typedef unsigned char UINT8;
 typedef unsigned int UINT32;

@@ -5,11 +5,11 @@
 
 ## 1. 在做什么
 
-`rb.enhance.ipa.OobSummary`：一个 Clang Static Analyzer checker，用**函数摘要**检测**跨多层调用**的内存越界（C 语言）。
+`rb.enhance.core.OobSummary`：一个 Clang Static Analyzer checker，用**函数摘要**检测**跨多层调用**的内存越界（C 语言）。
 
 * 目标代码：公司的嵌入式 C 业务代码（aarch64_be + ILP32，约 1 万个源文件，内存操作用 securec 安全函数 `memcpy_s` 等）。
   **业务代码不在这里，也永远不进这个仓库**——这里只有我们自己写的合成用例。
-* 现有规则（CSA 的 inline）只覆盖 1–2 层；本规则覆盖 3 层及以上，靠"自底向上算摘要、在调用点代换判定"，不依赖路径敏感的 ExprEngine。
+* 现有规则（CSA 的 inline）只覆盖 1–2 层；本规则覆盖多层调用，默认浅层也报告（SPEC-0122），靠"自底向上算摘要、在调用点代换判定"，不依赖路径敏感的 ExprEngine。
 * 交付：2026-12-15。代码最终编进公司的 BXPlugin/xir（公司 fork 的 LLVM 14），用 bxen 运行。本仓库里的代码通过
   `oobsum/devenv/land.py` 同步过去（五处落点，见 `oobsum/COMPANY.md`）。
 
@@ -57,7 +57,7 @@ python3 oobsum/tools/golden_regen.py [--write] LV5-01 …  # 有意修改金标�
 cmake-build-release/bin/clang-format -i --style=file:clang/lib/StaticAnalyzer/Checkers/OobSummary/.clang-format <文件>   # 排版（先 ninja -C cmake-build-release clang-format；不重排中文注释）
 python3 oobsum/devenv/land.py --drop oobsum/landing/OobSummaryChecker.manifest --check-tree   # 新文件是否都登记了
 oobsum/devenv/40-smoke.sh                                # 整体冒烟（7 项）
-oobsum/devenv/cc1-run.sh -checker=rb.enhance.ipa.OobSummary <文件.c> [-analyzer-config rb.enhance.ipa.OobSummary:Dump=stats]
+oobsum/devenv/cc1-run.sh -checker=rb.enhance.core.OobSummary <文件.c> [-analyzer-config rb.enhance.core.OobSummary:Dump=stats]
 ```
 
 * 构建超过几分钟时放后台跑并轮询，不要让一个命令卡到超时。
@@ -96,7 +96,7 @@ oobsum/devenv/cc1-run.sh -checker=rb.enhance.ipa.OobSummary <文件.c> [-analyze
 提交信息（中文，`csa-checker-dev` 格式）：
 
 ```
-feat(rb.enhance.ipa.OobSummary): <一句话>
+feat(rb.enhance.core.OobSummary): <一句话>
 
 修改背景：…（SPEC-NNNN）
 核心改动：…

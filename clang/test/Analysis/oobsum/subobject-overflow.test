@@ -1,13 +1,13 @@
 # 内层界（oobsum/specs/SPEC-0104 §2.2，用户决定 D22）：成员数组、多维数组的一行退化成指针时带内层窗口，访问越出内层、
 # 没越出整个对象 → SUSPECT subobject_overflow（原来只查整个对象，判 SAFE）。越出整个对象照常由外层判。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=state -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^(Loop_Tp|Ptr_Tn)$' \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=state -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(Loop_Tp|Ptr_Tn)$' \
 # RUN:   -w %S/Inputs/subobj/o.c 2>&1 | FileCheck %s
 # 只有这 6 行报 subobject_overflow（TN、越出整个对象的第一维、指针步进都不报）
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -w %S/Inputs/subobj/o.c 2>&1 \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -w %S/Inputs/subobj/o.c 2>&1 \
 # RUN:   | grep 'subobject_overflow' | FileCheck %s --check-prefix=ONLY
 
 # 越出内层、没越出整个对象：a[0][5]、st.aucBuf[20]、astEnt[0].aucName[8]、a[0][i]（i < 8）、st.aucPad[-1]

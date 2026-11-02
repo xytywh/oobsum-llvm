@@ -269,7 +269,7 @@ cd /usr1/BXPlugin/cmake-build-release-release &amp;&amp; make -j16
   </div>
   <div class="cmd"><div class="cmd-bar"><span>两边</span><button type="button" class="copy">复制</button></div><pre><code># 本地
 $D/plugin-build.sh build/OobSummary.so &lt;源文件…&gt; -I .
-$D/cc1-run.sh -load build/OobSummary.so -checker=rb.enhance.ipa.OobSummary &lt;用例.c&gt;
+$D/cc1-run.sh -load build/OobSummary.so -checker=rb.enhance.core.OobSummary &lt;用例.c&gt;
 # 公司
 python3 land.py --drop . --into bxplugin --root /usr1/BXPlugin --apply &amp;&amp; make -j16</code></pre></div>
 </li></ol>
@@ -497,10 +497,10 @@ D=~/infer-research-kit/08-summary2-design/devenv
 # 编插件（几秒）：入口 + 子目录里的引擎源码
 $D/plugin-build.sh build/OobSummary.so OobSummaryChecker.cpp OobSummary/*/*.cpp -I .
 # 跑一个用例：checker 名与公司完全一致
-$D/cc1-run.sh -load build/OobSummary.so -checker=rb.enhance.ipa.OobSummary \
+$D/cc1-run.sh -load build/OobSummary.so -checker=rb.enhance.core.OobSummary \
     ~/infer-research-kit/08-summary2-design/cases/lv1/lv1_01_stat_enum_butt.c
 # 近似公司的 4 字节指针 + 大端
-TRIPLE=armebv7-linux-gnueabi $D/cc1-run.sh -load build/OobSummary.so -checker=rb.enhance.ipa.OobSummary &lt;文件.c&gt;
+TRIPLE=armebv7-linux-gnueabi $D/cc1-run.sh -load build/OobSummary.so -checker=rb.enhance.core.OobSummary &lt;文件.c&gt;
 </code></pre>
 <p>（上面的文件名是 WP 代码到了以后的样子；现在可以拿探针把同样的命令走一遍，见 <code>40-smoke.sh</code> 第 3、4 步。）</p>
 <p>调试：<code>gdb --args ~/llvm-project-14/cmake-build-release/bin/clang -cc1 -analyze -load build/OobSummary.so …</code>；

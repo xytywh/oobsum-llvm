@@ -1,8 +1,8 @@
 // 06- §5.2 的 FIR 例子（oobsum/specs/SPEC-0008 §5）：Ue_InitOne 的 pstTbl[ulIdx].ulId = 0 降成
 //   { "op": "store", "addr": ["padd", ["l", 0], ["bin", "mul", ["l", 1], ["c", 16]]], "size": 4, "val": ["c", 0] }
 // 成员 ulId 偏移 0 所以没有第二层 padd；不是下标访问本身（是下标元素的成员），所以没有 sub。
-// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-// RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=fir %s 2>&1 | FileCheck %s
+// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=fir %s 2>&1 | FileCheck %s
 
 typedef unsigned char UINT8;
 typedef unsigned int UINT32;

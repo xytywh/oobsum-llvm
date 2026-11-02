@@ -18,8 +18,8 @@ for name in ['engine', 'solve_a', 'solve_b']:
     tmp = tempfile.mkdtemp(prefix='oobsum-engine-fir-')
     try:
         subprocess.run([clang, '-cc1', '-triple', 'armebv7-linux-gnueabi', '-fno-signed-char', '-analyze',
-                        '-analyzer-checker=rb.enhance.ipa.OobSummary', '-analyzer-config', 'rb.enhance.ipa.OobSummary:Dump=fir',
-                        '-analyzer-config', 'rb.enhance.ipa.OobSummary:WorkDir=' + tmp, src],
+                        '-analyzer-checker=rb.enhance.core.OobSummary', '-analyzer-config', 'rb.enhance.core.OobSummary:Dump=fir',
+                        '-analyzer-config', 'rb.enhance.core.OobSummary:WorkDir=' + tmp, src],
                        check=True, capture_output=True)
         path = glob.glob(os.path.join(tmp, 'dump', '*', 'fir', '*.json'))[0]
         text = open(path, encoding='utf-8').read().replace(src, '/x/' + name + '.c')

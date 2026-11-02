@@ -21,7 +21,7 @@
 
 ### checker 骨架（SPEC-0001）
 
-* `rb.enhance.ipa.OobSummary` 注册（本地镜像公司的 `rb.enhance.*` 包结构），8 个选项。
+* `rb.enhance.core.OobSummary` 注册（本地镜像公司的 `rb.enhance.*` 包结构），8 个选项。
 * 四个标签 DEFINITE / POSSIBLE / SUSPECT / SAFE；召回优先策略（拿不准报 SUSPECT，只有证明安全才不报）；每标签一个 BugType，
   消息带 `[OOB-<标签>[:<原因>]]` 前缀。
 * 判定日志 `WorkDir/decisions/<tu-id>.jsonl`（所有判定，含不报的及其原因）；`tools/decisions.py` 汇总 / 导出给大模型复核。
@@ -163,7 +163,7 @@
 * 范围：承诺 26 个场景 = 32 个用例；尽力 9 个 TP；其余入口期望 `-` / `记账` 的一律不得报；链长 3–20 层。
 * 判定与级别（Safe / L1 / L2 / 上传 / 记账，L2 只认代码给出的上界，界带来源标签）；通道分工按 `max(depth, effDepth) > InlineDepth`；
   告警位置、英文 BugType 与消息模板、trace note、指纹、确定性排序。
-* 接口：`rb.enhance.ipa.OobSummary` 的 14 个选项、四个 `Phase`（inline / export / solve / report）、bxen 命令、驱动 `oobsum.py` 子命令、
+* 接口：`rb.enhance.core.OobSummary` 的 14 个选项、四个 `Phase`（inline / export / solve / report）、bxen 命令、驱动 `oobsum.py` 子命令、
   模型表 `oob_models.yaml`（分配器 / 访问类 / 纯函数）、`config.ini` 与 `alloc_free_identity` 的读取、工作目录、SQLite 查询库。
 * 数据：函数 / 全局键、FIR（类型、局部、6 种指令、表达式、边）、摘要 JSON（接口符号、线性式、界、Req / Eff / Rep / Open、账本 26 类原因、状态）、大小与布局规则。
 * 算法：降级、抽象域（符号界 + min/max + 来源标签、指针 base 种类、内存格、定义式、守卫）、转移、WTO 不动点、访问检查与 Req 生成（先化简后代区间）、

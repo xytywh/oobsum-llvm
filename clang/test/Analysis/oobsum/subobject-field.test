@@ -1,9 +1,9 @@
 # 内层界补漏 1（oobsum/specs/SPEC-0107 §2.1，用户决定 D24）：指向成员数组 / 一行的指针先存进结构体字段，再把结构体交给被调者——
 # 调用点记下的字段值同样带内层剩余（sub），被调者经这个字段的访问越出内层 → SUSPECT subobject_overflow。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.ipa.OobSummary \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.ipa.OobSummary:ReportSafe=true \
-# RUN:   -analyzer-config rb.enhance.ipa.OobSummary:Dump=summary+apply -analyzer-config 'rb.enhance.ipa.OobSummary:DumpFilter=^Field_Tp$' \
+# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
+# RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary+apply -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^Field_Tp$' \
 # RUN:   -w %S/Inputs/subobj/f.c 2>&1 | FileCheck %s
 
 CHECK-DAG: [oobsum:summary] {{.*}}"args":[{"back":"0","fields":{"pucBuf":{"back":"4","have":"28","obj":"local:st","sub":"16","sub_back":"0"}},"have":"8","obj":"local:v"},"20"]

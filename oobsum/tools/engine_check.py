@@ -22,7 +22,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
 CASES = os.path.join(REPO, 'oobsum', 'cases')
 SUMMARIES = os.path.join(CASES, 'summaries')
-CHECKER = 'rb.enhance.ipa.OobSummary'
+CHECKER = 'rb.enhance.core.OobSummary'
 TYPES = {'u8': 'UINT8', 'u16': 'UINT16', 'u32': 'UINT32', 'i8': 'CHAR', 'i32': 'INT32'}
 
 spec = importlib.util.spec_from_file_location('replay', os.path.join(SUMMARIES, 'replay.py'))
@@ -38,7 +38,7 @@ def run_engine(clang, files, triple, extra=()):
 
     def cc1(src, configs):
         args = [clang, '-cc1', '-triple', triple, '-analyze', '-resource-dir', res, '-internal-isystem',
-                os.path.join(res, 'include'), '-analyzer-checker=' + CHECKER]
+                os.path.join(res, 'include'), '-analyzer-config', 'ipa=none', '-analyzer-checker=' + CHECKER]
         for c in configs:
             args += ['-analyzer-config', CHECKER + ':' + c]
         if triple.startswith(('arm', 'thumb', 'aarch64')):

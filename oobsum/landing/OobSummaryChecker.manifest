@@ -3,7 +3,7 @@
 #   python3 oobsum/devenv/land.py --drop oobsum/landing/OobSummaryChecker.manifest --check-tree     # 提交前检查登记是否一致
 # 新增源文件不用改这里（通配符），但要追加进 clang/lib/StaticAnalyzer/Checkers/CMakeLists.txt。
 name=OobSummaryChecker
-package=ipa
+package=core
 td_from=clang/include/clang/StaticAnalyzer/Checkers/Checkers.td
 td_def=OobSummaryChecker
 src_root=clang/lib/StaticAnalyzer/Checkers

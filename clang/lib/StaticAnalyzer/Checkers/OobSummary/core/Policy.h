@@ -21,9 +21,10 @@
 namespace oobsum {
 
 struct PolicyOptions {
-    bool recall = true;        // Policy=recall（默认）/ balanced
-    unsigned inlineDepth = 2;  // F-20：max(depth, effDepth) <= inlineDepth 的交给现有规则；0 = 全报
-    bool reportSafe = false;   // SAFE 也报（用例、审计）
+    bool recall = true;  // Policy=recall（默认）/ balanced
+    // SPEC-0122 / F-20：默认 0 全报；非零时按 max(depth, effDepth) 过滤浅层。
+    unsigned inlineDepth = 0;
+    bool reportSafe = false;  // SAFE 也报（用例、审计）
     std::set<std::string> suspectReasons;  // 空 = 所有原因都报 SUSPECT
 };
 
