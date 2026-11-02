@@ -51,3 +51,21 @@ CDBN: 3
 
 REPORT: report.json：problems 6 条，其中 rb.enhance.core.OobSummary 5 条：DEFINITE 1、POSSIBLE 1、SUSPECT 3
 REPORT-NEXT: SUSPECT 按原因：not_in_tu 2、entry_unproven 1
+
+# SPEC-0123：目录只有一个报告时自动定位，多个候选或坏路径给出可操作错误，不抛 Traceback。
+# RUN: mkdir -p %t/reportdir
+# RUN: cp %t/report.json %t/reportdir/allfiles-buffer_overflow_report.json
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py report %t/reportdir | FileCheck %s --check-prefix=DIRREPORT
+# RUN: cp %t/report.json %t/reportdir/second_report.json
+# RUN: not %python %S/../../../../oobsum/tools/oobsum_run.py report %t/reportdir 2>&1 | FileCheck %s --check-prefix=AMBIGUOUS
+# RUN: not %python %S/../../../../oobsum/tools/oobsum_run.py report %t/missing.json 2>&1 | FileCheck %s --check-prefix=MISSING
+DIRREPORT: allfiles-buffer_overflow_report.json：problems 6 条，其中 rb.enhance.core.OobSummary 5 条
+AMBIGUOUS: 报告目录有 2 个 *report.json；请直接指定 JSON 文件路径
+AMBIGUOUS-NOT: Traceback
+MISSING: 无法读取报告 JSON：
+MISSING-NOT: Traceback
+
+# 旧包的公司已有报告仍能统计，不用为统计而重新跑一次全量。
+# RUN: %python -c "import json; json.dump({'problems': [{'description': 'rb.enhance.ipa.OobSummary', 'reason': 'warning: [OOB-DEFINITE] old report [rb.enhance.ipa.OobSummary]'}]}, open('%t/legacy_report.json', 'w'))"
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py report %t/legacy_report.json | FileCheck %s --check-prefix=LEGACY
+LEGACY: problems 1 条，其中 rb.enhance.core.OobSummary 1 条：DEFINITE 1

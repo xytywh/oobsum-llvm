@@ -1,0 +1,16 @@
+# SPEC-0123：进度落盘、局部 / 传播摘要、调试不改变结果。
+# RUN: rm -rf %t
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --workdir %t/plain --clang %clang %S/Inputs/solve/a.c %S/Inputs/solve/b.c > %t.plain.log
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --workdir %t/debug --clang %clang --config Dump=progress+summary --config DumpFilter=Top_A %S/Inputs/solve/a.c %S/Inputs/solve/b.c > %t.debug.log
+# RUN: diff %t/plain/solved %t/debug/solved
+# RUN: FileCheck %s --check-prefix=PROGRESS < %t.debug.log
+# RUN: %python %S/Inputs/solve-progress.py %t/debug
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py status --workdir %t/debug | FileCheck %s --check-prefix=STATUS
+# RUN: %python %S/Inputs/driver-live.py %S/../../../../oobsum/tools/oobsum_run.py %t/live
+# PROGRESS: [oobsum:progress] stage=read completed=0 total=2
+# PROGRESS: [oobsum:progress] stage=analyze
+# PROGRESS: [oobsum:progress] stage=propagate
+# PROGRESS: [oobsum:progress] stage=decisions
+# PROGRESS: [oobsum:progress] stage=write
+# PROGRESS: [oobsum:progress] stage=done completed=2 total=2
+# STATUS: solve 进度：done 2/2

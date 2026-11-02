@@ -13,6 +13,8 @@
 #include "OobSummary/core/LinExpr.h"
 #include "OobSummary/core/Summary.h"
 
+#include <cstddef>
+#include <functional>
 #include <map>
 #include <set>
 #include <string>
@@ -76,8 +78,9 @@ struct PropagateResult {
     unsigned entry = 0;  // 入口账本条数
 };
 
-// subLabel：Subobject=label（SPEC-0105），内层 Req 按常规判
-PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bool subLabel = false);
+// subLabel：Subobject=label（SPEC-0105），内层 Req 按常规判；progress 只观察阶段内进度（SPEC-0123）
+PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bool subLabel = false,
+                          const std::function<void(size_t, size_t)> &progress = nullptr);
 // A-44：同一 have、对象、守卫，end 上界恒不大于另一条的那条并掉（相等时留前面的）
 std::vector<DerivedReq> Absorb(const std::vector<DerivedReq> &cand);
 // 比较用的键（同 replay.py 的 req_key：have、对象、末端、守卫集合、depth）

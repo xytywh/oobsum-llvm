@@ -186,7 +186,7 @@ compile_commands ─▶ rb.enhance.core.OobSummary ──▶ WorkDir/fir/<tu>.js
 
 * **F-40**：每个函数的摘要都有 `status`：`analyzed`、`partial:<原因>`、`skipped:<原因>`（`01-` §3.4 全函数性）。**"没分析"必须和"分析了没问题"可区分**。
 * **F-41**：记账条目带原因（§5.3 的枚举）、位置、函数、明细；`stats.json` 按原因汇总，W10 起作为补模型、补能力的依据。
-* **F-42**：`oobsum.py explain <指纹 | 函数名>` 打印该告警 / 函数的逐层摘要与代换过程（用 `05-` §2.1 的记法），供误报研判。
+* **F-42**〔由 SPEC-0123 修订：Dump=summary 在 solve 中按 DumpFilter 写 local / derived 两种摘要与函数键索引，explain 优先读真实 local 视图；是否发出告警以 report 判定日志为准〕：`oobsum.py explain <指纹 | 函数名>` 打印该告警 / 函数的逐层摘要与代换过程（用 `05-` §2.1 的记法），供误报研判。
 
 ---
 
@@ -219,7 +219,7 @@ compile_commands ─▶ rb.enhance.core.OobSummary ──▶ WorkDir/fir/<tu>.js
 | I-18 | `MaxBlocks` | int | `5000` | 超过即 `skipped:cfg_too_large`（探针给出 P99 后再定） |
 | I-19 | `TimeLimitMs` | int | `5000` | 单函数求解时间上限，超时 `skipped:timeout` |
 | I-20 | `MaxConds` | int | `64` | 单函数 Req 上限，超出按严重度保留、其余记账 `cond_truncated` |
-| I-21 | `Dump` | string | `""` | 调试输出：`fir`、`summary`、`trace` 的逗号组合，打印到 stderr（规范记法） |
+| I-21 | `Dump` | string | `""` | 〔由 SPEC-0001 / SPEC-0123 修订〕调试输出以 `+` 组合：options、models、callgraph、keys、fir、state、summary、apply、decisions、stats、progress；打印到 stderr，相关产物写 WorkDir/dump |
 | I-22 | `FuncFilter` | string | `""` | 只对名字匹配的函数打印调试输出（正则） |
 | I-23 | `Verbose` | int | `0` | `1`：每 TU 一行统计；`2`：每函数一行 |
 | I-24 | `CallTrace` | string | `full` | 摘要里 `calls[]` 调用点记录的详细程度：`full`（实参、局部区间、守卫、结局，调试用）/ `results`（只留结局）/ `none`。全量跑出来体积过大时降级 |
@@ -666,7 +666,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | **X-07** | 规模预估 | FIR 体积与求解内存按探针的函数数与 CFG 规模估算（`07-` 输入 I2）；若 solve 峰值内存超过约定值，按 SCC 分批加载（只常驻摘要，FIR 用完即释放）`[P1]` |
 | **X-08** | 回退 | 若 B 在你们环境里不可行（如 bxen 对单个 TU 有时长上限、桩 TU 跑不完求解），退回方案 A：export 照旧，solve 改成按"被调者都已就绪的 TU"分轮在 bxen 里做（`01-` §3.11）。引擎不变，只换编排；P0 不预先实现 |
 
-**X-10 驱动的其它约定**：每条 bxen 命令先打印再执行，输出存 `logs/<阶段>.log`；任一阶段非零退出码 → 停止并提示单独重跑该阶段的命令；
+**X-10 驱动的其它约定**〔由 SPEC-0123 修订：子进程输出实时打印并落日志；solve 阶段内进度写 dump/solve/progress.json，Dump=progress 同时打 stderr；不作为准确 ETA〕：每条 bxen 命令先打印再执行，输出存 `logs/<阶段>.log`；任一阶段非零退出码 → 停止并提示单独重跑该阶段的命令；
 `status` 子命令能在任何时候说明"到哪一步了、缺什么"。
 
 ---
@@ -683,7 +683,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | **N-06** | 确定性 | 同样的输入，`summaries/`、`reports.json`、告警输出逐字节相同（`stats.json` 里的耗时除外） |
 | **N-07** | 可移植 | C++14；只用 LLVM 14 的 Support / ADT / JSON / YAML 与 Clang 的 AST / Analysis / StaticAnalyzer Core；不开 RTTI、不用异常；同一份源码既能在 fork 里随 `Checkers.td` 编进 xir，也能在沙箱里编成插件（`-DOOBSUM_PLUGIN_BUILD`，探针已验证这种双构建【实测数据】）；驱动只用 Python 3.6+ 标准库 |
 | **N-08** | 编码规范 | `csa-checker-dev`：命名（checker 类内统一小驼峰、其余函数大驼峰、变量小驼峰）、`.clang-format`、单语句控制流带 `{}`、`BuiltinCheckerRegistration.h`、诊断与 td 全英文、include 不排序；每次交付跑 `check_checker_conventions.py` 无 FAIL |
-| **N-09** | 可观测 | `Verbose=1` 每 TU 一行（函数数、导出耗时）；`stats.json`：函数状态分布、Req / Eff 数分布、告警按级别与层数、账本按原因、各阶段耗时 |
+| **N-09** | 可观测 | 〔SPEC-0123 补充 solve 阶段内进度快照和实时日志；计数不当作准确 ETA〕 `Verbose=1` 每 TU 一行（函数数、导出耗时）；`stats.json`：函数状态分布、Req / Eff 数分布、告警按级别与层数、账本按原因、各阶段耗时 |
 | **N-10** | 产物内容 | FIR 与摘要只含名字、类型布局、位置与抽象值，**不含源码文本** |
 
 ---

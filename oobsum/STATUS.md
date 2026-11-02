@@ -3,9 +3,15 @@
 > 每次会话开始先读这里；每次提交一批改动后更新这里（"已完成"挪进 CHANGELOG 时可以删）。
 > 规则在 `../CLAUDE.md`，背景与决策在 `HANDOFF.md`，主规格 `06-spec.md`，增量规格 `specs/`。
 
-更新：2026-11-02 · 分支 `oobsum/dev` · 版本 v4.0
+更新：2026-11-03 · 分支 `oobsum/dev` · 版本 v4.0
 
 ## 已完成
+
+* SPEC-0123：solve 的 read / analyze / propagate / decisions / write / done 进度按秒原子写 dump/solve/progress.json，Dump=progress 同时打 stderr；
+  驱动实时打印 / flush 子进程日志（握手测试保证未退出即可读）；status 在未完成时不解析整套 solved。
+  Dump=summary 按函数键哈希存 local / derived 视图及索引，explain 可读；report 能定位目录里唯一的 *report.json，支持旧包报告，错误不抛 Traceback。
+  lit 110/110、core 161、replay 一致、csa 回退 0 / G2 零强告警，engine_check 维持 14/16；打开调试后 solved 字节相同。公司清单 2026-11-03-1。
+
 
 * 公司全板结果（2026-11-02 带回）：C++ 原崩溃文件 Release / Debug 均 exit=0、242 判定 / 222 报出；TestCase 的 ipa=none 对照相同。
   cdb 10686 条 / 10262 文件（C 6689、C++ 3573）；export 6m53s、10245 FIR；solve 19m49.53s / 30840260 KiB、2211387 判定；report 6m59s、日志 2210526 判定 / 769203 报出，

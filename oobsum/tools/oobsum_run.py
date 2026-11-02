@@ -39,9 +39,17 @@ def run(cmd, workdir, phase):
     os.makedirs(os.path.join(workdir, 'logs'), exist_ok=True)
     with open(os.path.join(workdir, 'logs', phase + '.log'), 'a', encoding='utf-8') as log:
         log.write('$ %s\n' % text)
-        r = subprocess.run(cmd, capture_output=True, text=True)
-        log.write(r.stdout + r.stderr + '# exit %d\n' % r.returncode)
-    return r.returncode
+        log.flush()
+        # SPEC-0123：合并管道避免死锁；每行立即展示、落盘，不能等 20 分钟的 solve 结束。
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              universal_newlines=True, errors='replace', bufsize=1) as proc:
+            for line in proc.stdout:
+                print(line, end='', flush=True)
+                log.write(line)
+                log.flush()
+            code = proc.wait()
+        log.write('# exit %d\n' % code)
+    return code
 
 
 def stop(phase, cmd):
@@ -150,7 +158,16 @@ def cmd_solve(a):
         return 0
     if run(cmd, workdir, 'solve') != 0:
         stop('solve', cmd)
+    progress_path = os.path.join(workdir, 'dump', 'solve', 'progress.json')
+    if os.path.isfile(progress_path):
+        with open(progress_path, encoding='utf-8') as f:
+            progress = json.load(f)
+        if progress.get('stage') == 'failed':
+            print('✗ solve 写结果失败；查看 logs/solve.log，修复后重新 solve', file=sys.stderr)
+            return 1
     table = solved(workdir)
+    if len(table) < nfir:
+        print('注意：solved 比 FIR 少 %d 个 TU；查看 logs/solve.log 中跳过的坏 FIR 或写入错误' % (nfir - len(table)))
     print('solve 完成：solved/ %d 个 TU，判定 %d 条（%d 个 TU 有判定）；下一步 clang_check 跑 Phase=report' % (
         len(table), sum(n for _, n in table), sum(1 for _, n in table if n > 0)))
     return 0
@@ -188,10 +205,28 @@ def cmd_bxen(a):
 def cmd_status(a):
     workdir = os.path.abspath(a.workdir)
     fir = glob.glob(os.path.join(workdir, 'fir', '*.json'))
-    table = solved(workdir)
     dec = glob.glob(os.path.join(workdir, 'decisions', '*.jsonl'))
-    print('fir/ %d 个；solved/ %d 个（判定不为空 %d 个）；decisions/ %d 个' % (
-        len(fir), len(table), sum(1 for _, n in table if n > 0), len(dec)))
+    progress = None
+    progress_path = os.path.join(workdir, 'dump', 'solve', 'progress.json')
+    if os.path.isfile(progress_path):
+        try:
+            with open(progress_path, encoding='utf-8') as f:
+                progress = json.load(f)
+        except (OSError, ValueError):
+            print('注意：暂时读不了 solve 进度文件')
+    # 求解未结束时不能为看进度而反复解析数 GB 的 solved 判定（SPEC-0123）。
+    unfinished = progress is not None and progress.get('stage') not in ('done', 'failed')
+    if unfinished:
+        print('fir/ %d 个；solved/ %d 个（判定不为空：快照尚未完成，未统计）；decisions/ %d 个' % (
+            len(fir), len(glob.glob(os.path.join(workdir, 'solved', '*.json'))), len(dec)))
+    else:
+        table = solved(workdir)
+        print('fir/ %d 个；solved/ %d 个（判定不为空 %d 个）；decisions/ %d 个' % (
+            len(fir), len(table), sum(1 for _, n in table if n > 0), len(dec)))
+    if progress is not None:
+        print('solve 进度：%s %s/%s，已用 %s 秒，pid=%s（阶段内计数，不是剩余时间）' % (
+            progress.get('stage'), progress.get('completed'), progress.get('total'),
+            progress.get('elapsed_s'), progress.get('pid')))
     last = None
     for phase in ['export', 'solve', 'report']:
         p = os.path.join(workdir, 'logs', phase + '.log')
@@ -286,9 +321,23 @@ def cmd_stats(a):
 def cmd_report(a):
     """clang_check 的 report.json（SPEC-0120）：本规则的告警按标签、SUSPECT 按原因计数——只有数字，可以带回"""
     import re
-    data = json.load(open(a.path, encoding='utf-8'))
+    path = a.path
+    if os.path.isdir(path):
+        candidates = sorted(glob.glob(os.path.join(path, '*report.json')))
+        if len(candidates) != 1:
+            print('✗ 报告目录有 %d 个 *report.json；请直接指定 JSON 文件路径' % len(candidates), file=sys.stderr)
+            return 1
+        path = candidates[0]
+    try:
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+    except (OSError, ValueError) as error:
+        print('✗ 无法读取报告 JSON：%s' % error, file=sys.stderr)
+        return 1
     probs = [p for p in (data.get('problems', []) if isinstance(data, dict) else []) if isinstance(p, dict) and p]
-    mine = [p for p in probs if p.get('description') == CHECKER or '[%s]' % CHECKER in str(p.get('reason', ''))]
+    names = (CHECKER, 'rb.enhance.ipa.OobSummary')  # SPEC-0123：公司已有旧包报告也能统计
+    mine = [p for p in probs if any(p.get('description') == name or '[%s]' % name in str(p.get('reason', ''))
+                                  for name in names)]
     labels, reasons = {}, {}
     for p in mine:
         m = re.search(r'\[OOB-([A-Z]+)(?::([A-Za-z0-9_]+))?\]', str(p.get('reason', '')))
@@ -297,7 +346,7 @@ def cmd_report(a):
         if label == 'SUSPECT':
             reasons[m.group(2) or '-'] = reasons.get(m.group(2) or '-', 0) + 1
     order = ['DEFINITE', 'POSSIBLE', 'SUSPECT', 'SAFE', '?']
-    print('%s：problems %d 条，其中 %s %d 条：%s' % (os.path.basename(a.path), len(probs), CHECKER, len(mine),
+    print('%s：problems %d 条，其中 %s %d 条：%s' % (os.path.basename(path), len(probs), CHECKER, len(mine),
                                               '、'.join('%s %d' % (k, labels[k]) for k in order if k in labels) or '无'))
     if reasons:
         print('  SUSPECT 按原因：' + '、'.join('%s %d' % kv for kv in sorted(reasons.items(), key=lambda x: (-x[1], x[0]))))
@@ -336,6 +385,15 @@ def cmd_cdb(a):
 
 def _summary_of(workdir, tuid, fn):
     """dump/<tu>/summary/<函数名>.json（Dump=summary 写的）；没有就 None"""
+    index_path = os.path.join(workdir, 'dump', 'solve', 'summary', 'index.json')
+    if os.path.isfile(index_path):
+        with open(index_path, encoding='utf-8') as f:
+            entries = json.load(f)
+        hits = [e for e in entries if e.get('key') == fn or e.get('fn') == fn]
+        if len(hits) == 1:
+            p = os.path.join(os.path.dirname(index_path), hits[0]['stem'] + '.local.json')
+            with open(p, encoding='utf-8') as f:
+                return json.load(f)
     p = os.path.join(workdir, 'dump', tuid, 'summary', fn + '.json')
     if not os.path.isfile(p):
         hits = glob.glob(os.path.join(workdir, 'dump', '*', 'summary', fn + '.json'))

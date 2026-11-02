@@ -183,7 +183,8 @@ std::vector<DerivedReq> Absorb(const std::vector<DerivedReq> &cand)
     return keep;
 }
 
-PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bool subLabel)
+PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bool subLabel,
+                          const std::function<void(size_t, size_t)> &progress)
 {
     PropagateResult out;
     std::set<std::string> callees;
@@ -193,7 +194,11 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bo
         }
     }
     out.order = apply::TopoOrder(fns);
+    size_t completed = 0;
     for (const std::string &fn : out.order) {
+        if (progress) {
+            progress(completed++, out.order.size());
+        }
         const summary::Summary &s = fns.at(fn);
         FunctionResult &result = out.fns[fn];
         result.assumes.insert(s.assumes.begin(), s.assumes.end());  // 本函数自己的不别名假设（SPEC-0106）
@@ -316,6 +321,9 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bo
                 ++out.entry;
             }
         }
+    }
+    if (progress) {
+        progress(out.order.size(), out.order.size());
     }
     return out;
 }

@@ -1733,7 +1733,7 @@ def OobSummaryChecker : Checker<"OobSummary">,
                   "", Released>,
     CmdLineOption<String, "Dump",
                   "Debug output to stderr and WorkDir/dump, kinds separated by '+': options, models, callgraph, keys, "
-                  "fir, state, summary, apply, decisions, stats, or all",
+                  "fir, state, summary, apply, decisions, stats, progress, or all",
                   "", Released>,
     CmdLineOption<String, "DumpFilter",
                   "Only dump functions whose name matches this regex",

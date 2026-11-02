@@ -335,14 +335,14 @@ InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
 }
 
 InlineResult RunSolve(const std::vector<const fir::Module *> &mods, const models::ModelTable &models,
-                      const interp::Options &options)
+                      const interp::Options &options, const Progress &progress)
 {
-    return RunProgram(mods, models, nullptr, true, options);
+    return RunProgram(mods, models, nullptr, true, options, progress);
 }
 
 InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const models::ModelTable &models,
                         const std::function<bool(const std::string &)> &traceFilter, bool linked,
-                        const interp::Options &options)
+                        const interp::Options &options, const Progress &progress)
 {
     InlineResult out;
     // 全局大小表（D-34，SPEC-0032）：类型完整的全局按键记大小，定义优先
@@ -358,7 +358,12 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
         }
     }
     // ① 自底向上：函数内解释（代入已算出的被调者的效果，被调者可以在别的模块里）→ 摘要（只有局部事实）
-    for (const auto &at : BottomUp(mods)) {
+    const auto order = BottomUp(mods);
+    size_t completed = 0;
+    for (const auto &at : order) {
+        if (progress) {
+            progress("analyze", completed++, order.size());
+        }
         const fir::Module &m = *mods[at.first];
         const fir::Function &f = m.funcs[at.second];
         std::vector<std::string> trace;
@@ -373,9 +378,17 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             out.traces[f.name] = std::move(trace);
         }
     }
+    if (progress) {
+        progress("analyze", order.size(), order.size());
+    }
     RecursionLedger(out);  // SPEC-0066
     // ② 推到底
-    out.propagate = solver::Propagate(out.summaries, options.subobject == interp::SubMode::Label);  // SPEC-0105
+    out.propagate =
+        solver::Propagate(out.summaries, options.subobject == interp::SubMode::Label, [&](size_t done, size_t total) {
+            if (progress) {
+                progress("propagate", done, total);
+            }
+        });  // SPEC-0105
     std::vector<SiteMap> siteMaps;
     for (const fir::Module *mod : mods) {
         siteMaps.emplace_back(std::vector<const fir::Module *>{mod});
@@ -392,7 +405,11 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
         return d;
     };
     // ③ 判定（SPEC-0021 §2.2）
+    completed = 0;
     for (const std::string &fn : out.propagate.order) {
+        if (progress) {
+            progress("decisions", completed++, out.propagate.order.size());
+        }
         const summary::Summary &s = out.summaries.at(fn);
         const solver::FunctionResult &result = out.propagate.fns.at(fn);
         // 调用点判出的 L1 / L2。同一调用点同一次访问（同读写、同方向）只报主判定：DEFINITE 优先、对象名写得出来的优先，
@@ -652,6 +669,9 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
     // 告警正文里不露内部链接全局符号的身份后缀（SPEC-0086）
     for (auto &d : out.decisions) {
         d.warnMsg = StripGlobalSuffix(d.warnMsg);
+    }
+    if (progress) {
+        progress("decisions", order.size(), order.size());
     }
     return out;
 }

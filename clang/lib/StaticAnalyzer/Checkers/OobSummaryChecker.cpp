@@ -45,6 +45,7 @@
 #include "OobSummary/core/AtomicFile.h"
 #include "OobSummary/core/DecisionLog.h"
 
+#include <chrono>
 #include <map>
 #include <memory>
 #include "OobSummary/core/Fingerprint.h"
@@ -225,8 +226,38 @@ void OobSummaryChecker::solveAll() const
         }
     }
     std::sort(paths.begin(), paths.end());
+    // SPEC-0123 / N-09：只观察；阶段内进度不能当作剩余时间的百分比。
+    const auto started = std::chrono::steady_clock::now();
+    auto lastTime = started;
+    std::string lastStage;
+    auto progress = [&](const std::string &stage, size_t completed, size_t total) {
+        const auto now = std::chrono::steady_clock::now();
+        if (stage == lastStage && completed != total && now - lastTime < std::chrono::seconds(1)) {
+            return;
+        }
+        lastStage = stage;
+        lastTime = now;
+        int64_t elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - started).count();
+        llvm::json::Value value(llvm::json::Object{{"schema", "oobsum-progress/1"},
+                                                   {"stage", stage},
+                                                   {"completed", static_cast<int64_t>(completed)},
+                                                   {"total", static_cast<int64_t>(total)},
+                                                   {"elapsed_s", elapsed},
+                                                   {"pid", static_cast<int64_t>(llvm::sys::Process::getProcessId())}});
+        std::string text;
+        llvm::raw_string_ostream os(text);
+        os << llvm::formatv("{0:1}", value) << "\n";
+        dump.File("solve/progress.json", os.str());
+        if (dump.On("progress")) {
+            dump.Line("progress", "stage=" + stage + " completed=" + std::to_string(completed) +
+                                      " total=" + std::to_string(total) + " elapsed_s=" + std::to_string(elapsed));
+        }
+    };
+    progress("read", 0, paths.size());
+    size_t completed = 0;
     std::vector<std::unique_ptr<oobsum::fir::Module>> modules;
     for (const std::string &path : paths) {
+        progress("read", completed++, paths.size());
         auto m = std::make_unique<oobsum::fir::Module>();
         std::string error;
         if (!oobsum::fir::ReadModuleFile(path, *m, error)) {
@@ -235,19 +266,67 @@ void OobSummaryChecker::solveAll() const
         }
         modules.push_back(std::move(m));
     }
+    progress("read", paths.size(), paths.size());
     std::vector<const oobsum::fir::Module *> mods;
     for (const auto &m : modules) {
         mods.push_back(m.get());
     }
-    oobsum::engine::InlineResult result = oobsum::engine::RunSolve(mods, models, interpOptions);
+    oobsum::engine::InlineResult result = oobsum::engine::RunSolve(mods, models, interpOptions, progress);
     // Dump=summary：全局求解后的每个函数的摘要（SPEC-0032；engine_check.py 的跨 TU 用例用它）
+    llvm::json::Array summaryIndex;
     for (const auto &entry : result.summaries) {
         if (dump.Wants("summary", entry.second.fn)) {
             std::string text;
             llvm::raw_string_ostream os(text);
             os << oobsum::summary::SummaryToJson(entry.second);
             dump.Line("summary", os.str());
+            // local 是真实求解输入；derived 是可查阅的传递闭包，不能反过来参与推理。
+            std::string stem = oobsum::HashHex(entry.first);
+            auto save = [&](const std::string &view, const oobsum::summary::Summary &summary) {
+                std::string content;
+                llvm::raw_string_ostream stream(content);
+                stream << llvm::formatv("{0:1}", oobsum::summary::SummaryToJson(summary)) << "\n";
+                dump.File("solve/summary/" + stem + "." + view + ".json", stream.str());
+            };
+            save("local", entry.second);
+            oobsum::summary::Summary derived = entry.second;
+            const auto &facts = result.propagate.fns.at(entry.first);
+            derived.reqs.clear();
+            for (const auto &r : facts.reqs) {
+                oobsum::summary::Req req;
+                req.id = "up" + std::to_string(derived.reqs.size());
+                req.kind = r.kind;
+                req.dir = r.dir;
+                req.obj = r.obj;
+                req.have = r.have.Show();
+                req.endLo = r.lo.Show();
+                req.endHi = r.hi.Show();
+                req.bound = r.bound;
+                req.access = r.access;
+                req.path = r.path;
+                req.depth = r.depth;
+                req.effDepth = r.effDepth;
+                for (const auto &g : r.guards) {
+                    req.guard.push_back(g.Show() + " <= 0");
+                }
+                derived.reqs.push_back(std::move(req));
+            }
+            derived.reps = facts.reps;
+            for (size_t i = 0; i < facts.entryOpens.size(); ++i) {
+                derived.opens.push_back({facts.entryOpens[i], derived.loc, derived.reqs[i].id});
+            }
+            save("derived", derived);
+            summaryIndex.push_back(llvm::json::Object{{"key", entry.first},
+                                                      {"fn", entry.second.fn},
+                                                      {"tu", mods[result.moduleOf.at(entry.first)]->tu},
+                                                      {"stem", stem}});
         }
+    }
+    if (dump.On("summary")) {
+        std::string content;
+        llvm::raw_string_ostream stream(content);
+        stream << llvm::formatv("{0:1}", llvm::json::Value(std::move(summaryIndex))) << "\n";
+        dump.File("solve/summary/index.json", stream.str());
     }
     for (const std::string &line : result.applyLines) {
         if (dump.Wants("apply", line.substr(0, line.find(' ')))) {
@@ -268,7 +347,10 @@ void OobSummaryChecker::solveAll() const
     llvm::SmallString<256> outDir(workDir);
     llvm::sys::path::append(outDir, "solved");
     llvm::sys::fs::create_directories(outDir);
+    bool written = true;
+    progress("write", 0, mods.size());
     for (size_t i = 0; i < mods.size(); ++i) {
+        progress("write", i, mods.size());
         llvm::SmallString<256> path(outDir);
         llvm::sys::path::append(path, mods[i]->tu + ".json");
         llvm::json::Value value(llvm::json::Object{{"schema", "oobsum-solved/1"},
@@ -279,9 +361,11 @@ void OobSummaryChecker::solveAll() const
         // 缩进写（SPEC-0114）；临时文件带进程号、写完改名（SPEC-0118）
         if (!oobsum::WriteFileAtomic(
                 path, [&](llvm::raw_ostream &os) { os << llvm::formatv("{0:1}", value) << "\n"; }, error)) {
+            written = false;
             llvm::errs() << "[oobsum] warning: " << error << "\n";
         }
     }
+    progress(written ? "done" : "failed", mods.size(), mods.size());
     if (dump.On("stats")) {
         dump.Line("stats", "solve tus=" + std::to_string(mods.size()) +
                                " functions=" + std::to_string(result.summaries.size()) +

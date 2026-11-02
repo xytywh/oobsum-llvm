@@ -9,7 +9,7 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-02-1**（SPEC-0122；本次迁入 core、默认报告全部层数；结果不符合预期就停下，带回计数和本规则栈。）
+**清单版本：2026-11-03-1**（SPEC-0122 / 0123；迁 core、默认全层；新增求解进度、摘要落盘与报告目录处理；结果不符合预期就停下，带回计数和本规则栈。）
 
 路径只改这里；`OOB_REPORT` 必须指向 JSON 文件，不能是 log 目录：
 
@@ -24,6 +24,7 @@ OOB_REPORT=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/a
 OOB_WD=/usr1/oobsum-work/full-b-v2
 OOB_INI=/usr1/clang_check/src/cfg/ini/config.ini
 OOB_FUNCPTR=/usr1/clang_check/src/cfg/ini/config_funcptr.ini
+OOB_SUMMARY_FILTER='^(<待查函数1>|<待查函数2>)$'  # 从 explain 打出的链挑函数；只在公司填，不带回名字
 ```
 
 ### 已经做完、确认没问题的
@@ -73,7 +74,7 @@ python3 "$OOB_REPO/oobsum/tools/decisions.py" /tmp/oobsum-tc-core
 python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" cdb --cc-json "$OOB_CDB"
 time OOBSUM_CONFIG="WorkDir=$OOB_WD Phase=export" /usr/local/bin/python3 /usr1/clang_check/src/main.py -e "$OOB_BUILD/" -j "$OOB_CDB/compile_commands.json" -r rb.enhance.core.OobSummary -c "$OOB_GBL"
 python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" status --workdir "$OOB_WD"
-/usr/bin/time -v python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" solve --workdir "$OOB_WD" --bxen "$OOB_BUILD/bxen" --extra "-rbchecker-config=$OOB_INI -funcptr-config=$OOB_FUNCPTR" --run
+/usr/bin/time -v python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" solve --workdir "$OOB_WD" --bxen "$OOB_BUILD/bxen" --extra "-rbchecker-config=$OOB_INI -funcptr-config=$OOB_FUNCPTR -analyzer-config rb.enhance.core.OobSummary:Dump=progress+summary -analyzer-config rb.enhance.core.OobSummary:DumpFilter=$OOB_SUMMARY_FILTER" --run
 time OOBSUM_CONFIG="WorkDir=$OOB_WD Phase=report" /usr/local/bin/python3 /usr1/clang_check/src/main.py -e "$OOB_BUILD/" -j "$OOB_CDB/compile_commands.json" -r rb.enhance.core.OobSummary -c "$OOB_GBL"
 cp "$OOB_REPORT" "$OOB_WD.report.json"
 python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" stats --workdir "$OOB_WD" --counts-only --top 50
@@ -81,17 +82,55 @@ python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" report "$OOB_WD.report.json"
 ```
 
 预期：export 只在 fir/ 写每个 TU 的中间表示，不求解、不告警；solve 读取这些文件，stub.c 只触发一次 checker 回调，不是业务分析对象；report 将预计算的判定交给 CSA 输出并写 decisions/。
+预期：solve 终端与 logs/solve.log 会实时出现 [oobsum:progress]，依次是 read / analyze / propagate / decisions / write / done；阶段内计数不是总耗时百分比。
+在另一个终端粘贴同一组路径变量后，可以看：
+
+```bash
+cat "$OOB_WD/dump/solve/progress.json"
+tail -20 "$OOB_WD/logs/solve.log"
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" status --workdir "$OOB_WD"
+ps -p <progress.json里的pid> -o pid,etime,pcpu,rss,stat
+```
+
+read 在解析已导出的全部 FIR，analyze 在按被调者优先解释每个函数，propagate 在调用点代换与上传条件，decisions 在生成标签与证据，write 才批量写 solved/。
+因此 analyze / propagate 期间没有新增 solved 文件是正常的；一个慢函数内部计数可能暂不变化，结合 CPU / RSS 判断，不能仅凭计数不动认定卡死。
+RSS 的单位是 KiB；/usr/bin/time -v 的 Maximum resident set size 也是 KiB。上次约 29.4 GiB，终端的 elapsed 是墙钟时间。
+
 时间基准是上次同一单板约 7 / 20 / 7 分钟，不是承诺值。出现崩溃或 solve 超 2 小时 / 100 GiB 时停止，记录退出码和本规则栈。
 `cp` 的源必须是文件；`cp -r` 复制整个 log 目录不能替代复制 JSON。
 
-### 第 4 步：抽查与带回模板
+### 第 4 步：在公司看两条问题的摘要
+
+先在旧的完整 WorkDir 上用 decisions.py 挑两个指纹（不要复制业务告警到仓库），用下面命令看调用链：
+
+```bash
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir /usr1/oobsum-work/full-b <指纹1>
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir /usr1/oobsum-work/full-b <指纹2>
+```
+
+把链上要看的函数写进开头 OOB_SUMMARY_FILTER 再跑第 3 步。新 solve 的 dump/solve/summary/index.json 列出选中函数、键、TU 与文件 stem；
+同一个 stem 的 .local.json 是真实的函数解释事实，.derived.json 是调用传播后的 Req / reps 视图。索引与摘要只在公司打开，不带回名字或正文。
+
+```bash
+python3 -m json.tool "$OOB_WD/dump/solve/summary/index.json"
+python3 -m json.tool "$OOB_WD/dump/solve/summary/<索引里的stem>.local.json"
+python3 -m json.tool "$OOB_WD/dump/solve/summary/<索引里的stem>.derived.json"
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir "$OOB_WD" <新判定的指纹>
+```
+
+先从 leaf 的 Req 看访问公式与守卫，再看上层调用实参和 derived 的具体大小 / 末端。摘要里的链是证据，不是重复执行全部路径；报告策略在 report 阶段才应用，是否报出以 decisions/*.jsonl 的 emitted 为准。
+如果原全量 solve 没开 Dump=summary，不存在可供读取的摘要文件；仅 report 不会补出全程序的闭包，需重新 solve（可以复用 FIR）。
+不要只取两条调用链的文件冒充完整上下文；副作用和其它被调者也会影响结果。生成两种摘要不会改变 solved 的判定。
+
+### 第 5 步：抽查与带回模板
 
 按 §1.6 的方法抽查；业务代码、名字、路径与告警原文不要带回，只给计数和对写法的概括。
 
 ```text
-清单版本：2026-11-02-1
+清单版本：2026-11-03-1
 1. 本地 lit __；csa 回退 __；同步 / 公司编译 __
 2. TestCase：InlineDepth=__ decisions=__ emitted=__，告警 __
+   进度 read/analyze/propagate/decisions/write/done 是否可见 __；两种摘要是否可读 __
 3. cdb 条目 / 唯一文件 / C / C++ __；export 成功 / 失败 __；FIR __
 4. solve Elapsed __；Maximum resident set size __；solved __；判定 __；report 成功 / 失败 __
 5. stats --counts-only 全文；report 两行
