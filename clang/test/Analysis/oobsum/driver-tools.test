@@ -69,3 +69,9 @@ MISSING-NOT: Traceback
 # RUN: %python -c "import json; json.dump({'problems': [{'description': 'rb.enhance.ipa.OobSummary', 'reason': 'warning: [OOB-DEFINITE] old report [rb.enhance.ipa.OobSummary]'}]}, open('%t/legacy_report.json', 'w'))"
 # RUN: %python %S/../../../../oobsum/tools/oobsum_run.py report %t/legacy_report.json | FileCheck %s --check-prefix=LEGACY
 LEGACY: problems 1 条，其中 rb.enhance.core.OobSummary 1 条：DEFINITE 1
+
+# SPEC-0124：-o 不构成预处理变体，-D 的差异不能当作等价的重复条目。
+# RUN: mkdir -p %t/variants
+# RUN: %python -c "import json; json.dump([{'directory': '/tmp', 'file': 'a.c', 'arguments': ['cc', '-DVALUE=' + v, '-c', 'a.c', '-o', o]} for v,o in [('1','a.o'), ('1','b.o'), ('2','c.o')]], open('%t/variants/compile_commands.json', 'w'))"
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py cdb --cc-json %t/variants | FileCheck %s --check-prefix=CDBV
+CDBV: 去掉输出文件选项后编译命令仍不同的文件：1 个

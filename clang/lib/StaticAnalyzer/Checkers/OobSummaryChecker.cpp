@@ -267,59 +267,120 @@ void OobSummaryChecker::solveAll() const
         modules.push_back(std::move(m));
     }
     progress("read", paths.size(), paths.size());
-    std::vector<const oobsum::fir::Module *> mods;
-    for (const auto &m : modules) {
-        mods.push_back(m.get());
+    // SPEC-0124 / X-03：不同目标不能共用函数去重或全局大小表。
+    std::map<std::string, std::vector<const oobsum::fir::Module *>> groups;
+    for (const auto &module : modules) {
+        const auto &target = module->target;
+        std::string key = target.triple + " ptr=" + std::to_string(target.ptr) +
+                          " long=" + std::to_string(target.longSize) +
+                          (target.bigEndian ? " big-endian" : " little-endian");
+        groups[key].push_back(module.get());
     }
-    oobsum::engine::InlineResult result = oobsum::engine::RunSolve(mods, models, interpOptions, progress);
-    // Dump=summary：全局求解后的每个函数的摘要（SPEC-0032；engine_check.py 的跨 TU 用例用它）
     llvm::json::Array summaryIndex;
-    for (const auto &entry : result.summaries) {
-        if (dump.Wants("summary", entry.second.fn)) {
-            std::string text;
-            llvm::raw_string_ostream os(text);
-            os << oobsum::summary::SummaryToJson(entry.second);
-            dump.Line("summary", os.str());
-            // local 是真实求解输入；derived 是可查阅的传递闭包，不能反过来参与推理。
-            std::string stem = oobsum::HashHex(entry.first);
-            auto save = [&](const std::string &view, const oobsum::summary::Summary &summary) {
-                std::string content;
-                llvm::raw_string_ostream stream(content);
-                stream << llvm::formatv("{0:1}", oobsum::summary::SummaryToJson(summary)) << "\n";
-                dump.File("solve/summary/" + stem + "." + view + ".json", stream.str());
-            };
-            save("local", entry.second);
-            oobsum::summary::Summary derived = entry.second;
-            const auto &facts = result.propagate.fns.at(entry.first);
-            derived.reqs.clear();
-            for (const auto &r : facts.reqs) {
-                oobsum::summary::Req req;
-                req.id = "up" + std::to_string(derived.reqs.size());
-                req.kind = r.kind;
-                req.dir = r.dir;
-                req.obj = r.obj;
-                req.have = r.have.Show();
-                req.endLo = r.lo.Show();
-                req.endHi = r.hi.Show();
-                req.bound = r.bound;
-                req.access = r.access;
-                req.path = r.path;
-                req.depth = r.depth;
-                req.effDepth = r.effDepth;
-                for (const auto &g : r.guards) {
-                    req.guard.push_back(g.Show() + " <= 0");
+    size_t groupNumber = 0;
+    bool allWritten = true;
+    for (const auto &group : groups) {
+        ++groupNumber;
+        const auto &mods = group.second;
+        auto groupProgress = [&](const std::string &stage, size_t done, size_t total) {
+            progress(groups.size() == 1
+                         ? stage
+                         : "group" + std::to_string(groupNumber) + "/" + std::to_string(groups.size()) + "/" + stage,
+                     done, total);
+        };
+        oobsum::engine::InlineResult result = oobsum::engine::RunSolve(mods, models, interpOptions, groupProgress);
+        // Dump=summary：全局求解后的每个函数的摘要（SPEC-0032；engine_check.py 的跨 TU 用例用它）
+        for (const auto &entry : result.summaries) {
+            if (dump.Wants("summary", entry.second.fn)) {
+                std::string text;
+                llvm::raw_string_ostream os(text);
+                os << oobsum::summary::SummaryToJson(entry.second);
+                dump.Line("summary", os.str());
+                // local 是真实求解输入；derived 是可查阅的传递闭包，不能反过来参与推理。
+                std::string stem = oobsum::HashHex(group.first + "|" + entry.first);
+                auto save = [&](const std::string &view, const oobsum::summary::Summary &summary) {
+                    std::string content;
+                    llvm::raw_string_ostream stream(content);
+                    stream << llvm::formatv("{0:1}", oobsum::summary::SummaryToJson(summary)) << "\n";
+                    dump.File("solve/summary/" + stem + "." + view + ".json", stream.str());
+                };
+                save("local", entry.second);
+                oobsum::summary::Summary derived = entry.second;
+                const auto &facts = result.propagate.fns.at(entry.first);
+                derived.reqs.clear();
+                for (const auto &r : facts.reqs) {
+                    oobsum::summary::Req req;
+                    req.id = "up" + std::to_string(derived.reqs.size());
+                    req.kind = r.kind;
+                    req.dir = r.dir;
+                    req.obj = r.obj;
+                    req.have = r.have.Show();
+                    req.endLo = r.lo.Show();
+                    req.endHi = r.hi.Show();
+                    req.bound = r.bound;
+                    req.access = r.access;
+                    req.path = r.path;
+                    req.depth = r.depth;
+                    req.effDepth = r.effDepth;
+                    for (const auto &g : r.guards) {
+                        req.guard.push_back(g.Show() + " <= 0");
+                    }
+                    derived.reqs.push_back(std::move(req));
                 }
-                derived.reqs.push_back(std::move(req));
+                derived.reps = facts.reps;
+                for (size_t i = 0; i < facts.entryOpens.size(); ++i) {
+                    derived.opens.push_back({facts.entryOpens[i], derived.loc, derived.reqs[i].id});
+                }
+                save("derived", derived);
+                summaryIndex.push_back(llvm::json::Object{{"key", entry.first},
+                                                          {"fn", entry.second.fn},
+                                                          {"tu", mods[result.moduleOf.at(entry.first)]->tu},
+                                                          {"stem", stem},
+                                                          {"target", group.first}});
             }
-            derived.reps = facts.reps;
-            for (size_t i = 0; i < facts.entryOpens.size(); ++i) {
-                derived.opens.push_back({facts.entryOpens[i], derived.loc, derived.reqs[i].id});
+        }
+        for (const std::string &line : result.applyLines) {
+            if (dump.Wants("apply", line.substr(0, line.find(' ')))) {
+                dump.Line("apply", line);
             }
-            save("derived", derived);
-            summaryIndex.push_back(llvm::json::Object{{"key", entry.first},
-                                                      {"fn", entry.second.fn},
-                                                      {"tu", mods[result.moduleOf.at(entry.first)]->tu},
-                                                      {"stem", stem}});
+        }
+        std::vector<llvm::json::Array> byModule(mods.size());
+        for (const oobsum::Decision &d : result.decisions) {
+            auto it = result.moduleOf.find(d.fn);
+            if (it == result.moduleOf.end()) {
+                continue;
+            }
+            llvm::json::Object o = oobsum::DecisionToJson(d, oobsum::Disposition());
+            o.erase("emitted");  // "报没报"由 report 阶段的策略定
+            o.erase("not_emitted_because");
+            byModule[it->second].push_back(std::move(o));
+        }
+        llvm::SmallString<256> outDir(workDir);
+        llvm::sys::path::append(outDir, "solved");
+        llvm::sys::fs::create_directories(outDir);
+        bool written = true;
+        groupProgress("write", 0, mods.size());
+        for (size_t i = 0; i < mods.size(); ++i) {
+            groupProgress("write", i, mods.size());
+            llvm::SmallString<256> path(outDir);
+            llvm::sys::path::append(path, mods[i]->tu + ".json");
+            llvm::json::Value value(llvm::json::Object{{"schema", "oobsum-solved/1"},
+                                                       {"tu", mods[i]->tu},
+                                                       {"file", mods[i]->file},
+                                                       {"decisions", std::move(byModule[i])}});
+            std::string error;
+            // 缩进写（SPEC-0114）；临时文件带进程号、写完改名（SPEC-0118）
+            if (!oobsum::WriteFileAtomic(
+                    path, [&](llvm::raw_ostream &os) { os << llvm::formatv("{0:1}", value) << "\n"; }, error)) {
+                written = false;
+                llvm::errs() << "[oobsum] warning: " << error << "\n";
+            }
+        }
+        allWritten = allWritten && written;
+        if (dump.On("stats")) {
+            dump.Line("stats", "solve tus=" + std::to_string(mods.size()) +
+                                   " functions=" + std::to_string(result.summaries.size()) +
+                                   " decisions=" + std::to_string(result.decisions.size()));
         }
     }
     if (dump.On("summary")) {
@@ -328,49 +389,7 @@ void OobSummaryChecker::solveAll() const
         stream << llvm::formatv("{0:1}", llvm::json::Value(std::move(summaryIndex))) << "\n";
         dump.File("solve/summary/index.json", stream.str());
     }
-    for (const std::string &line : result.applyLines) {
-        if (dump.Wants("apply", line.substr(0, line.find(' ')))) {
-            dump.Line("apply", line);
-        }
-    }
-    std::vector<llvm::json::Array> byModule(mods.size());
-    for (const oobsum::Decision &d : result.decisions) {
-        auto it = result.moduleOf.find(d.fn);
-        if (it == result.moduleOf.end()) {
-            continue;
-        }
-        llvm::json::Object o = oobsum::DecisionToJson(d, oobsum::Disposition());
-        o.erase("emitted");  // "报没报"由 report 阶段的策略定
-        o.erase("not_emitted_because");
-        byModule[it->second].push_back(std::move(o));
-    }
-    llvm::SmallString<256> outDir(workDir);
-    llvm::sys::path::append(outDir, "solved");
-    llvm::sys::fs::create_directories(outDir);
-    bool written = true;
-    progress("write", 0, mods.size());
-    for (size_t i = 0; i < mods.size(); ++i) {
-        progress("write", i, mods.size());
-        llvm::SmallString<256> path(outDir);
-        llvm::sys::path::append(path, mods[i]->tu + ".json");
-        llvm::json::Value value(llvm::json::Object{{"schema", "oobsum-solved/1"},
-                                                   {"tu", mods[i]->tu},
-                                                   {"file", mods[i]->file},
-                                                   {"decisions", std::move(byModule[i])}});
-        std::string error;
-        // 缩进写（SPEC-0114）；临时文件带进程号、写完改名（SPEC-0118）
-        if (!oobsum::WriteFileAtomic(
-                path, [&](llvm::raw_ostream &os) { os << llvm::formatv("{0:1}", value) << "\n"; }, error)) {
-            written = false;
-            llvm::errs() << "[oobsum] warning: " << error << "\n";
-        }
-    }
-    progress(written ? "done" : "failed", mods.size(), mods.size());
-    if (dump.On("stats")) {
-        dump.Line("stats", "solve tus=" + std::to_string(mods.size()) +
-                               " functions=" + std::to_string(result.summaries.size()) +
-                               " decisions=" + std::to_string(result.decisions.size()));
-    }
+    progress(allWritten ? "done" : "failed", modules.size(), modules.size());
 }
 
 // Phase=report（SPEC-0030）：读 WorkDir/solved/<tu-id>.json 的判定；没有就提示一行（没被求解，或 TU id 对不上）

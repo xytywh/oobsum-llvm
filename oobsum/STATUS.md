@@ -7,6 +7,11 @@
 
 ## 已完成
 
+* SPEC-0124：solve 按 (triple, ptr, long, endian) 隔离，同名函数和全局大小表不跨目标去重；摘要索引也区分目标。
+  双目标同名函数一正一反及重复求解通过，lit 111/111、core 161、replay 一致、csa 回退 0 / G2 零强告警，engine_check 维持 14/16。
+  cdb 新增剔除 -o / 依赖输出选项后的不同编译命令文件数；同一主文件多变体仍只保存一个 FIR，需公司确认重复条目的实际差异。公司清单 2026-11-03-2。
+
+
 * SPEC-0123：solve 的 read / analyze / propagate / decisions / write / done 进度按秒原子写 dump/solve/progress.json，Dump=progress 同时打 stderr；
   驱动实时打印 / flush 子进程日志（握手测试保证未退出即可读）；status 在未完成时不解析整套 solved。
   Dump=summary 按函数键哈希存 local / derived 视图及索引，explain 可读；report 能定位目录里唯一的 *report.json，支持旧包报告，错误不抛 Traceback。

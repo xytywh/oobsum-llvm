@@ -374,6 +374,24 @@ def cmd_cdb(a):
         key = 'C（.c）' if ext == '.c' else 'C++（.cpp / .cc / .cxx）' if ext in ('.cpp', '.cc', '.cxx', '.c++', '.C') else '其它'
         lang[key] += 1
     print('  文件按语言：' + '、'.join('%s %d 个' % kv for kv in lang.items()))
+    # SPEC-0124：仅靠主文件路径的 TuId 无法保存多个编译变体，先给可带回的计数。
+    variants = {}
+    for e in keep:
+        try:
+            args = e.get('arguments') or shlex.split(e.get('command', ''))
+        except ValueError:
+            args = [e.get('command', '')]
+        norm = []
+        i = 0
+        while i < len(args):
+            if args[i] in ('-o', '-MF', '-MT', '-MQ'):
+                i += 2
+                continue
+            norm.append(args[i])
+            i += 1
+        variants.setdefault(path_of(e), set()).add((e.get('directory', ''), tuple(norm)))
+    print('  去掉输出文件选项后编译命令仍不同的文件：%d 个（可能有不同预处理 / ABI 配置；未按变体保存 FIR）' %
+          sum(1 for choices in variants.values() if len(choices) > 1))
     if a.out:
         os.makedirs(a.out, exist_ok=True)
         out = os.path.join(os.path.abspath(a.out), 'compile_commands.json')
@@ -390,6 +408,10 @@ def _summary_of(workdir, tuid, fn):
         with open(index_path, encoding='utf-8') as f:
             entries = json.load(f)
         hits = [e for e in entries if e.get('key') == fn or e.get('fn') == fn]
+        # SPEC-0124：同名跨目标函数必须按当前判定所在目标选摘要，不能任取第一个。
+        targets = {e.get('target') for e in entries if e.get('tu') == tuid and e.get('target')}
+        if len(targets) == 1:
+            hits = [e for e in hits if e.get('target') in targets]
         if len(hits) == 1:
             p = os.path.join(os.path.dirname(index_path), hits[0]['stem'] + '.local.json')
             with open(p, encoding='utf-8') as f:

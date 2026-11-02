@@ -9,7 +9,7 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-03-1**（SPEC-0122 / 0123；迁 core、默认全层；新增求解进度、摘要落盘与报告目录处理；结果不符合预期就停下，带回计数和本规则栈。）
+**清单版本：2026-11-03-2**（SPEC-0122 / 0123 / 0124；保留前版步骤；新增按目标隔离与重复编译配置计数；结果不符合预期就停下，带回计数和本规则栈。）
 
 路径只改这里；`OOB_REPORT` 必须指向 JSON 文件，不能是 log 目录：
 
@@ -38,7 +38,9 @@ OOB_SUMMARY_FILTER='^(<待查函数1>|<待查函数2>)$'  # 从 explain 打出�
 | 全板 B export | 6m53.384s，FIR 10245；clang_check 成功 10507 / 失败 179（按 cdb 条目计） |
 | 全板 B solve | exit=0；19m49.53s；峰值 30840260 KiB（29.4 GiB）；solved 10245，判定 2211387（9861 个 TU 非空） |
 | 全板 B report | 6m58.762s；成功 10576 / 失败 110；日志判定 2210526、报出 769203；report.json 629741（DEFINITE 478 / POSSIBLE 104 / SUSPECT 629159） |
-| 目标 | FIR 中 10235 个 aarch64_be ILP32、10 个 x86_64 LP64；本版本尚未完成混目标隔离，后续必须分目标求解 |
+| 目标 | FIR 中 10235 个 aarch64_be ILP32、10 个 x86_64 LP64；旧版本混合求解；SPEC-0124 起自动分目标，需用新版本结果复核 |
+
+同一源文件若有不同宏 / ABI 配置，现有 TuId 只保存一个变体。先看 cdb 新增的差异计数；若非 0，先在公司确认差异是否真的影响预处理 / ABI，带回计数与概括，不贴命令或文件名。不能把重复条目当成全部等价。
 
 全板有结果不表示每个 TU 都成功：10262−10245=17 个唯一文件无 FIR，report 与 solve 也少了 861 条判定。条目失败数不能直接当成缺失文件数（cdb 有重复）。
 
@@ -82,7 +84,7 @@ python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" report "$OOB_WD.report.json"
 ```
 
 预期：export 只在 fir/ 写每个 TU 的中间表示，不求解、不告警；solve 读取这些文件，stub.c 只触发一次 checker 回调，不是业务分析对象；report 将预计算的判定交给 CSA 输出并写 decisions/。
-预期：solve 终端与 logs/solve.log 会实时出现 [oobsum:progress]，依次是 read / analyze / propagate / decisions / write / done；阶段内计数不是总耗时百分比。
+预期：solve 终端与 logs/solve.log 会实时出现 [oobsum:progress]，依次是 read / analyze / propagate / decisions / write / done；多目标时中间阶段带 group1/2、group2/2 前缀；阶段内计数不是总耗时百分比。
 在另一个终端粘贴同一组路径变量后，可以看：
 
 ```bash
@@ -109,7 +111,7 @@ python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir /usr1/oobsum-wo
 ```
 
 把链上要看的函数写进开头 OOB_SUMMARY_FILTER 再跑第 3 步。新 solve 的 dump/solve/summary/index.json 列出选中函数、键、TU 与文件 stem；
-同一个 stem 的 .local.json 是真实的函数解释事实，.derived.json 是调用传播后的 Req / reps 视图。索引与摘要只在公司打开，不带回名字或正文。
+索引 target 区分架构；同名函数的 stem 不同。同一个 stem 的 .local.json 是真实的函数解释事实，.derived.json 是调用传播后的 Req / reps 视图。索引与摘要只在公司打开，不带回名字或正文。
 
 ```bash
 python3 -m json.tool "$OOB_WD/dump/solve/summary/index.json"
@@ -127,11 +129,11 @@ python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir "$OOB_WD" <新�
 按 §1.6 的方法抽查；业务代码、名字、路径与告警原文不要带回，只给计数和对写法的概括。
 
 ```text
-清单版本：2026-11-03-1
+清单版本：2026-11-03-2
 1. 本地 lit __；csa 回退 __；同步 / 公司编译 __
 2. TestCase：InlineDepth=__ decisions=__ emitted=__，告警 __
    进度 read/analyze/propagate/decisions/write/done 是否可见 __；两种摘要是否可读 __
-3. cdb 条目 / 唯一文件 / C / C++ __；export 成功 / 失败 __；FIR __
+3. cdb 条目 / 唯一文件 / C / C++ __；去掉输出文件选项后命令仍不同的文件 __；export 成功 / 失败 __；FIR __；目标组数 __
 4. solve Elapsed __；Maximum resident set size __；solved __；判定 __；report 成功 / 失败 __
 5. stats --counts-only 全文；report 两行
 6. 抽查（每个原因）：看了 __、真问题 __、误报 __、看不出 __；写法概括 __

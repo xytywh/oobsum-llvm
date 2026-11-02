@@ -42,7 +42,7 @@ struct InlineResult {
 InlineResult RunInline(const fir::Module &m, const models::ModelTable &models = models::ModelTable::Default(),
                        const std::function<bool(const std::string &)> &traceFilter = nullptr,
                        const interp::Options &options = interp::Options());
-// Phase=solve（SPEC-0029）：所有 TU 的 FIR 放在一起
+// Phase=solve（SPEC-0029）：同一目标的 TU 的 FIR 放在一起；checker 按目标分组（SPEC-0124）
 InlineResult RunSolve(const std::vector<const fir::Module *> &mods,
                       const models::ModelTable &models = models::ModelTable::Default(),
                       const interp::Options &options = interp::Options(), const Progress &progress = nullptr);
