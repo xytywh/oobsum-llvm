@@ -56,6 +56,8 @@ autoconf/autom4te.cache
 # VS2017 and VSCode config files.
 .vscode
 .vs
+# Codex local configuration
+.codex/
 # pythonenv for github Codespaces
 pythonenv*
 # clangd index. (".clangd" is a config file now, thus trailing slash)

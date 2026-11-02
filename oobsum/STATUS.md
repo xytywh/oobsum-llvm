@@ -7,6 +7,7 @@
 
 ## 已完成
 
+* 仓库维护（2026-11-02）：`.gitignore` 忽略 `.codex/`，本地 Codex 配置不入库。
 * 仓库化：调研包 v3.0–v3.15 逐版导入为提交（`git log -- oobsum/`）；`CLAUDE.md`、`HANDOFF.md`、`COMPANY.md`、`specs/` 流程、
   `history/` 纪要；`devenv/` 改为在本仓库里构建（`cmake-build-release/`）；`land.py` 支持仓库内清单（同步语义、`--check-tree`）。
 * checker 骨架（SPEC-0001）：
