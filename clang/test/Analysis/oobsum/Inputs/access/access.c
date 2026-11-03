@@ -20,3 +20,5 @@ U32 Global(U32 i) { Packet *p; p = g_table; return p[i].value; }
 int memcpy_s(void *, U32, const void *, U32);
 void Copy(U8 *d, const U8 *s, U32 n) { memcpy_s(d, n, s, n); }
 void Literal(U8 *d) { memcpy_s(d, 20, "sample text", 20); }
+void Postfix(U8 *p, U32 i) { p[i++] = 0; }
+void Select(U8 *p, U8 *q, int c) { *(c ? p : q) = 0; }

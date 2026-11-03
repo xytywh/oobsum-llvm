@@ -33,3 +33,8 @@ assert any(d['kind'] == 'R' and d['accesses'][0]['expression'] == 's' for d in c
 
 assert all(d['accesses'][0]['element_size'] == 1 for d in copy)
 assert global_read['accesses'][0]['mode'] == 'R'
+
+postfix = [a for d in rows if d['fn'] == 'F:Postfix' for a in d.get('accesses', [])]
+assert any(a['expression'] == 'p[i++]' and a['index'] == 'i++' for a in postfix)
+select = [a for d in rows if d['fn'] == 'F:Select' for a in d.get('accesses', [])]
+assert any(a['expression'] == '*(c ? p : q)' for a in select)
