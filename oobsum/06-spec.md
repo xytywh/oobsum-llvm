@@ -155,7 +155,7 @@ compile_commands ─▶ rb.enhance.core.OobSummary ──▶ WorkDir/fir/<tu>.js
 
 ### 3.4 告警内容
 
-* **F-30 位置**〔由 SPEC-0044 修订：同一调用点同一次访问（同读写、同方向）的 L1 / L2 只报主判定——DEFINITE 优先、对象名写得出来的优先，其余只写日志〕：汇合点函数里**那次调用的调用表达式**（被判定的条件从这里进入）。`depth = 0`（只在 F-21 / F-22 时才会报）报在访问点本身。
+* **F-30 位置**〔由 SPEC-0126 修订：默认 sink，同目标同源行合并；site 仍保存证明上下文，DiagnosticStyle=legacy 可对照旧格式〕〔由 SPEC-0044 修订：同一调用点同一次访问（同读写、同方向）的 L1 / L2 只报主判定——DEFINITE 优先、对象名写得出来的优先，其余只写日志〕：汇合点函数里**那次调用的调用表达式**（被判定的条件从这里进入）。`depth = 0`（只在 F-21 / F-22 时才会报）报在访问点本身。
 * **F-31 BugType**（英文，`csa-checker-dev` 约定；category 只用于展示）：
   `"Out-of-bound access via call chain (definite)"`、`"Out-of-bound access via call chain (possible)"`，category `"Memory error"`。
 * **F-32 消息**〔由 SPEC-0021 修订：加 SUSPECT / SAFE 的模板；SPEC-0067：调用点上不知道的被调者符号按被调者的形参名写〕（英文模板，`{}` 为占位）：
@@ -227,10 +227,11 @@ compile_commands ─▶ rb.enhance.core.OobSummary ──▶ WorkDir/fir/<tu>.js
 | I-26 | `CharAlias` | string | `false` | 〔SPEC-0103；SPEC-0106 改成字符串、加 `verify`：照 `false` 推，记不别名假设，调用点核对〕`char *` / `void *` 的写当成可能改了任何外部内存（结构体形参、全局）；默认值等公司实测后定（D20） |
 | I-27 | `Subobject` | string | `suspect` | 〔SPEC-0105〕只越出成员数组 / 多维数组的一行、没越出整个对象的访问：`suspect`（SUSPECT `subobject_overflow`）/ `label`（按常规判 DEFINITE / POSSIBLE）/ `off`（只查整个对象）（D24、D25） |
 | I-28 | `AssumeNoWrap` | bool | `false` | 〔SPEC-0108〕检查与地址计算里的整数运算按数学整数（不回绕），记局部线性关系；打开后可能漏掉"检查被回绕绕过"的缺陷 |
+| I-29 | `DiagnosticStyle` | string | `sink` | SPEC-0126：sink 位置、类型 / 元素范围与同一行合并；legacy 保留旧文本和位置 |
 
 ### 4.3 运行命令
 
-**单文件 / 单目录（Phase=inline，同 TU 内的多层链）**——与 `csa-checker-dev` 的标准命令一致，只换 `-checker=`，ipa 包不加 `ipa=none`：
+**单文件 / 单目录（Phase=inline，同 TU 内的多层链）**——与 `csa-checker-dev` 的标准命令一致，只换 `-checker=`；SPEC-0122 起本规则归 core，显式加 `ipa=none`：
 
 ```bash
 /usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=/usr1/BXPlugin/cmake-build-release-release/ -analysis_file=/usr1/BXPlugin/xir/llvm_ast/TestCase/OobSummaryChecker/src/lv1_01_stat_enum_butt.c -checker=rb.enhance.core.OobSummary -extra_args="-analyzer-config ipa=none -analyzer-max-loop 3 -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"

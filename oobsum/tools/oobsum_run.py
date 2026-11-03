@@ -81,7 +81,7 @@ def emitted_count(workdir):
     n = 0
     for p in glob.glob(os.path.join(workdir, 'decisions', '*.jsonl')):
         for line in open(p, encoding='utf-8'):
-            if '"emitted":true' in line:
+            if '"emitted":true' in line and json.loads(line).get('diagnostic_primary', True):
                 n += 1
     return n
 
@@ -290,7 +290,9 @@ def cmd_stats(a):
         print('%s 下没有判定日志' % a.workdir)
         return 1
     emitted = [d for d in ds if d.get('emitted')]
+    physical = sum(d.get('diagnostic_primary', True) for d in emitted)
     print('== %d 条判定，报出 %d 条（%d 个 TU）' % (len(ds), len(emitted), len({d['_tu'] for d in ds})))
+    print('物理告警 %d 条（同一 sink 行合并；上面的报出数按原始判定计）' % physical)
     buckets = ['0', '1', '2', '3', '4+']
     def bucket(d):
         n = max(d.get('depth', 0), d.get('eff_depth', 0))
@@ -345,11 +347,14 @@ def cmd_report(a):
         labels[label] = labels.get(label, 0) + 1
         if label == 'SUSPECT':
             reasons[m.group(2) or '-'] = reasons.get(m.group(2) or '-', 0) + 1
+    glued = sum(len(re.findall(r'warning:\s*\[OOB-(?:DEFINITE|POSSIBLE|SUSPECT|SAFE)', str(p.get('reason', '')))) > 1 for p in mine)
     order = ['DEFINITE', 'POSSIBLE', 'SUSPECT', 'SAFE', '?']
     print('%s：problems %d 条，其中 %s %d 条：%s' % (os.path.basename(path), len(probs), CHECKER, len(mine),
                                               '、'.join('%s %d' % (k, labels[k]) for k in order if k in labels) or '无'))
     if reasons:
         print('  SUSPECT 按原因：' + '、'.join('%s %d' % kv for kv in sorted(reasons.items(), key=lambda x: (-x[1], x[0]))))
+    if glued:
+        print('注意：%d 条报告记录含多个 warning，旧收集结果可能粘连；需用新 sink 合并格式重跑核对' % glued)
     return 0
 
 
@@ -427,7 +432,8 @@ def cmd_explain(a):
     """explain <指纹 | 函数名>（06- F-42，SPEC-0112）：判定的来龙去脉——标签、原因、文字、末端与大小、调用链；
     带 Dump=summary 跑过时，链上每个函数的摘要（Req 与调用点的实参）"""
     ds = _decisions(a.workdir)
-    hits = [d for d in ds if d.get('fp') == a.what or _name(d.get('fn', '')) == a.what]
+    hits = [d for d in ds if d.get('fp') == a.what or d.get('report_group') == a.what or
+            _name(d.get('fn', '')) == a.what or any(h.split('@', 1)[0] == a.what for h in d.get('chain', []))]
     if not a.all:
         hits = [d for d in hits if d['label'] != 'safe' or d.get('fp') == a.what]
     if not hits:
@@ -437,6 +443,8 @@ def cmd_explain(a):
         print('== [%s%s] %s  指纹 %s' % (d['label'].upper(), ':' + d['reason'] if d.get('reason') else '',
                                        d.get('site', '?'), d.get('fp', '?')))
         print('   %s' % d.get('msg', ''))
+        if d.get('sink'):
+            print('   sink %s；证明上下文 %s；告警分组 %s' % (d['sink'], d.get('site'), d.get('report_group', '-')))
         print('   函数 %s；%s；末端 %s；大小 %s；来源 %s；层数 %s / %s%s' % (
             _name(d.get('fn', '?')), '报出' if d.get('emitted') else '没报（%s）' % d.get('not_emitted_because', '-'),
             d.get('end', '-'), d.get('have', '-'), d.get('bound', '-'), d.get('depth', 0), d.get('eff_depth', 0),

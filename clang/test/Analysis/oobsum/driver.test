@@ -1,7 +1,7 @@
 # 跨 TU 的驱动（oobsum/specs/SPEC-0031）：local 跑三阶段、status、bxen 生成桩 cdb 与 report cdb、打印三段命令。
 #
 # RUN: rm -rf %t && mkdir -p %t
-# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --workdir %t/w --clang %clang --config InlineDepth=0 \
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --config DiagnosticStyle=legacy --workdir %t/w --clang %clang --config InlineDepth=0 \
 # RUN:   %S/Inputs/solve/a.c %S/Inputs/solve/b.c | FileCheck %s --check-prefix=LOCAL
 # RUN: %python %S/../../../../oobsum/tools/oobsum_run.py status --workdir %t/w | FileCheck %s --check-prefix=STATUS
 # bxen：用一个假的原 cdb（含 a.c、b.c 与一个没有判定的文件）

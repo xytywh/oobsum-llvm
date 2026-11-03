@@ -1,17 +1,17 @@
 // 函数 / 全局的键（oobsum/specs/SPEC-0003；06- D-01…D-05、D-08）与 Dump=keys。
 // RUN: rm -rf %t && mkdir -p %t/a %t/b %t/r
-// RUN: %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary -I %S/Inputs \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary -I %S/Inputs \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=keys \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/a %s 2>&1 | FileCheck %s
 // DumpFilter：函数按名字、函数内 static 按所在函数、全局按自己的名字
-// RUN: %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary -I %S/Inputs \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary -I %S/Inputs \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=keys \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:DumpFilter=^helper$ %s 2>&1 | FileCheck %s --check-prefix=FILTER
 // 两个 TU 里同一个头文件函数键相同、各自的同名 static 键不同；相对路径调用与绝对路径调用的文件 id 相同（D-05）
-// RUN: %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary -I %S/Inputs \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary -I %S/Inputs \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=keys \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/b %S/Inputs/keys-b.c 2>/dev/null
-// RUN: cd %S && %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary -I Inputs \
+// RUN: cd %S && %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary -I Inputs \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=keys \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/r keys.c 2>/dev/null
 // RUN: cat %t/a/dump/*/keys/keys.txt %t/b/dump/*/keys/keys.txt %t/r/dump/*/keys/keys.txt | FileCheck %s --check-prefix=XTU

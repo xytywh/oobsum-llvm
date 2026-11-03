@@ -9,7 +9,7 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-03-3**（SPEC-0122 / 0123 / 0124 / 0125；保留前版步骤；新增访问点元数据，下一小步接入 sink 告警；结果不符合预期就停下，带回计数和本规则栈。）
+**清单版本：2026-11-03-4**（SPEC-0122 / 0123 / 0124 / 0125 / 0126；保留前版步骤；新增默认 sink 告警、元素范围、完整主行调用链与同一行合并；结果不符合预期就停下，带回计数和本规则栈。）
 
 路径只改这里；`OOB_REPORT` 必须指向 JSON 文件，不能是 log 目录：
 
@@ -68,7 +68,7 @@ OOBSUM_CONFIG="WorkDir=/tmp/oobsum-tc-core Dump=options+stats" "$OOB_BUILD/bxen"
 python3 "$OOB_REPO/oobsum/tools/decisions.py" /tmp/oobsum-tc-core
 ```
 
-预期：InlineDepth=0；5 条告警；decisions=7 emitted=5。与旧版相比只多浅层 DEFINITE。若不符，带回本 TestCase 的输出（都是我们自己的代码）。
+预期：InlineDepth=0；5 条告警；decisions=7 emitted=5。引擎那条应在 Tc_Leaf 的下标访问处，主行有 [access=array-index]、元素大小和完整 Call chain。与旧版相比只多浅层 DEFINITE。若不符，带回本 TestCase 的输出（都是我们自己的代码）。
 
 ### 第 3 步：全板重新跑 B
 
@@ -122,22 +122,32 @@ python3 -m json.tool "$OOB_WD/dump/solve/summary/<索引里的stem>.derived.json
 python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir "$OOB_WD" <新判定的指纹>
 ```
 
+按 warning 的 group=编号可直接用 explain 查询组内全部上下文；同一行主标签取最严重的一条，不能把所有上下文都当作 DEFINITE。
+
 先从 leaf 的 Req 看访问公式与守卫，再看上层调用实参和 derived 的具体大小 / 末端。摘要里的链是证据，不是重复执行全部路径；报告策略在 report 阶段才应用，是否报出以 decisions/*.jsonl 的 emitted 为准。
 如果原全量 solve 没开 Dump=summary，不存在可供读取的摘要文件；仅 report 不会补出全程序的闭包，需重新 solve（可以复用 FIR）。
 不要只取两条调用链的文件冒充完整上下文；副作用和其它被调者也会影响结果。生成两种摘要不会改变 solved 的判定。
 
-### 第 5 步：抽查与带回模板
+### 第 5 步：检查告警格式并抽查
+
+打开两条已确认问题，检查：位置是实际下标 / 成员 / 解引用 / 内存函数行；主行含 Access、Element view、Range / exclusive end、Reason、Context 与完整 Call chain。
+20 字节结构体、3 个元素的可用容量应能直接看出 0..2 是合法位置；exclusive end=64 表示末端不包含 64，对 60 字节对象最多越 4 字节。
+同一个 sink 行只应有一条 warning，下一行源码、再下一行 caret；不同理由 / 上下文用 Also 合并。全部原判断仍在 decisions 日志，report_group 标识对应 warning。
+旧收集报告若含多个 warning 被粘在同一 reason 内，report 工具会提示；已有报告不能自动修回丢失的源码行，须重新 report。
+`type_range_only` 的人类说明是“没找到可用的代码约束”；机器原因名保留以兼容脚本。全局指针的告警应列出表达式和可能的全局来源。
+
+### 带回模板
 
 按 §1.6 的方法抽查；业务代码、名字、路径与告警原文不要带回，只给计数和对写法的概括。
 
 ```text
-清单版本：2026-11-03-3
+清单版本：2026-11-03-4
 1. 本地 lit __；csa 回退 __；同步 / 公司编译 __
 2. TestCase：InlineDepth=__ decisions=__ emitted=__，告警 __
    进度 read/analyze/propagate/decisions/write/done 是否可见 __；两种摘要是否可读 __
 3. cdb 条目 / 唯一文件 / C / C++ __；去掉输出文件选项后命令仍不同的文件 __；export 成功 / 失败 __；FIR __；目标组数 __
 4. solve Elapsed __；Maximum resident set size __；solved __；判定 __；report 成功 / 失败 __
-5. stats --counts-only 全文；report 两行
+5. stats --counts-only 全文（含报出判定 / 物理告警两种计数）；report 输出
 6. 抽查（每个原因）：看了 __、真问题 __、误报 __、看不出 __；写法概括 __
 7. 异常：阶段 __、退出码 __、仅本规则栈 __
 ```

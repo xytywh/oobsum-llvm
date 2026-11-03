@@ -1,7 +1,7 @@
 # 写效应 field：被调者写形参所指对象的整数字段（含 *pulLen 的伪字段 _0）（oobsum/specs/SPEC-0073；06- D-24）。
 # 原来调用方只知道"被改过、值不知道"，只能记账。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(Cfg_Init|Cfg_Set|Get_Len|Two|Ext)$' \
 # RUN:   %S/Inputs/fieldeff/f.c 2>&1 | FileCheck %s

@@ -1,19 +1,19 @@
 # 选项 AssumeNoWrap（oobsum/specs/SPEC-0108）：检查与地址计算里的整数运算按数学整数（不回绕），记局部线性关系。默认关（召回优先，SPEC-0016 §2.1）。
 #
 # 打开：条件边上记下局部之间的关系；局部被赋值时去掉
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:AssumeNoWrap=true \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=options+state -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^Tlv$' \
 # RUN:   -w %S/Inputs/nowrap/n.c 2>&1 | FileCheck %s --check-prefix=ON
 # 打开：访问点用局部关系与 A-41 的抵消（SPEC-0108 §2.2）
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:AssumeNoWrap=true \
 # RUN:   -w %S/Inputs/nowrap/n.c 2>&1 | FileCheck %s --check-prefix=USE
 # 关（默认）：检查可能回绕不用，循环里的访问只能记账
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -w %S/Inputs/nowrap/n.c 2>&1 | FileCheck %s --check-prefix=DEF
 # 关（默认）：没有局部关系
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:Dump=options+state \
 # RUN:   -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^Tlv$' -w %S/Inputs/nowrap/n.c 2>&1 \
 # RUN:   | FileCheck %s --check-prefix=OFF --implicit-check-not=rels:

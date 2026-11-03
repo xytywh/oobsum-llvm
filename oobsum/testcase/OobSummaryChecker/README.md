@@ -187,3 +187,7 @@ python3 oobsum/tools/decisions.py <WorkDir> --emitted --jsonl review.jsonl     #
 - 分层：`OobSummary/core/` 不依赖 Clang（FIR、抽象域、摘要、代换、求解、判定），`lower/` 只做 AST → FIR，checker 入口与 `report/` 两边都看。
 - CSA 已知限制：上游 clang 14 不支持 aarch64 ILP32，本地用 `armebv7-linux-gnueabi`（4 字节指针 + 大端）近似；公司 fork 上的字节布局由 I0 探针确认（`oobsum/probes/i0-integration/`）。
 - 后续：`do { … } while` 的头不变式（S7c-2）、跨循环关系（LV8-02，需 AI 辅助）、驱动的 `sqlite`；各选项的默认值按公司业务代码实测再定（`oobsum/STATUS.md`）。
+
+SPEC-0126：默认 DiagnosticStyle=sink，warning 在数组 / 指针 / 成员 / 内存函数实际访问处；主行有元素大小、可用容量、可换算的元素位置与完整链。
+同一目标和源行合成一条物理 warning，原判断全部写日志；stats 的“报出判定”与“物理告警”口径分开。DiagnosticStyle=legacy 可对照旧文案。
+结构体数组容量按完整元素换算，指针进入对象内部后可用容量不同于整个对象大小；字节末端使用 exclusive end（不包含的末端）。

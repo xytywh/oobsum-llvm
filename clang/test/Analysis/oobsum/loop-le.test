@@ -1,6 +1,6 @@
 # 无符号区间下界盖住 0 时可信（oobsum/specs/SPEC-0056）：i <= n 的循环不再把上界多估 2（原来 n = 15 也报 POSSIBLE，误报）。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=state -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^Fill_Le$' \
 # RUN:   %S/Inputs/loople/le.c 2>&1 | FileCheck %s

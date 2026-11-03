@@ -1,10 +1,10 @@
 # 形参结构体的成员数组（P0.idx）与外层对象（P0）是同一块内存：写一边要失效另一边重叠的格（oobsum/specs/SPEC-0090）。
 # 原来 S1 / S2 判 SAFE（错误）：经另一种写法写成 200 后，旧的 2 还在格里。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   %S/Inputs/malias/s.c 2>&1 | FileCheck %s
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   %S/Inputs/malias/s.c 2>&1 | not grep -E "s.c:(7|9):1: warning: \[OOB-SAFE:within\] Proven within bounds: up to byte [0-9]+ of 'a'"
 

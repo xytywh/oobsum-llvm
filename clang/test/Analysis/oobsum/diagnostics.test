@@ -1,0 +1,8 @@
+# SPEC-0126：默认 sink、分段布局、同一行合并；所有原始判断仍在日志。
+# RUN: rm -rf %t
+# RUN: %clang_analyze_cc1 -Wno-array-bounds -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/loops -analyzer-config rb.enhance.core.OobSummary:Dump=diagnostics %S/Inputs/diagnostics/loops.c > %t.loops.log 2>&1
+# RUN: %python %S/Inputs/diagnostics/check.py %t/loops %t.loops.log
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --workdir %t/xtu --clang %clang --config Dump=diagnostics %S/Inputs/solve/a.c %S/Inputs/solve/b.c > %t.xtu.log
+# RUN: %python %S/Inputs/diagnostics/cross.py %t/xtu %t.xtu.log
+# RUN: not %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=bad %S/Inputs/diagnostics/loops.c 2>&1 | FileCheck %s --check-prefix=BAD
+# BAD: invalid input for checker option 'rb.enhance.core.OobSummary:DiagnosticStyle', that expects sink or legacy

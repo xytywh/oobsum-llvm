@@ -2,14 +2,14 @@
 // Policy=balanced 不报 SUSPECT；InlineDepth 只过滤 DEFINITE / POSSIBLE；SuspectReasons 选原因；ReportSafe 也报 SAFE。
 // 判定来自调试内建函数 oobsum_debug_emit(label, reason, depth)（SPEC-0001 §6.3）。
 //
-// RUN: %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary -verify=expected,depth0 %s
-// RUN: %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary -verify=expected,depth0 %s
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Policy=balanced -verify=balanced,depth0 %s
-// RUN: %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true -verify=expected,depth0,safe %s
-// RUN: %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -verify=expected,depth0 %s
-// RUN: %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:SuspectReasons=type_range_only -verify=reasons,depth0 %s
 
 void oobsum_debug_emit(const char *label, const char *reason, int depth);
@@ -25,4 +25,4 @@ void decisions(void)
 }
 
 // 显式 InlineDepth=2 保留旧策略（SPEC-0122）。
-// RUN: %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:InlineDepth=2 -verify %s
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:InlineDepth=2 -verify %s

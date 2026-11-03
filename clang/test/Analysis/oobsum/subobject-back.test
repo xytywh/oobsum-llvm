@@ -2,7 +2,7 @@
 # 实参另记"从指针往前到子对象起点的字节数"（sub_back），被调者的反向 Req 按它再判一次（内层变体 dir subback）；
 # 函数里下标是形参的负偏移记成内层反向 Req（dir subback、have 0）往调用方传。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary+apply -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(Back_Tp|SetRow)$' \
 # RUN:   -w %S/Inputs/subobj/b.c 2>&1 | FileCheck %s

@@ -1,7 +1,7 @@
 # 指针实参的偏移是区间：调用点按"对象起点 + 偏移区间"判（oobsum/specs/SPEC-0095）。原来拿最小剩余判 L1，
 # T3（下标只有类型范围）、T4（a + 2 或 a + 6）都被判成 DEFINITE（错误的级别）。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^T4$' \
 # RUN:   %S/Inputs/argoff/a.c 2>&1 | FileCheck %s

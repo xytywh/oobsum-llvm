@@ -1,5 +1,5 @@
 // Dump 的多个种类用 '+' 连接（-analyzer-config 把逗号当成键值对分隔，不能用逗号）。
-// RUN: %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=options+stats \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:SuspectReasons=entry_unproven+type_range_only %s 2>&1 | FileCheck %s
 

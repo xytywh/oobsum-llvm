@@ -282,7 +282,7 @@ struct AccessDescriber::Impl {
                 }
             }
             base = member->getBase()->IgnoreParenCasts();
-            QualType type = base->getType();
+            QualType type = member->getBase()->getType();
             if (type->isPointerType()) {
                 type = type->getPointeeType();
             }

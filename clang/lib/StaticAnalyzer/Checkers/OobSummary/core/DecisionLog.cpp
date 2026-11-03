@@ -69,6 +69,21 @@ bool DecisionFromJson(const llvm::json::Value &value, Decision &out, std::string
     if (llvm::Optional<llvm::StringRef> dir = o->getString("dir")) {
         out.dir = dir->str();  // SPEC-0039
     }
+    out.parameterNames.clear();
+    out.contextOperation = o->getString("context_operation").getValueOr("").str();
+    out.reportGroup = o->getString("report_group").getValueOr("").str();
+    out.objectSize = o->getInteger("object_size").getValueOr(-1);
+    out.diagnosticPrimary = o->getBoolean("diagnostic_primary").getValueOr(true);
+    if (const auto *names = o->getArray("parameter_names")) {
+        for (const auto &name : *names) {
+            auto text = name.getAsString();
+            if (!text) {
+                error = "decision: bad parameter name";
+                return false;
+            }
+            out.parameterNames.push_back(text->str());
+        }
+    }
     out.accesses.clear();
     out.accessIds.clear();
     out.accessKey.clear();
@@ -167,6 +182,23 @@ llvm::json::Object DecisionToJson(const Decision &decision, const Disposition &d
         {"fp", decision.fp},
         {"origin", decision.origin},
     };
+    if (!decision.parameterNames.empty()) {
+        llvm::json::Array names;
+        for (const auto &name : decision.parameterNames) {
+            names.push_back(name);
+        }
+        out["parameter_names"] = std::move(names);
+    }
+    if (!decision.contextOperation.empty()) {
+        out["context_operation"] = decision.contextOperation;
+    }
+    if (decision.objectSize >= 0) {
+        out["object_size"] = decision.objectSize;
+    }
+    if (!decision.reportGroup.empty()) {
+        out["report_group"] = decision.reportGroup;
+        out["diagnostic_primary"] = decision.diagnosticPrimary;
+    }
     if (!decision.target.empty()) {
         out["target"] = decision.target;
     }

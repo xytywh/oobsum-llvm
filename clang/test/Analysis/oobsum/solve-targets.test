@@ -1,11 +1,11 @@
 # SPEC-0124：同名函数在 ILP32 / LP64 下分别求解，一正一反都不能被丢掉。
 # RUN: rm -rf %t
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Phase=export -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/w %S/Inputs/targets/a32.c
-# RUN: %clang_analyze_cc1 -triple x86_64-linux-gnu -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Phase=export -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/w %S/Inputs/targets/a64.c
-# RUN: %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Phase=solve -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/w -analyzer-config rb.enhance.core.OobSummary:Dump=progress+summary -analyzer-config rb.enhance.core.OobSummary:DumpFilter=Entry %S/Inputs/solve/stub.c 2>&1 | FileCheck %s
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Phase=export -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/w %S/Inputs/targets/a32.c
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple x86_64-linux-gnu -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Phase=export -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/w %S/Inputs/targets/a64.c
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Phase=solve -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/w -analyzer-config rb.enhance.core.OobSummary:Dump=progress+summary -analyzer-config rb.enhance.core.OobSummary:DumpFilter=Entry %S/Inputs/solve/stub.c 2>&1 | FileCheck %s
 # RUN: %python %S/Inputs/solve-targets.py %t/w %S/../../../../oobsum/tools/oobsum_run.py
 # RUN: cp -R %t/w/solved %t/before
-# RUN: %clang_analyze_cc1 -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Phase=solve -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/w %S/Inputs/solve/stub.c
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Phase=solve -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/w %S/Inputs/solve/stub.c
 # RUN: diff %t/before %t/w/solved
 # CHECK: [oobsum:progress] stage=group1/2/analyze
 # CHECK: [oobsum:progress] stage=group2/2/analyze

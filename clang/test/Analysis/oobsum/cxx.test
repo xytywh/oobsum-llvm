@@ -3,14 +3,14 @@
 # 运算符、构造 / 析构等名字不是简单标识符、成员函数的占位类型——原来 NamedDecl::getName() / getTypeSizeInChars 断言失败（公司 release 版段错误）。
 #
 # RUN: rm -rf %t && mkdir -p %t
-# RUN: %clang_analyze_cc1 -x c++ -analyzer-checker=rb.enhance.core.OobSummary %S/Inputs/cxx/cases.cpp 2>&1 | FileCheck %s --check-prefix=CASES
-# RUN: %clang_analyze_cc1 -x c++ -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Dump=keys \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -x c++ -analyzer-checker=rb.enhance.core.OobSummary %S/Inputs/cxx/cases.cpp 2>&1 | FileCheck %s --check-prefix=CASES
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -x c++ -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Dump=keys \
 # RUN:   %S/Inputs/cxx/cases.cpp 2>&1 | FileCheck %s --check-prefix=KEYS
 # 原来崩溃的写法：所有 Dump 种类都打开也不崩
-# RUN: %clang_analyze_cc1 -x c++ -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/m \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -x c++ -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/m \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=all %S/Inputs/cxx/mixed.cpp 2>&1 | FileCheck %s --check-prefix=MIXED
 # C 文件调用 .cpp 里 extern "C" 的函数：键与 C 相同，三阶段接得上
-# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --workdir %t/x --clang %clang %S/Inputs/cxx/impl.cpp %S/Inputs/cxx/ccall.c \
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --config DiagnosticStyle=legacy --workdir %t/x --clang %clang %S/Inputs/cxx/impl.cpp %S/Inputs/cxx/ccall.c \
 # RUN:   | FileCheck %s --check-prefix=XLANG
 # RUN: cat %t/x/decisions/*.jsonl | FileCheck %s --check-prefix=XLANGLOG
 

@@ -1,6 +1,6 @@
 # 访问类模型（memcpy_s / memset_s …）只失效目的对象的格（oobsum/specs/SPEC-0089）。原来调用后清掉全部格，写 tmp 也让 m.len 丢了。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   %S/Inputs/amcells/m.c 2>&1 | FileCheck %s
 

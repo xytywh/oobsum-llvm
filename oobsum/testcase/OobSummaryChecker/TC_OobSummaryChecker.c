@@ -26,8 +26,8 @@
  *   TN1 - proven safe decision (guard_false)    (expect: no report; decision log: "label":"safe","emitted":false)
  *   B1  - definite decision at depth 2          (expect: report with default InlineDepth=0; SPEC-0122)
  *   E1  - engine, 3-level chain, index 16 into a 16-byte array
- *                                               (expect: report at the call in Tc_Engine_TP, key substr:
- *                                                "[OOB-DEFINITE] Definite out-of-bound write through a 3-level call chain")
+ *                                               (expect: report at the access in Tc_Leaf, key substr:
+ *                                                "[OOB-DEFINITE] [access=array-index]")
  *   E2  - engine, same chain with index 15      (expect: no report; decision log: "label":"safe","reason":"within")
  *   Total with default options: 5 reports, 7 decisions (Dump=stats: "decisions=7 emitted=5").
  */

@@ -1,11 +1,11 @@
 # mod-ref（oobsum/specs/SPEC-0045）：摘要记可能写的位置（mods），调用点只让写到的位置失效。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:Dump=summary \
 # RUN:   -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(Msg_SetType|Msg_Zero|G_Fill|Len_SetVia|GLen_SetVia)$' \
 # RUN:   %S/Inputs/modref2/mods.c 2>&1 | FileCheck %s
 # 经两层写到了 ulLen / g_ulLen 的：写 a 的不能是 SAFE
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   %S/Inputs/modref2/mods.c 2>&1 | not grep -E "OOB-SAFE.*of 'a'"
 

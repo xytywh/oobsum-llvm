@@ -1,7 +1,7 @@
 # SPEC-0123：进度落盘、局部 / 传播摘要、调试不改变结果。
 # RUN: rm -rf %t
-# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --workdir %t/plain --clang %clang %S/Inputs/solve/a.c %S/Inputs/solve/b.c > %t.plain.log
-# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --workdir %t/debug --clang %clang --config Dump=progress+summary --config DumpFilter=Top_A %S/Inputs/solve/a.c %S/Inputs/solve/b.c > %t.debug.log
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --config DiagnosticStyle=legacy --workdir %t/plain --clang %clang %S/Inputs/solve/a.c %S/Inputs/solve/b.c > %t.plain.log
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --config DiagnosticStyle=legacy --workdir %t/debug --clang %clang --config Dump=progress+summary --config DumpFilter=Top_A %S/Inputs/solve/a.c %S/Inputs/solve/b.c > %t.debug.log
 # RUN: diff %t/plain/solved %t/debug/solved
 # RUN: FileCheck %s --check-prefix=PROGRESS < %t.debug.log
 # RUN: %python %S/Inputs/solve-progress.py %t/debug

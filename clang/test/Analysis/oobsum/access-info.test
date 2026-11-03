@@ -1,6 +1,6 @@
 # SPEC-0125：实际访问的语义信息与指令编号落在 FIR / 判定日志，展示不含字面量内容。
 # RUN: rm -rf %t
-# RUN: %clang_analyze_cc1 -Wno-array-bounds -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t -analyzer-config rb.enhance.core.OobSummary:Dump=fir %S/Inputs/access/access.c > %t.log 2>&1
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -Wno-array-bounds -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t -analyzer-config rb.enhance.core.OobSummary:Dump=fir %S/Inputs/access/access.c > %t.log 2>&1
 # RUN: %python %S/Inputs/access/check.py %t
 
 # 语义比较不能把真实字段 diag 当成诊断注解删掉（SPEC-0125）。

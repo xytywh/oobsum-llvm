@@ -1733,7 +1733,7 @@ def OobSummaryChecker : Checker<"OobSummary">,
                   "", Released>,
     CmdLineOption<String, "Dump",
                   "Debug output to stderr and WorkDir/dump, kinds separated by '+': options, models, callgraph, keys, "
-                  "fir, state, summary, apply, decisions, stats, progress, or all",
+                  "fir, state, summary, apply, decisions, stats, progress, diagnostics, or all",
                   "", Released>,
     CmdLineOption<String, "DumpFilter",
                   "Only dump functions whose name matches this regex",
@@ -1756,6 +1756,9 @@ def OobSummaryChecker : Checker<"OobSummary">,
                   "inside the whole object is reported: 'suspect' (SUSPECT subobject_overflow), 'label' (judged "
                   "like any other bound: DEFINITE / POSSIBLE / SUSPECT), 'off' (only the whole object is checked)",
                   "suspect", Released>,
+    CmdLineOption<String, "DiagnosticStyle",
+                  "sink: report at the access, include layout/ranges and merge the same line; legacy: call-site format",
+                  "sink", Released>,
     CmdLineOption<Boolean, "AssumeNoWrap",
                   "Assume integer arithmetic in checks and address computations does not wrap around (treat it as "
                   "mathematical integers) and track linear relations between locals; may miss defects where a "

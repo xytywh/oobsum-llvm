@@ -448,7 +448,8 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
                 d.warnMsg = alert::AlertMessage(shown, out.summaries.at(result.repCallee[ri].first).params);
             }
             d.fp = rep.fp;
-            std::string key = rep.site + "|" + rep.access.key + "@" + rep.access.at + "|" + rep.kind + "|" + rep.dir;
+            std::string key = rep.site + "|" + rep.access.key + "@" + rep.access.at + "|" + rep.kind + "|" + rep.dir +
+                              "|" + std::to_string(rep.access.diag);
             repKeys.push_back(key);
             auto hit = primary.find(key);
             if (hit == primary.end()) {
@@ -701,7 +702,50 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             }
         }
     }
+    std::map<std::string, std::map<std::string, int64_t>> objectSizes;
+    for (const auto &at : order) {
+        const auto &module = *mods[at.first];
+        const auto &function = module.funcs[at.second];
+        auto &sizes = objectSizes[function.key];
+        for (const auto &local : function.locals) {
+            int64_t size = 0;
+            if (!local.obj || !interp::TypeSize(module, local.type, size)) {
+                continue;
+            }
+            std::string key = "local:" + local.name;
+            auto found = sizes.find(key);
+            if (found != sizes.end() && found->second != size) {
+                found->second = -1;  // 同名遮蔽的局部不能猜是哪一个
+            } else {
+                sizes.emplace(key, size);
+            }
+        }
+    }
     for (auto &decision : out.decisions) {
+        const auto &context = out.summaries.at(decision.fn);
+        for (const auto &param : context.params) {
+            decision.parameterNames.push_back(param.name);
+        }
+        auto size = objectSizes[decision.fn].find(decision.obj);
+        if (size != objectSizes[decision.fn].end()) {
+            decision.objectSize = size->second;
+        }
+        if (decision.chain.size() > 1) {
+            std::string where = llvm::sys::path::filename(decision.chain.front().site.file).str() + ":" +
+                                std::to_string(decision.chain.front().site.line);
+            std::set<int64_t> calls;
+            for (const auto &call : context.calls) {
+                if (call.site == where && call.diag != 0) {
+                    calls.insert(call.diag);
+                }
+            }
+            if (calls.size() == 1) {
+                auto hit = diagnosticIndex[decision.fn].find(*calls.begin());
+                if (hit != diagnosticIndex[decision.fn].end() && !hit->second->accesses.empty()) {
+                    decision.contextOperation = hit->second->accesses.front().operation;
+                }
+            }
+        }
         if (decision.accessKey.empty()) {
             decision.accessKey = decision.fn;
         }
@@ -735,6 +779,9 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             }
             if (decision.sink.file.empty() && inst->loc.file < module.files.size()) {
                 decision.sink = {module.files[inst->loc.file], inst->loc.line, inst->loc.col};
+                if (!decision.chain.empty()) {
+                    decision.chain.back().site = decision.sink;
+                }
             }
             const auto *model = inst->op == fir::InstOp::Call ? models.Access(KeyName(inst->callee)) : nullptr;
             for (AccessInfo info : inst->accesses) {

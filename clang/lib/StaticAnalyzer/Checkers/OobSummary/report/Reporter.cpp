@@ -5,6 +5,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "OobSummary/report/Reporter.h"
+#include "OobSummary/core/Diagnostics.h"
 
 #include "clang/Analysis/PathDiagnostic.h"
 #include "clang/Basic/FileManager.h"
@@ -12,6 +13,8 @@
 #include "llvm/Support/Path.h"
 
 #include <algorithm>
+#include <map>
+#include <set>
 #include <tuple>
 
 using namespace clang;
@@ -50,7 +53,7 @@ const BugType *Reporter::TypeOf(Label label) const
 }
 
 // 文件:行:列 → SourceLocation（06- A-91）；文件不在本 TU 时返回无效位置，由调用方退回
-SourceLocation Reporter::Locate(const Site &site, const SourceManager &sm) const
+SourceLocation Reporter::Locate(const Site &site, SourceManager &sm, bool load) const
 {
     if (site.file.empty() || site.line == 0) {
         return SourceLocation();
@@ -58,6 +61,9 @@ SourceLocation Reporter::Locate(const Site &site, const SourceManager &sm) const
     auto file = sm.getFileManager().getFile(site.file);
     if (!file) {
         return SourceLocation();
+    }
+    if (load) {
+        sm.getOrCreateFileID(*file, SrcMgr::C_User);  // SPEC-0126：跨 TU 的 sink 可能尚未载入
     }
     return sm.translateFileLineCol(*file, site.line, site.col == 0 ? 1 : site.col);
 }
@@ -79,27 +85,69 @@ SourceLocation Reporter::LocateBase(llvm::StringRef site, const SourceManager &s
     return SourceLocation();
 }
 
-std::vector<std::pair<Decision, Disposition>> Reporter::Flush(BugReporter &br, const SourceManager &sm)
+std::vector<std::pair<Decision, Disposition>> Reporter::Flush(BugReporter &br, SourceManager &sm)
 {
-    // F-35：按（文件、行、列、指纹）排序，输出稳定
-    std::stable_sort(pending.begin(), pending.end(), [](const Decision &a, const Decision &b) {
-        return std::tie(a.site.file, a.site.line, a.site.col, a.fp) <
-               std::tie(b.site.file, b.site.line, b.site.col, b.fp);
+    auto reportSite = [&](const Decision &decision) -> const Site & {
+        return policy.sinkDiagnostics && !decision.sink.file.empty() ? decision.sink : decision.site;
+    };
+    auto rank = [](Label label) {
+        return label == Label::Definite ? 0 : label == Label::Possible ? 1 : label == Label::Suspect ? 2 : 3;
+    };
+    for (auto &decision : pending) {
+        if (policy.sinkDiagnostics && decision.origin == "engine") {
+            if (decision.sink.file.empty()) {
+                decision.sink = decision.chain.empty() ? decision.site : decision.chain.back().site;
+            }
+            decision.warnMsg = DiagnosticMessage(decision);
+        }
+    }
+    // SPEC-0126 / F-35：物理位置与主标签排序，原判定上下文留在 site。
+    std::stable_sort(pending.begin(), pending.end(), [&](const Decision &a, const Decision &b) {
+        const Site &x = reportSite(a);
+        const Site &y = reportSite(b);
+        return std::make_tuple(x.file, x.line, rank(a.label), x.col, a.fp) <
+               std::make_tuple(y.file, y.line, rank(b.label), y.col, b.fp);
     });
     std::vector<std::pair<Decision, Disposition>> out;
     std::vector<Disposition> dispositions = ClassifyBatch(pending, policy);
+    std::map<std::string, std::vector<size_t>> groups;
+    for (size_t i = 0; i < pending.size(); ++i) {
+        if (dispositions[i].emit) {
+            groups[policy.sinkDiagnostics ? DiagnosticGroup(pending[i]) : std::to_string(i)].push_back(i);
+        }
+    }
+    std::vector<std::string> messages(pending.size());
+    for (const auto &group : groups) {
+        size_t first = group.second.front();
+        std::set<std::string> seen;
+        for (size_t index : group.second) {
+            auto &decision = pending[index];
+            if (policy.sinkDiagnostics) {
+                decision.reportGroup = group.first;
+                decision.diagnosticPrimary = index == first;
+            }
+            std::string text = FullMessage(decision);
+            if (seen.insert(text).second) {
+                messages[first] += (messages[first].empty() ? "" : " | Also: ") + text;
+            }
+        }
+        if (policy.sinkDiagnostics) {
+            messages[first] += "; group=" + group.first + "; judgments=" + std::to_string(group.second.size());
+        }
+    }
     for (size_t i = 0; i < pending.size(); ++i) {
         Decision &decision = pending[i];
         const Disposition &disposition = dispositions[i];
-        if (disposition.emit) {
-            SourceLocation loc = Locate(decision.site, sm);
+        if (disposition.emit && !messages[i].empty()) {
+            const Site &where = reportSite(decision);
+            SourceLocation loc = Locate(where, sm, policy.sinkDiagnostics);
             if (loc.isInvalid()) {
                 // 位置换不出来：不丢告警，退回主文件开头，原位置写进文本（06- A-91）
                 loc = sm.getLocForStartOfFile(sm.getMainFileID());
-                decision.warnMsg += " (at " + decision.site.file + ":" + std::to_string(decision.site.line) + ")";
+                messages[i] += " (source unavailable at " + where.file + ":" + std::to_string(where.line) + ")";
             }
-            auto report = std::make_unique<BasicBugReport>(*TypeOf(decision.label), FullMessage(decision),
-                                                           PathDiagnosticLocation(loc, sm));
+            auto report =
+                std::make_unique<BasicBugReport>(*TypeOf(decision.label), messages[i], PathDiagnosticLocation(loc, sm));
             // F-33（SPEC-0078）：① 总链 note；② 本 TU 可见的每一跳、访问点、分配点；一跳的不加（与告警位置重复）
             const std::vector<Hop> &chain = decision.chain;
             if (chain.size() >= 2) {
@@ -111,7 +159,11 @@ std::vector<std::pair<Decision, Disposition>> Reporter::Flush(BugReporter &br, c
                 }
                 report->addNote(text, PathDiagnosticLocation(loc, sm));
                 for (size_t i = 0; i < chain.size(); ++i) {
-                    SourceLocation hopLoc = Locate(chain[i].site, sm);
+                    Site hopSite = chain[i].site;
+                    if (!policy.sinkDiagnostics) {
+                        hopSite.col = 0;
+                    }
+                    SourceLocation hopLoc = Locate(hopSite, sm);
                     if (hopLoc.isInvalid()) {
                         continue;
                     }

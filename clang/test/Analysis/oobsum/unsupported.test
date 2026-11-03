@@ -1,7 +1,7 @@
 # 访问因不支持的构造而进账本时，原因记 unsupported_construct / inline_asm（oobsum/specs/SPEC-0060；06- A-08、D-27）。
 # 只换 SUSPECT 的原因，记不记、报不报不变。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:Dump=fir \
 # RUN:   -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(Va_Idx|Literal_Ptr)$' %S/Inputs/unsupported/u.c 2>&1 | FileCheck %s
 

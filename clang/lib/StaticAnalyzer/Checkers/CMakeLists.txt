@@ -157,6 +157,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   OobSummary/core/HeaderKeys.cpp
   OobSummary/core/AccessInfo.cpp
   OobSummary/lower/AccessInfo.cpp
+  OobSummary/core/Diagnostics.cpp
 
   LINK_LIBS
   clangAST

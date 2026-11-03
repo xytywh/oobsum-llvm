@@ -2,7 +2,7 @@
 # 调用方经它的访问越出内层 → SUSPECT subobject_overflow。返回成员数组原来不记 ret_ptr（调用方只能记 untracked_pointer）。
 # 返回"实参 + 偏移"时实参原有的窗口一起平移。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(GetBuf|GetRow|Next)$' \
 # RUN:   -w %S/Inputs/subobj/r.c 2>&1 | FileCheck %s

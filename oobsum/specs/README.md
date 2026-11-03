@@ -33,6 +33,7 @@
 
 | 编号 | 标题 | 状态 |
 |---|---|---|
+| [SPEC-0126](SPEC-0126-sink-diagnostics.md) | 默认 sink、类型与范围分段、同源行合并并保留原判断 | 已实现 |
 | [SPEC-0125](SPEC-0125-access-diagnostics.md) | 访问指令编号、类型 / 步长 / 来源穿过 FIR 与摘要 | 已实现 |
 | [SPEC-0124](SPEC-0124-solve-target-groups.md) | 全局求解按目标隔离，避免 ABI 摘要混用 | 已实现 |
 | [SPEC-0123](SPEC-0123-solve-observability.md) | 求解进度、实时日志、局部 / 闭包摘要落盘与报告目录 | 已实现 |

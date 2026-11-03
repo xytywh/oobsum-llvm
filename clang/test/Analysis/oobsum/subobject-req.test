@@ -2,7 +2,7 @@
 # （have 是子对象大小、end 从子对象起点算）往调用方传；调用方给的值越出内层 → SUSPECT subobject_overflow（不判 DEFINITE / POSSIBLE），
 # 在界内 → SAFE。外层（整个对象）照常判。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(Mark|SetY)$' \
 # RUN:   -w %S/Inputs/subobj/u.c 2>&1 | FileCheck %s

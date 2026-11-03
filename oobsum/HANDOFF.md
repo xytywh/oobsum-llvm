@@ -46,7 +46,7 @@
 | D9 | 引擎跑在自己的中间表示 FIR 上，不直接跑 `clang::CFG` | 与 Clang 解耦：可单测、可离线求解、可喂给 AI |
 | D10 | 落盘用 JSON（`llvm::json`），C++ 侧不引入第三方库 | 不动 xir 的依赖 |
 | D11 | 只挂 `check::ASTDecl<TranslationUnitDecl>` | 多挂 `EndOfTranslationUnit` 会让每个函数跑 ExprEngine（实测） |
-| D12 | 告警报在汇合点的调用表达式上；跨文件的链写进 note / 消息 | 访问点常在别的 TU |
+| D12 | SPEC-0126 修订：默认报 sink；原汇合点与链保留为上下文；同源行合并、全部判断仍入日志 | 用户全板反馈与三行收集器要求 |
 | D13 | 自定义函数键（外部链接用名字，内部链接带定义文件），不用 USR | C 没有重载；不依赖 clangIndex |
 | X-04 | solve 用桩 TU 宿主 | 不改 BXPlugin 构建 |
 | D14 | 摘要里的自然语言只放在 `doc` 字段，引擎不读 | 静态分析不消费自然语言；去掉 doc 就是完整摘要 |

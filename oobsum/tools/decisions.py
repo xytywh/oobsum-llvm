@@ -57,10 +57,10 @@ def main():
     show = sel if a.all else [r for r in sel if r['emitted']]
     if show:
         print('\n== %s' % ('全部条目' if a.all else '报了的条目'))
-        for r in sorted(show, key=lambda r: (r['site'], r['fp'])):
+        for r in sorted(show, key=lambda r: (r.get('sink', r['site']), r['fp'])):
             tag = r['label'].upper() + (':' + r['reason'] if r.get('reason') else '')
             extra = '' if r['emitted'] else '  (未报：%s)' % r.get('not_emitted_because')
-            print('  %-40s [%s] depth=%s fn=%s fp=%s%s' % (r['site'], tag, r.get('depth'), r.get('fn'), r.get('fp'), extra))
+            print('  %-40s [%s] depth=%s fn=%s fp=%s%s' % (r.get('sink', r['site']), tag, r.get('depth'), r.get('fn'), r.get('fp'), extra))
     if a.jsonl:
         with open(a.jsonl, 'w', encoding='utf-8') as fp:
             for r in sel:

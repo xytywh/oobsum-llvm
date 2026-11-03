@@ -1,6 +1,6 @@
 # 两边都是区间的比较也收窄（oobsum/specs/SPEC-0110）：n ∈ [0, 16]（两条路各自的守卫下）、i < n → i ≤ 15。只用代码给出的界。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:Dump=state \
 # RUN:   -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^Clamp$' -w %S/Inputs/rangecmp/m.c 2>&1 | FileCheck %s
 

@@ -49,6 +49,7 @@
 #include <map>
 #include <memory>
 #include "OobSummary/core/Fingerprint.h"
+#include "OobSummary/core/Key.h"
 #include "OobSummary/core/FirJson.h"
 #include "OobSummary/core/Engine.h"
 #include "OobSummary/core/FirText.h"
@@ -346,7 +347,7 @@ void OobSummaryChecker::solveAll() const
         }
         std::vector<llvm::json::Array> byModule(mods.size());
         for (const oobsum::Decision &d : result.decisions) {
-            auto it = result.moduleOf.find(d.fn);
+            auto it = result.moduleOf.find(policy.sinkDiagnostics && !d.accessKey.empty() ? d.accessKey : d.fn);
             if (it == result.moduleOf.end()) {
                 continue;
             }
@@ -516,7 +517,7 @@ void OobSummaryChecker::dumpSummaries(const oobsum::fir::Module &module, const s
 
 void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisManager &mgr, BugReporter &br) const
 {
-    const SourceManager &sm = mgr.getSourceManager();
+    SourceManager &sm = mgr.getSourceManager();
     const FileEntry *mainEntry = sm.getFileEntryForID(sm.getMainFileID());
     std::string mainFile = mainEntry != nullptr ? mainEntry->getName().str() : "<unknown>";
     std::string tuId = oobsum::TuId(mainFile);
@@ -603,6 +604,23 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
             os << llvm::json::Value(oobsum::DecisionToJson(entry.first, entry.second));
             dump.Line("decisions", os.str());
         }
+    }
+    if (dump.On("diagnostics")) {
+        std::string content;
+        for (const auto &entry : logged) {
+            const auto &chain = entry.first.chain;
+            std::string access = chain.empty() ? oobsum::KeyName(entry.first.accessKey).str() : chain.back().fn;
+            std::string context = chain.empty() ? oobsum::KeyName(entry.first.fn).str() : chain.front().fn;
+            if (!dump.Wants("diagnostics", access) && !dump.Wants("diagnostics", context)) {
+                continue;
+            }
+            std::string text;
+            llvm::raw_string_ostream os(text);
+            os << llvm::json::Value(oobsum::DecisionToJson(entry.first, entry.second));
+            dump.Line("diagnostics", os.str());
+            content += os.str() + "\n";
+        }
+        dump.File(tuId + "/diagnostics.jsonl", content);
     }
     std::string error;
     std::string logPath = oobsum::WriteDecisionLog(workDir, tuId, mainFile, logged, error);
@@ -749,6 +767,11 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
             llvm::errs() << "[oobsum] warning: ModelFile " << chk->modelFile << ": " << w << "\n";
         }
     }
+    std::string diagnosticStyle = getString("DiagnosticStyle");
+    if (diagnosticStyle != "sink" && diagnosticStyle != "legacy") {
+        mgr.reportInvalidCheckerOptionValue(chk, "DiagnosticStyle", "sink or legacy");
+    }
+    chk->policy.sinkDiagnostics = diagnosticStyle != "legacy";
     chk->optionsText = "Phase=" + chk->phase + " WorkDir=\"" + chk->workDir + "\" Policy=" + policyName +
                        " InlineDepth=" + std::to_string(chk->policy.inlineDepth) +
                        " ReportSafe=" + (chk->policy.reportSafe ? "true" : "false") + " SuspectReasons=\"" +
@@ -757,7 +780,7 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
                        "\" MaxBlocks=" + std::to_string(chk->maxBlocks) + " CharAlias=" + charAlias +
                        " Subobject=" + subobject +
                        " AssumeNoWrap=" + (chk->interpOptions.assumeNoWrap ? "true" : "false") +
-                       (envText ? " OOBSUM_CONFIG=\"" + *envText + "\"" : "");
+                       " DiagnosticStyle=" + diagnosticStyle + (envText ? " OOBSUM_CONFIG=\"" + *envText + "\"" : "");
 }
 
 bool ento::shouldRegisterOobSummaryChecker(const CheckerManager &mgr)

@@ -1,5 +1,5 @@
 // 经形参访问成员数组：成员边界与外层对象边界都查（oobsum/specs/SPEC-0022）。LV7-03 的写法：结构体按指针套在更短的缓冲区上。
-// RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary\
 // RUN:   %s 2>&1 | FileCheck %s
 

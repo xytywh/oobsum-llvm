@@ -2,10 +2,10 @@
 #
 # InlineDepth=0：报出；深度 0 不写调用链
 # RUN: rm -rf %t && mkdir -p %t
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 %S/Inputs/entryc/e.c 2>&1 | FileCheck %s
 # 显式 InlineDepth=2：DEFINITE / POSSIBLE 交现有规则（F-20），只写判定日志
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=2 -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t %S/Inputs/entryc/e.c 2>&1 | FileCheck %s --check-prefix=DEF
 # RUN: cat %t/decisions/*.jsonl | FileCheck %s --check-prefix=LOG
 

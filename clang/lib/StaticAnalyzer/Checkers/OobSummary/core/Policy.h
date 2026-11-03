@@ -21,10 +21,11 @@
 namespace oobsum {
 
 struct PolicyOptions {
-    bool recall = true;  // Policy=recall（默认）/ balanced
+    bool sinkDiagnostics = true;  // SPEC-0126：legacy 保留旧报告格式用于对照
+    bool recall = true;           // Policy=recall（默认）/ balanced
     // SPEC-0122 / F-20：默认 0 全报；非零时按 max(depth, effDepth) 过滤浅层。
     unsigned inlineDepth = 0;
-    bool reportSafe = false;  // SAFE 也报（用例、审计）
+    bool reportSafe = false;               // SAFE 也报（用例、审计）
     std::set<std::string> suspectReasons;  // 空 = 所有原因都报 SUSPECT
 };
 

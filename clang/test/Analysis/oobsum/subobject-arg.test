@@ -1,7 +1,7 @@
 # 带窗口的实参（oobsum/specs/SPEC-0104 §2.3 3b，用户决定 D22）：把指向成员数组 / 二维数组一行的指针交给被调者，调用点另记内层剩余（sub），
 # 被调者的 Req 在外层 safe / up 时按内层剩余再判一次：越出内层 → SUSPECT subobject_overflow；外层已经报的不再加内层这条。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary+apply -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(Arg_Tp|Row_Tp)$' \
 # RUN:   -w %S/Inputs/subobj/a.c 2>&1 | FileCheck %s

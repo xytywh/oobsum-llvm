@@ -1,6 +1,6 @@
 # strcpy_s 族（oobsum/specs/SPEC-0034）：目的一侧最多写 destMax 字节（upto），超出是 POSSIBLE（标签 model），偏移已越界是 DEFINITE。
 #
-# RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=models+summary -analyzer-config rb.enhance.core.OobSummary:DumpFilter=Name_Set \
 # RUN:   %S/Inputs/securec/str.c 2>&1 | FileCheck %s
