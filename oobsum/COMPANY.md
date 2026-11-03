@@ -9,7 +9,7 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-03-6**（SPEC-0122 / 0123 / 0124 / 0125 / 0126 / 0127 / 0128；本轮完整清单保留全部待验证步骤，新增场景统计和两条真实问题的摘要复核；结果不符合预期就停下，带回计数和本规则栈。）
+**清单版本：2026-11-03-7**（保留上一版全部待验证步骤；本次只澄清“判断指纹”和“函数摘要”的关系，不新增公司验证任务；结果不符合预期就停下，带回计数和本规则栈。）
 
 路径只改这里；`OOB_REPORT` 必须指向 JSON 文件，不能是 log 目录：
 
@@ -24,7 +24,7 @@ OOB_REPORT=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/a
 OOB_WD=/usr1/oobsum-work/full-b-20261103
 OOB_INI=/usr1/clang_check/src/cfg/ini/config.ini
 OOB_FUNCPTR=/usr1/clang_check/src/cfg/ini/config_funcptr.ini
-OOB_SUMMARY_FILTER='^(<待查函数1>|<待查函数2>)$'  # 从 explain 打出的链挑函数；只在公司填，不带回名字
+OOB_SUMMARY_FILTER='^(<待查函数1>|<待查函数2>)$'  # 直接填写要看摘要的函数名；也可先按旧问题的 fp 查链再选函数
 ```
 
 ### 已经做完、确认没问题的
@@ -104,17 +104,29 @@ RSS 的单位是 KiB；/usr/bin/time -v 的 Maximum resident set size 也是 KiB
 
 ### 第 4 步：在公司看两条问题的摘要
 
-先在旧的完整 WorkDir 上用 decisions.py 挑两个指纹（不要复制业务告警到仓库），用下面命令看调用链：
+**摘要以函数为粒度。** 同一目标内按函数键 key 区分函数；local / derived 是该函数摘要的两种视图，不是按告警生成的两种摘要。
+solve 会求解输入集合中的函数；DumpFilter 只控制额外保存哪些函数的摘要，不改变求解范围。指纹不是生成摘要的必要输入。
+
+这里有两种查看入口：
+
+* **已经知道要看哪个函数**：直接把函数名写进开头 OOB_SUMMARY_FILTER，再跑第 3 步，然后按下方 index.json 的 fn / key 查摘要文件，不用先找指纹。
+* **从一个具体问题开始看**：在旧的完整 WorkDir 用 decisions.py 找到那条判断的 `fp=...`，再用 explain 看它的调用链，从链上选需要查看摘要的函数。这个选函数的动作可在第 3 步之前完成。
+
+`fp`（判断指纹）是一串用于检索判断的十六进制标识，不是函数编号；SAFE 和未报的判断也有 fp。同一函数可有多条判断，同一个函数摘要也能供多处调用复用。
+fp 不含行号，也不保证每个日志记录都有不同的值；explain 可能列出多个匹配上下文。不要把 fp 当作摘要文件名。
+例如想复核两条问题，就分别取它们的 fp，执行下面的命令（问题、业务名字和摘要正文都留在公司）：
 
 ```bash
 python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir /usr1/oobsum-work/full-b <指纹1>
 python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir /usr1/oobsum-work/full-b <指纹2>
 ```
 
-把链上要看的函数写进开头 OOB_SUMMARY_FILTER 再跑第 3 步。新导出的 FIR 中每条访问有 diag 编号和 accesses（表达式、读写类型、元素大小、字段偏移、来源）；判定的 access_key / access_ids / sink 可对应回该指令。须重新 export 才有这些信息，旧 FIR 可读但没有新描述。
+把链上要看的函数写进开头 OOB_SUMMARY_FILTER；新导出的 FIR 中每条访问有 diag 编号和 accesses（表达式、读写类型、元素大小、字段偏移、来源）；判定的 access_key / access_ids / sink 可对应回该指令。须重新 export 才有这些信息，旧 FIR 可读但没有新描述。
 
 新 solve 的 dump/solve/summary/index.json 列出选中函数、键、TU 与文件 stem；
-索引 target 区分架构；同名函数的 stem 不同。同一个 stem 的 .local.json 是真实的函数解释事实，.derived.json 是调用传播后的 Req / reps 视图。索引与摘要只在公司打开，不带回名字或正文。
+索引 target 区分架构；函数键和目标不同的摘要使用不同 stem。stem 是“目标 + 函数键”的哈希文件名，与判断 fp 是两种标识，即使都是十六进制字符串也不能互换。
+同一个 stem 的 .local.json 是该函数的真实解释事实，.derived.json 是该函数在调用传播后的 Req / reps 视图。一个函数的 derived 可以记录到其它函数的访问证据链；摘要单位仍是这个函数。
+索引与摘要只在公司打开，不带回名字或正文。
 
 ```bash
 python3 -m json.tool "$OOB_WD/dump/solve/summary/index.json"
@@ -179,7 +191,7 @@ python3 "$OOB_REPO/oobsum/tools/scene_stats.py" --report "$OOB_WD.report.json"
 按 §1.6 的方法抽查；业务代码、名字、路径与告警原文不要带回，只给计数和对写法的概括。
 
 ```text
-清单版本：2026-11-03-6
+清单版本：2026-11-03-7
 1. 本地 lit __；csa 回退 __；同步 / 公司编译 __
 2. TestCase：InlineDepth=__ decisions=__ emitted=__，告警 __
    进度 read/analyze/propagate/decisions/write/done 是否可见 __；两种摘要是否可读 __

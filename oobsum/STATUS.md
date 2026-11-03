@@ -7,6 +7,10 @@
 
 ## 已完成
 
+* 文档澄清：函数 key / 摘要文件 stem / 判断 fp / 告警 report_group 分别标识不同对象；摘要以函数为粒度。
+  COMPANY.md §0 第4步明确“直接按函数查看”和“先按问题查链再选函数”两种入口，fp 不是生成摘要的必要输入。
+  清单 2026-11-03-7 仅澄清表述，保留上一版全部待验证项，不新增公司操作或修改代码行为。
+
 * SPEC-0128：warning / Decision 带 observed_features 场景标签；script scene_stats.py（argparse、完整用途 / 口径 / 示例 docstring）按物理告警 / 原判断、多标签 / 主类统计。
   缺证据和旧报告列 UNCLASSIFIED，Lv10 业务契约不自动猜，可在公司人工标注。分类不参与证明或策略。
   10-analysis-and-diagnostics.md 解释复杂度、摘要 local/derived/reps/chain 与真实数据流、reported/emitted、类型界 / 字节末端、四类模型与边界。
