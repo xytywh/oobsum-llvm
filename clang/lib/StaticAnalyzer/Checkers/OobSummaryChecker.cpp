@@ -278,6 +278,8 @@ void OobSummaryChecker::solveAll() const
         groups[key].push_back(module.get());
     }
     llvm::json::Array summaryIndex;
+    // SPEC-0129 / I-21：零匹配与写盘失败必须可见；计数只观察，不参与求解。
+    size_t summaryAvailable = 0, summaryMatched = 0, summarySaved = 0, summaryFailures = 0;
     size_t groupNumber = 0;
     bool allWritten = true;
     for (const auto &group : groups) {
@@ -290,9 +292,11 @@ void OobSummaryChecker::solveAll() const
                      done, total);
         };
         oobsum::engine::InlineResult result = oobsum::engine::RunSolve(mods, models, interpOptions, groupProgress);
+        summaryAvailable += result.summaries.size();
         // Dump=summary：全局求解后的每个函数的摘要（SPEC-0032；engine_check.py 的跨 TU 用例用它）
         for (const auto &entry : result.summaries) {
             if (dump.Wants("summary", entry.second.fn)) {
+                ++summaryMatched;
                 std::string text;
                 llvm::raw_string_ostream os(text);
                 os << oobsum::summary::SummaryToJson(entry.second);
@@ -303,9 +307,15 @@ void OobSummaryChecker::solveAll() const
                     std::string content;
                     llvm::raw_string_ostream stream(content);
                     stream << llvm::formatv("{0:1}", oobsum::summary::SummaryToJson(summary)) << "\n";
-                    dump.File("solve/summary/" + stem + "." + view + ".json", stream.str());
+                    bool saved = !dump.File("solve/summary/" + stem + "." + view + ".json", stream.str()).empty();
+                    if (!saved) {
+                        ++summaryFailures;
+                        llvm::errs() << "[oobsum] warning: cannot save " << view
+                                     << " summary; check WorkDir permissions\n";
+                    }
+                    return saved;
                 };
-                save("local", entry.second);
+                bool localSaved = save("local", entry.second);
                 oobsum::summary::Summary derived = entry.second;
                 const auto &facts = result.propagate.fns.at(entry.first);
                 derived.reqs.clear();
@@ -333,12 +343,15 @@ void OobSummaryChecker::solveAll() const
                 for (size_t i = 0; i < facts.entryOpens.size(); ++i) {
                     derived.opens.push_back({facts.entryOpens[i], derived.loc, derived.reqs[i].id});
                 }
-                save("derived", derived);
-                summaryIndex.push_back(llvm::json::Object{{"key", entry.first},
-                                                          {"fn", entry.second.fn},
-                                                          {"tu", mods[result.moduleOf.at(entry.first)]->tu},
-                                                          {"stem", stem},
-                                                          {"target", group.first}});
+                bool derivedSaved = save("derived", derived);
+                if (localSaved && derivedSaved) {
+                    ++summarySaved;
+                    summaryIndex.push_back(llvm::json::Object{{"key", entry.first},
+                                                              {"fn", entry.second.fn},
+                                                              {"tu", mods[result.moduleOf.at(entry.first)]->tu},
+                                                              {"stem", stem},
+                                                              {"target", group.first}});
+                }
             }
         }
         for (const std::string &line : result.applyLines) {
@@ -389,7 +402,34 @@ void OobSummaryChecker::solveAll() const
         std::string content;
         llvm::raw_string_ostream stream(content);
         stream << llvm::formatv("{0:1}", llvm::json::Value(std::move(summaryIndex))) << "\n";
-        dump.File("solve/summary/index.json", stream.str());
+        bool indexWritten = !dump.File("solve/summary/index.json", stream.str()).empty();
+        if (!indexWritten) {
+            ++summaryFailures;
+            llvm::errs() << "[oobsum] warning: cannot save summary index; check WorkDir permissions\n";
+        }
+        llvm::json::Value status(llvm::json::Object{{"schema", "oobsum-summary-status/1"},
+                                                    {"available", static_cast<int64_t>(summaryAvailable)},
+                                                    {"matched", static_cast<int64_t>(summaryMatched)},
+                                                    {"saved", static_cast<int64_t>(summarySaved)},
+                                                    {"write_failures", static_cast<int64_t>(summaryFailures)},
+                                                    {"index_written", indexWritten}});
+        std::string statusText;
+        llvm::raw_string_ostream statusStream(statusText);
+        statusStream << llvm::formatv("{0:1}", status) << "\n";
+        if (dump.File("solve/summary/status.json", statusStream.str()).empty()) {
+            ++summaryFailures;
+            llvm::errs() << "[oobsum] warning: cannot save summary status; check WorkDir permissions\n";
+        }
+        // summary 前缀每行必须是摘要 JSON，engine_check.py 依赖它；计数另用 stats。
+        dump.Line("stats", "summary available=" + std::to_string(summaryAvailable) +
+                               " matched=" + std::to_string(summaryMatched) + " saved=" + std::to_string(summarySaved) +
+                               " write_failures=" + std::to_string(summaryFailures));
+        if (summaryAvailable == 0) {
+            llvm::errs() << "[oobsum] warning: no available function summaries; check FIR loading in solve log\n";
+        } else if (summaryMatched == 0) {
+            llvm::errs() << "[oobsum] warning: DumpFilter matched no functions; use oobsum_run.py summary --list "
+                            "and solve --summary-function NAME\n";
+        }
     }
     progress(allWritten ? "done" : "failed", modules.size(), modules.size());
 }

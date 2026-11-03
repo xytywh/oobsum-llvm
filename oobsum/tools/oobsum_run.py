@@ -4,9 +4,15 @@
   python3 oobsum/tools/oobsum_run.py local  --workdir W [--clang C] [--triple T] [--config K=V]… [--cc1-arg A]… 源文件…
   python3 oobsum/tools/oobsum_run.py bxen   --workdir W --bxen B --cc-json 原cdb目录 [--analysis-folder 目录,…] [--extra "…"] [--run]
   python3 oobsum/tools/oobsum_run.py status --workdir W
+  python3 oobsum/tools/oobsum_run.py summary --workdir W --list [--contains 名字片段] [--counts-only]
+  python3 oobsum/tools/oobsum_run.py solve --workdir W --bxen B --summary-function 函数名 [--summary-function 另一函数名] --run
+  python3 oobsum/tools/oobsum_run.py summary --workdir W --function 函数名 --view local
 
 local：本仓库的 clang 逐文件跑 cc1（参数同 run.py csa）；bxen：打印（--run 时执行）三段 bxen 命令，生成桩 TU 的 cdb 与 report 的 cdb。
 每条命令先打印再执行，输出追加到 W/logs/<阶段>.log；非零退出即停，并提示单独重跑那一段。只依赖 Python 3 标准库。
+summary（SPEC-0129）：FIR 中按目标与函数键盘点；查看 local（局部事实）/ derived（传播结果）视图。
+空 index.json 表示没有保存摘要，不能据此判定没有分析函数。复用完整 FIR，精确选择函数重跑 solve 即可补出，
+无需再次 export/report；保留原 solve 的模型与策略选项。函数名和摘要只在公司本地查看，带回用 --list --counts-only。
 """
 import sys
 sys.dont_write_bytecode = True
@@ -126,6 +132,9 @@ def bxen_cmd(a, cc_json, phase, workdir, analysis_file=None, folder=None):
     extra = '-analyzer-config ipa=none -analyzer-config %s:Phase=%s -analyzer-config %s:WorkDir=%s' % (CHECKER, phase, CHECKER, workdir)
     if a.extra:
         extra += ' ' + a.extra
+    if phase == 'solve' and getattr(a, '_summary_filter', None):
+        extra += ' -analyzer-config %s:Dump=progress+summary -analyzer-config %s:DumpFilter=%s' % (
+            CHECKER, CHECKER, a._summary_filter)
     cmd = [a.bxen, '-exec_mode=onlySa', '-cc_json=' + cc_json]
     if analysis_file:
         cmd.append('-analysis_file=' + analysis_file)
@@ -150,12 +159,27 @@ def cmd_solve(a):
     if nfir == 0:
         print('✗ %s/fir/ 下没有文件：先用 clang_check 跑一遍 Phase=export（或带 WorkDir 的默认模式）' % workdir)
         return 1
+    selected = getattr(a, 'summary_function', [])
+    if selected:
+        entries, bad = _function_inventory(workdir)
+        available = {e['fn'] for e in entries}
+        missing = set(selected) - available
+        if missing:
+            print('✗ 有 %d 个函数名不在 FIR 中；尚未启动 bxen。先用 summary --list [--contains 名字片段] 查准确名称' %
+                  len(missing), file=sys.stderr)
+            return 1
+        a._summary_filter = _literal_filter(selected)
+        expected_summaries = {(e['target'], e['key']) for e in entries if e['fn'] in selected}
+        print('# 摘要预检：匹配 %d 个函数（按目标与函数键计）；无法盘点的 FIR %d 个' % (
+            sum(e['fn'] in selected for e in entries), bad))
     stub_dir, stub = write_stub_cdb(workdir)
     cmd = bxen_cmd(a, stub_dir, 'solve', workdir, stub)
     print('# fir/ 里 %d 个 TU；solve 单进程读全部 FIR，写 solved/<tu>.json' % nfir)
     if not a.run:
         print('$ ' + show(cmd))
         return 0
+    index_path = os.path.join(workdir, 'dump', 'solve', 'summary', 'index.json')
+    previous_index = os.stat(index_path) if selected and os.path.isfile(index_path) else None
     if run(cmd, workdir, 'solve') != 0:
         stop('solve', cmd)
     progress_path = os.path.join(workdir, 'dump', 'solve', 'progress.json')
@@ -170,6 +194,25 @@ def cmd_solve(a):
         print('注意：solved 比 FIR 少 %d 个 TU；查看 logs/solve.log 中跳过的坏 FIR 或写入错误' % (nfir - len(table)))
     print('solve 完成：solved/ %d 个 TU，判定 %d 条（%d 个 TU 有判定）；下一步 clang_check 跑 Phase=report' % (
         len(table), sum(n for _, n in table), sum(1 for _, n in table if n > 0)))
+    if selected:
+        try:
+            current = os.stat(index_path)
+            if previous_index and (current.st_ino, current.st_mtime_ns) == (previous_index.st_ino, previous_index.st_mtime_ns):
+                raise ValueError('本次 solve 未更新摘要索引')
+            entries = _summary_index(workdir)
+            if not expected_summaries <= {(e.get('target'), e.get('key')) for e in entries}:
+                raise ValueError('所选函数的部分目标或函数键没有保存到摘要索引')
+            for fn in set(selected):
+                hits = [e for e in entries if e.get('fn') == fn]
+                if not hits:
+                    raise ValueError('选中的函数没有保存到摘要索引')
+                for e in hits:
+                    for view in ('local', 'derived'):
+                        _read_summary(workdir, e, view)
+            print('摘要已保存：%d 个函数，两种视图均可读；用 summary --function NAME --view local 或 derived 查看' % len(entries))
+        except (OSError, ValueError, KeyError) as error:
+            print('✗ solve 已结束，但请求的摘要不完整：%s；查看 logs/solve.log 的 summary 计数与写盘提示' % error, file=sys.stderr)
+            return 1
     return 0
 
 
@@ -406,21 +449,91 @@ def cmd_cdb(a):
     return 0
 
 
+def _function_inventory(workdir):
+    """SPEC-0129 / F-42：逐 TU 盘点，不同时保存整板 FIR；口径与 solve 的目标分组、函数键去重一致。"""
+    entries, bad = {}, 0
+    for path in sorted(glob.glob(os.path.join(workdir, 'fir', '*.json'))):
+        try:
+            with open(path, encoding='utf-8') as f:
+                module = json.load(f)
+            t = module['target']
+            target = '%s ptr=%s long=%s %s-endian' % (
+                t['triple'], t['ptr'], t['long'], 'big' if t['big_endian'] else 'little')
+            for fn in module['funcs']:
+                entry = {'fn': fn['name'], 'key': fn['key'], 'target': target, 'tu': module['tu']}
+                entries.setdefault((target, fn['key']), entry)
+        except (OSError, ValueError, KeyError, TypeError):
+            bad += 1
+    return sorted(entries.values(), key=lambda e: (e['fn'], e['target'], e['key'])), bad
+
+
+def _literal_filter(names):
+    """LLVM Regex 用 POSIX ERE；不可用 Python re.escape 的空白转义交给 bxen 分词。"""
+    def escape(name):
+        return ''.join('[[:space:]]' if c.isspace() else '\\' + c if c in r'\.^$|?*+()[]{}' else c for c in name)
+    return '^(' + '|'.join(escape(name) for name in sorted(set(names))) + ')$'
+
+
+def _summary_index(workdir):
+    with open(os.path.join(workdir, 'dump', 'solve', 'summary', 'index.json'), encoding='utf-8') as f:
+        entries = json.load(f)
+    if not isinstance(entries, list) or any(not isinstance(e, dict) for e in entries):
+        raise ValueError('摘要索引格式不正确')
+    return entries
+
+
+def _read_summary(workdir, entry, view):
+    stem = entry['stem']
+    if not stem or os.path.basename(stem) != stem or stem in ('.', '..'):
+        raise ValueError('摘要索引包含无效 stem')
+    with open(os.path.join(workdir, 'dump', 'solve', 'summary', stem + '.' + view + '.json'), encoding='utf-8') as f:
+        return json.load(f)
+
+
+def cmd_summary(a):
+    """先盘点实际函数，再查本次 solve 的索引；不从旧的残留文件猜摘要。"""
+    if a.list:
+        entries, bad = _function_inventory(a.workdir)
+        hits = [e for e in entries if not a.contains or a.contains in e['fn']]
+        try:
+            saved = len(_summary_index(a.workdir))
+        except (OSError, ValueError):
+            saved = 0
+        print('FIR 函数 %d；筛选匹配 %d；已索引摘要 %d；无法盘点的 FIR %d' % (len(entries), len(hits), saved, bad))
+        if not a.counts_only:
+            for e in hits[:max(0, a.limit)]:
+                print('%s  key=%s  target=%s' % (e['fn'], e['key'], e['target']))
+            if len(hits) > max(0, a.limit):
+                print('只列前 %d 个；用 --contains 缩小范围或 --limit 增加显示数量' % max(0, a.limit))
+        return 0 if hits else 1
+    try:
+        entries = _summary_index(a.workdir)
+        hits = [e for e in entries if a.function in (e.get('fn'), e.get('key')) and
+                (not a.target or a.target == e.get('target'))]
+        if not hits:
+            raise ValueError('索引没有该函数；空索引可能是 DumpFilter 零匹配。先 summary --list，再 solve --summary-function NAME --run；可复用 FIR，无需 export/report')
+        if len(hits) > 1:
+            raise ValueError('有 %d 个同名函数；用 --function 指定函数键，并用 --target 指定目标（从 --list 查询）' % len(hits))
+        print(json.dumps(_read_summary(a.workdir, hits[0], a.view), indent=1, ensure_ascii=False))
+        return 0
+    except (OSError, ValueError, KeyError) as error:
+        print('✗ 无法查看摘要：%s' % error, file=sys.stderr)
+        return 1
+
+
 def _summary_of(workdir, tuid, fn):
-    """dump/<tu>/summary/<函数名>.json（Dump=summary 写的）；没有就 None"""
+    """优先读全局索引；无索引时兼容 dump/<tu>/summary，缺失或歧义返回 None。"""
     index_path = os.path.join(workdir, 'dump', 'solve', 'summary', 'index.json')
     if os.path.isfile(index_path):
-        with open(index_path, encoding='utf-8') as f:
-            entries = json.load(f)
+        entries = _summary_index(workdir)
         hits = [e for e in entries if e.get('key') == fn or e.get('fn') == fn]
         # SPEC-0124：同名跨目标函数必须按当前判定所在目标选摘要，不能任取第一个。
         targets = {e.get('target') for e in entries if e.get('tu') == tuid and e.get('target')}
         if len(targets) == 1:
             hits = [e for e in hits if e.get('target') in targets]
         if len(hits) == 1:
-            p = os.path.join(os.path.dirname(index_path), hits[0]['stem'] + '.local.json')
-            with open(p, encoding='utf-8') as f:
-                return json.load(f)
+            return _read_summary(workdir, hits[0], 'local')
+        return None  # SPEC-0129：有全局索引时，不能回退到其它轮次留下的 TU 局部事实。
     p = os.path.join(workdir, 'dump', tuid, 'summary', fn + '.json')
     if not os.path.isfile(p):
         hits = glob.glob(os.path.join(workdir, 'dump', '*', 'summary', fn + '.json'))
@@ -439,6 +552,7 @@ def cmd_explain(a):
     if not hits:
         print('没有指纹或函数名是 %s 的判定（加 --all 连 SAFE 一起找）' % a.what)
         return 1
+    missing_summaries = set()
     for d in hits:
         print('== [%s%s] %s  指纹 %s' % (d['label'].upper(), ':' + d['reason'] if d.get('reason') else '',
                                        d.get('site', '?'), d.get('fp', '?')))
@@ -454,8 +568,12 @@ def cmd_explain(a):
             print('   %s%s' % ('  ' * i + ('└ ' if i else ''), hop))
         for hop in chain:
             fn = hop.split('@', 1)[0]
-            sm = _summary_of(a.workdir, d.get('_tuid', ''), fn)
+            try:
+                sm = _summary_of(a.workdir, d.get('_tuid', ''), fn)
+            except (OSError, ValueError, KeyError):
+                sm = None
             if sm is None:
+                missing_summaries.add(fn)
                 continue
             params = ', '.join('p%d=%s' % (i, p.get('name', '?')) for i, p in enumerate(sm.get('params', [])))
             print('   -- 摘要 %s（%s）' % (fn, params))
@@ -468,8 +586,8 @@ def cmd_explain(a):
                                  if isinstance(v, dict) and len(v.get('range', [])) == 2)
                 print('      调用 %s @%s 实参 %s%s' % (c.get('callee'), c.get('site'), json.dumps(c.get('args', []), ensure_ascii=False),
                                                '；局部 ' + locs if locs else ''))
-    if not glob.glob(os.path.join(a.workdir, 'dump', '*', 'summary')):
-        print('（WorkDir 里没有 dump/*/summary：跑的时候加 Dump=summary 才能看到链上各函数的摘要）')
+    if missing_summaries:
+        print('（链上 %d 个函数没有可唯一读取的摘要；先 summary --list 查函数名，再 solve --summary-function NAME --run 补出；可复用 FIR）' % len(missing_summaries))
     return 0
 
 
@@ -495,6 +613,17 @@ def main():
     p.add_argument('--bxen', required=True)
     p.add_argument('--extra', default='')
     p.add_argument('--run', action='store_true')
+    p.add_argument('--summary-function', action='append', default=[], metavar='NAME', help='精确选择显示函数名，先查 FIR；可重复（SPEC-0129）')
+    p = sub.add_parser('summary', help='盘点 FIR 中的函数，或读取本次 solve 保存的函数摘要（SPEC-0129）')
+    p.add_argument('--workdir', required=True)
+    choice = p.add_mutually_exclusive_group(required=True)
+    choice.add_argument('--list', action='store_true', help='从 FIR 列出实际函数，不依赖摘要索引')
+    choice.add_argument('--function', metavar='NAME', help='显示函数名或函数键')
+    p.add_argument('--contains', help='--list 的函数名子串筛选')
+    p.add_argument('--limit', type=int, default=20, help='--list 最多显示的函数数，默认20')
+    p.add_argument('--counts-only', action='store_true', help='--list 只给计数，可带回')
+    p.add_argument('--target', help='指定完整目标字符串，消除同名歧义')
+    p.add_argument('--view', choices=('local', 'derived'), default='local')
     p = sub.add_parser('status')
     p.add_argument('--workdir', required=True)
     p = sub.add_parser('stats', help='报出的按标签 × 层数、SUSPECT 按原因、没报的按原因、报出最多的函数 / TU')
@@ -513,7 +642,7 @@ def main():
     p.add_argument('what', help='判定指纹，或函数名')
     a = ap.parse_args()
     sys.exit({'local': cmd_local, 'bxen': cmd_bxen, 'solve': cmd_solve, 'cdb': cmd_cdb, 'report': cmd_report, 'status': cmd_status, 'stats': cmd_stats,
-              'explain': cmd_explain}[a.cmd](a))
+              'explain': cmd_explain, 'summary': cmd_summary}[a.cmd](a))
 
 
 if __name__ == '__main__':

@@ -28,7 +28,14 @@ stem 与 fp 都是十六进制字符串，但含义不同，不能互换。
 
 例如 A → B → C，实际下标访问在 C：A、B、C 各有自己的函数摘要。选一个问题的 fp，只是让 explain 找到这条问题的证据链，再去看 A、B、C 的摘要。
 其它调用者也可以复用 C 的同一份参数化摘要，在各自实参下得到不同判断。不会因为多选一个 fp，就为 C 重新定义一种摘要粒度。
-已经知道函数名时，直接按函数名选择 DumpFilter 并查摘要索引即可，无需从问题开始。
+已经知道函数名时，先用 oobsum_run.py summary --list 从 FIR 确认准确显示名，再用 solve --summary-function NAME --run 精确选择，无需从问题开始。
+用 summary --function NAME --view local / derived 查看，不必手动拼 stem。完整命令见 COMPANY.md §0。
+
+空 index.json 表示本次没有保存函数摘要，不能解释成没有分析函数。Dump=summary 开启而 DumpFilter 未匹配时，旧实现会静默写 []；
+SPEC-0129 起明确打印 available / matched / saved / write_failures，并写 dump/solve/summary/status.json。
+available>0 且 matched=0 是筛选零匹配；available=0 需检查 FIR 加载；saved<matched 或 write_failures>0 需检查写盘。
+可以复用完整 FIR 只重跑 solve，保留原有模型与策略；无需再 export/report。选择器只缩小调试输出，不减少实际求解工作。
+新的 Python 盘点和查询也兼容旧二进制的索引；未知函数在启动 bxen 前就失败，不会等完整 solve 才发现选错。
 
 ## 一个函数的摘要为什么包含其它函数和调用链
 

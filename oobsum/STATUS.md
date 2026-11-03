@@ -7,6 +7,13 @@
 
 ## 已完成
 
+* SPEC-0129：修复 Dump=summary 零匹配静默空索引的可观测性；stderr 与 dump/solve/summary/status.json 提供 available / matched / saved / write_failures。
+  两种视图都写成功才进入索引；写盘失败明确提示，求解标签与 solved 保持不变。
+  oobsum_run.py 新增 summary --list（从 FIR 盘点，支持 counts-only）和 --function / --view；solve --summary-function 精确预检、自动生成字面量过滤器，保存后检查本次索引和完整视图。
+  explain 缺摘要明确提示，不借用全局索引之外的旧 TU 残留。公司清单2026-11-03-8把恢复步骤放最前；新Python可配旧checker，复用完整FIR仅重跑solve，不必再export/report。
+  构建通过；lit116/116、core172、replay一致、csa回退0 / G2零强告警、check-tree一致、冒烟7/7、约定31通过/1既有警告/0失败；engine_check维持14/16。
+  已在自有两TU夹具复现空索引并恢复local/derived；用户实际命令未带回，不认定其必然未替换占位正则。下一步等公司恢复计数与此前清单结果，业务样例根因仍须在公司确认。
+
 * 文档澄清：函数 key / 摘要文件 stem / 判断 fp / 告警 report_group 分别标识不同对象；摘要以函数为粒度。
   COMPANY.md §0 第4步明确“直接按函数查看”和“先按问题查链再选函数”两种入口，fp 不是生成摘要的必要输入。
   清单 2026-11-03-7 仅澄清表述，保留上一版全部待验证项，不新增公司操作或修改代码行为。
