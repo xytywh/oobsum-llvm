@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-11-03 公司全板反馈：运行与诊断更新（SPEC-0122…0128）
+
+* 规则迁入 rb.enhance.core.OobSummary，命令显式 ipa=none，InlineDepth 默认0；67用例70份TU日志的CSA IPA对照逐字相同。
+* 求解实时进度、日志与 local/derived 摘要落盘；混合目标隔离，报告路径错误可操作；重复编译配置差异单列。
+* 默认 sink、表达式 / 类型 / 元素容量 / 范围 / 完整主行链；同源行合并，原判断全入日志并关联物理告警。
+* 末尾小数组 FlexibleArrayMax=4 / ReportFlexibleArray=false，明确策略过滤，不伪造SAFE；开关恢复报告，固定内层和普通来源保留。
+* 场景证据标签、scene_stats.py 与专家复核说明；业务语义不自动猜。公司清单2026-11-03-6。
+* 本地验证：lit115/115、core172、replay一致、csa回退0 / TN零强告警；engine_check维持14/16的原关系域边界。
+
+
 ## v4.0 — 2026-10-14
 
 **搬进仓库：项目从"对话 + 调研包"改为 llvm-project 的 `oobsum/dev` 分支，由 Claude Code 在 WSL 里小步开发；附 checker 骨架。**

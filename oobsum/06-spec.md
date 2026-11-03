@@ -182,6 +182,8 @@ compile_commands ─▶ rb.enhance.core.OobSummary ──▶ WorkDir/fir/<tu>.js
   同一指纹全工程只报一次。`replay.py` 里的 XXH64 与 LLVM 14 的 `llvm::xxHash64` 逐位相同【实测数据：同一输入两边都是 `dc29cb0defb73e92`】。
 * **F-35 确定性**：同一 TU 的告警按（文件、行、列、指纹）排序后发出（`csa-checker-dev` 约定）。
 
+SPEC-0128 补充：warning 主行附 [scene=LVn+LVm] 的 observed_features，不参与严重程度、证明或过滤；没有证据列 UNCLASSIFIED，业务契约不自动标 Lv10。
+
 ### 3.5 账本与可查性
 
 * **F-40**：每个函数的摘要都有 `status`：`analyzed`、`partial:<原因>`、`skipped:<原因>`（`01-` §3.4 全函数性）。**"没分析"必须和"分析了没问题"可区分**。

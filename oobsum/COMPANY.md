@@ -9,7 +9,7 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-03-5**（SPEC-0122 / 0123 / 0124 / 0125 / 0126 / 0127；保留前版步骤；保留 sink / 摘要 / 进度步骤；新增尾数组阈值与报告开关对照；结果不符合预期就停下，带回计数和本规则栈。）
+**清单版本：2026-11-03-6**（SPEC-0122 / 0123 / 0124 / 0125 / 0126 / 0127 / 0128；本轮完整清单保留全部待验证步骤，新增场景统计和两条真实问题的摘要复核；结果不符合预期就停下，带回计数和本规则栈。）
 
 路径只改这里；`OOB_REPORT` 必须指向 JSON 文件，不能是 log 目录：
 
@@ -21,7 +21,7 @@ OOB_CDB=/usr1/518C10/HERT_BBU/project/makesoter/compdb/1383/all
 OOB_GBL_OLD=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.ipa.OobSummary/gbl_config.json
 OOB_GBL=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/gbl_config.json
 OOB_REPORT=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/allfiles-buffer_overflow_report.json
-OOB_WD=/usr1/oobsum-work/full-b-v2
+OOB_WD=/usr1/oobsum-work/full-b-20261103
 OOB_INI=/usr1/clang_check/src/cfg/ini/config.ini
 OOB_FUNCPTR=/usr1/clang_check/src/cfg/ini/config_funcptr.ini
 OOB_SUMMARY_FILTER='^(<待查函数1>|<待查函数2>)$'  # 从 explain 打出的链挑函数；只在公司填，不带回名字
@@ -54,7 +54,8 @@ python3 "$OOB_REPO/oobsum/cases/run.py" csa
 python3 "$OOB_REPO/oobsum/devenv/land.py" --drop "$OOB_REPO/oobsum/landing/OobSummaryChecker.manifest" --into bxplugin --root "$OOB_ROOT" --apply
 make -C "$OOB_BUILD" -j16
 mkdir -p "$(dirname "$OOB_GBL")"
-cp "$OOB_GBL_OLD" "$OOB_GBL"
+if [ ! -f "$OOB_GBL" ]; then cp "$OOB_GBL_OLD" "$OOB_GBL"; fi
+python3 -c 'from pathlib import Path; import sys; p=Path(sys.argv[1]); p.write_text(p.read_text().replace("rb.enhance.ipa.OobSummary", "rb.enhance.core.OobSummary"))' "$OOB_GBL"
 ```
 
 预期：编译、lit 全通过、csa 回退 0；land.py 将同一个 checker def 从 ipa 块移动到 core 块（不会留下两个 def）。
@@ -155,12 +156,30 @@ python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" stats --workdir "$OOB_COMPARE" --
 旧收集报告若含多个 warning 被粘在同一 reason 内，report 工具会提示；已有报告不能自动修回丢失的源码行，须重新 report。
 `type_range_only` 的人类说明是“没找到可用的代码约束”；机器原因名保留以兼容脚本。全局指针的告警应列出表达式和可能的全局来源。
 
+### 第 7 步：场景分布与专家复核
+
+```bash
+python3 "$OOB_REPO/oobsum/tools/scene_stats.py" --workdir "$OOB_WD"
+python3 "$OOB_REPO/oobsum/tools/scene_stats.py" --workdir "$OOB_WD" --multi
+python3 "$OOB_REPO/oobsum/tools/scene_stats.py" --workdir "$OOB_WD" --unit decisions --include-unemitted --json > "$OOB_WD.scenes-all.json"
+python3 "$OOB_REPO/oobsum/tools/scene_stats.py" --report "$OOB_WD.report.json"
+```
+
+预期：LV1..LV10 与 UNCLASSIFIED 都有计数；默认主类取最高已观察等级，--multi 的多标签合计可大于总数。WorkDir 默认按 report_group 计物理告警，--unit decisions 计原判断。
+这是 observed_features，不能仅凭层数分类，也不表示某一级全部能力支持。Lv10 业务语义要人工判定，自动不猜；旧报告没有标签时列未分类。
+可在公司创建 annotations JSON，以指纹或 group 编号映射到 ["LV10"] 等，再传 --annotations；该文件只留在公司。
+脚本默认只输出计数，不列函数名、源码路径或告警正文。完整解释见 10-analysis-and-diagnostics.md（包括复杂度、摘要、字节末端与模型边界）。
+
+复核两条问题时，记录的只是：访问类别、读 / 写、元素大小、已知容量、下标 / 长度的数值或抽象范围、是否来自类型界、哪个比较保护了哪个对象。
+不要根据“给变量取地址”直接判断误报，也不要把对第2实参的写误看成第1实参的数组读；以 sink 的操作和 local / derived 条件为证据。
+3 元素结构体的 64/60 可能是索引3的4字节字段（3*20+4），合成的严格 <n 反例已证明安全；业务自己的64仍须核查来源，不直接定性。
+
 ### 带回模板
 
 按 §1.6 的方法抽查；业务代码、名字、路径与告警原文不要带回，只给计数和对写法的概括。
 
 ```text
-清单版本：2026-11-03-5
+清单版本：2026-11-03-6
 1. 本地 lit __；csa 回退 __；同步 / 公司编译 __
 2. TestCase：InlineDepth=__ decisions=__ emitted=__，告警 __
    进度 read/analyze/propagate/decisions/write/done 是否可见 __；两种摘要是否可读 __
@@ -168,7 +187,8 @@ python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" stats --workdir "$OOB_COMPARE" --
 4. solve Elapsed __；Maximum resident set size __；solved __；判定 __；report 成功 / 失败 __
 5. 默认与 flex-on 的 stats --counts-only 全文（含报出判定 / 物理告警两种计数）；report 输出
 6. 抽查（每个原因）：看了 __、真问题 __、误报 __、看不出 __；写法概括 __
-7. 异常：阶段 __、退出码 __、仅本规则栈 __
+7. 场景统计：默认 / multi 文本；两条问题的元素大小 __、容量 __、范围 __、标签 __、看源码后的判断 __（只给抽象写法，不给名字和正文）
+8. 异常：阶段 __、退出码 __、仅本规则栈 __
 ```
 
 ## 1. 这个规则是怎么跑的
@@ -263,6 +283,13 @@ SUSPECT = 证明不了安全，**不等于有问题**；原因说明卡在哪一
 `.cpp` 照常分析：C 的写法与 C 文件完全相同；引用按指针算（引用形参、经引用写回调用方都精确）；重载、模板实例化各算各的。
 `this` 还没建模：成员函数里经 `this` 的访问记 `untracked_pointer`，成员函数 / 构造函数的调用记 `cxx_call`——**都报 SUSPECT，不会因此推出 SAFE**。C++ 类写得多的话这部分会比较吵，
 看第 4 步的 C++ 文件数再定要不要做 `this` 建模。
+
+### 1.8 摘要、复杂度与复核解释
+
+详见 [10-analysis-and-diagnostics.md](10-analysis-and-diagnostics.md)：
+摘要为什么有其它函数与 reps / chain；真实推理如何使用 local 事实；reported 与 emitted 的区别；
+相对于 CSA 路径执行的成本结构、没有统一加速倍数与实际限制；9秒/257MiB与这次全板20分钟/29.4GiB的含义；
+exclusive end 和结构体元素容量换算；各类 SUSPECT 的证据边界；四类 YAML 模型与不能随便声明 pure 的原因。
 
 ## 2. 各项操作（参考；§0 的步骤都来自这里）
 

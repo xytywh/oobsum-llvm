@@ -7,6 +7,7 @@
 #include "OobSummary/core/Engine.h"
 
 #include "OobSummary/core/Alert.h"
+#include "OobSummary/core/Diagnostics.h"
 #include "OobSummary/core/Fingerprint.h"
 #include "OobSummary/core/Key.h"
 #include "OobSummary/core/Label.h"
@@ -808,6 +809,30 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
                 decision.accesses.push_back(std::move(info));
             }
         }
+    }
+    std::map<std::string, std::map<int64_t, std::pair<std::string, std::string>>> sceneShapes;
+    for (const auto &entry : out.facts) {
+        for (const auto &req : entry.second.reqs) {
+            auto &shape = sceneShapes[entry.first][req.access.diag];
+            shape.first += req.have + " ";
+            shape.second += req.endHi + " ";
+        }
+    }
+    for (auto &decision : out.decisions) {
+        std::string have;
+        std::string end;
+        for (int64_t id : decision.accessIds) {
+            auto owner = sceneShapes.find(decision.accessKey);
+            if (owner == sceneShapes.end()) {
+                continue;
+            }
+            auto shape = owner->second.find(id);
+            if (shape != owner->second.end()) {
+                have += shape->second.first;
+                end += shape->second.second;
+            }
+        }
+        decision.scenes = ClassifyScenes(decision, have, end);
     }
     // 告警正文里不露内部链接全局符号的身份后缀（SPEC-0086）
     for (auto &d : out.decisions) {

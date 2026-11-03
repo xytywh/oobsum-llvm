@@ -195,3 +195,6 @@ SPEC-0126：默认 DiagnosticStyle=sink，warning 在数组 / 指针 / 成员 / 
 SPEC-0127：FlexibleArrayMax=4 / ReportFlexibleArray=false。结构体最后一个数组成员（[] 或声明元素数不超过阈值）按约定候选默认不报；
 这会同时过滤候选上的真越界，原判断保持 DEFINITE / POSSIBLE / SUSPECT 并写 flexible_array，不能当作 SAFE。ReportFlexibleArray=true 恢复报告。
 阈值0只保留[]/[0]；独立数组、非末尾成员、union与固定内层窗口仍检查。没有跟踪到来源的复杂字段链继续保守报告。
+
+SPEC-0128：主行 [scene=LVn+LVm] 是已观察能力特征，与访问类别 / 严重程度 / 深度不同。缺证据是 UNCLASSIFIED，Lv10 由专家人工研判。
+统计用 oobsum/tools/scene_stats.py（argparse、默认只有计数）；完整解释见 oobsum/10-analysis-and-diagnostics.md。

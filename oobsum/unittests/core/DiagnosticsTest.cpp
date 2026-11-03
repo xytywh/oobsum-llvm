@@ -7,6 +7,8 @@
 
 #include "OobSummary/core/Diagnostics.h"
 
+#include <algorithm>
+
 using namespace oobsum;
 
 TEST(Diagnostics, StructArrayElementsAndExclusiveEnd)
@@ -80,4 +82,40 @@ TEST(Diagnostics, BackwardsRangeAndStableLineGroup)
     d.sink.line = 9;
     d.target = "x86";
     EXPECT_TRUE(DiagnosticGroup(d) != first);
+}
+
+TEST(Diagnostics, ScenesAreObservedFeaturesNotDepth)
+{
+    Decision d;
+    d.label = Label::Possible;
+    d.kind = "W";
+    d.bound = "loop";
+    d.depth = 20;
+    AccessInfo info;
+    info.category = "array-index";
+    info.expression = "p[i]";
+    d.accesses = {info};
+    auto scenes = ClassifyScenes(d, "ext(p0)", "20*p1 + 4");
+    EXPECT_TRUE(scenes == std::vector<unsigned>({2, 3}));
+    d.flex = 0;
+    scenes = ClassifyScenes(d, "ext(p0)", "20*p1 + 4");
+    EXPECT_TRUE(std::find(scenes.begin(), scenes.end(), 7) != scenes.end());
+    EXPECT_TRUE(std::find(scenes.begin(), scenes.end(), 10) == scenes.end());
+}
+
+TEST(Diagnostics, UnclassifiedAndBusinessContractBoundary)
+{
+    Decision d;
+    d.reason = "untracked_pointer";
+    AccessInfo info;
+    info.category = "array-index";
+    info.expression = "p[i]";
+    d.accesses = {info};
+    EXPECT_TRUE(ClassifyScenes(d).empty());
+    d.accesses[0].origin = "global pointer 'g_table'";
+    d.accesses[0].nonlinear = true;
+    EXPECT_TRUE(ClassifyScenes(d) == std::vector<unsigned>({6, 8}));
+    d.accesses.clear();
+    d.reason = "cxx_call";
+    EXPECT_TRUE(ClassifyScenes(d) == std::vector<unsigned>({9}));
 }

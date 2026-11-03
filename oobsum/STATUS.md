@@ -7,6 +7,13 @@
 
 ## 已完成
 
+* SPEC-0128：warning / Decision 带 observed_features 场景标签；script scene_stats.py（argparse、完整用途 / 口径 / 示例 docstring）按物理告警 / 原判断、多标签 / 主类统计。
+  缺证据和旧报告列 UNCLASSIFIED，Lv10 业务契约不自动猜，可在公司人工标注。分类不参与证明或策略。
+  10-analysis-and-diagnostics.md 解释复杂度、摘要 local/derived/reps/chain 与真实数据流、reported/emitted、类型界 / 字节末端、四类模型与边界。
+  构建通过，lit115/115、core172、replay一致、csa回退0 / G2零强告警（108通过、20通过+S、2级别不同、3超出预期、1策略过滤），engine_check维持14/16。
+  公司最终清单2026-11-03-6合并本轮全部待验证项；等公司新结果再改推理能力，不猜两条业务实例的根因。
+
+
 * SPEC-0127：FlexibleArrayMax=4 / ReportFlexibleArray=false；[] 和末尾小数组的原标签仍算、仍写日志，由 flexible_array 明确策略过滤，不标 SAFE。
   来源经局部 / 调用 / 字段 / 返回效果传播，固定内层界与普通指针路径保持报告；ReportFlexibleArray=true 恢复原报告能力。
   lit 114/114、core 170、replay 一致、engine_check 维持14/16；默认 csa 108通过、20通过+S、2级别不同、3超出预期、1策略过滤，TN零强告警、回退0。

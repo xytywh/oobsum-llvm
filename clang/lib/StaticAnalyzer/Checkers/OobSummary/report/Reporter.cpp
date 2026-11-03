@@ -34,7 +34,16 @@ std::string Reporter::FullMessage(const Decision &decision)
         tag += ":" + decision.reason;
     }
     tag += "]";
-    return decision.warnMsg.empty() ? tag : tag + " " + decision.warnMsg;
+    std::string scene = " [scene=";
+    if (decision.scenes.empty()) {
+        scene += "UNCLASSIFIED";
+    } else {
+        for (size_t i = 0; i < decision.scenes.size(); ++i) {
+            scene += (i == 0 ? "" : "+") + std::string("LV") + std::to_string(decision.scenes[i]);
+        }
+    }
+    scene += "]";
+    return (decision.warnMsg.empty() ? tag : tag + " " + decision.warnMsg) + scene;
 }
 
 const BugType *Reporter::TypeOf(Label label) const

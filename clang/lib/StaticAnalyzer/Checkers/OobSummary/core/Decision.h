@@ -49,6 +49,7 @@ struct Decision {
     std::string warnMsg;  // F-32 正文（不含标签前缀）。原名 msg 在公司 xir 里与别处同名冲突（SPEC-0114）
     std::string fp;                           // F-34 指纹
     std::string origin;                       // 谁产生的：engine / debug-intrinsic
+    std::vector<unsigned> scenes;             // SPEC-0128：observed_features，不作安全证明
     std::vector<std::string> parameterNames;  // SPEC-0126：界中的 pK 显示为该上下文的形参名
     std::string contextOperation;
     int64_t objectSize = -1;

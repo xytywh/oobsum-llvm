@@ -1,0 +1,6 @@
+# SPEC-0128：主 warning / 结构化日志均有场景，脚本分物理告警与原判断，保留未知与人工 Lv10。
+# RUN: rm -rf %t
+# RUN: %clang_analyze_cc1 -Wno-array-bounds -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/real %S/Inputs/diagnostics/loops.c > %t.log 2>&1
+# RUN: FileCheck %s --check-prefix=SCENE < %t.log
+# RUN: %python %S/Inputs/scene-stats.py %S/../../../../oobsum/tools/scene_stats.py %t
+# SCENE: warning: [OOB-POSSIBLE] {{.*}}[scene=LV2+LV3]

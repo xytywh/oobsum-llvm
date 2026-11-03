@@ -33,6 +33,7 @@
 
 | 编号 | 标题 | 状态 |
 |---|---|---|
+| [SPEC-0128](SPEC-0128-scenes-and-review-guide.md) | 场景证据标签、argparse 计数脚本与专家复核说明 | 已实现 |
 | [SPEC-0127](SPEC-0127-flexible-array-policy.md) | 尾数组阈值与报告开关，原标签留日志、固定内层界保留 | 已实现 |
 | [SPEC-0126](SPEC-0126-sink-diagnostics.md) | 默认 sink、类型与范围分段、同源行合并并保留原判断 | 已实现 |
 | [SPEC-0125](SPEC-0125-access-diagnostics.md) | 访问指令编号、类型 / 步长 / 来源穿过 FIR 与摘要 | 已实现 |

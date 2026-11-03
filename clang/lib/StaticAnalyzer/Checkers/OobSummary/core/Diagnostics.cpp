@@ -15,6 +15,7 @@
 
 #include <cctype>
 #include <climits>
+#include <set>
 
 namespace oobsum {
 namespace {
@@ -100,6 +101,77 @@ std::string Reason(const Decision &d)
 }
 
 }  // namespace
+
+// SPEC-0128：证据标签，不猜不可见的业务契约；Lv10 留给人工标注。
+std::vector<unsigned> ClassifyScenes(const Decision &d, const std::string &sourceHave, const std::string &sourceEnd)
+{
+    std::set<unsigned> scenes;
+    if (d.reason == "fptr" || d.reason == "unknown_callee" || d.reason == "not_in_tu" || d.reason == "recursion" ||
+        d.reason == "cxx_call") {
+        scenes.insert(9);
+    }
+    if (d.flex >= -1 || !d.dir.empty() || d.reason == "typed_field" || d.reason == "subobject_overflow") {
+        scenes.insert(7);
+    }
+    if (d.effDepth > 0 || d.bound == "ret") {
+        scenes.insert(4);
+    }
+    if (d.bound == "loop" || d.bound == "check" || d.bound == "guard" || d.bound == "branch") {
+        scenes.insert(3);
+    }
+    if (sourceHave.find("->") != std::string::npos || sourceEnd.find("->") != std::string::npos) {
+        scenes.insert(5);
+    }
+    if (sourceEnd.find("g:") != std::string::npos || d.reason == "global_value") {
+        scenes.insert(6);
+    }
+    std::set<std::string> params;
+    std::string shape = sourceHave + " " + sourceEnd;
+    for (size_t i = 0; i + 1 < shape.size(); ++i) {
+        if (shape[i] == 'p' && std::isdigit(static_cast<unsigned char>(shape[i + 1])) &&
+            (i == 0 || (!std::isalnum(static_cast<unsigned char>(shape[i - 1])) && shape[i - 1] != '_' &&
+                        shape[i - 1] != '>' && shape[i - 1] != '.' && shape[i - 1] != ':'))) {
+            size_t end = i + 1;
+            while (end < shape.size() && std::isdigit(static_cast<unsigned char>(shape[end]))) {
+                ++end;
+            }
+            if (end == shape.size() || (!std::isalnum(static_cast<unsigned char>(shape[end])) && shape[end] != '_')) {
+                params.insert(shape.substr(i, end - i));
+            }
+            i = end - 1;
+        }
+    }
+    if (params.size() >= 2 || d.bound == "mask") {
+        scenes.insert(2);
+    }
+    for (const auto &info : d.accesses) {
+        if (info.nonlinear) {
+            scenes.insert(8);
+        }
+        if (info.origin.find("global pointer") != std::string::npos) {
+            scenes.insert(6);
+        }
+        if (info.origin.find("pointer field") != std::string::npos) {
+            scenes.insert(5);
+        }
+        if (info.origin.find("C++ receiver") != std::string::npos) {
+            scenes.insert(9);
+        }
+        int64_t extent = 0;
+        if (info.category == "member-access" && info.elementSize > 0 &&
+            !llvm::StringRef(d.have).getAsInteger(10, extent) && extent >= 0 && extent < info.elementSize) {
+            scenes.insert(7);
+        }
+        if (info.index.find_first_of("+-*/%&|^") != std::string::npos && !info.nonlinear) {
+            scenes.insert(2);
+        }
+    }
+    if (scenes.empty() && !d.accesses.empty() && d.accesses.front().category != "call" &&
+        d.reason != "untracked_pointer" && !llvm::StringRef(d.reason).startswith("unanalyzed:")) {
+        scenes.insert(1);
+    }
+    return std::vector<unsigned>(scenes.begin(), scenes.end());
+}
 
 std::string DiagnosticGroup(const Decision &decision)
 {

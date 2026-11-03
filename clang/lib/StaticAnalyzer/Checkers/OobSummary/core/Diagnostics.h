@@ -11,6 +11,8 @@
 #include <string>
 
 namespace oobsum {
+std::vector<unsigned> ClassifyScenes(const Decision &decision, const std::string &sourceHave = "",
+                                     const std::string &sourceEnd = "");
 std::string DiagnosticMessage(const Decision &decision);
 std::string DiagnosticGroup(const Decision &decision);
 }  // namespace oobsum

@@ -70,6 +70,17 @@ bool DecisionFromJson(const llvm::json::Value &value, Decision &out, std::string
         out.dir = dir->str();  // SPEC-0039
     }
     out.flex = o->getInteger("flex").getValueOr(-2);
+    out.scenes.clear();
+    if (const auto *scenes = o->getArray("scenes")) {
+        for (const auto &scene : *scenes) {
+            auto level = scene.getAsInteger();
+            if (!level || *level < 1 || *level > 10) {
+                error = "decision: invalid scene";
+                return false;
+            }
+            out.scenes.push_back(static_cast<unsigned>(*level));
+        }
+    }
     out.parameterNames.clear();
     out.contextOperation = o->getString("context_operation").getValueOr("").str();
     out.reportGroup = o->getString("report_group").getValueOr("").str();
@@ -183,6 +194,12 @@ llvm::json::Object DecisionToJson(const Decision &decision, const Disposition &d
         {"fp", decision.fp},
         {"origin", decision.origin},
     };
+    llvm::json::Array scenes;
+    for (unsigned level : decision.scenes) {
+        scenes.push_back(static_cast<int64_t>(level));
+    }
+    out["scenes"] = std::move(scenes);
+    out["scene_method"] = "observed_features";
     if (decision.flex >= -1) {
         out["flex"] = decision.flex;
     }
