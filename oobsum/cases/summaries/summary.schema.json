@@ -59,7 +59,7 @@
     "access": {
       "type": "object", "additionalProperties": false, "required": ["fn", "key", "at", "end"],
       "description": "访问点：在哪个函数、哪一行；end 是访问点自身的末端上界（访问函数的符号），连同 key 一起标识这次访问（指纹用，不含行号）",
-      "properties": { "fn": { "type": "string" }, "key": { "type": "string" }, "at": { "$ref": "#/definitions/site" }, "end": { "$ref": "#/definitions/expr" } }
+      "properties": { "diag": { "type": "integer", "minimum": 0 }, "fn": { "type": "string" }, "key": { "type": "string" }, "at": { "$ref": "#/definitions/site" }, "end": { "$ref": "#/definitions/expr" } }
     },
     "req": {
       "type": "object", "additionalProperties": false,
@@ -172,6 +172,7 @@
       "type": "object", "additionalProperties": false, "required": ["site", "callee", "args", "results"],
       "description": "调用点记录：本函数的摘要是怎么由被调者的摘要代换出来的（调试与追溯用）",
       "properties": {
+        "diag": { "type": "integer", "minimum": 0 },
         "site": { "$ref": "#/definitions/site" },
         "callee": { "type": "string" },
         "callee_key": { "type": "string", "description": "被调者的函数键（D-07；引擎写，有它时按它找被调者，SPEC-0027）" },
@@ -224,7 +225,7 @@
                          "untracked_pointer", "typed_field", "subobject_overflow", "alias_unverified"] },
     "open": {
       "type": "object", "additionalProperties": false, "required": ["reason", "at"],
-      "properties": {
+      "properties": { "diag": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
         "reason": { "$ref": "#/definitions/reason" },
         "at": { "$ref": "#/definitions/site" },
         "req": { "type": "string", "description": "入口处到此为止的 Req" },

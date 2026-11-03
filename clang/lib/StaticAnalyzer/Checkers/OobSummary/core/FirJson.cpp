@@ -141,6 +141,16 @@ Value OptionalExpr(const Function &f, ExprId id)
 Value InstToJson(const Function &f, const Inst &inst)
 {
     Object o{{"op", kInstOps[static_cast<unsigned>(inst.op)]}, {"loc", LocToJson(inst.loc)}};
+    if (inst.diag != 0) {
+        o["diag"] = inst.diag;
+    }
+    if (!inst.accesses.empty()) {
+        Array accesses;
+        for (const auto &info : inst.accesses) {
+            accesses.push_back(AccessInfoToJson(info));
+        }
+        o["accesses"] = std::move(accesses);
+    }
     switch (inst.op) {
         case InstOp::Set:
             o["dst"] = static_cast<int64_t>(inst.dst);
@@ -623,27 +633,51 @@ bool Reader::ReadInst(const Value &v, Function &f, Inst &out)
     const Object *o = nullptr;
     if (*op == "set") {
         out.op = InstOp::Set;
-        o = AsObject(v, {"op", "dst", "val", "loc"}, {});
+        o = AsObject(v, {"op", "dst", "val", "loc"}, {"diag", "accesses"});
     } else if (*op == "load") {
         out.op = InstOp::Load;
-        o = AsObject(v, {"op", "dst", "addr", "size", "loc"}, {"sub"});
+        o = AsObject(v, {"op", "dst", "addr", "size", "loc"}, {"sub", "diag", "accesses"});
     } else if (*op == "store") {
         out.op = InstOp::Store;
-        o = AsObject(v, {"op", "addr", "size", "val", "loc"}, {"sub"});
+        o = AsObject(v, {"op", "addr", "size", "val", "loc"}, {"sub", "diag", "accesses"});
     } else if (*op == "call") {
         out.op = InstOp::Call;
-        o = AsObject(v, {"op", "callee", "args", "ord", "loc"}, {"dst"});
+        o = AsObject(v, {"op", "callee", "args", "ord", "loc"}, {"dst", "diag", "accesses"});
     } else if (*op == "havoc") {
         out.op = InstOp::Havoc;
-        o = AsObject(v, {"op", "dst", "why", "loc"}, {});
+        o = AsObject(v, {"op", "dst", "why", "loc"}, {"diag", "accesses"});
     } else if (*op == "ret") {
         out.op = InstOp::Ret;
-        o = AsObject(v, {"op", "val", "loc"}, {});
+        o = AsObject(v, {"op", "val", "loc"}, {"diag", "accesses"});
     } else {
         return In("op", [&] { return Fail("unknown instruction op '" + *op + "'"); });
     }
     if (o == nullptr || !In("loc", [&] { return ReadLoc(*o->get("loc"), out.loc); })) {
         return false;
+    }
+    if (const Value *diag = o->get("diag")) {
+        if (!In("diag", [&] { return ReadInt(*diag, out.diag, 0); })) {
+            return false;
+        }
+    }
+    if (const Value *accesses = o->get("accesses")) {
+        if (!In("accesses", [&] {
+                const Array *list = AsArray(*accesses);
+                if (list == nullptr) {
+                    return false;
+                }
+                for (size_t i = 0; i < list->size(); ++i) {
+                    AccessInfo info;
+                    std::string error;
+                    if (!At(i, [&] { return AccessInfoFromJson((*list)[i], info, error) || Fail(error); })) {
+                        return false;
+                    }
+                    out.accesses.push_back(std::move(info));
+                }
+                return true;
+            })) {
+            return false;
+        }
     }
     const Value *dst = o->get("dst");
     const Value *addr = o->get("addr");

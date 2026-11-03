@@ -244,6 +244,13 @@ private:
     }
 
     // ---- 各部分 ----
+    bool Diag(const Object &object, int64_t &out)
+    {
+        const Value *value = object.get("diag");
+        out = 0;
+        return value == nullptr ||
+               In("diag", [&] { return Int(*value, out) && (out >= 0 || Fail("negative diagnostic id")); });
+    }
     bool ReadAccess(const Value &v, Access &a);
     bool ReadReq(const Value &v, Req &r);
     bool ReadEff(const Value &v, Eff &e);
@@ -263,9 +270,9 @@ private:
 
 bool Reader::ReadAccess(const Value &v, Access &a)
 {
-    const Object *o = Obj(v, {"fn", "key", "at", "end"}, {});
+    const Object *o = Obj(v, {"fn", "key", "at", "end"}, {"diag"});
     return o != nullptr && Key(*o, "fn", a.fn, OOBSUM_M(Str)) && Key(*o, "key", a.key, OOBSUM_M(Str)) &&
-           Key(*o, "at", a.at, OOBSUM_M(Str)) && Key(*o, "end", a.end, OOBSUM_M(Expr));
+           Key(*o, "at", a.at, OOBSUM_M(Str)) && Key(*o, "end", a.end, OOBSUM_M(Expr)) && Diag(*o, a.diag);
 }
 
 bool Reader::ReadReq(const Value &v, Req &r)
@@ -446,7 +453,7 @@ bool Reader::ReadResult(const Value &v, Result &r)
 bool Reader::ReadCall(const Value &v, Call &c)
 {
     const Object *o = Obj(v, {"site", "callee", "args", "results"},
-                          {"model", "locals", "guards", "callee_key", "alt", "ind", "gvals"});
+                          {"model", "locals", "guards", "callee_key", "alt", "ind", "gvals", "diag"});
     llvm::Optional<bool> alt;  // SPEC-0058
     llvm::Optional<bool> ind;
     if (o != nullptr && (!OptKey(*o, "alt", alt, OOBSUM_M(Bool)) || !OptKey(*o, "ind", ind, OOBSUM_M(Bool)))) {
@@ -499,8 +506,9 @@ bool Reader::ReadCall(const Value &v, Call &c)
     auto model = [&](const Value &x, std::string &y) {
         return OneOf(x, y, {"access", "alloc", "pure", "unknown", "free"});
     };
-    return o != nullptr && Key(*o, "site", c.site, OOBSUM_M(Str)) && Key(*o, "callee", c.callee, OOBSUM_M(Str)) &&
-           OptKey(*o, "callee_key", c.calleeKey, OOBSUM_M(Str)) && OptKey(*o, "model", c.model, model) &&
+    return o != nullptr && Diag(*o, c.diag) && Key(*o, "site", c.site, OOBSUM_M(Str)) &&
+           Key(*o, "callee", c.callee, OOBSUM_M(Str)) && OptKey(*o, "callee_key", c.calleeKey, OOBSUM_M(Str)) &&
+           OptKey(*o, "model", c.model, model) &&
            In("args",
               [&] {
                   return List(*o->get("args"), c.args,
@@ -547,9 +555,13 @@ bool Reader::ReadRep(const Value &v, Rep &r)
 
 bool Reader::ReadOpen(const Value &v, Open &op)
 {
-    const Object *o = Obj(v, {"reason", "at"}, {"req"});
+    const Object *o = Obj(v, {"reason", "at"}, {"req", "diag"});
     return o != nullptr && Key(*o, "reason", op.reason, OOBSUM_M(ReasonName)) && Key(*o, "at", op.at, OOBSUM_M(Str)) &&
-           OptKey(*o, "req", op.req, OOBSUM_M(Str));
+           OptKey(*o, "req", op.req, OOBSUM_M(Str)) && (!o->get("diag") || In("diag", [&] {
+               return List(*o->get("diag"), op.diags, [&](const Value &value, int64_t &id) {
+                   return Int(value, id) && (id >= 0 || Fail("negative diagnostic id"));
+               });
+           }));
 }
 
 bool Reader::ReadSummary(const Value &v, Summary &s)
@@ -642,7 +654,11 @@ void PutList(Object &o, llvm::StringRef key, const llvm::Optional<std::vector<st
 
 Value AccessJson(const Access &a)
 {
-    return Object{{"fn", a.fn}, {"key", a.key}, {"at", a.at}, {"end", a.end}};
+    Object object{{"fn", a.fn}, {"key", a.key}, {"at", a.at}, {"end", a.end}};
+    if (a.diag != 0) {
+        object["diag"] = a.diag;
+    }
+    return std::move(object);
 }
 
 Value ArgJson(const ArgValue &a);
@@ -828,6 +844,9 @@ Value SummaryToJson(const Summary &s)
             results.push_back(ResultJson(r));
         }
         Object o{{"site", c.site}, {"callee", c.callee}, {"args", std::move(args)}, {"results", std::move(results)}};
+        if (c.diag != 0) {
+            o["diag"] = c.diag;
+        }
         Put(o, "model", c.model);
         Put(o, "callee_key", c.calleeKey);
         if (c.alt) {
@@ -886,6 +905,13 @@ Value SummaryToJson(const Summary &s)
     for (const Open &op : s.opens) {
         Object o{{"reason", op.reason}, {"at", op.at}};
         Put(o, "req", op.req);
+        if (!op.diags.empty()) {
+            Array ids;
+            for (int64_t id : op.diags) {
+                ids.push_back(id);
+            }
+            o["diag"] = std::move(ids);
+        }
         opens.push_back(std::move(o));
     }
     Object out{{"schema", kSummarySchema},

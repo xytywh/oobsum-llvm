@@ -427,6 +427,8 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             const summary::Rep &rep = result.reps[ri];
             Decision d = base(rep.level == "L1" ? Label::Definite : Label::Possible, "", fn);
             d.site = sitesOf(fn).Of(rep.site);
+            d.accessKey = rep.access.key;
+            d.accessIds = {rep.access.diag};
             d.kind = rep.kind;
             d.obj = rep.obj;
             d.have = rep.have;
@@ -482,6 +484,8 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             bool safe = mine.outcome == "safe";
             Decision d = base(safe ? Label::Safe : Label::Suspect, mine.reason, fn);
             d.site = sitesOf(fn).Of(so.site);
+            d.accessKey = so.req.access.key;
+            d.accessIds = {so.req.access.diag};
             d.kind = so.req.kind;
             d.obj = mine.obj;
             d.have = mine.have.Show();
@@ -516,6 +520,8 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
                 Decision d =
                     base(Label::Suspect, i < result.entryOpens.size() ? result.entryOpens[i] : "entry_unproven", fn);
                 d.site = sitesOf(fn).Of(r.depth == 0 ? r.access.at : s.loc);
+                d.accessKey = r.access.key;
+                d.accessIds = {r.access.diag};
                 d.kind = r.kind;
                 d.obj = r.obj;
                 d.have = r.have.Show();
@@ -598,6 +604,8 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
         for (const summary::Req &r : facts.safe) {
             Decision d = base(Label::Safe, "local_entailed", fn);
             d.site = sitesOf(fn).Of(r.access.at);
+            d.accessKey = r.access.key;
+            d.accessIds = {r.access.diag};
             d.kind = r.kind;
             d.obj = r.obj;
             d.have = r.have;
@@ -615,6 +623,8 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
         for (const summary::Open &o : facts.opens) {
             Decision d = base(Label::Suspect, o.reason, fn);
             d.site = sitesOf(fn).Of(o.at);
+            d.accessKey = fn;
+            d.accessIds = o.diags;
             d.chain = {allSites.HopOf(s.fn + "@" + o.at)};
             d.warnMsg = LedgerMessage(o.reason);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, o.at, "", "", o.reason);
@@ -647,6 +657,8 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             std::string reason = linked ? "unknown_callee" : "not_in_tu";
             Decision d = base(Label::Suspect, reason, fn);
             d.site = sitesOf(fn).Of(c.site);
+            d.accessKey = fn;
+            d.accessIds = {c.diag};
             d.chain = {allSites.HopOf(s.fn + "@" + c.site)};
             d.warnMsg = LedgerMessage(reason, c.callee);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, c.site, "", "", reason + ":" + c.callee);
@@ -664,6 +676,85 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
         });
         if (!seen) {
             opens.push_back({"unknown_callee", u.second, llvm::None});
+        }
+    }
+    // SPEC-0125：按函数键 + 指令编号接回实际访问，避免按行猜；索引只建一次。
+    using InstList = std::vector<const fir::Inst *>;
+    std::map<std::string, std::map<int64_t, const fir::Inst *>> diagnosticIndex;
+    std::map<std::string, std::map<std::string, InstList>> siteIndex;
+    for (const auto &at : order) {
+        const auto &module = *mods[at.first];
+        const auto &function = module.funcs[at.second];
+        for (const auto &block : function.blocks) {
+            for (const auto &inst : block.insts) {
+                if (inst.accesses.empty()) {
+                    continue;
+                }
+                if (inst.diag != 0) {
+                    diagnosticIndex[function.key][inst.diag] = &inst;
+                }
+                if (inst.loc.file < module.files.size()) {
+                    std::string site = llvm::sys::path::filename(module.files[inst.loc.file]).str() + ":" +
+                                       std::to_string(inst.loc.line);
+                    siteIndex[function.key][site].push_back(&inst);
+                }
+            }
+        }
+    }
+    for (auto &decision : out.decisions) {
+        if (decision.accessKey.empty()) {
+            decision.accessKey = decision.fn;
+        }
+        auto owner = out.moduleOf.find(decision.accessKey);
+        if (owner == out.moduleOf.end()) {
+            continue;
+        }
+        const auto &module = *mods[owner->second];
+        decision.target = module.target.triple + " ptr=" + std::to_string(module.target.ptr) +
+                          " long=" + std::to_string(module.target.longSize) +
+                          (module.target.bigEndian ? " big-endian" : " little-endian");
+        InstList matches;
+        for (int64_t id : decision.accessIds) {
+            auto hit = diagnosticIndex[decision.accessKey].find(id);
+            if (id != 0 && hit != diagnosticIndex[decision.accessKey].end()) {
+                matches.push_back(hit->second);
+            }
+        }
+        if (matches.empty()) {
+            Site site = decision.chain.empty() ? decision.site : decision.chain.back().site;
+            std::string key = llvm::sys::path::filename(site.file).str() + ":" + std::to_string(site.line);
+            auto hit = siteIndex[decision.accessKey].find(key);
+            if (hit != siteIndex[decision.accessKey].end()) {
+                matches = hit->second;  // 老 FIR 或未分析声明的兜底；报告层可列出多个候选
+            }
+        }
+        for (const fir::Inst *inst : matches) {
+            if ((decision.kind == "R" && inst->op == fir::InstOp::Store) ||
+                (decision.kind == "W" && inst->op == fir::InstOp::Load)) {
+                continue;
+            }
+            if (decision.sink.file.empty() && inst->loc.file < module.files.size()) {
+                decision.sink = {module.files[inst->loc.file], inst->loc.line, inst->loc.col};
+            }
+            const auto *model = inst->op == fir::InstOp::Call ? models.Access(KeyName(inst->callee)) : nullptr;
+            for (AccessInfo info : inst->accesses) {
+                if (model != nullptr && !decision.kind.empty()) {
+                    bool selected = false;
+                    bool reads = false;
+                    bool writes = false;
+                    for (const auto &condition : model->conds) {
+                        selected |= condition.kind == decision.kind && condition.base == info.argument;
+                        reads |= condition.kind == "R";
+                        writes |= condition.kind == "W";
+                    }
+                    if (!selected) {
+                        continue;
+                    }
+                    info.category = reads && writes ? "memory-copy" : "modeled-memory-access";
+                    info.mode = decision.kind;
+                }
+                decision.accesses.push_back(std::move(info));
+            }
         }
     }
     // 告警正文里不露内部链接全局符号的身份后缀（SPEC-0086）

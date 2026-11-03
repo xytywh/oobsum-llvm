@@ -43,6 +43,7 @@ struct Access {
     std::string key;
     std::string at;
     std::string end;
+    int64_t diag = 0;  // SPEC-0125：仅供定位实际访问指令
 };
 
 // 被覆盖、不再单列的较弱访问（A-44）
@@ -178,6 +179,7 @@ struct Call {
     bool ind = false;  // 由间接调用解析出来的（只给调试与量尺看，不影响判定，SPEC-0058）
     // 调用前已经不是入口值的整数全局：g:名 → 当前确切值，值不知道写 "?"；"g:*" → "?" 表示任何全局都可能改过（SPEC-0064）
     llvm::Optional<std::map<std::string, std::string>> gvals;
+    int64_t diag = 0;  // SPEC-0125
 };
 
 // D-26
@@ -206,6 +208,7 @@ struct Open {
     std::string reason;
     std::string at;
     llvm::Optional<std::string> req;
+    std::vector<int64_t> diags = {};  // SPEC-0125：同一行可能有多个同原因的未知访问
 };
 
 struct Summary {

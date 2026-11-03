@@ -10,6 +10,7 @@
 #include "OobSummary/core/HeaderKeys.h"
 #include "OobSummary/core/Key.h"
 #include "OobSummary/lower/TypeLayout.h"
+#include "OobSummary/lower/AccessInfo.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclCXX.h"
@@ -31,6 +32,7 @@
 
 #include <algorithm>
 #include <map>
+#include <memory>
 
 using namespace clang;
 using clang::ento::AnalysisManager;
@@ -241,6 +243,8 @@ public:
         ctorTarget.clear();
         tmpCount = 0;
         callOrd = 0;
+        diagnosticCount = 0;
+        accessDescriber.reset(new AccessDescriber(ctx, fd, layout));
         LowerLocals(fd, f);
         LowerBody(fd, f);
         fn = nullptr;
@@ -599,6 +603,10 @@ private:
     void Emit(fir::Inst inst, const Stmt *at)
     {
         inst.loc = files.LocOf(at->getBeginLoc());
+        if (inst.op == fir::InstOp::Load || inst.op == fir::InstOp::Store || inst.op == fir::InstOp::Call) {
+            inst.diag = ++diagnosticCount;
+            inst.accesses = accessDescriber->Describe(at, inst, *fn);
+        }
         cur->insts.push_back(std::move(inst));
     }
 
@@ -1504,6 +1512,8 @@ private:
     fir::Block *cur = nullptr;
     llvm::DenseMap<const Expr *, Val> memo;
     llvm::DenseMap<const VarDecl *, uint32_t> localIds;
+    std::unique_ptr<AccessDescriber> accessDescriber;
+    uint32_t diagnosticCount = 0;
     llvm::DenseMap<const Expr *, uint32_t> mergeTmps;  // 当值用的 ?: / && / || → 临时局部（SPEC-0009 §2.3）
     llvm::DenseMap<const CXXConstructExpr *, const VarDecl *> ctorTarget;  // C++ 构造的局部对象（SPEC-0121）
     unsigned tmpCount = 0;

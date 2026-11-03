@@ -7,6 +7,6 @@
 # RUN: %clang_analyze_cc1 -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 %S/Inputs/fptr/fp.c 2>&1 | not grep 'fp.c:13:1: warning: \[OOB-SUSPECT:fptr'
 
-CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Via_Local"{{.*}}"opens":[{"at":"fp.c:11","reason":"fptr"}]
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Via_Local"{{.*}}"opens":[{"at":"fp.c:11","diag":[{{[0-9,]+}}],"reason":"fptr"}]
 CHECK-DAG: fp.c:11:1: warning: [OOB-SUSPECT:fptr] Cannot prove this access is within bounds: a pointer is passed through a function pointer whose target is not resolved
 CHECK-DAG: fp.c:12:1: warning: [OOB-SUSPECT:fptr] Cannot prove this access is within bounds: a pointer is passed through a function pointer whose target is not resolved

@@ -56,7 +56,7 @@ void Copy(UINT8 *pucOut, const UINT8 *pucIn, UINT32 ulCnt)
     }
 }
 // CHECK: [oobsum:summary] {"calls":[],"effs":[],"fn":"Copy",
-// CHECK-SAME: "opens":[{"at":"loops.c:55","reason":"pointer_stepping"}]
+// CHECK-SAME: "opens":[{"at":"loops.c:55","diag":[{{[0-9,]+}}],"reason":"pointer_stepping"}]
 // CHECK-SAME: "reqs":[]
 
 // 循环后的那次访问（LV3-05）：出口 i >= ulLen 与循环头的 [0, ulLen] → i == ulLen（SPEC-0023）

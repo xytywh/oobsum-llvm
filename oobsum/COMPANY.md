@@ -9,7 +9,7 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-03-2**（SPEC-0122 / 0123 / 0124；保留前版步骤；新增按目标隔离与重复编译配置计数；结果不符合预期就停下，带回计数和本规则栈。）
+**清单版本：2026-11-03-3**（SPEC-0122 / 0123 / 0124 / 0125；保留前版步骤；新增访问点元数据，下一小步接入 sink 告警；结果不符合预期就停下，带回计数和本规则栈。）
 
 路径只改这里；`OOB_REPORT` 必须指向 JSON 文件，不能是 log 目录：
 
@@ -110,7 +110,9 @@ python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir /usr1/oobsum-wo
 python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir /usr1/oobsum-work/full-b <指纹2>
 ```
 
-把链上要看的函数写进开头 OOB_SUMMARY_FILTER 再跑第 3 步。新 solve 的 dump/solve/summary/index.json 列出选中函数、键、TU 与文件 stem；
+把链上要看的函数写进开头 OOB_SUMMARY_FILTER 再跑第 3 步。新导出的 FIR 中每条访问有 diag 编号和 accesses（表达式、读写类型、元素大小、字段偏移、来源）；判定的 access_key / access_ids / sink 可对应回该指令。须重新 export 才有这些信息，旧 FIR 可读但没有新描述。
+
+新 solve 的 dump/solve/summary/index.json 列出选中函数、键、TU 与文件 stem；
 索引 target 区分架构；同名函数的 stem 不同。同一个 stem 的 .local.json 是真实的函数解释事实，.derived.json 是调用传播后的 Req / reps 视图。索引与摘要只在公司打开，不带回名字或正文。
 
 ```bash
@@ -129,7 +131,7 @@ python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir "$OOB_WD" <新�
 按 §1.6 的方法抽查；业务代码、名字、路径与告警原文不要带回，只给计数和对写法的概括。
 
 ```text
-清单版本：2026-11-03-2
+清单版本：2026-11-03-3
 1. 本地 lit __；csa 回退 __；同步 / 公司编译 __
 2. TestCase：InlineDepth=__ decisions=__ emitted=__，告警 __
    进度 read/analyze/propagate/decisions/write/done 是否可见 __；两种摘要是否可读 __

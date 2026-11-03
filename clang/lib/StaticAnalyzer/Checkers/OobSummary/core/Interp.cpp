@@ -1175,6 +1175,7 @@ struct SymAccess {
 };
 
 struct RawAccess {
+    int64_t diag = 0;  // SPEC-0125
     std::string kind;
     std::string dir;  // "back"：负偏移（SPEC-0039）
     LinExpr have;
@@ -1448,6 +1449,7 @@ public:
 private:
     const fir::Module &m;
     const fir::Function &f;
+    int64_t currentDiagnostic = 0;
     const models::ModelTable &models;
     std::vector<RawAccess> accesses;
     std::vector<RawAccess> safe;
@@ -2149,12 +2151,17 @@ llvm::Optional<std::string> BackText(const PtrVal &p)
 
 void Analyzer::AddOpen(const std::string &reason, const std::string &at)
 {
-    bool seen = llvm::any_of(opens, [&](const summary::Open &o) { return o.reason == reason && o.at == at; });
-    if (!seen) {  // 按（原因, 位置）去重：同一行的读和写只记一条
-        summary::Open o;
-        o.reason = reason;
-        o.at = at;
-        opens.push_back(o);
+    auto found = std::find_if(opens.begin(), opens.end(),
+                              [&](const summary::Open &o) { return o.reason == reason && o.at == at; });
+    if (found == opens.end()) {  // 同一原因 / 行仍只记一条，但保留全部访问的诊断编号（SPEC-0125）
+        summary::Open open;
+        open.reason = reason;
+        open.at = at;
+        opens.push_back(std::move(open));
+        found = std::prev(opens.end());
+    }
+    if (currentDiagnostic != 0 && !llvm::is_contained(found->diags, currentDiagnostic)) {
+        found->diags.push_back(currentDiagnostic);
     }
 }
 
@@ -2641,6 +2648,7 @@ void Analyzer::BackAccess(const char *kind, const PtrVal &addr, ExprId addrExpr,
 // 挑守卫、在本函数里证明安全，否则记成 Req（正向与反向共用）
 void Analyzer::Record(RawAccess a, const State &s, const std::vector<LinExpr> &forced)
 {
+    a.diag = currentDiagnostic;
     std::set<std::string> syms;  // 与 have / end / start 有公共符号的守卫（SPEC-0016 §2.2、SPEC-0018 §2.2）
     CollectSyms(a.have, syms);
     CollectSyms(a.lo, syms);
@@ -2686,6 +2694,7 @@ void Analyzer::Record(RawAccess a, const State &s, const std::vector<LinExpr> &f
 
 void Analyzer::Step(const fir::Inst &inst, State &s)
 {
+    currentDiagnostic = inst.diag;
     switch (inst.op) {
         case fir::InstOp::Set:
             SetLocal(s, inst.dst, Eval(inst.val, s));
@@ -2954,7 +2963,7 @@ summary::Req Analyzer::ToReq(const RawAccess &a, size_t number) const
     }
     r.bound = TagName(a.tag).str();
     r.guard = a.guard;
-    r.access = {f.name, f.key, a.at, r.endHi};
+    r.access = {f.name, f.key, a.at, r.endHi, a.diag};
     r.path = {f.name + "@" + a.at};
     return r;
 }
@@ -3787,6 +3796,7 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s, bool alt)
         return;
     }
     summary::Call call;
+    call.diag = inst.diag;
     call.site = SiteOf(m, inst.loc);
     call.callee = KeyName(inst.callee).str();
     call.calleeKey = inst.callee;  // SPEC-0027

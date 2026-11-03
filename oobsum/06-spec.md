@@ -684,7 +684,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | **N-07** | 可移植 | C++14；只用 LLVM 14 的 Support / ADT / JSON / YAML 与 Clang 的 AST / Analysis / StaticAnalyzer Core；不开 RTTI、不用异常；同一份源码既能在 fork 里随 `Checkers.td` 编进 xir，也能在沙箱里编成插件（`-DOOBSUM_PLUGIN_BUILD`，探针已验证这种双构建【实测数据】）；驱动只用 Python 3.6+ 标准库 |
 | **N-08** | 编码规范 | `csa-checker-dev`：命名（checker 类内统一小驼峰、其余函数大驼峰、变量小驼峰）、`.clang-format`、单语句控制流带 `{}`、`BuiltinCheckerRegistration.h`、诊断与 td 全英文、include 不排序；每次交付跑 `check_checker_conventions.py` 无 FAIL |
 | **N-09** | 可观测 | 〔SPEC-0123 补充 solve 阶段内进度快照和实时日志；计数不当作准确 ETA〕 `Verbose=1` 每 TU 一行（函数数、导出耗时）；`stats.json`：函数状态分布、Req / Eff 数分布、告警按级别与层数、账本按原因、各阶段耗时 |
-| **N-10** | 产物内容 | FIR 与摘要只含名字、类型布局、位置与抽象值，**不含源码文本** |
+| **N-10** | 产物内容 | 〔SPEC-0125：允许有界的规范化访问表达式、类型、步长与位置；不复制源码行或字符串字面量内容〕 FIR 与摘要只含名字、类型布局、位置与抽象值，**不含源码文本** |
 
 ---
 
@@ -741,7 +741,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | **T-03** | 语料验收 | `cases/` 全部 134 个入口按 `@expect` 对照（下述口径） | 沙箱 + fork | 每次交付；检查点 |
 | **T-04** | 链长 | `cases/gen_chain.py` 生成 4 类模板（形参透传、偏移累加、封装分配器链、跨 TU 链）× N ∈ {2, 3, 5, 10, 17, 20} | 沙箱 + fork | G1 起 |
 | **T-05** | fork 用例 | `TestCase/OobSummaryChecker/`（由 `cases/` 生成）跑驱动，告警数与 `EXPECTED.md` 一致 | fork | 每次集成 |
-| **T-06** | 摘要快照 | **金标准是 `cases/summaries/` 的 104 份 JSON 去掉 `doc` 后的机器版**（16 个用例，v3.13 手写、v3.14 划清 `doc`，经 `replay.py` 逐调用点核对与"从局部事实推到底"两种方式验证）：引擎在这些函数上的输出按规范形式逐字段比对，最终告警与 `replay.py --alerts` 逐条比对（含消息与指纹）；其余用例的摘要在 WP4 起由引擎产出、与用例头"摘要"块对照后冻结。改动须有意更新 | 沙箱 | 每次交付 |
+| **T-06** | 摘要快照 | 〔SPEC-0125：只在 access / calls / opens 的已知诊断位置忽略可选 diag 编号，其余语义字段不变〕 **金标准是 `cases/summaries/` 的 104 份 JSON 去掉 `doc` 后的机器版**（16 个用例，v3.13 手写、v3.14 划清 `doc`，经 `replay.py` 逐调用点核对与"从局部事实推到底"两种方式验证）：引擎在这些函数上的输出按规范形式逐字段比对，最终告警与 `replay.py --alerts` 逐条比对（含消息与指纹）；其余用例的摘要在 WP4 起由引擎产出、与用例头"摘要"块对照后冻结。改动须有意更新 | 沙箱 | 每次交付 |
 | **T-07** | 健壮性 | 本包 `05-experiments/`、`07-capability-boundary/corpus/`、`cases/` 全部跑 export + solve 不崩溃、全函数性成立 | 沙箱 | 每次交付 |
 | **T-08** | 真实代码 | 子集（几个顶层目录）→ 全量：告警按级别 / 层数、账本按原因、耗时 / 内存；抽样 50 条 L1 由你研判精确率 | fork | W10 起 |
 

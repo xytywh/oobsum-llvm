@@ -77,6 +77,11 @@ def normalize(s, names):
         return TYPES.get(base, base) + ('*' if star else '') if base in TYPES else t
 
     s = json.loads(json.dumps(s))
+    # SPEC-0125：只忽略已知位置的诊断字段，不能删掉真实结构体中名为 diag 的字段。
+    for r in s.get('reqs', []) + s.get('reps', []):
+        r.get('access', {}).pop('diag', None)
+    for record in s.get('calls', []) + s.get('opens', []):
+        record.pop('diag', None)
     s['key'] = key(s['key'])
     for p in s['params']:
         p['type'] = ty(p['type'])

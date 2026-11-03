@@ -24,13 +24,13 @@ void Top(UINT32 ulIdx)
 // 被调者：depth 0 的 Req（无符号减法回绕）
 // CHECK: [oobsum:summary] {"calls":[],"effs":[],"fn":"Leaf",
 // CHECK-SAME: "params":[{"name":"pucBuf","size":1,"type":"u8*"},{"name":"ulIdx","type":"u32"}]
-// CHECK-SAME: "reqs":[{"access":{"at":"summary-dump.c:14","end":"wrap32(p1 - 1) + 1"
+// CHECK-SAME: "reqs":[{"access":{"at":"summary-dump.c:14","diag":{{[0-9]+}},"end":"wrap32(p1 - 1) + 1"
 // CHECK-SAME: "have":"ext(p0)"
 // CHECK-SAME: "kind":"W","obj":"*p0"
 // 调用方：指针实参 {obj, have}、整数实参、纯函数模型的指针实参为 null
 // CHECK: [oobsum:state] fn Top b{{[0-9]+}}: ulIdx=p0
 // CHECK: [oobsum:summary] {{.*}}"calls":[{"args":[{"back":"0","have":"8","obj":"local:aucBuf"},"p0"],"callee":"Leaf"
-// CHECK-SAME: {"args":["1",null,"p0"],"callee":"LOG_Print",{{("callee_key":"[^"]*",)?}}"model":"pure"
+// CHECK-SAME: {"args":["1",null,"p0"],"callee":"LOG_Print",{{("callee_key":"[^"]*",)?("diag":[0-9]+,)?}}"model":"pure"
 // CHECK-SAME: "fn":"Top"
 
 // FILE: "fn": "Top"

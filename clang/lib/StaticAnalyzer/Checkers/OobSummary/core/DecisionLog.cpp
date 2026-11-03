@@ -69,6 +69,42 @@ bool DecisionFromJson(const llvm::json::Value &value, Decision &out, std::string
     if (llvm::Optional<llvm::StringRef> dir = o->getString("dir")) {
         out.dir = dir->str();  // SPEC-0039
     }
+    out.accesses.clear();
+    out.accessIds.clear();
+    out.accessKey.clear();
+    out.target.clear();
+    out.sink = {};
+    if (auto target = o->getString("target")) {
+        out.target = target->str();
+    }
+    if (auto key = o->getString("access_key")) {
+        out.accessKey = key->str();
+    }
+    if (auto sink = o->getString("sink")) {
+        if (!SiteFromText(*sink, out.sink)) {
+            error = "decision: bad sink";
+            return false;
+        }
+    }
+    if (const auto *ids = o->getArray("access_ids")) {
+        for (const auto &id : *ids) {
+            auto number = id.getAsInteger();
+            if (!number || *number < 0) {
+                error = "decision: bad access id";
+                return false;
+            }
+            out.accessIds.push_back(*number);
+        }
+    }
+    if (const auto *infos = o->getArray("accesses")) {
+        for (const auto &value : *infos) {
+            AccessInfo info;
+            if (!AccessInfoFromJson(value, info, error)) {
+                return false;
+            }
+            out.accesses.push_back(std::move(info));
+        }
+    }
     llvm::Optional<Label> parsed = ParseLabel(label);
     if (!parsed || !SiteFromText(site, out.site)) {
         error = "decision: bad label or site";
@@ -131,6 +167,29 @@ llvm::json::Object DecisionToJson(const Decision &decision, const Disposition &d
         {"fp", decision.fp},
         {"origin", decision.origin},
     };
+    if (!decision.target.empty()) {
+        out["target"] = decision.target;
+    }
+    if (!decision.accessKey.empty()) {
+        out["access_key"] = decision.accessKey;
+    }
+    if (!decision.sink.file.empty()) {
+        out["sink"] = SiteToJson(decision.sink);
+    }
+    if (!decision.accessIds.empty()) {
+        llvm::json::Array ids;
+        for (int64_t id : decision.accessIds) {
+            ids.push_back(id);
+        }
+        out["access_ids"] = std::move(ids);
+    }
+    if (!decision.accesses.empty()) {
+        llvm::json::Array infos;
+        for (const auto &info : decision.accesses) {
+            infos.push_back(AccessInfoToJson(info));
+        }
+        out["accesses"] = std::move(infos);
+    }
     if (!decision.dupOf.empty()) {
         out["dup_of"] = decision.dupOf;
     }

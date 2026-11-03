@@ -14,6 +14,8 @@
 #ifndef LLVM_CLANG_LIB_STATICANALYZER_CHECKERS_OOBSUMMARY_CORE_FIR_H
 #define LLVM_CLANG_LIB_STATICANALYZER_CHECKERS_OOBSUMMARY_CORE_FIR_H
 
+#include "OobSummary/core/AccessInfo.h"
+
 #include "llvm/ADT/StringRef.h"
 
 #include <cstdint>
@@ -161,6 +163,8 @@ struct Inst {
     uint32_t ord = 0;           // Call：调用点序号
     std::string why;            // Havoc
     Loc loc;
+    int64_t diag = 0;  // SPEC-0125：函数内诊断编号，不参与语义哈希
+    std::vector<AccessInfo> accesses;
 };
 
 // D-14

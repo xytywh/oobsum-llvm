@@ -11,6 +11,7 @@
 #define LLVM_CLANG_LIB_STATICANALYZER_CHECKERS_OOBSUMMARY_CORE_DECISION_H
 
 #include "OobSummary/core/Label.h"
+#include "OobSummary/core/AccessInfo.h"
 
 #include <string>
 #include <vector>
@@ -47,6 +48,11 @@ struct Decision {
     std::string warnMsg;  // F-32 正文（不含标签前缀）。原名 msg 在公司 xir 里与别处同名冲突（SPEC-0114）
     std::string fp;      // F-34 指纹
     std::string origin;  // 谁产生的：engine / debug-intrinsic
+    Site sink;           // SPEC-0125：实际访问位置；site 保留判定上下文
+    std::string accessKey;
+    std::string target;  // 诊断所属求解目标；跨目标的同一源位置不能合并
+    std::vector<int64_t> accessIds;
+    std::vector<AccessInfo> accesses;  // 仅供诊断，不改变标签、策略或指纹
     std::string dupOf;  // 同一入口同一次访问的另一条账本（报出的那条）的指纹：日志照写、不报（SPEC-0036）
 };
 

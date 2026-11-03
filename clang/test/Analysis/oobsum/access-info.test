@@ -1,0 +1,7 @@
+# SPEC-0125：实际访问的语义信息与指令编号落在 FIR / 判定日志，展示不含字面量内容。
+# RUN: rm -rf %t
+# RUN: %clang_analyze_cc1 -Wno-array-bounds -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t -analyzer-config rb.enhance.core.OobSummary:Dump=fir %S/Inputs/access/access.c > %t.log 2>&1
+# RUN: %python %S/Inputs/access/check.py %t
+
+# 语义比较不能把真实字段 diag 当成诊断注解删掉（SPEC-0125）。
+# RUN: %python -c "import sys; sys.path.insert(0, '%S/../../../../oobsum/tools'); import engine_check as e; s={'key':'F:f','params':[],'fields':{'diag':{'type':'u32'}},'reqs':[],'calls':[{'diag':7,'args':[{'fields':{'diag':'16'}}]}]}; n=e.normalize(s, {}); assert 'diag' in n['fields'] and n['calls'][0]['args'][0]['fields']['diag']=='16' and 'diag' not in n['calls'][0]"

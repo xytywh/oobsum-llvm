@@ -32,7 +32,7 @@ void Set(UINT32 ulPortId)
 // CHECK: [oobsum:state] fn Set safe guards.c:26 W end 4 <= have 128
 // CHECK: [oobsum:state] fn Set b{{[0-9]+}}: ulPortId=p0 {{.*}}guards: p0 <= 31
 // CHECK: [oobsum:state] fn Set safe guards.c:30 W end 4*p0 + 4 <= have 128
-// CHECK: [oobsum:summary] {"calls":[{"args":["p0"],"callee":"Leaf",{{("callee_key":"[^"]*",)?}}"guards":[{"bound":"check","cond":"p0 <= 31"}]
+// CHECK: [oobsum:summary] {"calls":[{"args":["p0"],"callee":"Leaf",{{("callee_key":"[^"]*",)?("diag":[0-9]+,)?}}"guards":[{"bound":"check","cond":"p0 <= 31"}]
 // CHECK-SAME: "fn":"Set",
 // CHECK-SAME: "reqs":[]
 
@@ -53,8 +53,8 @@ void Idx(UINT8 *pucBuf, UINT32 ulOff, UINT32 ulLen)
 // CHECK: [oobsum:state] fn Idx b{{[0-9]+}}: {{.*}}k=[0, 255]:data
 // CHECK: [oobsum:summary] {"calls":[{"args":[],"callee":"Buf_Get"
 // CHECK-SAME: "fn":"Idx",
-// CHECK-SAME: "reqs":[{"access":{"at":"guards.c:45","end":"16"
+// CHECK-SAME: "reqs":[{"access":{"at":"guards.c:45",{{("diag":[0-9]+,)?}}"end":"16"
 // CHECK-SAME: "bound":"check"
 // CHECK-SAME: "guard":[]
-// CHECK-SAME: {"access":{"at":"guards.c:48","end":"p1 + 1"
+// CHECK-SAME: {"access":{"at":"guards.c:48",{{("diag":[0-9]+,)?}}"end":"p1 + 1"
 // CHECK-SAME: "guard":[]
