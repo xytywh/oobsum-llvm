@@ -1,11 +1,11 @@
 # 同一调用点同一次访问的判定只报一条（oobsum/specs/SPEC-0044）：成员数组越界时成员界与外层界各一条，主判定取对象名写得出来的那条。
 #
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 %S/Inputs/repdedupe/tbl.c 2>&1 | FileCheck %s
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 %S/Inputs/repdedupe/tbl.c 2>&1 | grep -c 'warning: \[OOB-DEFINITE' | FileCheck %s --check-prefix=COUNT
 # 日志里两条都在：成员那条 dup_of 指向报出的那条
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:Dump=decisions \
 # RUN:   %S/Inputs/repdedupe/tbl.c 2>&1 | grep 'tbl.c:11:0' | FileCheck %s --check-prefix=LOG
 

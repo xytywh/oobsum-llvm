@@ -1,5 +1,5 @@
 // 条件边与守卫（oobsum/specs/SPEC-0016）：Dump=state 的 guards 与 safe 行、摘要里 Req 的 guard、调用点的 guards。
-// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary+state %s 2>&1 | FileCheck %s
 
 typedef unsigned char UINT8;

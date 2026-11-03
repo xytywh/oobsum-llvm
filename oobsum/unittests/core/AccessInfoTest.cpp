@@ -94,12 +94,14 @@ TEST(AccessInfo, SummaryIdsRoundTrip)
     rep.bound = "exact";
     rep.chain = {"f@m.c:1"};
     rep.fp = "0123456789abcdef";
+    rep.flex = 0;
     input.reps.push_back(rep);
     summary::Summary back;
     std::string error;
     EXPECT_TRUE(summary::ReadSummary(summary::SummaryToJson(input), back, error));
     EXPECT_EQ(back.calls[0].diag, 4);
     EXPECT_EQ(back.reps[0].access.diag, 3);
+    EXPECT_EQ(back.reps[0].flex, 0);
     EXPECT_EQ(back.opens[0].diags.size(), static_cast<size_t>(2));
 }
 

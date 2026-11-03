@@ -25,6 +25,7 @@ namespace solver {
 
 // 推出的一条 Req
 struct DerivedReq {
+    int64_t flex = -2;
     LinExpr have;
     std::string obj;
     LinExpr lo;

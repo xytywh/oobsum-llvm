@@ -1,10 +1,10 @@
 # 间接调用把指针交出去时调用点记账 fptr（oobsum/specs/SPEC-0057；06- A-60 ①、D-27）。
 #
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:Dump=summary \
 # RUN:   -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(Via_Local|Tick_Only)$' %S/Inputs/fptr/fp.c 2>&1 | FileCheck %s
 # 只传整数的间接调用不记 fptr
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 %S/Inputs/fptr/fp.c 2>&1 | not grep 'fp.c:13:1: warning: \[OOB-SUSPECT:fptr'
 
 CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Via_Local"{{.*}}"opens":[{"at":"fp.c:11","diag":[{{[0-9,]+}}],"reason":"fptr"}]

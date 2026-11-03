@@ -241,7 +241,7 @@ REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
 CHECKER = 'rb.enhance.core.OobSummary'
 STRENGTH = {'definite': 3, 'possible': 2, 'suspect': 1, 'safe': 0}
 PA_LABEL = {'L1': 'definite', 'L2': 'possible', '记账': 'suspect'}
-VERDICTS = ['通过', '通过+S', '级别不同', '漏报', '误报', '超出预期', '需跨TU']
+VERDICTS = ['通过', '通过+S', '级别不同', '漏报', '误报', '超出预期', '需跨TU', '策略过滤']
 
 
 def _fn_name(fn):
@@ -458,6 +458,7 @@ def cmd_csa(a):
 
     entries, emitted, others, errors = [], [], [], []
     safe_sites, ran, ntu = set(), set(), 0
+    flexible_filtered = set()  # SPEC-0127：只豁免同一上下文仍被明确记录的用户策略过滤
     reported_accesses = set()  # (用例, 访问点 文件:行)：报出的判定的调用链终点
     safe_accesses = set()      # (用例, 函数, 访问点 文件:行)：在这个函数里证明了安全的访问（SPEC-0025）
     safe_anywhere = set()      # (用例, 访问点)：有 SAFE 判定的访问（在调用链上哪一层证明的都算，SPEC-0034）
@@ -564,11 +565,19 @@ def cmd_csa(a):
                     rep0 = min(sus, key=lambda d: (_rep_key(d), names_of.get(d['fn'], _fn_name(d['fn']))))
                     actual = '%s@%s' % (_tag(rep0), names_of.get(rep0['fn'], _fn_name(rep0['fn']))) + \
                         ('×%d' % len(sus) if len(sus) > 1 else '')
+            filtered = [d for d in decs if d.get('not_emitted_because') == 'flexible_array' and
+                        (_fn_name(d['fn']) == e['entry'] or d['fn'] in reach)]
+            verdict = _verdict(e['kind'], pa, rep, len(srcs) > 1 and not xtu)
+            if filtered and rep not in ('definite', 'possible'):
+                verdict = '策略过滤'
+                actual += '; flexible_array=%d' % len(filtered)
             nsus = len([d for d in decs if _fn_name(d['fn']) == e['entry'] and d.get('emitted') and d['label'] == 'suspect'])
             entries.append({'case': cid, 'kind': e['kind'], 'entry': e['entry'], 'pa': pa, 'actual': actual,
-                            'verdict': _verdict(e['kind'], pa, rep, len(srcs) > 1 and not xtu), 'nsus': nsus})
+                            'verdict': verdict, 'nsus': nsus})
         for d in decs:
             key = (cid, d['site'], d['kind'])
+            if d.get('not_emitted_because') == 'flexible_array':
+                flexible_filtered.add((cid, d['site'], d['kind'], d['label'], d.get('reason', ''), _fn_name(d['fn'])))
             if d['label'] == 'safe':
                 safe_sites.add(key)
                 safe_sites.add((cid, d['site'], ''))  # 账本判定（没有 kind）：同一处有任意 kind 的 SAFE 就算证明了（SPEC-0024）
@@ -631,7 +640,8 @@ def cmd_csa(a):
             if r.get('reason') == 'fptr':
                 path, line = r['site'].rsplit(':', 2)[:2]
                 moved = moved or (r['case'], r['fn'], os.path.basename(path), line) in resolved_calls
-            if r['case'] in ran and k not in have and k not in safe_sites and not moved:
+            policy_filtered = (r['case'], r['site'], r['kind'], r['label'], r.get('reason', ''), _fn_name(r['fn'])) in flexible_filtered
+            if r['case'] in ran and k not in have and k not in safe_sites and not moved and not policy_filtered:
                 regress.append(r)
         old = {(e['case'], e['kind'], e['entry']): e for e in base.get('entries', [])}
         for e in entries:

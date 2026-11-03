@@ -46,6 +46,7 @@ summary::Rep EntryRep(const std::string &level, const DerivedReq &r, const summa
 {
     summary::Rep rep;
     rep.level = level;
+    rep.flex = r.flex;
     rep.reported = std::max(r.depth, r.effDepth) > apply::kInlineDepth;
     rep.site = r.access.at;
     rep.access = r.access;
@@ -108,6 +109,7 @@ summary::Req AsReq(const DerivedReq &r)
 {
     summary::Req out;
     out.have = r.have.Show();
+    out.flex = r.flex;
     out.obj = r.obj;
     out.endLo = r.lo.Show();
     out.endHi = r.hi.Show();
@@ -168,7 +170,8 @@ std::vector<DerivedReq> Absorb(const std::vector<DerivedReq> &cand)
         bool dominated = false;
         for (size_t j = 0; j < cand.size() && !dominated; ++j) {
             const DerivedReq &r2 = cand[j];
-            if (i == j || r.have.Show() != r2.have.Show() || r.obj != r2.obj || r.gkey != r2.gkey || r.dir != r2.dir) {
+            if (i == j || r.have.Show() != r2.have.Show() || r.obj != r2.obj || r.gkey != r2.gkey || r.dir != r2.dir ||
+                r.flex != r2.flex) {
                 continue;
             }
             LinExpr d = r.hi - r2.hi;
@@ -228,6 +231,7 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bo
             for (const Access1 &a : accesses) {
                 DerivedReq d;
                 d.have = P(r.have);
+                d.flex = r.flex;
                 d.obj = r.obj;
                 d.lo = P(a.lo);
                 d.hi = P(a.hi);
@@ -261,6 +265,7 @@ PropagateResult Propagate(const std::map<std::string, summary::Summary> &fns, bo
                     if (mine.outcome == "up") {
                         DerivedReq d;
                         d.have = mine.have;
+                        d.flex = mine.flex;
                         d.obj = mine.obj;
                         d.lo = mine.end2Lo;
                         d.hi = mine.end2Hi;

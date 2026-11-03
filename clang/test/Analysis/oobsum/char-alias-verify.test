@@ -1,20 +1,20 @@
 # CharAlias=verify（oobsum/specs/SPEC-0106，用户决定 D25）：经 char / void 写外部内存时照 false 推（界不丢），记下不别名假设，调用点核对。
 #
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:CharAlias=verify \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=options+summary+state \
 # RUN:   -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(F|Fill|H|G)$' \
 # RUN:   -w %S/Inputs/charalias/v.c 2>&1 | FileCheck %s
 # 调用点核对（SPEC-0106 §2.3）：Dump=apply 打出每条结论
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:CharAlias=verify \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=apply -w %S/Inputs/charalias/v.c 2>&1 | FileCheck %s --check-prefix=CHK
 # 同一份输入用 false：一条 alias_unverified 都没有
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -w %S/Inputs/charalias/v.c 2>&1 \
 # RUN:   | FileCheck %s --check-prefix=OFF --implicit-check-not=alias_unverified
 # 取值不对：选项错误
-# RUN: not %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:CharAlias=maybe \
+# RUN: not %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:CharAlias=maybe \
 # RUN:   -w %S/Inputs/charalias/v.c 2>&1 | FileCheck %s --check-prefix=BAD
 
 CHECK-DAG: [oobsum:options] {{.*}} CharAlias=verify

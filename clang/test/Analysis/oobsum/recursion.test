@@ -1,11 +1,11 @@
 # 递归调用点记账 recursion（oobsum/specs/SPEC-0066；06- D-27）：环上不求不动点，经递归传上来的条件会丢，不能被一条 SAFE 盖住。
 # 原来 Mut_TP（下标涨到 20）、Walk_TP（写到第 32 字节）都判成 SAFE。
 #
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:Dump=summary \
 # RUN:   -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^Rec$' %S/Inputs/recursion/r.c 2>&1 | FileCheck %s
 # 不递归的 Leaf 不记
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 %S/Inputs/recursion/r.c 2>&1 | not grep 'r.c:1[45]:1: warning: \[OOB-SUSPECT:recursion'
 
 CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Rec"{{.*}}"opens":[{"at":"r.c:4","reason":"recursion"}]

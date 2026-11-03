@@ -1,9 +1,9 @@
 # 调用点实参是不跟踪的指针：记 untracked_pointer，告警不再露出内部占位符 _unknownK（oobsum/specs/SPEC-0062）。
 #
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:Dump=apply \
 # RUN:   -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^Use_Ext$' %S/Inputs/unkarg/ext.c 2>&1 | FileCheck %s
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 %S/Inputs/unkarg/ext.c 2>&1 | not grep _unknown
 
 CHECK: [oobsum:apply] Use_Ext @ ext.c:8 Blk_Init.ext.c:6 → open (untracked_pointer)

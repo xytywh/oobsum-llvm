@@ -313,6 +313,7 @@ void OobSummaryChecker::solveAll() const
                     oobsum::summary::Req req;
                     req.id = "up" + std::to_string(derived.reqs.size());
                     req.kind = r.kind;
+                    req.flex = r.flex;
                     req.dir = r.dir;
                     req.obj = r.obj;
                     req.have = r.have.Show();
@@ -767,6 +768,13 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
             llvm::errs() << "[oobsum] warning: ModelFile " << chk->modelFile << ": " << w << "\n";
         }
     }
+    int flexibleArrayMax = getInteger("FlexibleArrayMax");
+    if (flexibleArrayMax < 0) {
+        mgr.reportInvalidCheckerOptionValue(chk, "FlexibleArrayMax", "a non-negative integer");
+    } else {
+        chk->policy.flexibleArrayMax = flexibleArrayMax;
+    }
+    chk->policy.reportFlexibleArray = getBoolean("ReportFlexibleArray");
     std::string diagnosticStyle = getString("DiagnosticStyle");
     if (diagnosticStyle != "sink" && diagnosticStyle != "legacy") {
         mgr.reportInvalidCheckerOptionValue(chk, "DiagnosticStyle", "sink or legacy");
@@ -780,6 +788,8 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
                        "\" MaxBlocks=" + std::to_string(chk->maxBlocks) + " CharAlias=" + charAlias +
                        " Subobject=" + subobject +
                        " AssumeNoWrap=" + (chk->interpOptions.assumeNoWrap ? "true" : "false") +
+                       " FlexibleArrayMax=" + std::to_string(chk->policy.flexibleArrayMax) +
+                       " ReportFlexibleArray=" + (chk->policy.reportFlexibleArray ? "true" : "false") +
                        " DiagnosticStyle=" + diagnosticStyle + (envText ? " OOBSUM_CONFIG=\"" + *envText + "\"" : "");
 }
 

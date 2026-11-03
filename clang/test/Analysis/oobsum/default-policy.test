@@ -1,10 +1,10 @@
 # SPEC-0122：默认全层报告；CSA IPA 两种配置的判定逐字相同，Dump 落盘。
 # RUN: rm -rf %t
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config ipa=none -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/none -analyzer-config rb.enhance.core.OobSummary:Dump=options+stats %S/Inputs/default-policy.c 2>&1 | FileCheck %s
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config ipa=dynamic-bifurcate -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/ipa %S/Inputs/default-policy.c 2>&1 | FileCheck %s --check-prefix=WARN
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config ipa=none -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/none -analyzer-config rb.enhance.core.OobSummary:Dump=options+stats %S/Inputs/default-policy.c 2>&1 | FileCheck %s
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config ipa=dynamic-bifurcate -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t/ipa %S/Inputs/default-policy.c 2>&1 | FileCheck %s --check-prefix=WARN
 # RUN: diff %t/none/decisions %t/ipa/decisions
 # RUN: cat %t/none/dump/*/options.txt | FileCheck %s --check-prefix=OPTIONS
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config ipa=none -analyzer-config rb.enhance.core.OobSummary:InlineDepth=2 %S/Inputs/default-policy.c 2>&1 | count 0
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config ipa=none -analyzer-config rb.enhance.core.OobSummary:InlineDepth=2 %S/Inputs/default-policy.c 2>&1 | count 0
 # CHECK: [oobsum:options] {{.*}}InlineDepth=0
 # CHECK: warning: [OOB-DEFINITE]
 # CHECK: warning: [OOB-DEFINITE]

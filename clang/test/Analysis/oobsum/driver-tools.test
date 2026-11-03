@@ -2,7 +2,7 @@
 # stats 第一行起是分析时用的目标（fir/*.json 的 target，SPEC-0116）。
 #
 # RUN: rm -rf %t && mkdir -p %t
-# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --config DiagnosticStyle=legacy --workdir %t/w --clang %clang --config InlineDepth=0 --config Dump=summary \
+# RUN: %python %S/../../../../oobsum/tools/oobsum_run.py local --config DiagnosticStyle=legacy --config ReportFlexibleArray=true --workdir %t/w --clang %clang --config InlineDepth=0 --config Dump=summary \
 # RUN:   %S/Inputs/solve/a.c %S/Inputs/solve/b.c > %t/local.txt
 # RUN: %python %S/../../../../oobsum/tools/oobsum_run.py stats --workdir %t/w | FileCheck %s --check-prefix=STATS
 # --counts-only 不列函数名 / 文件名（SPEC-0119）

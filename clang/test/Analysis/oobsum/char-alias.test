@@ -1,12 +1,12 @@
 # 选项 CharAlias（oobsum/specs/SPEC-0103，用户决定 D20）：char / void 的写当成可能改了任何外部内存。默认先关（等公司实测后定）。
 #
 # 打开：F（p 就是 pst）不再错判 SAFE；代价：编码函数、循环界每轮从结构体读的循环都降成 SUSPECT
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:CharAlias=true -analyzer-config rb.enhance.core.OobSummary:Dump=state \
 # RUN:   -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^F$' %S/Inputs/charalias/c.c 2>&1 | FileCheck %s --check-prefix=ON
 # 关（默认）：照旧
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=options %S/Inputs/charalias/c.c 2>&1 | FileCheck %s --check-prefix=OFF
 

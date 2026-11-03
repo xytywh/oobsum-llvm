@@ -2,9 +2,9 @@
 # 原来三处都是错误的 SAFE：① b.c 的 static g_len 代进 a.c 的同名 static；② 两个函数内 static n 混了；③ d.c 没声明 g_x，SetX 改过后 PutX 当入口值。
 #
 # RUN: rm -rf %t && mkdir -p %t
-# RUN: for f in a b c d e l; do %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: for f in a b c d e l; do %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Phase=export -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t %S/Inputs/gident/$f.c; done
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Phase=solve -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t %S/Inputs/gident/stub.c
 # RUN: %python %S/../../../../oobsum/tools/json_compact.py %t/solved/*.json > %t/solved.txt
 # RUN: FileCheck %s < %t/solved.txt

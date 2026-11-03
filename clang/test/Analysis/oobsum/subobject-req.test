@@ -2,14 +2,14 @@
 # （have 是子对象大小、end 从子对象起点算）往调用方传；调用方给的值越出内层 → SUSPECT subobject_overflow（不判 DEFINITE / POSSIBLE），
 # 在界内 → SAFE。外层（整个对象）照常判。
 #
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=summary -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(Mark|SetY)$' \
 # RUN:   -w %S/Inputs/subobj/u.c 2>&1 | FileCheck %s
 
 # 摘要：g_aucTbl[s][r] 的内层 Req（一行 8 字节，末端 r + 1）与外层 Req；ausY[i] 的内层 Req（4 字节，末端 2i + 2）
 CHECK-DAG: [oobsum:summary] {{.*}}"fn":"Mark"{{.*}}"dir":"sub","eff_depth":0,"end":["p1 + 1","p1 + 1"],"guard":[],"have":"8","id":"R1","kind":"W","obj":"g:g_aucTbl"{{.*}}"have":"32"
-CHECK-DAG: [oobsum:summary] {{.*}}"fn":"SetY"{{.*}}"dir":"sub","eff_depth":0,"end":["2*p1 + 2","2*p1 + 2"],"guard":[],"have":"4",
+CHECK-DAG: [oobsum:summary] {{.*}}"fn":"SetY"{{.*}}"dir":"sub","eff_depth":0,"end":["2*p1 + 2","2*p1 + 2"],"flex":2,"guard":[],"have":"4",
 # Mark(1, 8)：越出一行、没越出整个表 → SUSPECT；Mark(1, 7) → 两边都 SAFE
 CHECK-DAG: u.c:10:1: warning: [OOB-SUSPECT:subobject_overflow] Cannot prove the write through a 1-level call chain stays within the array member or row (8 bytes) of 'g_aucTbl': up to byte 9 of it may be accessed
 CHECK-DAG: u.c:10:1: warning: [OOB-SAFE:within] Proven within bounds: up to byte 17 of 'g_aucTbl' (32 bytes)

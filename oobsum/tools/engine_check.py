@@ -80,8 +80,25 @@ def normalize(s, names):
     # SPEC-0125：只忽略已知位置的诊断字段，不能删掉真实结构体中名为 diag 的字段。
     for r in s.get('reqs', []) + s.get('reps', []):
         r.get('access', {}).pop('diag', None)
+        r.pop('flex', None)  # SPEC-0127：报告策略标签不改变证明
     for record in s.get('calls', []) + s.get('opens', []):
         record.pop('diag', None)
+        record.pop('flex', None)
+    for effect in s.get('effs', []):
+        effect.pop('flex', None)
+        effect.pop('sub_flex', None)
+    def argument(value):
+        if isinstance(value, dict) and 'obj' in value and 'have' in value:
+            value.pop('flex', None)
+            value.pop('sub_flex', None)
+            if isinstance(value.get('parent'), dict):
+                value['parent'].pop('flex', None)
+            for field in (value.get('fields') or {}).values():
+                argument(field)
+    for call in s.get('calls', []):
+        for arg in call.get('args', []):
+            argument(arg)
+
     s['key'] = key(s['key'])
     for p in s['params']:
         p['type'] = ty(p['type'])

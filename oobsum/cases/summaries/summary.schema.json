@@ -64,7 +64,7 @@
     "req": {
       "type": "object", "additionalProperties": false,
       "required": ["id", "kind", "have", "obj", "end", "bound", "guard", "access", "path", "depth", "eff_depth", "blind"],
-      "properties": {
+      "properties": { "flex": { "type": "integer", "minimum": -1 },
         "id": { "type": "string" },
         "kind": { "enum": ["R", "W"] },
         "dir": { "enum": ["back", "sub", "subback"], "description": "sub：内层 Req（成员数组 / 多维数组的一行，have 是子对象大小、end 从子对象起点算，违反只判 SUSPECT，SPEC-0104）；back：反向 Req：have 是基址前面的字节数 bext(…) / 0，end 是越到基址前面的字节数（负偏移，SPEC-0039）；不写 = 正向" },
@@ -90,7 +90,7 @@
     },
     "eff": {
       "type": "object", "additionalProperties": false, "required": ["kind"],
-      "properties": {
+      "properties": { "flex": { "type": "integer", "minimum": -1 }, "sub_flex": { "type": "integer", "minimum": -1 },
         "kind": { "enum": ["ret_new", "ret_ptr", "ret_int", "ret_cond", "out_new", "out_int", "field", "global", "invalidate"] },
         "size": { "$ref": "#/definitions/expr" },
         "maybe_null": { "type": "boolean" },
@@ -110,7 +110,7 @@
     "ptr": {
       "type": "object", "additionalProperties": false, "required": ["obj", "have"],
       "description": "指针实参：指向哪个对象、从这个指针起还剩多少字节（调用方的说法）",
-      "properties": {
+      "properties": { "flex": { "type": "integer", "minimum": -1 }, "sub_flex": { "type": "integer", "minimum": -1 },
         "obj": { "$ref": "#/definitions/obj" },
         "have": { "$ref": "#/definitions/expr" },
         "alias": { "type": "string", "pattern": "^p\\d+$", "description": "实参就是调用方的某个形参：被调者的字段符号直接改写成调用方的" },
@@ -125,7 +125,7 @@
         "sub_back": { "$ref": "#/definitions/expr", "description": "实参指向子对象里面时：从这个指针往前到子对象起点的字节数（最小的；被调者的负偏移按它查内层，SPEC-0107）" },
         "parent": { "type": "object", "additionalProperties": false, "required": ["obj", "have"],
                     "description": "实参是形参所指结构体里的成员数组时：外层对象与从这个指针起外层还剩多少字节（SPEC-0035）",
-                    "properties": { "obj": { "$ref": "#/definitions/obj" }, "have": { "$ref": "#/definitions/expr" } } },
+                    "properties": { "flex": { "type": "integer", "minimum": -1 }, "obj": { "$ref": "#/definitions/obj" }, "have": { "$ref": "#/definitions/expr" } } },
         "doc": { "$ref": "#/definitions/doc" }
       }
     },
@@ -197,7 +197,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["id", "level", "reported", "site", "access", "kind", "obj", "have", "end", "bound", "depth", "eff_depth", "chain", "fp"],
       "description": "判定记录。告警的位置、消息（06- F-32 模板）、调用链 note、指纹（F-34）都由这些机器字段生成；doc.msg 只是生成结果的副本",
-      "properties": {
+      "properties": { "flex": { "type": "integer", "minimum": -1 },
         "id": { "type": "string" },
         "level": { "enum": ["L1", "L2"] },
         "dir": { "enum": ["back", "sub", "subback"], "description": "sub：内层 Req（成员数组 / 多维数组的一行，have 是子对象大小、end 从子对象起点算，违反只判 SUSPECT，SPEC-0104）；back：负偏移的判定（SPEC-0039）" },
@@ -225,7 +225,7 @@
                          "untracked_pointer", "typed_field", "subobject_overflow", "alias_unverified"] },
     "open": {
       "type": "object", "additionalProperties": false, "required": ["reason", "at"],
-      "properties": { "diag": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+      "properties": { "flex": { "type": "integer", "minimum": -1 }, "diag": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
         "reason": { "$ref": "#/definitions/reason" },
         "at": { "$ref": "#/definitions/site" },
         "req": { "type": "string", "description": "入口处到此为止的 Req" },

@@ -1,10 +1,10 @@
 // Dump=callgraph：自底向上的求解顺序（06- A-80），被调者先；递归成环的标 cycle。
-// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=callgraph %s 2>&1 | FileCheck %s --check-prefix=ORDER
-// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=callgraph %s 2>&1 | FileCheck %s --check-prefix=CYCLE
 // DumpFilter 只留名字匹配的函数
-// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=callgraph \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:DumpFilter=^mid$ %s 2>&1 | FileCheck %s --check-prefix=FILTER
 

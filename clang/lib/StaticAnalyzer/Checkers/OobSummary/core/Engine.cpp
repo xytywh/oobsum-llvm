@@ -429,6 +429,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.site = sitesOf(fn).Of(rep.site);
             d.accessKey = rep.access.key;
             d.accessIds = {rep.access.diag};
+            d.flex = rep.flex;
             d.kind = rep.kind;
             d.obj = rep.obj;
             d.have = rep.have;
@@ -449,7 +450,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             }
             d.fp = rep.fp;
             std::string key = rep.site + "|" + rep.access.key + "@" + rep.access.at + "|" + rep.kind + "|" + rep.dir +
-                              "|" + std::to_string(rep.access.diag);
+                              "|" + std::to_string(rep.access.diag) + "|" + std::to_string(rep.flex);
             repKeys.push_back(key);
             auto hit = primary.find(key);
             if (hit == primary.end()) {
@@ -487,6 +488,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.site = sitesOf(fn).Of(so.site);
             d.accessKey = so.req.access.key;
             d.accessIds = {so.req.access.diag};
+            d.flex = mine.flex;
             d.kind = so.req.kind;
             d.obj = mine.obj;
             d.have = mine.have.Show();
@@ -523,6 +525,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
                 d.site = sitesOf(fn).Of(r.depth == 0 ? r.access.at : s.loc);
                 d.accessKey = r.access.key;
                 d.accessIds = {r.access.diag};
+                d.flex = r.flex;
                 d.kind = r.kind;
                 d.obj = r.obj;
                 d.have = r.have.Show();
@@ -607,6 +610,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.site = sitesOf(fn).Of(r.access.at);
             d.accessKey = r.access.key;
             d.accessIds = {r.access.diag};
+            d.flex = r.flex;
             d.kind = r.kind;
             d.obj = r.obj;
             d.have = r.have;
@@ -626,6 +630,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.site = sitesOf(fn).Of(o.at);
             d.accessKey = fn;
             d.accessIds = o.diags;
+            d.flex = o.flex;
             d.chain = {allSites.HopOf(s.fn + "@" + o.at)};
             d.warnMsg = LedgerMessage(o.reason);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, o.at, "", "", o.reason);

@@ -229,6 +229,9 @@ compile_commands ─▶ rb.enhance.core.OobSummary ──▶ WorkDir/fir/<tu>.js
 | I-28 | `AssumeNoWrap` | bool | `false` | 〔SPEC-0108〕检查与地址计算里的整数运算按数学整数（不回绕），记局部线性关系；打开后可能漏掉"检查被回绕绕过"的缺陷 |
 | I-29 | `DiagnosticStyle` | string | `sink` | SPEC-0126：sink 位置、类型 / 元素范围与同一行合并；legacy 保留旧文本和位置 |
 
+| I-31 | `FlexibleArrayMax` | int | `4` | SPEC-0127：结构体末尾定长数组的候选元素数阈值；0 仅保留 [] / [0] |
+| I-32 | `ReportFlexibleArray` | bool | `false` | SPEC-0127：是否报告候选访问的越界判断；默认策略过滤但保留原标签和日志 |
+
 ### 4.3 运行命令
 
 **单文件 / 单目录（Phase=inline，同 TU 内的多层链）**——与 `csa-checker-dev` 的标准命令一致，只换 `-checker=`；SPEC-0122 起本规则归 core，显式加 `ipa=none`：
@@ -524,7 +527,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | D-34 | `extern` 全局 | 求解时取定义所在 TU 的大小；全工程都没有定义的 → 未知 | #9 |
 | D-35 | 字符串字面量 | 长度 + 1 | #19 |
 | D-36 | VLA | 符号或区间 | #16 |
-| D-37 | 柔性数组成员 `[]`、`[0]`、末尾 `[1]` | **不按成员收窄**：以整个对象为界；对象大小未知时记账 `flexible_array` | #17；P0 对末尾 `[1]` 一律按柔性处理，宁可漏报不误报 |
+| D-37 | 柔性数组与末尾小数组约定 | 〔SPEC-0127 修订〕原大小 / 边界证明保留；来源经 tail 节点传播，默认按 FlexibleArrayMax=4 / ReportFlexibleArray=false 策略过滤；原标签与过滤原因全入日志 | 用户明确选择的报告例外，不能标 SAFE；打开选项恢复报告，固定内层界不随之过滤 |
 | D-38 | 指向数组中间的指针 | 基址 + 偏移，不读 ExprEngine 的地址 | #21，`csaBlindSpot` |
 
 * **D-39** 字节布局取被分析 TU 的 `ASTContext`：fork 按 ILP32 分析业务代码时（探针 R2 的 `ptr=4`）布局即真实布局；
@@ -746,7 +749,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | **T-07** | 健壮性 | 本包 `05-experiments/`、`07-capability-boundary/corpus/`、`cases/` 全部跑 export + solve 不崩溃、全函数性成立 | 沙箱 | 每次交付 |
 | **T-08** | 真实代码 | 子集（几个顶层目录）→ 全量：告警按级别 / 层数、账本按原因、耗时 / 内存；抽样 50 条 L1 由你研判精确率 | fork | W10 起 |
 
-**T-03 的对照口径**（`oobsum.py check` 与 `run.py csa` 共用同一实现）：〔由 SPEC-0002 §2.3 修订：D16 后 SUSPECT 计为召回，`记账` 的 TP 要报出 SUSPECT，`-` / `记账` 的入口只禁止 DEFINITE / POSSIBLE；下表是原写法〕
+**T-03 的对照口径**〔SPEC-0127：用户明确要求的 flexible_array 过滤单列“策略过滤”，仅同一上下文、同一原标签的明确过滤记录可豁免召回基线；不得标 SAFE〕（`oobsum.py check` 与 `run.py csa` 共用同一实现）：〔由 SPEC-0002 §2.3 修订：D16 后 SUSPECT 计为召回，`记账` 的 TP 要报出 SUSPECT，`-` / `记账` 的入口只禁止 DEFINITE / POSSIBLE；下表是原写法〕
 
 | `@expect` 的 `pa` | 判为通过的条件 |
 |---|---|

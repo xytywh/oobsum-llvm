@@ -114,7 +114,8 @@ enum class ExprOp : uint8_t {
     Fld,
     PSub,
     Unk,
-    SubObj  // 数组子对象的起点：a 是指针，size 是子对象的字节数（成员数组、多维数组的一行，SPEC-0104）
+    SubObj,  // 数组子对象的起点：a 是指针，size 是子对象的字节数（成员数组、多维数组的一行，SPEC-0104）
+    Tail     // SPEC-0127：size 为声明元素数，-1 表示 []；地址不变
 };
 enum class BinOp : uint8_t { Add, Sub, Mul, Div, Rem, Shl, Shr, And, Or, Xor };
 enum class CmpOp : uint8_t { Eq, Ne, Lt, Le, Gt, Ge };
@@ -143,6 +144,7 @@ struct Expr {
     static Expr PAdd(ExprId pointer, ExprId offset);
     static Expr Fld(ExprId pointer, int64_t off, int64_t size, llvm::StringRef name);
     static Expr PSub(ExprId p1, ExprId p2, int64_t elem);
+    static Expr Tail(ExprId pointer, int64_t count);
     static Expr SubObj(ExprId pointer, int64_t size);  // SPEC-0104
     static Expr Unknown(llvm::StringRef why);
 };

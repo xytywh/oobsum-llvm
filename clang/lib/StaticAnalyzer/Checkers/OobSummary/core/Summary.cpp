@@ -244,6 +244,13 @@ private:
     }
 
     // ---- 各部分 ----
+    bool Flex(const Object &object, int64_t &out, llvm::StringRef key = "flex")
+    {
+        out = -2;
+        const Value *value = object.get(key);
+        return value == nullptr ||
+               In(key, [&] { return Int(*value, out) && (out >= -1 || Fail("invalid tail array count")); });
+    }
     bool Diag(const Object &object, int64_t &out)
     {
         const Value *value = object.get("diag");
@@ -279,7 +286,10 @@ bool Reader::ReadReq(const Value &v, Req &r)
 {
     const Object *o =
         Obj(v, {"id", "kind", "have", "obj", "end", "bound", "guard", "access", "path", "depth", "eff_depth", "blind"},
-            {"start", "absorbed", "dir"});
+            {"start", "absorbed", "dir", "flex"});
+    if (o != nullptr && !Flex(*o, r.flex)) {
+        return false;
+    }
     auto kind = [&](const Value &x, std::string &y) { return OneOf(x, y, {"R", "W"}); };
     llvm::Optional<std::string> dir;  // SPEC-0039
     if (o != nullptr && !OptKey(*o, "dir", dir, [&](const Value &x, std::string &y) {
@@ -311,10 +321,11 @@ bool Reader::ReadEff(const Value &v, Eff &e)
 {
     const Object *o = Obj(v, {"kind"},
                           {"size", "maybe_null", "range", "when", "then", "target", "value", "eff_depth", "bound",
-                           "may", "sub", "sub_off"});
+                           "may", "sub", "sub_off", "flex", "sub_flex"});
     auto strings = [&](const Value &x, std::vector<std::string> &y) { return List(x, y, OOBSUM_M(Expr)); };
     auto conds = [&](const Value &x, std::vector<std::string> &y) { return List(x, y, OOBSUM_M(Cond)); };
-    return o != nullptr && Key(*o, "kind", e.kind, OOBSUM_M(Str)) && OptKey(*o, "size", e.size, OOBSUM_M(Expr)) &&
+    return o != nullptr && Flex(*o, e.flex) && Flex(*o, e.subFlex, "sub_flex") &&
+           Key(*o, "kind", e.kind, OOBSUM_M(Str)) && OptKey(*o, "size", e.size, OOBSUM_M(Expr)) &&
            OptKey(*o, "maybe_null", e.maybeNull, OOBSUM_M(Bool)) && OptKey(*o, "range", e.range, strings) &&
            OptKey(*o, "when", e.when, OOBSUM_M(Cond)) && OptKey(*o, "then", e.then, conds) &&
            OptKey(*o, "target", e.target, OOBSUM_M(Str)) && OptKey(*o, "value", e.value, OOBSUM_M(Expr)) &&
@@ -325,12 +336,13 @@ bool Reader::ReadEff(const Value &v, Eff &e)
 
 bool Reader::ReadPtr(const Value &v, PtrArg &p)
 {
-    const Object *o =
-        Obj(v, {"obj", "have"},
-            {"alias", "eff_depth", "fields", "parent", "back", "off_lo", "off_hi", "off_bound", "sub", "sub_back"});
+    const Object *o = Obj(v, {"obj", "have"},
+                          {"alias", "eff_depth", "fields", "parent", "back", "off_lo", "off_hi", "off_bound", "sub",
+                           "sub_back", "flex", "sub_flex"});
     auto outer = [&](const Value &x, OuterObj &y) {
-        const Object *po = Obj(x, {"obj", "have"}, {});
-        return po != nullptr && Key(*po, "obj", y.obj, OOBSUM_M(ObjName)) && Key(*po, "have", y.have, OOBSUM_M(Expr));
+        const Object *po = Obj(x, {"obj", "have"}, {"flex"});
+        return po != nullptr && Flex(*po, y.flex) && Key(*po, "obj", y.obj, OOBSUM_M(ObjName)) &&
+               Key(*po, "have", y.have, OOBSUM_M(Expr));
     };
     auto fields = [&](const Value &x, std::map<std::string, ArgValue> &y) {
         const Object *fo = x.getAsObject();
@@ -346,7 +358,8 @@ bool Reader::ReadPtr(const Value &v, PtrArg &p)
         }
         return true;
     };
-    return o != nullptr && Key(*o, "obj", p.obj, OOBSUM_M(ObjName)) && Key(*o, "have", p.have, OOBSUM_M(Expr)) &&
+    return o != nullptr && Flex(*o, p.flex) && Flex(*o, p.subFlex, "sub_flex") &&
+           Key(*o, "obj", p.obj, OOBSUM_M(ObjName)) && Key(*o, "have", p.have, OOBSUM_M(Expr)) &&
            OptKey(*o, "alias", p.alias, OOBSUM_M(Str)) && OptKey(*o, "eff_depth", p.effDepth, OOBSUM_M(Int)) &&
            OptKey(*o, "fields", p.fields, fields) && OptKey(*o, "parent", p.parent, outer) &&
            OptKey(*o, "back", p.back, OOBSUM_M(Expr)) && OptKey(*o, "off_lo", p.offLo, OOBSUM_M(Expr)) &&
@@ -524,7 +537,7 @@ bool Reader::ReadRep(const Value &v, Rep &r)
     const Object *o = Obj(v,
                           {"id", "level", "reported", "site", "access", "kind", "obj", "have", "end", "bound", "depth",
                            "eff_depth", "chain", "fp"},
-                          {"via", "dir"});
+                          {"via", "dir", "flex"});
     auto via = [&](const Value &x, std::string &y) { return Str(x, y) && (IsVia(y) || Fail("bad via '" + y + "'")); };
     llvm::Optional<std::string> dir;  // SPEC-0039
     if (o != nullptr && !OptKey(*o, "dir", dir, [&](const Value &x, std::string &y) {
@@ -533,7 +546,7 @@ bool Reader::ReadRep(const Value &v, Rep &r)
         return false;
     }
     r.dir = dir.getValueOr("");
-    return o != nullptr && Key(*o, "id", r.id, OOBSUM_M(Str)) &&
+    return o != nullptr && Flex(*o, r.flex) && Key(*o, "id", r.id, OOBSUM_M(Str)) &&
            Key(*o, "level", r.level,
                [&](const Value &x, std::string &y) {
                    return OneOf(x, y, {"L1", "L2"});
@@ -555,9 +568,10 @@ bool Reader::ReadRep(const Value &v, Rep &r)
 
 bool Reader::ReadOpen(const Value &v, Open &op)
 {
-    const Object *o = Obj(v, {"reason", "at"}, {"req", "diag"});
-    return o != nullptr && Key(*o, "reason", op.reason, OOBSUM_M(ReasonName)) && Key(*o, "at", op.at, OOBSUM_M(Str)) &&
-           OptKey(*o, "req", op.req, OOBSUM_M(Str)) && (!o->get("diag") || In("diag", [&] {
+    const Object *o = Obj(v, {"reason", "at"}, {"req", "diag", "flex"});
+    return o != nullptr && Flex(*o, op.flex) && Key(*o, "reason", op.reason, OOBSUM_M(ReasonName)) &&
+           Key(*o, "at", op.at, OOBSUM_M(Str)) && OptKey(*o, "req", op.req, OOBSUM_M(Str)) &&
+           (!o->get("diag") || In("diag", [&] {
                return List(*o->get("diag"), op.diags, [&](const Value &value, int64_t &id) {
                    return Int(value, id) && (id >= 0 || Fail("negative diagnostic id"));
                });
@@ -666,15 +680,25 @@ Value ArgJson(const ArgValue &a);
 Value PtrJson(const PtrArg &p)
 {
     Object o{{"obj", p.obj}, {"have", p.have}};
+    if (p.flex >= -1) {
+        o["flex"] = p.flex;
+    }
     Put(o, "alias", p.alias);
     Put(o, "eff_depth", p.effDepth);
     if (p.parent) {
-        o["parent"] = Object{{"obj", p.parent->obj}, {"have", p.parent->have}};
+        Object parent{{"obj", p.parent->obj}, {"have", p.parent->have}};
+        if (p.parent->flex >= -1) {
+            parent["flex"] = p.parent->flex;
+        }
+        o["parent"] = std::move(parent);
     }
     Put(o, "back", p.back);
     Put(o, "off_lo", p.offLo);
     Put(o, "off_hi", p.offHi);
     Put(o, "off_bound", p.offBound);
+    if (p.subFlex >= -1) {
+        o["sub_flex"] = p.subFlex;
+    }
     Put(o, "sub", p.sub);           // SPEC-0104
     Put(o, "sub_back", p.subBack);  // SPEC-0107
     if (p.fields) {
@@ -804,6 +828,9 @@ Value SummaryToJson(const Summary &s)
                  {"eff_depth", r.effDepth},
                  {"blind", r.blind}};
         Put(o, "start", r.start);
+        if (r.flex >= -1) {
+            o["flex"] = r.flex;
+        }
         if (!r.dir.empty()) {
             o["dir"] = r.dir;
         }
@@ -819,6 +846,9 @@ Value SummaryToJson(const Summary &s)
     Array effs;
     for (const Eff &e : s.effs) {
         Object o{{"kind", e.kind}};
+        if (e.flex >= -1) {
+            o["flex"] = e.flex;
+        }
         Put(o, "size", e.size);
         Put(o, "maybe_null", e.maybeNull);
         PutList(o, "range", e.range);
@@ -829,6 +859,9 @@ Value SummaryToJson(const Summary &s)
         Put(o, "eff_depth", e.effDepth);
         Put(o, "bound", e.bound);
         Put(o, "may", e.may);
+        if (e.subFlex >= -1) {
+            o["sub_flex"] = e.subFlex;
+        }
         Put(o, "sub", e.sub);  // SPEC-0107
         Put(o, "sub_off", e.subOff);
         effs.push_back(std::move(o));
@@ -895,6 +928,9 @@ Value SummaryToJson(const Summary &s)
                  {"eff_depth", r.effDepth},
                  {"chain", Strings(r.chain)},
                  {"fp", r.fp}};
+        if (r.flex >= -1) {
+            o["flex"] = r.flex;
+        }
         Put(o, "via", r.via);
         if (!r.dir.empty()) {
             o["dir"] = r.dir;
@@ -904,6 +940,9 @@ Value SummaryToJson(const Summary &s)
     Array opens;
     for (const Open &op : s.opens) {
         Object o{{"reason", op.reason}, {"at", op.at}};
+        if (op.flex >= -1) {
+            o["flex"] = op.flex;
+        }
         Put(o, "req", op.req);
         if (!op.diags.empty()) {
             Array ids;

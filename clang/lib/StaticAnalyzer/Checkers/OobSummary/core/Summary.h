@@ -23,6 +23,12 @@
 namespace oobsum {
 namespace summary {
 
+// SPEC-0127：-2 表示无尾数组来源；汇合时任一方不确定就保守报告。
+inline int64_t MergeFlex(int64_t a, int64_t b)
+{
+    return a < -1 || b < -1 ? -2 : (a > b ? a : b);
+}
+
 constexpr const char *kSummarySchema = "oobsum-summary/1";
 
 struct Param {
@@ -72,6 +78,7 @@ struct Req {
     int64_t effDepth = 0;
     bool blind = false;
     llvm::Optional<std::vector<Absorbed>> absorbed;
+    int64_t flex = -2;  // SPEC-0127：报告策略来源，不参与安全证明
 };
 
 // D-24
@@ -90,6 +97,8 @@ struct Eff {
     // ret_ptr：返回的指针在一个 sub 字节的子对象（成员数组 / 多维数组的一行）里，偏移 subOff（SPEC-0107 §2.2）
     llvm::Optional<std::string> sub;
     llvm::Optional<std::string> subOff;
+    int64_t flex = -2;  // SPEC-0127：报告策略来源，不参与安全证明
+    int64_t subFlex = -2;
 };
 
 struct PtrArg;
@@ -106,6 +115,7 @@ struct ArgValue {
 struct OuterObj {
     std::string obj;
     std::string have;
+    int64_t flex = -2;
 };
 
 struct PtrArg {
@@ -123,6 +133,8 @@ struct PtrArg {
     llvm::Optional<std::string> alias;
     llvm::Optional<int64_t> effDepth;
     llvm::Optional<std::map<std::string, ArgValue>> fields;  // 值是表达式或指针（不为 null）
+    int64_t flex = -2;                                       // SPEC-0127：报告策略来源，不参与安全证明
+    int64_t subFlex = -2;
 };
 
 // 被调者效果代进来后的样子（results[].apply）
@@ -201,6 +213,7 @@ struct Rep {
     int64_t effDepth = 0;
     std::vector<std::string> chain;
     std::string fp;
+    int64_t flex = -2;  // SPEC-0127：报告策略来源，不参与安全证明
 };
 
 // D-27
@@ -209,6 +222,7 @@ struct Open {
     std::string at;
     llvm::Optional<std::string> req;
     std::vector<int64_t> diags = {};  // SPEC-0125：同一行可能有多个同原因的未知访问
+    int64_t flex = -2;                // SPEC-0127：报告策略来源，不参与安全证明
 };
 
 struct Summary {

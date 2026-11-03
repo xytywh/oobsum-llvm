@@ -2,24 +2,24 @@
 // 优先于 -analyzer-config；Dump=options 显示原文；键名不是本规则的选项、没有 '='、取值不合法 → 与命令行一样报选项错误。
 //
 // RUN: rm -rf %t && mkdir -p %t
-// RUN: env OOBSUM_CONFIG="WorkDir=%t/w Dump=options+stats" %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary %s 2>&1 \
+// RUN: env OOBSUM_CONFIG="WorkDir=%t/w Dump=options+stats" %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -analyzer-checker=rb.enhance.core.OobSummary %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=ENV
 // RUN: ls %t/w/decisions/*.jsonl | count 1
 // 环境变量优先于 -analyzer-config；分号也能分隔
-// RUN: env OOBSUM_CONFIG="Phase=export;WorkDir=%t/x Dump=stats" %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: env OOBSUM_CONFIG="Phase=export;WorkDir=%t/x Dump=stats" %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Phase=inline %s 2>&1 | FileCheck %s --check-prefix=OVR
 // RUN: ls %t/x/fir/*.json | count 1
 // 写错了：报选项错误
-// RUN: not env OOBSUM_CONFIG="NoSuch=1" %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary %s 2>&1 \
+// RUN: not env OOBSUM_CONFIG="NoSuch=1" %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -analyzer-checker=rb.enhance.core.OobSummary %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=BADKEY
-// RUN: not env OOBSUM_CONFIG="WorkDir=%t/y export" %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary %s 2>&1 \
+// RUN: not env OOBSUM_CONFIG="WorkDir=%t/y export" %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -analyzer-checker=rb.enhance.core.OobSummary %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=NOEQ
-// RUN: not env OOBSUM_CONFIG="Phase=bogus" %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary %s 2>&1 \
+// RUN: not env OOBSUM_CONFIG="Phase=bogus" %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -analyzer-checker=rb.enhance.core.OobSummary %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=BADPHASE
-// RUN: not env OOBSUM_CONFIG="MaxBlocks=abc ReportSafe=yes" %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary %s 2>&1 \
+// RUN: not env OOBSUM_CONFIG="MaxBlocks=abc ReportSafe=yes" %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -analyzer-checker=rb.enhance.core.OobSummary %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=BADTYPE
 // 没设环境变量：与原来相同
-// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Dump=options %s 2>&1 \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -analyzer-checker=rb.enhance.core.OobSummary -analyzer-config rb.enhance.core.OobSummary:Dump=options %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=NOENV
 
 // ENV: [oobsum:options] Phase=inline WorkDir="{{.*}}/w" {{.*}} OOBSUM_CONFIG="WorkDir={{.*}}/w Dump=options+stats"

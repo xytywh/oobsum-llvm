@@ -582,6 +582,30 @@ Outcome Classify(const summary::Req &req, const Call &call, const Summary &calle
                  bool subLabel)
 {
     Outcome o = ClassifyPlain(req, call, caller, envGuards);
+    o.flex = req.flex;
+    if (o.flex < -1) {
+        llvm::StringRef root(req.obj);
+        root.consume_front("*");
+        if (root.consume_front("p")) {
+            auto parts = root.split("->");
+            unsigned k = 0;
+            if (!parts.first.getAsInteger(10, k) && k < call.args.size()) {
+                const ArgValue *arg = &call.args[k];
+                if (!parts.second.empty()) {
+                    if (arg->kind == ArgValue::Kind::Ptr && arg->ptr->fields) {
+                        auto found = arg->ptr->fields->find(parts.second.str());
+                        arg = found == arg->ptr->fields->end() ? nullptr : &found->second;
+                    } else {
+                        arg = nullptr;
+                    }
+                }
+                if (arg != nullptr && arg->kind == ArgValue::Kind::Ptr) {
+                    o.flex = arg->ptr->flex;
+                }
+            }
+        }
+    }
+
     // 内层 Req（成员数组、多维数组的一行，SPEC-0104 §2.3 3a、用户决定 D22）：越出内层、没越出外层只记 SUSPECT——
     // L1 / L2 改判 open，账本原因一律 subobject_overflow；safe / up 不变（同 replay.py 的 classify）。
     // Subobject=label（SPEC-0105）：L1 / L2 照常，只有 open 的原因换成 subobject_overflow
@@ -617,6 +641,7 @@ llvm::Optional<Call> ParentCall(const summary::Req &req, const Call &call)
     Call out = call;
     auto outer = std::make_shared<summary::PtrArg>();
     outer->obj = arg.ptr->parent->obj;
+    outer->flex = arg.ptr->parent->flex;
     outer->have = arg.ptr->parent->have;
     outer->effDepth = arg.ptr->effDepth;
     outer->offLo = arg.ptr->offLo;  // 外层的剩余同样按偏移上界算（SPEC-0095）
@@ -660,6 +685,7 @@ llvm::Optional<Call> SubCall(const summary::Req &req, const Call &call)
     }
     auto inner = std::make_shared<summary::PtrArg>();
     inner->obj = target->ptr->obj;
+    inner->flex = target->ptr->subFlex;
     inner->have = back ? target->ptr->have : *target->ptr->sub;
     if (back) {
         inner->back = *target->ptr->subBack;
@@ -797,6 +823,7 @@ summary::Rep RepOf(const Outcome &mine, const Call &call, const std::string &fn,
 {
     summary::Rep rep;
     rep.level = mine.outcome;
+    rep.flex = mine.flex;
     rep.reported = std::max(mine.depth, mine.effDepth) > kInlineDepth;
     rep.site = call.site;
     rep.access = calleeReq.access;

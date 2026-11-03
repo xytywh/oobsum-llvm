@@ -7,6 +7,12 @@
 
 ## 已完成
 
+* SPEC-0127：FlexibleArrayMax=4 / ReportFlexibleArray=false；[] 和末尾小数组的原标签仍算、仍写日志，由 flexible_array 明确策略过滤，不标 SAFE。
+  来源经局部 / 调用 / 字段 / 返回效果传播，固定内层界与普通指针路径保持报告；ReportFlexibleArray=true 恢复原报告能力。
+  lit 114/114、core 170、replay 一致、engine_check 维持14/16；默认 csa 108通过、20通过+S、2级别不同、3超出预期、1策略过滤，TN零强告警、回退0。
+  打开报告后108/20/2/4、回退0；LV7-01 TP（原超出预期）被策略过滤，LV4-02 多保留一条 DEFINITE。公司清单2026-11-03-5。下一步场景标签、统计与专家问题文档。
+
+
 * SPEC-0126：默认 DiagnosticStyle=sink，按访问函数路由跨 TU 判定；实际访问处报告，主行分段展示类型 / 元素大小 / 可用容量 / 可换算的位置范围 / exclusive end / 越界量 / 来源 / 上下文与完整链。
   同目标同 sink 行只发一条物理 warning，原判定保留 emitted 与标签，用 report_group / diagnostic_primary 关联；legacy 保留旧格式。Dump=diagnostics 可落盘、可过滤。
   3 元素结构体数组 i<n 安全、i<=n 报 64/60；MIN(未知数,96) 对 36 元素报 POSSIBLE，夹到 36 安全。

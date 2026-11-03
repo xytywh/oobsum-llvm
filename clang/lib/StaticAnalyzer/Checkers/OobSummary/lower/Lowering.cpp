@@ -1260,12 +1260,16 @@ private:
                 lastField = f;
             }
             bool last = lastField == field;
+            int64_t count = ca == nullptr ? -1 : static_cast<int64_t>(ca->getSize().getLimitedValue(INT64_MAX - 1));
+            auto markTail = [&](fir::ExprId address) {
+                return last && parent->isStruct() ? Add(fir::Expr::Tail(address, count)) : address;
+            };
             bool flexible = ca == nullptr || ca->getSize() == 0 || (last && ca->getSize() == 1);
             if (flexible) {
-                return Mem(Offset(base, off), 0);  // D-37：不按成员收窄
+                return Mem(markTail(Offset(base, off)), 0);  // D-37：不按成员收窄
             }
             // D-31：数组成员以成员为界
-            return Mem(Add(fir::Expr::Fld(base, off, SizeOf(ft), field->getNameAsString())), SizeOf(ft));
+            return Mem(markTail(Add(fir::Expr::Fld(base, off, SizeOf(ft), field->getNameAsString()))), SizeOf(ft));
         }
         return Mem(Offset(base, off), SizeOf(ft));
     }

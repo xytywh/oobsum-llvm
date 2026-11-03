@@ -135,7 +135,7 @@ std::string IntVal::Show() const
 
 bool PtrVal::operator==(const PtrVal &o) const
 {
-    return kind == o.kind && id == o.id && off == o.off && why == o.why && subs == o.subs;
+    return flex == o.flex && kind == o.kind && id == o.id && off == o.off && why == o.why && subs == o.subs;
 }
 
 // ---- 类型 ----
@@ -713,6 +713,7 @@ std::vector<SubWindow> JoinSubs(const std::vector<SubWindow> &a, const std::vect
         if (j < b.size()) {
             used[j] = true;
             w.off = widen ? WidenInt(x.off, b[j].off) : JoinInt(x.off, b[j].off, cmp);
+            w.flex = summary::MergeFlex(x.flex, b[j].flex);
         }
         out.push_back(w);
     }
@@ -746,11 +747,14 @@ Value JoinValue(const Value &a, const Value &b, const Comparer *cmp = nullptr)
     }
     if (a.p.kind == BaseKind::Unknown || b.p.kind == BaseKind::Unknown || a.p.id != b.p.id) {
         out.p = UnknownPtr("base_join");
+        out.p.flex = summary::MergeFlex(a.p.flex, b.p.flex);
         return out;
     }
     out.p = a.p;
+    out.p.flex = summary::MergeFlex(a.p.flex, b.p.flex);
     out.p.off = JoinInt(a.p.off, b.p.off, cmp);
     out.p.subs = JoinSubs(a.p.subs, b.p.subs, cmp, false);
+    out.p.parentFlex = summary::MergeFlex(a.p.parentFlex, b.p.parentFlex);
     return out;
 }
 
@@ -1004,6 +1008,7 @@ Value WidenValue(const Value &a, const Value &b)
     }
     if (a.p.kind == BaseKind::Unknown || a.p.id != b.p.id) {
         out.p = UnknownPtr("base_join");
+        out.p.flex = summary::MergeFlex(a.p.flex, b.p.flex);
         return out;
     }
     out.p.off = WidenInt(a.p.off, b.p.off);
@@ -1175,6 +1180,7 @@ struct SymAccess {
 };
 
 struct RawAccess {
+    int64_t flex = -3;
     int64_t diag = 0;  // SPEC-0125
     std::string kind;
     std::string dir;  // "back"：负偏移（SPEC-0039）
@@ -1270,7 +1276,7 @@ private:
     void BackAccess(const char *kind, const PtrVal &addr, ExprId addrExpr, const std::string &at, const State &s,
                     const std::vector<LinExpr> &forced, const SymAccess *sym = nullptr);
     void Record(RawAccess a, const State &s, const std::vector<LinExpr> &forced);
-    void AddOpen(const std::string &reason, const std::string &at);
+    void AddOpen(const std::string &reason, const std::string &at, int64_t flex = -3);
     // mod-ref（SPEC-0045）：记下可能写的位置；调用点按被调者的 mods 只让写到的位置失效
     void AddMod(const PtrVal &addr, llvm::Optional<int64_t> size);
     void AddModText(const std::string &mod);
@@ -1450,6 +1456,7 @@ private:
     const fir::Module &m;
     const fir::Function &f;
     int64_t currentDiagnostic = 0;
+    int64_t currentFlex = -2;
     const models::ModelTable &models;
     std::vector<RawAccess> accesses;
     std::vector<RawAccess> safe;
@@ -1740,6 +1747,8 @@ Value Analyzer::Eval(ExprId e, const State &s)
                 v.p.parentObj = p.obj;
                 v.p.parentSize = p.size;
                 v.p.parentOff = x.value;
+                v.p.parentFlex = p.flex;
+                v.p.flex = -2;
                 v.p.subs = p.subs;  // 外面的窗口照带（SPEC-0104）
                 ShiftSubs(v.p, IntVal::Exact(LinExpr::Const(x.value)));
                 return v;
@@ -1765,6 +1774,15 @@ Value Analyzer::Eval(ExprId e, const State &s)
             v.i = IntVal::Top(x.text);
             v.p = UnknownPtr(x.text);
             return v;
+        case ExprOp::Tail: {
+            v.isPtr = true;
+            v.p = EvalPtr(x.a, s);
+            v.p.flex = x.size;
+            if (v.p.hasParent) {
+                v.p.parentFlex = x.size;
+            }
+            return v;
+        }
         case ExprOp::SubObj: {
             // 子对象的起点（SPEC-0104 §2.2）：推一个内层窗口
             v = Eval(x.a, s);
@@ -1774,6 +1792,7 @@ Value Analyzer::Eval(ExprId e, const State &s)
             }
             SubWindow w;
             w.size = x.size;
+            w.flex = x.a < f.exprs.size() && f.exprs[x.a].op == ExprOp::Tail ? f.exprs[x.a].size : -2;
             if (v.p.off.IsConst() && v.p.hasSize && v.p.size.IsConst()) {
                 int64_t start = v.p.off.value.Constant();
                 w.head = start == 0;
@@ -2149,13 +2168,16 @@ llvm::Optional<std::string> BackText(const PtrVal &p)
     return (*base + *lo).Show();
 }
 
-void Analyzer::AddOpen(const std::string &reason, const std::string &at)
+void Analyzer::AddOpen(const std::string &reason, const std::string &at, int64_t flex)
 {
-    auto found = std::find_if(opens.begin(), opens.end(),
-                              [&](const summary::Open &o) { return o.reason == reason && o.at == at; });
+    int64_t sourceFlex = flex == -3 ? currentFlex : flex;
+    auto found = std::find_if(opens.begin(), opens.end(), [&](const summary::Open &o) {
+        return o.reason == reason && o.at == at && o.flex == sourceFlex;
+    });
     if (found == opens.end()) {  // 同一原因 / 行仍只记一条，但保留全部访问的诊断编号（SPEC-0125）
         summary::Open open;
         open.reason = reason;
+        open.flex = sourceFlex;
         open.at = at;
         opens.push_back(std::move(open));
         found = std::prev(opens.end());
@@ -2320,12 +2342,22 @@ void Analyzer::Access(const char *kind, const PtrVal &addr, ExprId addrExpr, con
     if (!recording) {
         return;
     }
+    struct RestoreFlex {
+        int64_t &value;
+        int64_t old;
+        ~RestoreFlex()
+        {
+            value = old;
+        }
+    } restore{currentFlex, currentFlex};
+    currentFlex = addr.flex;
     // 成员数组：外层对象的边界也要满足（off(f) + 下标 + 字节数 <= ext(pK)，F-02；SPEC-0022）——只查成员会把
     // "按大结构体访问小缓冲区"（LV7-03）证明成安全。外层只查正向：成员起点就是下界，比外层更严（SPEC-0039 §2.1）
     if (addr.hasParent) {
         PtrVal parent;
         parent.kind = BaseKind::Param;
         parent.id = addr.parentId;
+        parent.flex = addr.parentFlex;
         parent.obj = addr.parentObj;
         parent.hasSize = true;
         parent.size = addr.parentSize;
@@ -2549,6 +2581,7 @@ void Analyzer::CheckSubs(const char *kind, const PtrVal &addr, const IntVal &byt
                 if (asReq && !need.IsUnknown() && !lo.IsUnknown()) {
                     // 结论取决于调用方给的值：记内层 Req，调用点再判（违反只判 SUSPECT，apply::Classify）
                     RawAccess a;
+                    a.flex = w.flex;
                     a.kind = kind;
                     a.dir = "sub";
                     a.have = LinExpr::Const(w.size);
@@ -2579,6 +2612,7 @@ void Analyzer::CheckSubs(const char *kind, const PtrVal &addr, const IntVal &byt
                 if (!syms.empty() || (bad && options.subobject == SubMode::Label)) {
                     llvm::Optional<LinExpr> hi = w.off.Upper();
                     RawAccess b;
+                    b.flex = w.flex;
                     b.kind = kind;
                     b.dir = "subback";
                     b.have = LinExpr::Const(0);
@@ -2597,7 +2631,7 @@ void Analyzer::CheckSubs(const char *kind, const PtrVal &addr, const IntVal &byt
                 trace->push_back("subobject " + at + " " + kind + " off " + w.off.Show() + " bytes " + bytes.Show() +
                                  " of " + std::to_string(w.size));
             }
-            AddOpen("subobject_overflow", at);
+            AddOpen("subobject_overflow", at, w.flex);
             return;
         }
     }
@@ -2649,6 +2683,9 @@ void Analyzer::BackAccess(const char *kind, const PtrVal &addr, ExprId addrExpr,
 void Analyzer::Record(RawAccess a, const State &s, const std::vector<LinExpr> &forced)
 {
     a.diag = currentDiagnostic;
+    if (a.flex == -3) {
+        a.flex = currentFlex;
+    }
     std::set<std::string> syms;  // 与 have / end / start 有公共符号的守卫（SPEC-0016 §2.2、SPEC-0018 §2.2）
     CollectSyms(a.have, syms);
     CollectSyms(a.lo, syms);
@@ -2782,6 +2819,7 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                     for (const summary::Eff &e : callee->second.effs) {
                         if (e.kind == "ret_new" && e.size) {
                             result = HeapResult(inst, *e.size, e.effDepth.getValueOr(1), s);
+                            result.p.flex = e.flex;
                             break;
                         }
                         if (e.kind == "ret_int" && !result.isPtr) {
@@ -2846,8 +2884,9 @@ void Analyzer::Step(const fir::Inst &inst, State &s)
                         !arg.p.off.IsConst()) {
                         continue;
                     }
-                    s.cells[CellKey(arg.p.id, arg.p.off.value.Constant() + fieldOff, m.target.ptr)] =
-                        HeapResult(inst, *e.size, e.effDepth.getValueOr(1), s);
+                    Value fresh = HeapResult(inst, *e.size, e.effDepth.getValueOr(1), s);
+                    fresh.p.flex = e.flex;
+                    s.cells[CellKey(arg.p.id, arg.p.off.value.Constant() + fieldOff, m.target.ptr)] = fresh;
                 }
             } else if (kind != models::Kind::Pure && kind != models::Kind::Free) {
                 if (name != "__oobsum_copy" || !CopyStruct(inst, s)) {
@@ -2899,7 +2938,8 @@ State Analyzer::Entry() const
 std::vector<summary::Req> Analyzer::Merge() const
 {
     auto group = [&](const RawAccess &a, const RawAccess &b) {
-        return a.have == b.have && a.obj == b.obj && a.guard == b.guard && a.dir == b.dir;  // 守卫 / 方向不同的不合并
+        return a.flex == b.flex && a.have == b.have && a.obj == b.obj && a.guard == b.guard &&
+               a.dir == b.dir;  // 守卫 / 方向不同的不合并
     };
     auto beats = [&](size_t j, size_t i) {  // j 把 i 并掉？
         const RawAccess &a = accesses[i];
@@ -2952,6 +2992,7 @@ summary::Req Analyzer::ToReq(const RawAccess &a, size_t number) const
     summary::Req r;
     r.id = "R" + std::to_string(number);
     r.kind = a.kind;
+    r.flex = a.flex;
     r.dir = a.dir;
     r.effDepth = a.effDepth;  // SPEC-0113
     r.have = a.have.Show();
@@ -3862,6 +3903,7 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s, bool alt)
             } else {
                 arg.kind = summary::ArgValue::Kind::Ptr;
                 arg.ptr = std::make_shared<summary::PtrArg>();
+                arg.ptr->flex = v.p.flex;
                 llvm::Optional<LinExpr> hi = v.p.off.Upper();
                 bool known = v.p.kind != BaseKind::Unknown && v.p.kind != BaseKind::Func && v.p.hasSize && hi;
                 if (known) {
@@ -3879,6 +3921,7 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s, bool alt)
                     arg.ptr->back = BackText(v.p);  // 前面取最小的（偏移下界，SPEC-0039）
                     // 指向成员数组 / 多维数组的一行：另记最内层子对象的剩余，代换时内层也查（SPEC-0104 §2.3 3b）
                     arg.ptr->sub = SubRest(v.p);
+                    arg.ptr->subFlex = v.p.subs.empty() ? -2 : v.p.subs.back().flex;
                     arg.ptr->subBack = SubBack(v.p);  // SPEC-0107 §2.2 第 3 步
                     if (v.p.kind == BaseKind::Param && v.p.off.IsConst() && v.p.off.value.Constant() == 0) {
                         arg.ptr->alias = v.p.obj.substr(1);  // *p0 → p0
@@ -3887,6 +3930,7 @@ void Analyzer::RecordCall(const fir::Inst &inst, const State &s, bool alt)
                         // 成员数组：外层对象也记下，代换时外层也查（SPEC-0035 §2.1）
                         summary::OuterObj outer;
                         outer.obj = v.p.parentObj;
+                        outer.flex = v.p.parentFlex;
                         outer.have = (v.p.parentSize - (LinExpr::Const(v.p.parentOff) + *hi)).Show();
                         arg.ptr->parent = outer;
                     }
@@ -4266,7 +4310,7 @@ llvm::Optional<std::pair<std::string, LinExpr>> Analyzer::SymPtr(ExprId e, const
         }
         return std::make_pair(base->first, base->second + *d);
     }
-    if (x.op == ExprOp::SubObj) {
+    if (x.op == ExprOp::SubObj || x.op == ExprOp::Tail) {
         return SymPtr(x.a, s, depth + 1);
     }
     Value v = Eval(e, s);  // 其余：偏移确切时直接用（同一基址身份）
@@ -5186,6 +5230,7 @@ llvm::Optional<summary::Eff> Analyzer::ReturnPointer() const
             SubWindow member;
             member.size = v.p.size.Constant();
             member.off = v.p.off;
+            member.flex = v.p.flex;
             view.kind = BaseKind::Param;
             view.id = v.p.parentId;
             view.obj = v.p.parentObj;
@@ -5202,7 +5247,11 @@ llvm::Optional<summary::Eff> Analyzer::ReturnPointer() const
             (win && !(win->size == view.subs.back().size && win->off == view.subs.back().off))) {
             winOk = false;
         } else {
-            win = view.subs.back();
+            SubWindow next = view.subs.back();
+            if (win) {
+                next.flex = summary::MergeFlex(win->flex, next.flex);
+            }
+            win = next;
         }
         const PtrVal &vp = views.back();
         llvm::Optional<LinExpr> lo = vp.off.Lower();
@@ -5223,7 +5272,14 @@ llvm::Optional<summary::Eff> Analyzer::ReturnPointer() const
     if (base == nullptr || (!sameOff && !constOffs)) {
         return llvm::None;
     }
+    int64_t flex = -3;
+    for (const auto &returned : returns) {
+        if (returned.first.isPtr && !(returned.first.p.kind == BaseKind::Unknown && returned.first.p.why == "null")) {
+            flex = flex == -3 ? returned.first.p.flex : summary::MergeFlex(flex, returned.first.p.flex);
+        }
+    }
     summary::Eff e;
+    e.flex = flex == -3 ? -2 : flex;
     e.kind = "ret_ptr";
     e.target = base->obj.substr(1);  // *p0 → p0；*p0->pucBuf → p0->pucBuf
     if (sameOff) {
@@ -5237,6 +5293,7 @@ llvm::Optional<summary::Eff> Analyzer::ReturnPointer() const
     if (winOk && win && !win->off.value.IsUnknown()) {
         e.sub = std::to_string(win->size);  // 返回的指针在这个子对象里（SPEC-0107 §2.2）
         e.subOff = win->off.value.Show();
+        e.subFlex = win->flex;
     }
     return e;
 }
@@ -5283,6 +5340,9 @@ Value Analyzer::RetPtrResult(const fir::Inst &inst, const summary::Eff &e, const
         IntVal delta = ok ? IntVal::Range(LinExpr::Const(lo), LinExpr::Const(hi), Tag::Branch) : IntVal::Top("call");
         base.off = AddVals(base.off, delta);
         ShiftSubs(base, delta);  // 实参原有的窗口一起平移（SPEC-0107 §2.2）
+        if (e.flex >= -1) {
+            base.flex = e.flex;
+        }
         out.p = base;
         return out;
     }
@@ -5300,12 +5360,16 @@ Value Analyzer::RetPtrResult(const fir::Inst &inst, const summary::Eff &e, const
         if (llvm::Optional<LinExpr> at = CallerExpr(inst, subOff, s, &callee)) {
             SubWindow w;
             w.size = size;
+            w.flex = e.subFlex;
             w.off = IntVal::Exact(*at);
             base.subs.push_back(w);
             if (base.subs.size() > kMaxSubs) {
                 base.subs.erase(base.subs.begin());
             }
         }
+    }
+    if (e.flex >= -1) {
+        base.flex = e.flex;
     }
     out.p = base;
     return out;
@@ -5606,6 +5670,22 @@ llvm::Optional<summary::Eff> Analyzer::ReturnRange() const
 }
 
 // 一组值都是同一个新对象 + 同一个常数偏移（或空指针）：(新对象, 偏移)；否则 None（SPEC-0024 / 0052 / 0053）
+int64_t CommonFlex(const std::vector<const Value *> &values)
+{
+    int64_t result = -3;
+    for (const Value *value : values) {
+        if ((!value->isPtr && value->i.IsConst() && value->i.value.Constant() == 0) ||
+            (value->isPtr && value->p.kind == BaseKind::Unknown && value->p.why == "null")) {
+            continue;
+        }
+        if (!value->isPtr) {
+            return -2;
+        }
+        result = result == -3 ? value->p.flex : summary::MergeFlex(result, value->p.flex);
+    }
+    return result == -3 ? -2 : result;
+}
+
 llvm::Optional<std::pair<const PtrVal *, int64_t>> SameNewObject(const std::vector<const Value *> &values)
 {
     const PtrVal *heap = nullptr;
@@ -5643,6 +5723,7 @@ std::vector<summary::Eff> Analyzer::Effects() const
         if (llvm::Optional<std::pair<const PtrVal *, int64_t>> hit = SameNewObject(values)) {
             summary::Eff e;
             e.kind = "ret_new";
+            e.flex = CommonFlex(values);
             e.size = (hit->first->size - LinExpr::Const(hit->second)).Show();  // 从返回的指针起还剩的字节
             e.maybeNull = true;
             e.effDepth = hit->first->effDepth + 1;
@@ -5697,6 +5778,7 @@ std::vector<summary::Eff> Analyzer::Effects() const
         if (hit) {
             summary::Eff e;
             e.kind = "out_new";
+            e.flex = CommonFlex(values);
             e.target = target;  // SPEC-0053 / 0061
             e.size = (hit->first->size - LinExpr::Const(hit->second)).Show();
             e.maybeNull = true;
@@ -5885,10 +5967,13 @@ std::map<std::string, summary::ArgValue> Analyzer::ArgFields(const PtrVal &p, co
             }
             a.kind = summary::ArgValue::Kind::Ptr;
             a.ptr = std::make_shared<summary::PtrArg>();
+            a.ptr->flex = v.p.flex;
             a.ptr->obj = v.p.obj;
             a.ptr->have = (v.p.size - *hi).Show();
             a.ptr->back = BackText(v.p);  // SPEC-0039
-            a.ptr->sub = SubRest(v.p);    // 字段里的指针也记内层剩余（SPEC-0107 §2.1）
+            a.ptr->sub = SubRest(v.p);
+            a.ptr->subFlex =
+                v.p.subs.empty() ? -2 : v.p.subs.back().flex;  // 字段里的指针也记内层剩余（SPEC-0107 §2.1）
             a.ptr->subBack = SubBack(v.p);
             if (v.p.kind == BaseKind::Heap && v.p.effDepth > 0) {
                 a.ptr->effDepth = v.p.effDepth;
@@ -5928,6 +6013,9 @@ std::string Analyzer::ShowState(const fir::Block &b, const State &s) const
                                ? (v.p.kind == BaseKind::Unknown ? "?(" + v.p.why + ")" : v.p.obj + "+" + v.p.off.Show())
                                : v.i.Show();
         if (v.isPtr) {
+            if (v.p.flex >= -1) {
+                out += " tail=" + std::to_string(v.p.flex);
+            }
             for (const SubWindow &w : v.p.subs) {
                 text += "{sub " + std::to_string(w.size) + "@" + w.off.Show() + "}";  // 内层窗口（SPEC-0104）
             }

@@ -1,6 +1,6 @@
 // 有副作用的构造（oobsum/specs/SPEC-0008 §2.8；06- A-06）：++ / --（先 load 再 store，后缀形的值是旧值）、复合赋值、
 // 结构体整体赋值 → __oobsum_copy、初始化列表逐元素；赋值表达式的值取赋值之后的局部（不能再用右边那棵树）。
-// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=fir %s 2>&1 | FileCheck %s
 
 typedef unsigned char UINT8;

@@ -93,13 +93,16 @@ struct SubWindow {
     bool head = false;  // 子对象从基址起点开始：下界与外层相同，不另查
     bool tail = false;  // 子对象到基址末尾为止：上界与外层相同，不另查
 
+    int64_t flex = -2;  // SPEC-0127
+
     bool operator==(const SubWindow &o) const
     {
-        return size == o.size && off == o.off && head == o.head && tail == o.tail;
+        return flex == o.flex && size == o.size && off == o.off && head == o.head && tail == o.tail;
     }
 };
 
 struct PtrVal {
+    int64_t flex = -2;  // SPEC-0127
     BaseKind kind = BaseKind::Unknown;
     std::string id;        // 基址的身份（内存格的键用）
     std::string obj;       // 对象写法（D-20）：*p0、p0->aucBuf、*p0->pucBuf、g:名、local:名
@@ -115,6 +118,7 @@ struct PtrVal {
     std::string parentObj;
     LinExpr parentSize;
     int64_t parentOff = 0;
+    int64_t parentFlex = -2;
     // 内层窗口（SPEC-0104）：至多 4 个，内层的在后；访问还要落在每个窗口里，否则记账 subobject_overflow
     std::vector<SubWindow> subs;
 

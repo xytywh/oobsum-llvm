@@ -1,5 +1,5 @@
 // 直线代码的指令（oobsum/specs/SPEC-0008 §2.1–§2.7；06- A-01…A-03、A-05、A-07、D-31、D-37）。
-// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=fir %s 2>&1 | FileCheck %s
 
 typedef unsigned char UINT8;
@@ -158,9 +158,9 @@ void Asm(UINT32 *p)
 // CHECK: [oobsum:fir] fn F:Members
 // 成员数组退化成指针：外面包 subobj(…, 大小)（SPEC-0104）；柔性数组 aulItem 不包
 // CHECK:      store1 [padd(subobj(fld(l0, aucBuf@4:16), 16), l2)] = 0 sub  @75:5
-// CHECK-NEXT: store2 [padd(subobj(fld(padd(&l3, 20), ausY@2:4), 4), l2 * 2)] = 1 sub  @76:5
+// CHECK-NEXT: store2 [padd(subobj(tail(fld(padd(&l3, 20), ausY@2:4), 2), 4), l2 * 2)] = 1 sub  @76:5
 // CHECK-NEXT: store2 [padd(l0, 20)] = 2  @77:5
-// CHECK-NEXT: store4 [padd(padd(l1, 4), l2 * 4)] = 3 sub  @78:5
+// CHECK-NEXT: store4 [padd(tail(padd(l1, 4), -1), l2 * 4)] = 3 sub  @78:5
 // CHECK-NEXT: store1 [padd(l0, 26)] = 4  @79:5
 // CHECK-NEXT: l4 = load4 [&l3]  @80:18
 // CHECK-NEXT: store4 [l0] = l4  @80:5

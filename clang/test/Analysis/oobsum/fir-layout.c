@@ -1,8 +1,8 @@
 // 类型与记录布局（oobsum/specs/SPEC-0007 §2.1、§2.2；06- D-10、D-39）：同一份源码，ILP32 + 大端与 LP64 的大小 / 偏移不同；
 // char 的符号取编译选项（driver 对 ARM / AArch64 传 -fno-signed-char，这里照做）；记录名走 typedef 反查（干净名 → tag 名 → 匿名）。
-// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=fir %s 2>&1 | FileCheck %s --check-prefixes=CHECK,ILP32
-// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple x86_64-pc-linux-gnu -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple x86_64-pc-linux-gnu -analyzer-checker=rb.enhance.core.OobSummary \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=fir %s 2>&1 | FileCheck %s --check-prefixes=CHECK,LP64
 
 typedef unsigned char UINT8;

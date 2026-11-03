@@ -1,7 +1,7 @@
 # 同一对象的两个指针比较：按偏移收窄（oobsum/specs/SPEC-0081）。原来指针比较不产生信息，while (p < e) 只能记 pointer_stepping。
 # 被收窄的指针指向宽于 1 字节的类型：按同余把上界取整（SPEC-0084）；没有同余时上界标 widen，不当代码给出的界（SPEC-0083）。
 #
-# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+# RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:ReportSafe=true \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=state -analyzer-config 'rb.enhance.core.OobSummary:DumpFilter=^(P1|W1|W2)$' \
 # RUN:   %S/Inputs/ptrcmp/p.c 2>&1 | FileCheck %s

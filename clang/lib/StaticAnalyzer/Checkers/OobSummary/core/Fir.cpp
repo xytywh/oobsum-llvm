@@ -154,6 +154,15 @@ Expr Expr::PAdd(ExprId pointer, ExprId offset)
     return e;
 }
 
+Expr Expr::Tail(ExprId pointer, int64_t count)
+{
+    Expr e;
+    e.op = ExprOp::Tail;
+    e.a = pointer;
+    e.size = count;
+    return e;
+}
+
 Expr Expr::SubObj(ExprId pointer, int64_t size)
 {
     Expr e;

@@ -31,6 +31,7 @@ struct Hop {
 };
 
 struct Decision {
+    int64_t flex = -2;  // SPEC-0127
     Label label = Label::Suspect;
     std::string reason;  // SUSPECT：账本原因（entry_unproven、type_range_only…）；SAFE：怎么证明的
     Site site;           // 告警位置：汇合点那次调用 / 入口 / 断链的调用点（F-30）

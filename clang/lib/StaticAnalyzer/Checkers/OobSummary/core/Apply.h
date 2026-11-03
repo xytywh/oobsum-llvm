@@ -30,6 +30,7 @@ constexpr int64_t kInlineDepth = 2;
 
 // classify 的结果（同 replay.py 返回的 dict）
 struct Outcome {
+    int64_t flex = -2;
     std::string outcome;  // safe / L1 / L2 / up / open
     std::string dir;  // 结局对应的 Req 方向：空 = 照被调者的那条；"sub" = 带窗口实参的内层那条（SPEC-0104 §2.3 3b）
     std::string reason;  // open：账本原因；safe：怎么证明的（guard_false / within / guard_entailed / guard_bounds）

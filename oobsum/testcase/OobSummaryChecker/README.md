@@ -191,3 +191,7 @@ python3 oobsum/tools/decisions.py <WorkDir> --emitted --jsonl review.jsonl     #
 SPEC-0126：默认 DiagnosticStyle=sink，warning 在数组 / 指针 / 成员 / 内存函数实际访问处；主行有元素大小、可用容量、可换算的元素位置与完整链。
 同一目标和源行合成一条物理 warning，原判断全部写日志；stats 的“报出判定”与“物理告警”口径分开。DiagnosticStyle=legacy 可对照旧文案。
 结构体数组容量按完整元素换算，指针进入对象内部后可用容量不同于整个对象大小；字节末端使用 exclusive end（不包含的末端）。
+
+SPEC-0127：FlexibleArrayMax=4 / ReportFlexibleArray=false。结构体最后一个数组成员（[] 或声明元素数不超过阈值）按约定候选默认不报；
+这会同时过滤候选上的真越界，原判断保持 DEFINITE / POSSIBLE / SUSPECT 并写 flexible_array，不能当作 SAFE。ReportFlexibleArray=true 恢复报告。
+阈值0只保留[]/[0]；独立数组、非末尾成员、union与固定内层窗口仍检查。没有跟踪到来源的复杂字段链继续保守报告。

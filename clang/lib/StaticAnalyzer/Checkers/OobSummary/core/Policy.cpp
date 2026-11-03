@@ -62,6 +62,11 @@ Disposition Classify(const Decision &decision, const PolicyOptions &options)
         result.why = result.emit ? "" : "safe";
         return result;
     }
+    if (!options.reportFlexibleArray && decision.flex >= -1 &&
+        (decision.flex == -1 || decision.flex <= options.flexibleArrayMax)) {
+        result.why = "flexible_array";
+        return result;
+    }
     if (decision.label == Label::Suspect) {
         if (!options.recall) {
             result.why = "policy_balanced";

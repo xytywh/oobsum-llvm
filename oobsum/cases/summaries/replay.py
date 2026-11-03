@@ -836,7 +836,7 @@ def parent_call(req, call):
     arg = call['args'][k]
     if not isinstance(arg, dict) or 'parent' not in arg:
         return None
-    outer = {'obj': arg['parent']['obj'], 'have': arg['parent']['have']}
+    outer = dict(arg['parent'])
     for key in ('off_lo', 'off_hi', 'off_bound'):  # 外层的剩余同样按偏移上界算（SPEC-0095）
         if key in arg:
             outer[key] = arg[key]
@@ -863,6 +863,8 @@ def sub_call(req, call):
     if not isinstance(target, dict) or ('sub_back' if back else 'sub') not in target:
         return None
     inner = {'obj': target['obj'], 'have': target['have'] if back else target['sub']}
+    if target.get('sub_flex', -2) >= -1:
+        inner['flex'] = target['sub_flex']
     if back:
         inner['back'] = target['sub_back']
     for key in ('eff_depth', 'fields'):
@@ -910,6 +912,18 @@ def classify(req, call, caller, callee, env_guards):
     """调用点判定（同 apply::Classify）。内层 Req（dir sub，SPEC-0104 §2.3 3a、D22）：越出内层、没越出外层只记 SUSPECT——
     L1 / L2 改判 open，账本原因一律 subobject_overflow；safe / up 不变。"""
     o = classify_plain(req, call, caller, callee, env_guards)
+    flex = req.get('flex', -2)
+    if flex < -1:
+        m = re.match(r'^\*?p([0-9]+)(?:->([A-Za-z0-9_]+))?$', req['obj'])
+        if m and int(m.group(1)) < len(call['args']):
+            arg = call['args'][int(m.group(1))]
+            if m.group(2) and isinstance(arg, dict):
+                arg = (arg.get('fields') or {}).get(m.group(2))
+            if isinstance(arg, dict):
+                flex = arg.get('flex', -2)
+    if flex >= -1:
+        o['flex'] = flex
+
     relabel = o['outcome'] == 'open' or (SUBOBJECT != 'label' and o['outcome'] in ('L1', 'L2'))   # Subobject=label：L1 / L2 照常（SPEC-0105）
     if req.get('dir') in ('sub', 'subback') and relabel:
         o = dict(o, outcome='open', reason='subobject_overflow', why='%s → 内层只记 SUSPECT' % o['outcome'])
@@ -1034,6 +1048,8 @@ def rep_of(mine, call, fn, s, r_callee):
            'access': r_callee['access'], 'kind': r_callee['kind'], 'obj': mine['obj']}
     if mine.get('dir') or r_callee.get('dir'):
         rep['dir'] = mine.get('dir') or r_callee['dir']   # 负偏移（SPEC-0039）；带窗口实参的内层那条（SPEC-0104 3b）
+    if mine.get('flex', -2) >= -1:
+        rep['flex'] = mine['flex']
     if mine.get('via'):
         rep['via'] = mine['via']
     lo, hi = mine['end2']
@@ -1270,7 +1286,7 @@ def absorb(reqs):
         dominated = False
         for j, r2 in enumerate(reqs):
             if i == j or show(r['have']) != show(r2['have']) or r['obj'] != r2['obj'] or r['gkey'] != r2['gkey'] or \
-                    r.get('dir') != r2.get('dir'):
+                    r.get('dir') != r2.get('dir') or r.get('flex', -2) != r2.get('flex', -2):
                 continue
             d = (r['hi'] - r2['hi']).const()
             if d is not None and (d < 0 or (d == 0 and j < i)):
@@ -1302,7 +1318,7 @@ def derive(cid):
             for kind, end, at in [(r['kind'], r['end'], r['access']['at'])] + [(a['kind'], a['end'], a['at']) for a in r.get('absorbed', [])]:
                 cand.append({'have': P(r['have']), 'obj': r['obj'], 'lo': P(end[0]), 'hi': P(end[1]), 'guards': g,
                              'gkey': frozenset(show_atom_le0(x) for x in g), 'depth': 0, 'eff_depth': r['eff_depth'], 'bound': r['bound'],
-                             'path': r['path'], 'access': r['access'], 'kind': kind, 'dir': r.get('dir')})
+                             'path': r['path'], 'access': r['access'], 'kind': kind, 'dir': r.get('dir'), 'flex': r.get('flex', -2)})
         reps = []
         for call in s['calls']:
             callee = fns.get(call['callee'])
@@ -1312,6 +1328,8 @@ def derive(cid):
             for r in dreqs[call['callee']]:
                 rj = {'have': show(r['have']), 'obj': r['obj'], 'end': [show(r['lo']), show(r['hi'])],
                       'guard': [show_atom_le0(g) for g in r['guards']], 'depth': r['depth'], 'eff_depth': r['eff_depth'], 'bound': r['bound']}
+                if r.get('flex', -2) >= -1:
+                    rj['flex'] = r['flex']
                 if r.get('dir'):
                     rj['dir'] = r['dir']                   # 负偏移（SPEC-0039）
                 path = ['%s@%s' % (fn, call['site'])] + r['path']
@@ -1321,7 +1339,7 @@ def derive(cid):
                         cand.append({'have': mine['have'], 'obj': mine['obj'], 'lo': mine['end2'][0], 'hi': mine['end2'][1], 'guards': g,
                                      'gkey': frozenset(show_atom_le0(x) for x in g), 'depth': mine['depth'], 'eff_depth': mine['eff_depth'],
                                      'bound': mine['bound'], 'path': path, 'access': r['access'], 'kind': r['kind'],
-                                     'dir': mine.get('dir') or r.get('dir')})   # 带窗口实参的内层那条（SPEC-0104）
+                                     'dir': mine.get('dir') or r.get('dir'), 'flex': mine.get('flex', -2)})   # 带窗口实参的内层那条（SPEC-0104）
                         stat['up'] += 1
                     elif mine['outcome'] in ('L1', 'L2'):
                         reps.append(rep_of(mine, used, fn, s, r))

@@ -9,7 +9,7 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-03-4**（SPEC-0122 / 0123 / 0124 / 0125 / 0126；保留前版步骤；新增默认 sink 告警、元素范围、完整主行调用链与同一行合并；结果不符合预期就停下，带回计数和本规则栈。）
+**清单版本：2026-11-03-5**（SPEC-0122 / 0123 / 0124 / 0125 / 0126 / 0127；保留前版步骤；保留 sink / 摘要 / 进度步骤；新增尾数组阈值与报告开关对照；结果不符合预期就停下，带回计数和本规则栈。）
 
 路径只改这里；`OOB_REPORT` 必须指向 JSON 文件，不能是 log 目录：
 
@@ -128,7 +128,26 @@ python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir "$OOB_WD" <新�
 如果原全量 solve 没开 Dump=summary，不存在可供读取的摘要文件；仅 report 不会补出全程序的闭包，需重新 solve（可以复用 FIR）。
 不要只取两条调用链的文件冒充完整上下文；副作用和其它被调者也会影响结果。生成两种摘要不会改变 solved 的判定。
 
-### 第 5 步：检查告警格式并抽查
+### 第 5 步：尾数组对照（复用新 FIR，无需再次 export）
+
+默认 FlexibleArrayMax=4 / ReportFlexibleArray=false；结构体最后一个静态数组元素数<=4 是约定候选，[] 始终为候选。设置0只保留[]/[0]。
+这项是报告策略，不代表证明了安全。默认日志仍有原标签，not_emitted_because=flexible_array。普通固定内层数组、非末尾成员、union仍报告。
+为避免覆盖默认结果，把 FIR 复制到独立工作目录，打开报告再 solve / report：
+
+```bash
+OOB_COMPARE=$OOB_WD.flex-on
+mkdir -p "$OOB_COMPARE"
+cp -a "$OOB_WD/fir" "$OOB_COMPARE/"
+/usr/bin/time -v python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" solve --workdir "$OOB_COMPARE" --bxen "$OOB_BUILD/bxen" --extra "-rbchecker-config=$OOB_INI -funcptr-config=$OOB_FUNCPTR -analyzer-config rb.enhance.core.OobSummary:Dump=progress -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true" --run
+time OOBSUM_CONFIG="WorkDir=$OOB_COMPARE Phase=report ReportFlexibleArray=true" /usr/local/bin/python3 /usr1/clang_check/src/main.py -e "$OOB_BUILD/" -j "$OOB_CDB/compile_commands.json" -r rb.enhance.core.OobSummary -c "$OOB_GBL"
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" stats --workdir "$OOB_COMPARE" --counts-only --top 50
+```
+
+预期：两遍原始判断标签相同，打开后候选上的判断恢复报警，默认过滤原因的计数相应消失；只差报告策略和物理分组。
+在公司抽查候选：确认真的是末尾数组的分配约定；已知实际分配大小的真越界也可能被该策略过滤，不能据此宣布代码安全。
+如果要改阈值，solve / report 两阶段统一传 FlexibleArrayMax=0 或所需值，FIR 已保留原声明元素数。
+
+### 第 6 步：检查告警格式并抽查
 
 打开两条已确认问题，检查：位置是实际下标 / 成员 / 解引用 / 内存函数行；主行含 Access、Element view、Range / exclusive end、Reason、Context 与完整 Call chain。
 20 字节结构体、3 个元素的可用容量应能直接看出 0..2 是合法位置；exclusive end=64 表示末端不包含 64，对 60 字节对象最多越 4 字节。
@@ -141,13 +160,13 @@ python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir "$OOB_WD" <新�
 按 §1.6 的方法抽查；业务代码、名字、路径与告警原文不要带回，只给计数和对写法的概括。
 
 ```text
-清单版本：2026-11-03-4
+清单版本：2026-11-03-5
 1. 本地 lit __；csa 回退 __；同步 / 公司编译 __
 2. TestCase：InlineDepth=__ decisions=__ emitted=__，告警 __
    进度 read/analyze/propagate/decisions/write/done 是否可见 __；两种摘要是否可读 __
 3. cdb 条目 / 唯一文件 / C / C++ __；去掉输出文件选项后命令仍不同的文件 __；export 成功 / 失败 __；FIR __；目标组数 __
 4. solve Elapsed __；Maximum resident set size __；solved __；判定 __；report 成功 / 失败 __
-5. stats --counts-only 全文（含报出判定 / 物理告警两种计数）；report 输出
+5. 默认与 flex-on 的 stats --counts-only 全文（含报出判定 / 物理告警两种计数）；report 输出
 6. 抽查（每个原因）：看了 __、真问题 __、误报 __、看不出 __；写法概括 __
 7. 异常：阶段 __、退出码 __、仅本规则栈 __
 ```

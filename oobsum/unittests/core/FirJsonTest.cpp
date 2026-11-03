@@ -8,6 +8,7 @@
 
 #include "FirExamples.h"
 #include "OobSummary/core/FirJson.h"
+#include "OobSummary/core/Summary.h"
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/Error.h"
@@ -180,4 +181,27 @@ TEST(FirJson, FileRoundTrip)
     EXPECT_TRUE(llvm::StringRef(error).startswith("cannot read "));
     llvm::sys::fs::remove(path);
     llvm::sys::fs::remove(dir);
+}
+
+// SPEC-0127：尾数组来源往返，负于 -1 的声明数不是合法节点。
+TEST(FirJson, TailMarkerRoundTrip)
+{
+    Module module = BuildEverything();
+    auto &f = module.funcs[0];
+    bool changed = false;
+    for (auto &block : f.blocks) {
+        for (auto &inst : block.insts) {
+            if (!changed && (inst.op == InstOp::Load || inst.op == InstOp::Store)) {
+                inst.addr = f.Add(Expr::Tail(inst.addr, 0));
+                changed = true;
+            }
+        }
+    }
+    EXPECT_TRUE(changed);
+    std::string text = Print(ModuleToJson(module));
+    Module back;
+    EXPECT_EQ(ErrorOf(text, &back), "<ok>");
+    EXPECT_EQ(Print(ModuleToJson(back)), text);
+    EXPECT_TRUE(oobsum::summary::MergeFlex(0, 4) == 4);
+    EXPECT_TRUE(oobsum::summary::MergeFlex(-2, 4) == -2);
 }

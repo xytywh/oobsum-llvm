@@ -69,6 +69,7 @@ bool DecisionFromJson(const llvm::json::Value &value, Decision &out, std::string
     if (llvm::Optional<llvm::StringRef> dir = o->getString("dir")) {
         out.dir = dir->str();  // SPEC-0039
     }
+    out.flex = o->getInteger("flex").getValueOr(-2);
     out.parameterNames.clear();
     out.contextOperation = o->getString("context_operation").getValueOr("").str();
     out.reportGroup = o->getString("report_group").getValueOr("").str();
@@ -182,6 +183,9 @@ llvm::json::Object DecisionToJson(const Decision &decision, const Disposition &d
         {"fp", decision.fp},
         {"origin", decision.origin},
     };
+    if (decision.flex >= -1) {
+        out["flex"] = decision.flex;
+    }
     if (!decision.parameterNames.empty()) {
         llvm::json::Array names;
         for (const auto &name : decision.parameterNames) {

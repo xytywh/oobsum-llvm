@@ -178,3 +178,23 @@ TEST(Policy, ParseKeyValues)
     EXPECT_FALSE(oobsum::ParseKeyValues("=x", out, bad));
     EXPECT_EQ(bad, "=x");
 }
+
+TEST(Policy, FlexibleArrayIsAVisiblePolicyException)
+{
+    PolicyOptions policy;
+    Decision decision = Make(Label::Definite, 3);
+    decision.flex = 4;
+    EXPECT_EQ(Why(decision, policy), "drop:flexible_array");
+    EXPECT_TRUE(decision.label == Label::Definite);
+    policy.reportFlexibleArray = true;
+    EXPECT_EQ(Why(decision, policy), "emit");
+    policy.reportFlexibleArray = false;
+    policy.flexibleArrayMax = 0;
+    EXPECT_EQ(Why(decision, policy), "emit");
+    decision.flex = 0;
+    EXPECT_EQ(Why(decision, policy), "drop:flexible_array");
+    decision.flex = -1;
+    EXPECT_EQ(Why(decision, policy), "drop:flexible_array");
+    decision.flex = -2;
+    EXPECT_EQ(Why(decision, policy), "emit");
+}

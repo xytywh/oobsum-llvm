@@ -21,6 +21,8 @@
 namespace oobsum {
 
 struct PolicyOptions {
+    bool reportFlexibleArray = false;
+    int64_t flexibleArrayMax = 4;
     bool sinkDiagnostics = true;  // SPEC-0126：legacy 保留旧报告格式用于对照
     bool recall = true;           // Policy=recall（默认）/ balanced
     // SPEC-0122 / F-20：默认 0 全报；非零时按 max(depth, effDepth) 过滤浅层。
