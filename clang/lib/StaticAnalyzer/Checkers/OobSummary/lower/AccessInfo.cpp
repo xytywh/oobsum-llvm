@@ -140,7 +140,9 @@ struct AccessDescriber::Impl {
                    Expression(binary->getRHS(), depth + 1) + ")";
         }
         if (const auto *unary = dyn_cast<UnaryOperator>(expr)) {
-            return UnaryOperator::getOpcodeStr(unary->getOpcode()).str() + Expression(unary->getSubExpr(), depth + 1);
+            std::string op = UnaryOperator::getOpcodeStr(unary->getOpcode()).str();
+            std::string operand = Expression(unary->getSubExpr(), depth + 1);
+            return unary->isPostfix() ? operand + op : op + operand;
         }
         if (const auto *call = dyn_cast<CallExpr>(expr)) {
             const FunctionDecl *callee = call->getDirectCallee();
@@ -153,6 +155,11 @@ struct AccessDescriber::Impl {
                 text += (i == 0 ? "" : ", ") + Expression(call->getArg(i), depth + 1);
             }
             return text + (call->getNumArgs() > 8 ? ", ...)" : ")");
+        }
+        if (const auto *conditional = dyn_cast<ConditionalOperator>(expr)) {
+            return "(" + Expression(conditional->getCond(), depth + 1) + " ? " +
+                   Expression(conditional->getTrueExpr(), depth + 1) + " : " +
+                   Expression(conditional->getFalseExpr(), depth + 1) + ")";
         }
         if (const auto *ctor = dyn_cast<CXXConstructExpr>(expr)) {
             return DisplayName(ctor->getConstructor()) + "(...)";
