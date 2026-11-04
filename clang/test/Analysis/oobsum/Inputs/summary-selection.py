@@ -5,6 +5,9 @@
 本脚本由 summary-selection.test 驱动，只使用自有合成 FIR，不读取业务代码。
 """
 import importlib.util
+import argparse
+import contextlib
+import io
 import json
 from pathlib import Path
 import shutil
@@ -170,4 +173,45 @@ for path in (empty / 'fir').glob('*.json'):
     path.write_text(json.dumps(m))
 assert 'no available function summaries' in solve(empty, '^Top_A$')
 assert load(empty, 'status.json')['available'] == 0
+
+# SPEC-0130：大量摘要仅落盘；后续换函数只读取，既不盘点FIR也不启动bxen。
+all_summaries = copy_fir('all')
+text = tool('solve', '--workdir', all_summaries, '--bxen', adapter, '--summary-all',
+            '--extra', '-analyzer-config ' + checker + ':DumpFilter=NEVER', '--run')
+assert '[oobsum:summary] {' not in text
+assert '[oobsum:progress] stage=summary' in text and '全部摘要已索引：5' in text
+assert load(all_summaries, 'status.json') == dict(schema='oobsum-summary-status/1', available=5, matched=5,
+                                                saved=5, write_failures=0, index_written=True)
+same_solved(all_summaries)
+incomplete_all = copy_fir('incomplete-all')
+(incomplete_all / 'dump/solve/summary' / (index[0]['stem'] + '.local.json')).mkdir(parents=True)
+assert '全量摘要的可用/匹配/保存计数不一致' in tool('solve', '--workdir', incomplete_all, '--bxen', adapter,
+                                              '--summary-all', '--run', code=1)
+same_solved(incomplete_all)
+shutil.rmtree(all_summaries / 'fir')
+assert json.loads(tool('summary', '--workdir', all_summaries, '--function', 'Top_A')) == local
+assert json.loads(tool('summary', '--workdir', all_summaries, '--function', 'Fill', '--view', 'derived'))['fn'] == 'Fill'
+
+def no_inventory(*args):
+    raise AssertionError('不应再次读取全体FIR')
+
+
+module._function_inventory = no_inventory
+no_scan_all = copy_fir('all-no-precheck')
+args = argparse.Namespace(workdir=str(no_scan_all), bxen=str(adapter), extra='', run=True,
+                          summary_function=[], skip_summary_precheck=False, summary_all=True)
+with contextlib.redirect_stdout(io.StringIO()):
+    assert module.cmd_solve(args) == 0
+same_solved(no_scan_all)
+skipped = copy_fir('skip-precheck')
+args = argparse.Namespace(workdir=str(skipped), bxen=str(adapter), extra='', run=True,
+                          summary_function=['Top_A'], skip_summary_precheck=True, summary_all=False)
+with contextlib.redirect_stdout(io.StringIO()):
+    assert module.cmd_solve(args) == 0
+same_solved(skipped)
+text = tool('solve', '--workdir', skipped, '--bxen', adapter, '--summary-function', 'NONEXISTENT',
+            '--skip-summary-precheck', '--run', code=1)
+assert '已跳过Python摘要预检' in text and '$ ' in text and '摘要不完整' in text
+assert '互斥' in tool('solve', '--workdir', skipped, '--bxen', adapter, '--skip-summary-precheck', '--run', code=1)
+tool('solve', '--workdir', skipped, '--bxen', adapter, '--summary-all', '--summary-function', 'Top_A', code=2)
 print('summary selection: OK')

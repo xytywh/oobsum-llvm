@@ -1,3 +1,4 @@
 # SPEC-0129 / F-42、I-21：从实际 FIR 选函数，零匹配与写盘失败可见；摘要与判定不混淆。
+# SPEC-0130：全部保存后离线查任意函数；summary-files不刷屏，已知名字可跳过预检。
 # RUN: rm -rf %t
 # RUN: %python %S/Inputs/summary-selection.py %S/../../../../oobsum/tools/oobsum_run.py %clang %S/Inputs/solve %t

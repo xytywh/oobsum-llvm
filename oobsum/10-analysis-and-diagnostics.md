@@ -28,7 +28,7 @@ stem 与 fp 都是十六进制字符串，但含义不同，不能互换。
 
 例如 A → B → C，实际下标访问在 C：A、B、C 各有自己的函数摘要。选一个问题的 fp，只是让 explain 找到这条问题的证据链，再去看 A、B、C 的摘要。
 其它调用者也可以复用 C 的同一份参数化摘要，在各自实参下得到不同判断。不会因为多选一个 fp，就为 C 重新定义一种摘要粒度。
-已经知道函数名时，先用 oobsum_run.py summary --list 从 FIR 确认准确显示名，再用 solve --summary-function NAME --run 精确选择，无需从问题开始。
+已经知道函数名时，可以直接打开对应FIR的funcs[].name确认显示名，或任选summary --list盘点；无需从判断指纹开始。保存与查看是两次动作，详见下节。
 用 summary --function NAME --view local / derived 查看，不必手动拼 stem。完整命令见 COMPANY.md §0。
 
 空 index.json 表示本次没有保存函数摘要，不能解释成没有分析函数。Dump=summary 开启而 DumpFilter 未匹配时，旧实现会静默写 []；
@@ -36,6 +36,33 @@ SPEC-0129 起明确打印 available / matched / saved / write_failures，并写 
 available>0 且 matched=0 是筛选零匹配；available=0 需检查 FIR 加载；saved<matched 或 write_failures>0 需检查写盘。
 可以复用完整 FIR 只重跑 solve，保留原有模型与策略；无需再 export/report。选择器只缩小调试输出，不减少实际求解工作。
 新的 Python 盘点和查询也兼容旧二进制的索引；未知函数在启动 bxen 前就失败，不会等完整 solve 才发现选错。
+
+## 哪一步计算、哪一步保存、哪一步只是读取
+
+solve总会求解输入FIR集合，不论有没有--summary-function。这个参数只表示“额外保存选中函数的两种摘要”，没有缩小分析范围。
+它默认先用Python扫描全部FIR预检名字；--skip-summary-precheck省掉这遍扫描，代价是名字错误要等完整solve后发现。底层bxen仍需正常read全部FIR。
+summary --list同样解析全部FIR，--contains/--limit只筛选展示，不表示只读部分文件。它是可选辅助工具，可以直接打开已知TU的FIR查看funcs[].name/key与顶层target。
+FIR JSON中是name字段，已保存摘要和索引中是fn字段；函数体指令不等于求解后的摘要。
+
+| 动作 | 是否重新分析 | 是否生成摘要文件 | 是否必须用脚本 |
+|---|---|---|---|
+| export | 降级源码为FIR | 否，生成每TU的FIR | 驱动编译输入 |
+| solve无保存选项 | 是，全体FIR | 否，仍生成solved判断 | 驱动求解 |
+| solve --summary-function | 是，全体FIR | 只存选中的local/derived | 也可直接给bxen Dump/Filter |
+| solve --summary-all | 是，全体FIR | 保存全部；不逐函数打印JSON | 新增的便捷保存模式 |
+| summary --function | 否，仅读索引及所选正文 | 否 | 可直接打开JSON |
+| summary --list | 否，盘点全部FIR的名字/键 | 否 | 可直接打开对应FIR |
+| explain | 否，扫描判断日志并关联已保存摘要 | 否 | 可直接看判断JSON的fp/chain等 |
+
+SPEC-0130的Dump=summary-files仅在solve持久化local/derived/index/status，不逐函数打印到stderr。--summary-all设置progress+summary-files且将DumpFilter覆盖为匹配全部的 `.*`；需要同步编译新版checker。
+旧Dump=summary保持stderr JSON和落盘兼容。不加筛选也能存全部，但会把全部local再次打进日志；全量时推荐只落盘模式。
+开启保存时，每个目标组先在内存完成analyze/propagate/decisions，再保存摘要并写solved，最后汇总index。新summary阶段用于观察保存进度。
+进程退出后文件仍在，随时读；summary工具不重算、不补生成。已经选中保存的函数无需再次solve。
+若未保存某个函数，solved只有判断，不能反推全部参数化Req/Eff/calls，FIR也只是原始指令；要补齐只能在下一次solve保存。
+想之后任意选函数，可以在下一次计划运行时选择--summary-all。每函数两份文件，当前26.8万函数约53.6万份正文，增加磁盘空间、inode与时间；不默认强制用户付出这个成本。
+
+变量赋值可以写OOB_SUMMARY_NAME='Top_A'；单引号不属于值。占位用的尖括号和反引号不要照抄进实际名字。
+摘要路径是WorkDir/dump/solve/summary：index按fn/key/target给stem，正文是stem.local.json和stem.derived.json；stem与判断fp不同。
 
 ## 一个函数的摘要为什么包含其它函数和调用链
 
@@ -65,7 +92,7 @@ flowchart LR
 
 `cases/summaries/*.json` 是人工审定的完整金标准，既有局部事实，也有可核对的传播结果。`doc` 是说明文字，不参与推理。
 实现中 BuildSummary 生成真实的 local 事实；Propagate 从局部 Req 和调用点重算上传和判定，不把金标准里的 reps 文本当作求解输入。
-新的摘要文件分 local / derived 两种视图：前者对应实际输入，后者展示传播结果。打印摘要是观察同一套引擎的结果，不是另做一遍展示用的分析。
+新的摘要文件分 local / derived 两种视图：前者对应真实解释结果（其中已利用可用的被调者效果），后者保留参数/调用点/效果并替换为传播后的Req/reps、补入口opens。打印摘要是观察同一套引擎的结果，不是另做一遍展示用的分析。
 
 ## 复杂度降低多少、是不是不再受调用层数限制
 
@@ -93,7 +120,8 @@ flowchart LR
 已有合成压测能说明特定形态的能力，不能代替最坏情况证明。公司这次全板实测是最有用的运行基准：
 10245 个 FIR TU，solve 19m49.53s，峰值 30840260 KiB，约 29.4 GiB；这是单次观察值。
 “9 秒 / 257 MiB”指之前 116 文件子系统的一次求解耗时和峰值内存，不是每文件成本，不能按 TU 数直接线性放大。
-全板 export / report 各约 7 分钟；下次先与同一单板基准比较，再结合进度阶段、CPU / RSS 和摘要 / Req 数判断。
+全板 export / report 旧批次各约7分钟；2026-11-04新批次10257个FIR、2231627条判断的solve命令为25:07.76、47346220 KiB≈45.2 GiB。包含驱动预检/尾部统计，不归因成纯摘要计算变慢；摘要文件只存2个，不能用来估算保存全部的额外耗时。
+下次先与同一输入/选项基准比较，再结合进度阶段、CPU/RSS和Req数量判断。
 
 ## 如何理解越界分类与 SUSPECT
 

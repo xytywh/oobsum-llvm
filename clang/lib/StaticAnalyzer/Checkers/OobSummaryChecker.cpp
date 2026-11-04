@@ -293,14 +293,24 @@ void OobSummaryChecker::solveAll() const
         };
         oobsum::engine::InlineResult result = oobsum::engine::RunSolve(mods, models, interpOptions, groupProgress);
         summaryAvailable += result.summaries.size();
+        bool saveSummaries = dump.On("summary") || dump.On("summary-files");  // SPEC-0130 / F-42
+        size_t summaryCompleted = 0;
+        if (saveSummaries) {
+            groupProgress("summary", 0, result.summaries.size());
+        }
         // Dump=summary：全局求解后的每个函数的摘要（SPEC-0032；engine_check.py 的跨 TU 用例用它）
         for (const auto &entry : result.summaries) {
-            if (dump.Wants("summary", entry.second.fn)) {
+            if (saveSummaries) {
+                groupProgress("summary", summaryCompleted++, result.summaries.size());
+            }
+            if (dump.Wants("summary", entry.second.fn) || dump.Wants("summary-files", entry.second.fn)) {
                 ++summaryMatched;
-                std::string text;
-                llvm::raw_string_ostream os(text);
-                os << oobsum::summary::SummaryToJson(entry.second);
-                dump.Line("summary", os.str());
+                if (dump.On("summary")) {
+                    std::string text;
+                    llvm::raw_string_ostream os(text);
+                    os << oobsum::summary::SummaryToJson(entry.second);
+                    dump.Line("summary", os.str());
+                }
                 // local 是真实求解输入；derived 是可查阅的传递闭包，不能反过来参与推理。
                 std::string stem = oobsum::HashHex(group.first + "|" + entry.first);
                 auto save = [&](const std::string &view, const oobsum::summary::Summary &summary) {
@@ -354,6 +364,9 @@ void OobSummaryChecker::solveAll() const
                 }
             }
         }
+        if (saveSummaries) {
+            groupProgress("summary", result.summaries.size(), result.summaries.size());
+        }
         for (const std::string &line : result.applyLines) {
             if (dump.Wants("apply", line.substr(0, line.find(' ')))) {
                 dump.Line("apply", line);
@@ -398,7 +411,7 @@ void OobSummaryChecker::solveAll() const
                                    " decisions=" + std::to_string(result.decisions.size()));
         }
     }
-    if (dump.On("summary")) {
+    if (dump.On("summary") || dump.On("summary-files")) {
         std::string content;
         llvm::raw_string_ostream stream(content);
         stream << llvm::formatv("{0:1}", llvm::json::Value(std::move(summaryIndex))) << "\n";
@@ -759,12 +772,13 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
     chk->dumpFilter = getString("DumpFilter");
     std::string unknownKind;
     if (!chk->dump.Configure(chk->dumpKinds, chk->dumpFilter, chk->workDir, unknownKind)) {
-        mgr.reportInvalidCheckerOptionValue(chk, "Dump",
-                                            "kinds separated by '+' from options, models, callgraph, keys, fir, "
-                                            "state, summary, apply, decisions, stats, all (and a valid DumpFilter "
-                                            "regex); "
-                                            "got '" +
-                                                unknownKind + "'");
+        mgr.reportInvalidCheckerOptionValue(
+            chk, "Dump",
+            "kinds separated by '+' from options, models, callgraph, keys, fir, "
+            "state, summary, summary-files, apply, decisions, stats, all (and a valid DumpFilter "
+            "regex); "
+            "got '" +
+                unknownKind + "'");
     }
     int maxBlocks = getInteger("MaxBlocks");
     if (maxBlocks < 0) {

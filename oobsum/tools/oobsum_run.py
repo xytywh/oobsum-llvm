@@ -6,6 +6,7 @@
   python3 oobsum/tools/oobsum_run.py status --workdir W
   python3 oobsum/tools/oobsum_run.py summary --workdir W --list [--contains 名字片段] [--counts-only]
   python3 oobsum/tools/oobsum_run.py solve --workdir W --bxen B --summary-function 函数名 [--summary-function 另一函数名] --run
+  python3 oobsum/tools/oobsum_run.py solve --workdir W --bxen B --summary-all --run
   python3 oobsum/tools/oobsum_run.py summary --workdir W --function 函数名 --view local
 
 local：本仓库的 clang 逐文件跑 cc1（参数同 run.py csa）；bxen：打印（--run 时执行）三段 bxen 命令，生成桩 TU 的 cdb 与 report 的 cdb。
@@ -13,6 +14,10 @@ local：本仓库的 clang 逐文件跑 cc1（参数同 run.py csa）；bxen：�
 summary（SPEC-0129）：FIR 中按目标与函数键盘点；查看 local（局部事实）/ derived（传播结果）视图。
 空 index.json 表示没有保存摘要，不能据此判定没有分析函数。复用完整 FIR，精确选择函数重跑 solve 即可补出，
 无需再次 export/report；保留原 solve 的模型与策略选项。函数名和摘要只在公司本地查看，带回用 --list --counts-only。
+SPEC-0130：--summary-all 在本次 solve 保存全部摘要，之后换函数只需读取；需要新版 checker 的 Dump=summary-files。
+全量会产生每函数两份JSON，增加磁盘/inode/写盘时间。--summary-function 仅保存少量，默认预读FIR核对名字；
+已从对应FIR的funcs[].name确认名字时，可加 --skip-summary-precheck 跳过盘点，代价是错名只能在solve后发现。
+--list 可选、--limit 仅限制展示行数，盘点仍读全体FIR；已有摘要可直接打开 index 与对应 JSON，无需任何脚本。
 """
 import sys
 sys.dont_write_bytecode = True
@@ -132,9 +137,9 @@ def bxen_cmd(a, cc_json, phase, workdir, analysis_file=None, folder=None):
     extra = '-analyzer-config ipa=none -analyzer-config %s:Phase=%s -analyzer-config %s:WorkDir=%s' % (CHECKER, phase, CHECKER, workdir)
     if a.extra:
         extra += ' ' + a.extra
-    if phase == 'solve' and getattr(a, '_summary_filter', None):
-        extra += ' -analyzer-config %s:Dump=progress+summary -analyzer-config %s:DumpFilter=%s' % (
-            CHECKER, CHECKER, a._summary_filter)
+    if phase == 'solve' and getattr(a, '_summary_filter', None) is not None:
+        extra += ' -analyzer-config %s:Dump=progress+%s -analyzer-config %s:DumpFilter=%s' % (
+            CHECKER, getattr(a, '_summary_kind', 'summary'), CHECKER, a._summary_filter)
     cmd = [a.bxen, '-exec_mode=onlySa', '-cc_json=' + cc_json]
     if analysis_file:
         cmd.append('-analysis_file=' + analysis_file)
@@ -160,18 +165,32 @@ def cmd_solve(a):
         print('✗ %s/fir/ 下没有文件：先用 clang_check 跑一遍 Phase=export（或带 WorkDir 的默认模式）' % workdir)
         return 1
     selected = getattr(a, 'summary_function', [])
+    save_all = getattr(a, 'summary_all', False)
+    skip_precheck = getattr(a, 'skip_summary_precheck', False)
+    if (save_all and selected) or (skip_precheck and not selected):
+        print('✗ --summary-all 与 --summary-function 互斥；--skip-summary-precheck 只能配 --summary-function', file=sys.stderr)
+        return 1
+    expected_summaries = None
     if selected:
-        entries, bad = _function_inventory(workdir)
-        available = {e['fn'] for e in entries}
-        missing = set(selected) - available
-        if missing:
-            print('✗ 有 %d 个函数名不在 FIR 中；尚未启动 bxen。先用 summary --list [--contains 名字片段] 查准确名称' %
-                  len(missing), file=sys.stderr)
-            return 1
+        if skip_precheck:
+            print('# 已跳过Python摘要预检；bxen仍读全部FIR，错名将在solve后发现')
+        else:
+            print('# 正在预读全部FIR核对函数名；已从对应文件确认名字时，可用--skip-summary-precheck省去这一遍', flush=True)
+            entries, bad = _function_inventory(workdir)
+            available = {e['fn'] for e in entries}
+            missing = set(selected) - available
+            if missing:
+                print('✗ 有 %d 个函数名不在 FIR 中；尚未启动 bxen。可直接看对应FIR的funcs[].name，或用 summary --list；函数名不要加占位用的尖括号/反引号' %
+                      len(missing), file=sys.stderr)
+                return 1
+            expected_summaries = {(e['target'], e['key']) for e in entries if e['fn'] in selected}
+            print('# 摘要预检：匹配 %d 个函数（按目标与函数键计）；无法盘点的 FIR %d 个' % (
+                sum(e['fn'] in selected for e in entries), bad))
         a._summary_filter = _literal_filter(selected)
-        expected_summaries = {(e['target'], e['key']) for e in entries if e['fn'] in selected}
-        print('# 摘要预检：匹配 %d 个函数（按目标与函数键计）；无法盘点的 FIR %d 个' % (
-            sum(e['fn'] in selected for e in entries), bad))
+    if save_all:
+        a._summary_filter = '.*'  # SPEC-0130 / I-22：覆盖旧筛选；Clang不接受空的-analyzer-config值。
+        a._summary_kind = 'summary-files'
+        print('# 本次保存全部函数的local/derived摘要；增加磁盘空间、inode和写盘时间，不逐函数打印JSON', flush=True)
     stub_dir, stub = write_stub_cdb(workdir)
     cmd = bxen_cmd(a, stub_dir, 'solve', workdir, stub)
     print('# fir/ 里 %d 个 TU；solve 单进程读全部 FIR，写 solved/<tu>.json' % nfir)
@@ -179,7 +198,9 @@ def cmd_solve(a):
         print('$ ' + show(cmd))
         return 0
     index_path = os.path.join(workdir, 'dump', 'solve', 'summary', 'index.json')
-    previous_index = os.stat(index_path) if selected and os.path.isfile(index_path) else None
+    previous_index = os.stat(index_path) if (selected or save_all) and os.path.isfile(index_path) else None
+    status_path = os.path.join(os.path.dirname(index_path), 'status.json')
+    previous_status = os.stat(status_path) if save_all and os.path.isfile(status_path) else None
     if run(cmd, workdir, 'solve') != 0:
         stop('solve', cmd)
     progress_path = os.path.join(workdir, 'dump', 'solve', 'progress.json')
@@ -194,13 +215,13 @@ def cmd_solve(a):
         print('注意：solved 比 FIR 少 %d 个 TU；查看 logs/solve.log 中跳过的坏 FIR 或写入错误' % (nfir - len(table)))
     print('solve 完成：solved/ %d 个 TU，判定 %d 条（%d 个 TU 有判定）；下一步 clang_check 跑 Phase=report' % (
         len(table), sum(n for _, n in table), sum(1 for _, n in table if n > 0)))
-    if selected:
+    if selected or save_all:
         try:
             current = os.stat(index_path)
             if previous_index and (current.st_ino, current.st_mtime_ns) == (previous_index.st_ino, previous_index.st_mtime_ns):
                 raise ValueError('本次 solve 未更新摘要索引')
             entries = _summary_index(workdir)
-            if not expected_summaries <= {(e.get('target'), e.get('key')) for e in entries}:
+            if expected_summaries is not None and not expected_summaries <= {(e.get('target'), e.get('key')) for e in entries}:
                 raise ValueError('所选函数的部分目标或函数键没有保存到摘要索引')
             for fn in set(selected):
                 hits = [e for e in entries if e.get('fn') == fn]
@@ -209,7 +230,18 @@ def cmd_solve(a):
                 for e in hits:
                     for view in ('local', 'derived'):
                         _read_summary(workdir, e, view)
-            print('摘要已保存：%d 个函数，两种视图均可读；用 summary --function NAME --view local 或 derived 查看' % len(entries))
+            if save_all:
+                current_status = os.stat(status_path)
+                if previous_status and (current_status.st_ino, current_status.st_mtime_ns) == (previous_status.st_ino, previous_status.st_mtime_ns):
+                    raise ValueError('本次 solve 未更新摘要保存状态')
+                with open(status_path, encoding='utf-8') as f:
+                    status = json.load(f)
+                if not (isinstance(status, dict) and status.get('index_written') is True and status.get('write_failures') == 0 and
+                        status.get('available') == status.get('matched') == status.get('saved') == len(entries)):
+                    raise ValueError('全量摘要的可用/匹配/保存计数不一致或有写盘失败')
+                print('全部摘要已索引：%d 个函数；checker确认两种视图均写入，未再次遍历所有摘要正文。之后直接打开JSON或用 summary --function 查看' % len(entries))
+            else:
+                print('摘要已保存：%d 个函数，两种视图均可读；用 summary --function NAME --view local 或 derived 查看' % len(entries))
         except (OSError, ValueError, KeyError) as error:
             print('✗ solve 已结束，但请求的摘要不完整：%s；查看 logs/solve.log 的 summary 计数与写盘提示' % error, file=sys.stderr)
             return 1
@@ -493,6 +525,8 @@ def _read_summary(workdir, entry, view):
 def cmd_summary(a):
     """先盘点实际函数，再查本次 solve 的索引；不从旧的残留文件猜摘要。"""
     if a.list:
+        if not a.counts_only:
+            print('正在盘点全部FIR；--contains/--limit只限制展示。也可直接打开对应FIR的funcs[].name/key，无需此脚本', flush=True)
         entries, bad = _function_inventory(a.workdir)
         hits = [e for e in entries if not a.contains or a.contains in e['fn']]
         try:
@@ -613,7 +647,10 @@ def main():
     p.add_argument('--bxen', required=True)
     p.add_argument('--extra', default='')
     p.add_argument('--run', action='store_true')
-    p.add_argument('--summary-function', action='append', default=[], metavar='NAME', help='精确选择显示函数名，先查 FIR；可重复（SPEC-0129）')
+    summary_mode = p.add_mutually_exclusive_group()
+    summary_mode.add_argument('--summary-function', action='append', default=[], metavar='NAME', help='精确选择显示函数名；默认先查FIR，可重复（SPEC-0129）')
+    summary_mode.add_argument('--summary-all', action='store_true', help='本次保存全部摘要，日后只读查询；需要新版checker（SPEC-0130）')
+    p.add_argument('--skip-summary-precheck', action='store_true', help='只配--summary-function：跳过Python全量FIR盘点，错名在solve后发现')
     p = sub.add_parser('summary', help='盘点 FIR 中的函数，或读取本次 solve 保存的函数摘要（SPEC-0129）')
     p.add_argument('--workdir', required=True)
     choice = p.add_mutually_exclusive_group(required=True)

@@ -9,9 +9,10 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-03-8**（增加空摘要索引的恢复流程，先盘点实际函数再精确选择；恢复可复用 FIR，只重跑 solve，不必等 BXPlugin 重编。保留此前全部待验证项，已做过的不要重复；结果不符就停下带回计数。）
+**清单版本：2026-11-04-1**（统一为一套完整流程，去掉“空索引优先恢复”；说明计算/保存/读取各自做什么，盘点可选，新增一次保存全部摘要与跳过预检。已完成的两函数solve无需重跑；全量保存留到下一次计划中的全量运行选择验证。）
 
-路径只改这里；`OOB_REPORT` 必须指向 JSON 文件，不能是 log 目录：
+开头只设置路径变量。函数名等第3步需要选择保存范围时再设置；看已保存摘要时也可在第4步再设置。
+OOB_WD是WorkDir根（含fir/、solved/、dump/），OOB_REPORT是报告JSON文件，不能是log目录；路径只在这里修改。
 
 ```bash
 OOB_REPO=/usr1/oobsum-llvm
@@ -24,9 +25,6 @@ OOB_REPORT=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/a
 OOB_WD=/usr1/oobsum-work/full-b-20261103
 OOB_INI=/usr1/clang_check/src/cfg/ini/config.ini
 OOB_FUNCPTR=/usr1/clang_check/src/cfg/ini/config_funcptr.ini
-OOB_SUMMARY_WD=/usr1/oobsum-work/full-b-20261103  # 改成这次只有空 index.json 的 WorkDir 根，不是 dump/solve/summary 目录
-OOB_SUMMARY_NAME='<从下方函数列表复制的准确函数名>'  # 这是函数名，不是指纹，也不需要写正则
-OOB_SUMMARY_NAME2='<第二个要看的准确函数名>'  # 两个可相同，驱动会去重
 ```
 
 ### 已经做完、确认没问题的
@@ -41,45 +39,14 @@ OOB_SUMMARY_NAME2='<第二个要看的准确函数名>'  # 两个可相同，驱
 | 全板 B solve | exit=0；19m49.53s；峰值 30840260 KiB（29.4 GiB）；solved 10245，判定 2211387（9861 个 TU 非空） |
 | 全板 B report | 6m58.762s；成功 10576 / 失败 110；日志判定 2210526、报出 769203；report.json 629741（DEFINITE 478 / POSSIBLE 104 / SUSPECT 629159） |
 | 目标 | FIR 中 10235 个 aarch64_be ILP32、10 个 x86_64 LP64；旧版本混合求解；SPEC-0124 起自动分目标，需用新版本结果复核 |
+| 本次摘要盘点（2026-11-04） | 函数268184、无法盘点FIR=0；当时索引0 |
+| 本次两函数摘要保存（已完成） | FIR/solved=10257，判定2231627（9884个TU非空）；摘要2个、local/derived均可读；exit=0；25m07.76s，峰值47346220 KiB（约45.2 GiB） |
 
-同一源文件若有不同宏 / ABI 配置，现有 TuId 只保存一个变体。先看 cdb 新增的差异计数；若非 0，先在公司确认差异是否真的影响预处理 / ABI，带回计数与概括，不贴命令或文件名。不能把重复条目当成全部等价。
-
-全板有结果不表示每个 TU 都成功：10262−10245=17 个唯一文件无 FIR，report 与 solve 也少了 861 条判定。条目失败数不能直接当成缺失文件数（cdb 有重复）。
-
-### 优先处理：已有 WorkDir 的 index.json 为空
-
-**空索引表示没有保存函数摘要，不表示没有算摘要。** 已确认旧实现的缺口：Dump=summary 开启而 DumpFilter 未匹配任何显示函数名时，会静默写出 []。
-此前 OOB_SUMMARY_FILTER 是占位正则，必须换成实际名字；未替换、名字不一致或正则写错都可能零匹配。现在还不能据此确定你当时传入了哪一种。
-先在公司本地用 FIR 盘点实际函数，不用再等一次全量求解；不要把名字带回。
-
-```bash
-cd "$OOB_REPO" && git pull
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_SUMMARY_WD" --list --limit 50
-```
-
-预期：FIR 函数数大于0，并列出 fn / key / target。可另加 --contains 名字片段 或增大 --limit 查找。
-从输出复制准确显示函数名，填回开头 OOB_SUMMARY_NAME / OOB_SUMMARY_NAME2；不要填 key、fp 或旧的占位正则。
-若盘点为0，先检查 WorkDir 根是否正确、fir/ 是否有文件；此时不要重跑 solve，带回函数数与无法盘点的 FIR 数。
-
-```bash
-/usr/bin/time -v python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" solve --workdir "$OOB_SUMMARY_WD" --bxen "$OOB_BUILD/bxen" --summary-function "$OOB_SUMMARY_NAME" --summary-function "$OOB_SUMMARY_NAME2" --extra "-rbchecker-config=$OOB_INI -funcptr-config=$OOB_FUNCPTR" --run
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_SUMMARY_WD" --function "$OOB_SUMMARY_NAME" --view local
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_SUMMARY_WD" --function "$OOB_SUMMARY_NAME" --view derived
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_SUMMARY_WD" --function "$OOB_SUMMARY_NAME2" --view local
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_SUMMARY_WD" --function "$OOB_SUMMARY_NAME2" --view derived
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_SUMMARY_WD" --list --counts-only
-```
-
-预期：先打印摘要预检匹配数量；名字不存在会在启动 bxen 前退出1，不会白等完整 solve。完成时明确说明摘要已保存且两种视图可读。
---summary-function 可重复，按显示名精确选择，自动转义正则；它设置 Dump=progress+summary 与对应 DumpFilter，其它 --extra 模型 / 策略照常保留。
-如上次 solve 还用了 ModelFile / MaxBlocks 等自定义选项，务必在 --extra 中保留相同值。不要同时跑两个 solve 写同一 WorkDir。
-这里仍会重新求解完整 FIR 集合，只减少额外保存的摘要；耗时仍可能约20分钟。无需重新 export/report，已有 decisions 日志也不会被这个步骤刷新。
-新 Python 查询兼容此前保存索引的 checker，不要求先重编 BXPlugin；重编后还有 summary available/matched/saved/write_failures 计数与 dump/solve/summary/status.json。
-它们分别是实际可用函数、过滤器匹配函数、两种视图均保存的函数、写入失败次数；status 不含函数名，可带回。旧二进制没有 status.json 属正常。
-同名函数跨 static 文件 / 目标可能有多个摘要，工具会提示歧义；从 --list 复制函数键给 --function，并用 --target 指定完整目标字符串。
-若摘要仍不可读，停下带回“预检匹配数 / 已保存数 / 退出码 / 是否有写盘提示”，不贴包含业务名字的命令或摘要正文。
-
-下面第1–7步是此前版本尚未带回结果的验证清单；做过的无需重跑。只为补摘要时，到此即可。
+下面是一套完整操作顺序，用于理解和复现整个流程，不要求每次从头重复。
+你这次已经完成10257个TU的solve并保存两个函数；现在可直接到第4步打开已保存JSON。report、尾数组对照和抽查等尚未带回的结果继续保留在下面。
+只有源码/编译选项变化才需重新export；只有引擎/模型/策略变化或要补保存未留存的摘要才需重新solve；改读哪个已保存函数无需重新分析。
+同一源文件多次编译若宏/ABI不同，目前TuId只留一个变体；cdb差异计数非0时需在公司确认影响，带回计数和概括，不贴名字或命令。
+旧批次17个唯一文件无FIR、report比solve少861条判断的覆盖问题仍待核查；本次FIR增加到10257，不能直接沿用旧差数认定当前缺失数量。
 
 ### 第 1 步：更新、同步、编译和改规则配置
 
@@ -108,77 +75,179 @@ python3 "$OOB_REPO/oobsum/tools/decisions.py" /tmp/oobsum-tc-core
 
 预期：InlineDepth=0；5 条告警；decisions=7 emitted=5。引擎那条应在 Tc_Leaf 的下标访问处，主行有 [access=array-index]、元素大小和完整 Call chain。与旧版相比只多浅层 DEFINITE。若不符，带回本 TestCase 的输出（都是我们自己的代码）。
 
-### 第 3 步：全板重新跑 B
+### 第 3 步：全量 export → solve → report，保存范围在这里选择
+
+**3.1 export：把源码翻成FIR，给后面的solve使用。** 每个成功TU在fir/生成一个JSON，含目标、类型、函数列表、基本块和指令；一个JSON通常对应一个主源文件，不是一份函数摘要。
+此步不做跨文件求解，不输出越界告警。已有同一批源码/编译配置的完整FIR可复用，不必为了查看摘要再次export。
 
 ```bash
 python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" cdb --cc-json "$OOB_CDB"
 time OOBSUM_CONFIG="WorkDir=$OOB_WD Phase=export" /usr/local/bin/python3 /usr1/clang_check/src/main.py -e "$OOB_BUILD/" -j "$OOB_CDB/compile_commands.json" -r rb.enhance.core.OobSummary -c "$OOB_GBL"
 python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" status --workdir "$OOB_WD"
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_WD" --list --limit 50
-/usr/bin/time -v python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" solve --workdir "$OOB_WD" --bxen "$OOB_BUILD/bxen" --summary-function "$OOB_SUMMARY_NAME" --summary-function "$OOB_SUMMARY_NAME2" --extra "-rbchecker-config=$OOB_INI -funcptr-config=$OOB_FUNCPTR" --run
+```
+
+预期fir/逐渐增加，status列数量；失败数按cdb条目计，不等于唯一缺失文件数。若无FIR或报错，停下带回数量、退出码和本规则相关错误。
+
+**3.2 决定是否额外保存摘要。** solve本来就会算各函数摘要并据此生成solved判定，下面的选择只控制额外留存的调试JSON，不限制实际分析哪些函数。
+三种方式只选一种运行；不能把三条solve依次都跑一遍。保留相同的ModelFile、MaxBlocks等自定义选项（如上次使用过，在--extra中补回）。
+
+| 方式 | 什么时候用 | 运行后能看什么 |
+|---|---|---|
+| A 不额外保存 | 只要分析/告警结果，节约磁盘 | solved是判断记录；不能由它反推任意函数的完整local/derived |
+| B 仅保存已知函数 | 只复核少量函数 | 选中的local/derived；换成未保存函数需在下一次solve保存 |
+| C 保存全部 | 后续可能随时查不同函数 | 本次可用函数的local/derived；之后任意已保存函数只读查询，无需重算 |
+
+A：不设置任何函数名变量，不加--summary-function/--summary-all，**仍会完整求解**。Dump=progress只显示进度，不额外保存摘要。
+
+```bash
+/usr/bin/time -v python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" solve --workdir "$OOB_WD" --bxen "$OOB_BUILD/bxen" --extra "-rbchecker-config=$OOB_INI -funcptr-config=$OOB_FUNCPTR -analyzer-config rb.enhance.core.OobSummary:Dump=progress" --run
+```
+
+B：先填要保存的准确显示函数名。下面用本仓库合成用例的Top_A/Fill示范写法，业务全量时改成自己的实际名字；不要照抄这两个示例去跑业务FIR。
+
+```bash
+OOB_SUMMARY_NAME='Top_A'
+OOB_SUMMARY_NAME2='Fill'
+```
+
+赋值时不要添加尖括号或反引号。单引号是shell引用语法，**可以保留**，不会成为变量值；普通C函数名也可以不加引号。
+例如这条赋值的实际值就是Top_A；写成带尖括号的名字时，尖括号会真的进入值，导致匹配失败。后续引用变量统一写双引号，兼容带空格/括号的C++显示名。
+这些只是当前shell变量，无需export，脚本通过命令参数接收它们。
+
+**不必先跑盘点脚本。** 已知道对应FIR文件时，直接用编辑器打开fir/中那个JSON，找到funcs数组：name是显示名，key是函数键，target在文件顶层。
+如果看的是已保存摘要，它的名字字段叫fn；FIR里的字段叫name。FIR里的函数体不是已经求好的摘要。
+不知道准确名字或对应文件时，才用下面的可选盘点；--limit只是限制展示50行，--contains只是筛选显示，底层仍需解析全部FIR，数据多时慢是预期。
+
+```bash
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_WD" --list --contains "$OOB_SUMMARY_NAME" --limit 50
+```
+
+你已确认名字时可用下面的--skip-summary-precheck，省去Python在bxen前再解析一遍全部FIR；去掉它就会提前核对名字，但更慢。
+跳过后若名字写错，得等完整solve结束才提示没有保存；它不会跳过bxen真正的FIR读取或求解。
+
+```bash
+/usr/bin/time -v python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" solve --workdir "$OOB_WD" --bxen "$OOB_BUILD/bxen" --summary-function "$OOB_SUMMARY_NAME" --summary-function "$OOB_SUMMARY_NAME2" --skip-summary-precheck --extra "-rbchecker-config=$OOB_INI -funcptr-config=$OOB_FUNCPTR" --run
+```
+
+--summary-function可重复，不必一定给两个；它设置Dump=progress+summary并生成准确名字的DumpFilter。
+选两个只表示“额外保存这两个”，不是“只分析这两个”。不传这两个参数不会影响solve本身；但若也没有另行开Dump=summary/summary-files，就不会为本次生成新的摘要索引与正文。
+
+C：本次把所有可用函数的两种视图保存下来，日后换函数只读取。**新功能需先完成第1步同步编译**，旧二进制不认识summary-files。
+不需要先设置两个函数名，不做Python全量盘点；自动启用Dump=progress+summary-files并用匹配全部的 `.*`覆盖可能遗留的DumpFilter。
+summary-files与summary保存相同JSON，但不把几十万份函数JSON逐条打印到终端/log；progress和汇总计数仍可见。
+
+```bash
+/usr/bin/time -v python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" solve --workdir "$OOB_WD" --bxen "$OOB_BUILD/bxen" --summary-all --extra "-rbchecker-config=$OOB_INI -funcptr-config=$OOB_FUNCPTR" --run
+```
+
+代价是每函数两份JSON：按本次268184个函数估算，正文文件约536368个，另有index/status；会增加磁盘空间、inode占用和写盘时间，具体体积/耗时以实测为准，不承诺和只存两个一样快。
+可按复核需要选B或C；这次已经保存的两个直接读即可，不为验证新开关立即重跑25分钟。
+C完成预期summary/status.json中available=matched=saved、write_failures=0、index_written=true；驱动核对本次索引与计数，不再把所有摘要正文解析一遍。
+同名函数按目标+函数键分别保存；FIR盘点数与实际available可能因坏FIR或重复定义选择而不同，以实际solve计数为准。
+
+**3.3 solve到底做了什么、进度怎么看。** stub.c只让bxen触发一次checker；真正输入是完整fir/目录。已知调用者、被调者、类型布局、全局对象与副作用共同决定结果，不能只拿两个文件假装同一全量上下文。
+
+| 阶段 | 正在做什么 | 主要内存/磁盘产物 |
+|---|---|---|
+| read | 解析全部FIR，按目标ABI分组，准备函数/类型/全局输入 | 主要读fir/，尚无新solved |
+| analyze | 依调用图先被调者后调用者，解释函数CFG；调用处利用已知被调效果，构造local事实 | 内存中的函数摘要、Req/Eff/calls/opens |
+| propagate | 把被调者Req按调用实参代换，向上传递未解决要求，生成各上下文的结果 | 内存中的derived Req/reps/opens和证据链 |
+| decisions | 将传播结果与未证明项目转换为DEFINITE/POSSIBLE/SUSPECT/SAFE及原因、位置、链 | 内存中的完整判断记录，report再决定报出策略 |
+| summary（开启保存时，新版可见） | 按筛选保存local/derived；不是重新求解 | dump/solve/summary/的正文，最后汇总index/status |
+| write | 按访问归属TU写预计算判断 | solved/每TU一个JSON，没有判断也写空列表 |
+| done | 各目标已处理且solved写入结束 | progress最终快照；还需看摘要status，判断调试写盘是否成功 |
+
+多目标依次运行各自的analyze/propagate/decisions/summary/write，前缀如group1/2；read只在开头，index/status在最后汇总。
+保存是bxen checker在solve进程中做的，实际在各组求解完后；不是summary查询脚本做的，也不要求人一直盯着终端。进程退出后JSON仍在，可以随时打开。
+
+另开终端，先粘贴本节开头同一组路径变量，再观察：
+
+```bash
+cat "$OOB_WD/dump/solve/progress.json"
+tail -20 "$OOB_WD/logs/solve.log"
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" status --workdir "$OOB_WD"
+OOB_SOLVE_PID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["pid"])' "$OOB_WD/dump/solve/progress.json")
+ps -p "$OOB_SOLVE_PID" -o pid,etime,pcpu,rss,stat
+```
+
+阶段内completed/total不是总耗时百分比；最慢函数内部计数可能暂不动，结合CPU/RSS看。RSS和/usr/bin/time的Maximum resident set size均为KiB。
+本次solve实际命令墙钟25:07.76、峰值47346220 KiB≈45.2 GiB；它包含驱动预检/尾部汇总与子进程，不是每TU耗时。
+你提到的约36分钟与本次time输出25:07.76分别记录；比较性能时先统一输入、选项和计时范围。全量保存另有写盘成本。
+出现崩溃、写盘失败、solve超过2小时/100 GiB时停止，带回阶段、退出码、计数和仅本规则栈，不贴业务内容。
+
+**3.4 report：把solved判断交给CSA定位、合并、输出告警。** 它再解析对应源码，不重新进行全程序求解；同时写decisions/*.jsonl，包含报出的和未报出的判断。
+仅补保存摘要而未改变分析输入/选项时，已有report不用重跑；从新一批输入得到solved或要验证新格式时执行下面这一遍。
+
+```bash
 time OOBSUM_CONFIG="WorkDir=$OOB_WD Phase=report" /usr/local/bin/python3 /usr1/clang_check/src/main.py -e "$OOB_BUILD/" -j "$OOB_CDB/compile_commands.json" -r rb.enhance.core.OobSummary -c "$OOB_GBL"
 cp "$OOB_REPORT" "$OOB_WD.report.json"
 python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" stats --workdir "$OOB_WD" --counts-only --top 50
 python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" report "$OOB_WD.report.json"
 ```
 
-export 后的盘点只列前50个，可用 --contains 缩小范围；先确认开头两个名字出现在 FIR 中，再执行 solve。
-预期：export 只在 fir/ 写每个 TU 的中间表示，不求解、不告警；solve 读取这些文件，stub.c 只触发一次 checker 回调，不是业务分析对象；report 将预计算的判定交给 CSA 输出并写 decisions/。
-预期：solve 终端与 logs/solve.log 会实时出现 [oobsum:progress]，依次是 read / analyze / propagate / decisions / write / done；多目标时中间阶段带 group1/2、group2/2 前缀；阶段内计数不是总耗时百分比。
-在另一个终端粘贴同一组路径变量后，可以看：
+OOB_REPORT的源必须是文件，cp -r整个log目录不能替代复制JSON。若仍是目录，先修正开头变量。
+预期stats有所有标签/原因与物理告警计数，report列JSON中的数量；不一致先核查失败TU和合并口径，不直接认为漏报。
 
-```bash
-cat "$OOB_WD/dump/solve/progress.json"
-tail -20 "$OOB_WD/logs/solve.log"
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" status --workdir "$OOB_WD"
-ps -p <progress.json里的pid> -o pid,etime,pcpu,rss,stat
-```
+### 第 4 步：读取已经保存的摘要；脚本与直接打开文件任选
 
-read 在解析已导出的全部 FIR，analyze 在按被调者优先解释每个函数，propagate 在调用点代换与上传条件，decisions 在生成标签与证据，write 才批量写 solved/。
-因此 analyze / propagate 期间没有新增 solved 文件是正常的；一个慢函数内部计数可能暂不变化，结合 CPU / RSS 判断，不能仅凭计数不动认定卡死。
-RSS 的单位是 KiB；/usr/bin/time -v 的 Maximum resident set size 也是 KiB。上次约 29.4 GiB，终端的 elapsed 是墙钟时间。
+**这里没有生成或保存动作。** summary --function只读index，按函数名/键定位一个文件，再读取local或derived正文打印；不扫描fir/，不调用bxen，不重新solve。
+summary --list则是从FIR盘点可用函数，已索引摘要数是附带统计；它与查看一份保存的正文是两种动作，没有必要每次先盘点。
+保存位置：$OOB_WD/dump/solve/summary/；当前路径变量对应/usr1/oobsum-work/full-b-20261103/dump/solve/summary/。
 
-时间基准是上次同一单板约 7 / 20 / 7 分钟，不是承诺值。出现崩溃或 solve 超 2 小时 / 100 GiB 时停止，记录退出码和本规则栈。
-`cp` 的源必须是文件；`cp -r` 复制整个 log 目录不能替代复制 JSON。
+| 文件 | 内容与用途 |
+|---|---|
+| index.json | 数组中每项有fn、key、target、tu、stem，用fn/key找到对应正文；摘要粒度是“目标内的函数” |
+| stem.local.json | 该函数解释所得的实际local事实，作为传播输入；有参数、Req、Eff、调用点及当时实参/区间、未证明项目 |
+| stem.derived.json | 保留local的参数/调用点/效果等，替换为传播后Req与reps、补入口opens，展示调用者上下文中的传递结果 |
+| status.json | available/matched/saved/write_failures等计数；只反映保存状态，不是告警统计 |
 
-### 第 4 步：在公司看两条问题的摘要
-
-**摘要以函数为粒度。** 同一目标内按函数键 key 区分函数；local / derived 是该函数摘要的两种视图，不是按告警生成的两种摘要。
-solve 会求解输入集合中的函数；DumpFilter 只控制额外保存哪些函数的摘要，不改变求解范围。指纹不是生成摘要的必要输入。
-
-这里有两种查看入口：
-
-* **已经知道要看哪个函数**：先用 summary --list 确认实际名字，填入开头两个 OOB_SUMMARY_NAME 变量；按本节开头恢复步骤重跑 solve，即可用 summary --function 查看，不用先找指纹。
-* **从一个具体问题开始看**：在旧的完整 WorkDir 用 decisions.py 找到那条判断的 `fp=...`，再用 explain 看它的调用链，从链上选需要查看摘要的函数。这个选函数的动作可在第 3 步之前完成。
-
-`fp`（判断指纹）是一串用于检索判断的十六进制标识，不是函数编号；SAFE 和未报的判断也有 fp。同一函数可有多条判断，同一个函数摘要也能供多处调用复用。
-fp 不含行号，也不保证每个日志记录都有不同的值；explain 可能列出多个匹配上下文。不要把 fp 当作摘要文件名。
-例如想复核两条问题，就分别取它们的 fp，执行下面的命令（问题、业务名字和摘要正文都留在公司）：
-
-```bash
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir /usr1/oobsum-work/full-b <指纹1>
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir /usr1/oobsum-work/full-b <指纹2>
-```
-
-把链上要看的实际函数名填入开头两个 OOB_SUMMARY_NAME 变量；新导出的 FIR 中每条访问有 diag 编号和 accesses（表达式、读写类型、元素大小、字段偏移、来源）；判定的 access_key / access_ids / sink 可对应回该指令。须重新 export 才有这些信息，旧 FIR 可读但没有新描述。
-
-新 solve 的 dump/solve/summary/index.json 列出选中函数、键、TU 与文件 stem；
-索引 target 区分架构；函数键和目标不同的摘要使用不同 stem。stem 是“目标 + 函数键”的哈希文件名，与判断 fp 是两种标识，即使都是十六进制字符串也不能互换。
-同一个 stem 的 .local.json 是该函数的真实解释事实，.derived.json 是该函数在调用传播后的 Req / reps 视图。一个函数的 derived 可以记录到其它函数的访问证据链；摘要单位仍是这个函数。
-索引与摘要只在公司打开，不带回名字或正文。
+stem是“目标+函数键”的哈希文件名；与判断fp不是同一种东西。打开index找到想看的fn，复制同条的stem，再在文件管理器/编辑器中打开那两个JSON即可。
+普通文本编辑器就能查看，以下json.tool也只是格式化读取；变量只在需要看文件时填写，把示例字符串换成index中的实际stem。
 
 ```bash
 python3 -m json.tool "$OOB_WD/dump/solve/summary/index.json"
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_WD" --function "$OOB_SUMMARY_NAME" --view local
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_WD" --function "$OOB_SUMMARY_NAME" --view derived
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir "$OOB_WD" <新判定的指纹>
+OOB_SUMMARY_STEM='从index中复制的实际stem'
+python3 -m json.tool "$OOB_WD/dump/solve/summary/$OOB_SUMMARY_STEM.local.json"
+python3 -m json.tool "$OOB_WD/dump/solve/summary/$OOB_SUMMARY_STEM.derived.json"
 ```
 
-按 warning 的 group=编号可直接用 explain 查询组内全部上下文；同一行主标签取最严重的一条，不能把所有上下文都当作 DEFINITE。
+或者按函数名使用脚本，不用自己拼哈希文件名；第3步B已设置名字可直接沿用，选A/C但现在要查看时才设置。下面仍是自有Top_A/Fill写法示范，请换成自己要看的名字，不加尖括号/反引号。
 
-先从 leaf 的 Req 看访问公式与守卫，再看上层调用实参和 derived 的具体大小 / 末端。摘要里的链是证据，不是重复执行全部路径；报告策略在 report 阶段才应用，是否报出以 decisions/*.jsonl 的 emitted 为准。
-如果原全量 solve 没开 Dump=summary，不存在可供读取的摘要文件；仅 report 不会补出全程序的闭包，需重新 solve（可以复用 FIR）。
-不要只取两条调用链的文件冒充完整上下文；副作用和其它被调者也会影响结果。生成两种摘要不会改变 solved 的判定。
+```bash
+OOB_SUMMARY_NAME='Top_A'
+OOB_SUMMARY_NAME2='Fill'
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_WD" --function "$OOB_SUMMARY_NAME" --view local
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_WD" --function "$OOB_SUMMARY_NAME" --view derived
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_WD" --function "$OOB_SUMMARY_NAME2" --view local
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_WD" --function "$OOB_SUMMARY_NAME2" --view derived
+```
+
+预期返回JSON且退出0；同名static/跨目标函数有多项时工具不会任选，改用index里的key给--function，并用--target给完整目标字符串。
+索引没有该函数时只会提示缺失，不会自动启动求解；先确认实际名字和目标，再判断上次是否保存。等本次done且摘要保存成功后再按当前index查看，写盘过程中可能还有上次产物。
+后续不开启保存的solve不会刷新旧摘要；输入/模型/选项变化时应使用新的WorkDir，或明确重新保存，避免把旧索引当本次结果。
+若上次选C且保存成功，换任意已索引函数只需改变量再读；若上次只选两个，新的第三个未保存，就必须在下一次solve选它或选C。
+solved含的是判断，不含所有函数的完整local/derived；FIR含的是指令，也不能直接当摘要；无法凭现有solved免费恢复未落盘的完整摘要。
+你这次两个均已保存，因此现在直接读取，不需要为它们再跑solve。旧Dump=summary且不设Filter也能存全部，但会把全部local JSON打印到日志；新C专门避免这一份庞大重复输出。
+
+**local/derived的区别，用自有Top_A → Fill说明：** Fill写入形参长度n要求的字节；Top_A给出16字节数组与长度17。
+local的Top_A记录“调用Fill，传入对象大小16与n=17”等实参事实；传播会把Fill的访问要求代入这些实参，derived的Top_A因而可以含一条跨调用的POSSIBLE及证据链（具体级别以本用例的界来源为准）。
+local并非只扫描本函数语法：analyze时已经应用已知被调者的效果；derived的重点是上传要求和在当前上下文已定级的结果。
+两个都是同一函数的视图；derived没有reps不等于安全，要求可能继续上传，opens也可能仍未证明；是否报警最终看report策略与decisions日志。
+先在local中看leaf的Req公式/守卫和上层calls实参，再看derived中对象大小、末端与调用链，便于核对推理是否对应源码。
+
+**explain的指纹到底填什么：** 它是decisions日志记录里的fp字段，一串十六进制检索标识，不是函数名、key、stem，也不是随意填的“1”。
+例如自有TestCase曾输出fn=F:Tp_Labels与fp=a5e49529d9fcedab：前者描述函数键，后者才是那条判断的指纹。这个示例fp不能照抄去查你的业务WorkDir。
+如需从一条判断出发，直接打开对应decisions/TU.jsonl，复制那条记录的fp；也可以用decisions.py列出，但它会读全量日志并列很多条，数据大时不必使用。
+
+```bash
+python3 "$OOB_REPO/oobsum/tools/decisions.py" "$OOB_WD" --label definite --emitted
+OOB_DECISION_FP='a5e49529d9fcedab'  # 仅为自有TestCase示例；实际替换为当前WorkDir那条记录的fp值
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir "$OOB_WD" "$OOB_DECISION_FP"
+```
+
+这一段只在公司查看判断/调用链，输出不带回。explain同样是只读，但目前需扫描decisions日志，全量时也可能慢；已有具体判断JSON时可直接看chain/msg等字段。
+explain也接受函数名，含义是“查询与这个函数相关的判断/链”，并非“生成这个函数摘要”。已经知道名字、只要摘要时，直接summary --function更合适，根本不需要先找fp。
+fp是判断检索标识，可能匹配多个上下文；warning里的group也是另一种查询入口。未保存的链上摘要会明确提示，而非悄悄补算。
 
 ### 第 5 步：尾数组对照（复用新 FIR，无需再次 export）
 
@@ -227,21 +296,21 @@ python3 "$OOB_REPO/oobsum/tools/scene_stats.py" --report "$OOB_WD.report.json"
 
 ### 带回模板
 
-按 §1.6 的方法抽查；业务代码、名字、路径与告警原文不要带回，只给计数和对写法的概括。
+只带计数、自有测试输出和本规则报错；业务函数名、文件名、路径、告警正文与摘要正文都留在公司。
+已经确认的盘点/两函数solve不再重复填；本次若只阅读现有摘要，填可读性与抽查即可，其它写“未重跑”。
 
 ```text
-清单版本：2026-11-03-8
-0. 空索引恢复：FIR 函数 __；无法盘点 FIR __；预检匹配 __；已保存 __；solve退出码 __；local / derived 是否可读 __；写盘提示是否有 __
-   新二进制有 status.json 时附其全文；旧二进制没有时写“无”
-1. 本地 lit __；csa 回退 __；同步 / 公司编译 __
+清单版本：2026-11-04-1
+1. 本地 lit __；csa 回退 __；同步/公司编译 __（未重跑可注明）
 2. TestCase：InlineDepth=__ decisions=__ emitted=__，告警 __
-   进度 read/analyze/propagate/decisions/write/done 是否可见 __；两种摘要是否可读 __
-3. cdb 条目 / 唯一文件 / C / C++ __；去掉输出文件选项后命令仍不同的文件 __；export 成功 / 失败 __；FIR __；目标组数 __
-4. solve Elapsed __；Maximum resident set size __；solved __；判定 __；report 成功 / 失败 __
-5. 默认与 flex-on 的 stats --counts-only 全文（含报出判定 / 物理告警两种计数）；report 输出
-6. 抽查（每个原因）：看了 __、真问题 __、误报 __、看不出 __；写法概括 __
-7. 场景统计：默认 / multi 文本；两条问题的元素大小 __、容量 __、范围 __、标签 __、看源码后的判断 __（只给抽象写法，不给名字和正文）
-8. 异常：阶段 __、退出码 __、仅本规则栈 __
+3. 本批cdb条目/唯一文件/C/C++ __；编译命令仍不同的文件 __；export成功/失败 __；FIR __；目标组数 __
+4. solve方式 A/B/C __；是否跳过Python预检 __；Elapsed __；Maximum resident set size __；solved __；判定 __
+   summary available/matched/saved/write_failures __；index_written __；summary阶段可见 __；摘要目录du/inode计数（若选C）__
+5. local/derived可直接打开 __；脚本查看 __；选C时换一个未预选函数能否直接读 __；是否有逐函数JSON大量刷屏 __
+6. report成功/失败 __；默认和flex-on的stats --counts-only全文；report计数输出
+7. 各原因抽查：看了 __、真问题 __、误报 __、看不出 __；写法概括 __
+8. 场景统计默认/multi计数；两条问题的元素大小/容量/范围/标签/判断 __（只给抽象写法）
+9. 异常：阶段 __、退出码 __、仅本规则栈 __
 ```
 
 ## 1. 这个规则是怎么跑的
@@ -250,8 +319,7 @@ python3 "$OOB_REPO/oobsum/tools/scene_stats.py" --report "$OOB_WD.report.json"
 
 每个函数**只分析一次**，得到它的摘要：它对实参的要求（例如"写 `p[0 … n]`，要求 `n < p 指向的对象大小`"）和它对外的效果（写了哪个成员、返回值的范围……）。
 在每个调用点把**实参代进**被调者的摘要：能判的就地判（越界 → DEFINITE / POSSIBLE，证明了 → SAFE）；判不了的，这条要求换成调用者的形参，变成调用者的要求，
-继续往上传——直到碰到给出缓冲区和长度的那一层。所以 3 层、5 层、20 层的链都一样处理（本地测过 20 层），告警报在"界和长度第一次同时已知"的那个调用点，
-note 里列出整条调用链。
+继续往上传——直到碰到给出缓冲区和长度的那一层。所以 3 层、5 层、20 层的链都一样处理（本地测过 20 层），默认告警定位到实际访问的sink行（SPEC-0126），证明上下文和整条调用链在消息中列出。
 
 每条判定都带标签：DEFINITE（明确越界）/ POSSIBLE（在代码给出的界下可能越界）/ SUSPECT（证明不了安全，带原因，§1.6）/ SAFE（证明了安全，默认不报）。
 所有层数的 DEFINITE / POSSIBLE 默认都报（SPEC-0122，`InlineDepth=0`）；SUSPECT 也不按层数过滤。
@@ -280,7 +348,7 @@ clang_check 按"文件 + 行 + 正文"去重后剩 3644；B 的 solve 对同一�
 * CSA：路径敏感的符号执行，从每个顶层函数往下走；遇到别的文件的函数，就把那个文件的 AST 导入进来接着走。路径数随分支和调用层数指数增长，
   靠 `max-nodes`、inline 深度截断——深的链会被截掉，这也是现有规则只覆盖 1–2 层的原因。
 * 本规则：**不做路径敏感执行**（只挂 TU 级的 `check::ASTDecl<TranslationUnitDecl>`，不跑 ExprEngine）；每个函数在 CFG 上做一次抽象解释（循环用加宽收敛）得到摘要；
-  跨文件时**不导入 AST**，只交换每个文件导出的中间表示；solve 按调用图自底向上算、在调用点代换。代价大致和代码量成正比，链多长都行。
+  跨文件时**不导入 AST**，只交换每个文件导出的中间表示；solve按调用图自底向上算、在调用点代换。没有固定深度截断，但Req数量、CFG与表达式复杂度、递归/别名精度和资源仍有限制；不能承诺所有输入线性耗时，详见§1.8。
 
 ### 1.4 选项怎么传：clang_check 不用改
 
@@ -309,8 +377,7 @@ OOBSUM_CONFIG="WorkDir=/usr1/oobsum-work/xxx Phase=export" /usr/local/bin/python
 <文件>:<行>:<列>: note: Call chain: A (a.c:10) -> B (b.c:20) -> C (c.c:30)
 ```
 
-标签在方括号里（`[OOB-DEFINITE]`、`[OOB-SUSPECT:not_in_tu]`），可以按它筛。调用链在 note 行里；clang_check 不收 note 的话报告里只有第一行，
-要看链和中间的摘要就用 §2.8。`oobsum_run.py report <report.json>` 按标签 / 原因数本规则的告警（只有数字，可以带回）。
+标签在方括号里（`[OOB-DEFINITE]`、`[OOB-SUSPECT:not_in_tu]`），可以按它筛。默认sink格式还将完整调用链写在warning主行，note是附加展开；要看已保存摘要和判断上下文可直接读JSON，或用§0第4步的只读查询。`oobsum_run.py report <report.json>` 按标签 / 原因数本规则的告警（只有数字，可以带回）。
 
 ### 1.6 SUSPECT 的原因：是什么意思、怎么判断
 
@@ -341,7 +408,7 @@ SUSPECT = 证明不了安全，**不等于有问题**；原因说明卡在哪一
 
 详见 [10-analysis-and-diagnostics.md](10-analysis-and-diagnostics.md)：
 摘要为什么有其它函数与 reps / chain；真实推理如何使用 local 事实；reported 与 emitted 的区别；
-相对于 CSA 路径执行的成本结构、没有统一加速倍数与实际限制；9秒/257MiB与这次全板20分钟/29.4GiB的含义；
+相对于 CSA 路径执行的成本结构、没有统一加速倍数与实际限制；9秒/257MiB、旧批次20分钟/29.4GiB与新批次25:07.76/45.2GiB的测量口径；
 exclusive end 和结构体元素容量换算；各类 SUSPECT 的证据边界；四类 YAML 模型与不能随便声明 pure 的原因。
 
 ## 2. 各项操作（参考；§0 的步骤都来自这里）
@@ -432,7 +499,7 @@ OOBSUM_CONFIG="WorkDir=<WorkDir> Phase=report" /usr/local/bin/python3 /usr1/clan
   本规则不走 CSA 的 inline，`ipa=none` 加不加判定相同；SPEC-0122 起迁入 core，应从 IPA_CMN_RULE_CHECKER 移除，使用 core / cmn 的默认 ipa=none。
 * solve 不加 `--run` 只打印它要执行的那条 bxen 命令。`oobsum_run.py status --workdir <WorkDir>` 看 `fir/`、`solved/`、`decisions/` 各有多少。
 * A 跑过的 WorkDir 里已经有 `fir/`（设了 WorkDir 就会写），可以跳过 export 直接 solve——但 report 会覆盖 `decisions/`，要留 A 的结果就先复制一份。
-* 磁盘：WorkDir 大约是源码大小的 10 倍（`fir/` 缩进写占大头）。全量不要加 `Dump=summary`（`dump/` 还要再大 2 倍）。
+* 磁盘：FIR/solved/摘要/日志分别计量，不能固定按源码倍数估算。只要少量摘要用--summary-function，想日后任意查看用--summary-all；它只落盘不逐函数刷屏，但每函数两份文件会增加体积/inode/写盘时间，§0第3步列出取舍。
 * cdb 里同一个文件出现多次（不同宏各编一次）：告警不受影响，判定日志 / FIR 只留最后写的那份；`oobsum_run.py cdb --cc-json <cdb 目录>` 数有多少。
 * 进程被超时杀掉：只会留下 `*.tmp`，不会有写了一半的 `.json`。
 * 不用 clang_check 时：`oobsum_run.py bxen --workdir … --bxen … --cc-json <目录> --analysis-folder <目录> --extra "…"` 打印一条 bxen 跑几个目录的三段命令（试跑用）。
@@ -463,15 +530,22 @@ python3 /usr1/oobsum-llvm/oobsum/tools/decisions.py <WorkDir> --emitted --jsonl 
 业务的分配器、拷贝封装、纯函数（07- 输入 I5 / I8 / I9）写进模型文件：复制 `oobsum/config/oob_models.example.yaml` 改，`OOBSUM_CONFIG` 里加 `ModelFile=<路径>`；
 `Dump=models` 看实际生效的表（SPEC-0033）。模型文件留在公司，不带回。
 
-### 2.8 单独跑一个文件、看一条判定的来龙去脉
+### 2.8 查看已完成结果的摘要与判断上下文
+
+按§0开头设置OOB_REPO/OOB_WD等路径；下面只读取已有产物，不需要先重新单文件分析。
+Top_A是本仓库自有函数名示范，换成自己实际保存的函数名；不用尖括号/反引号，单引号可以保留。
 
 ```bash
-rm -rf /usr1/oobsum-work/one && mkdir -p /usr1/oobsum-work/one
-/usr1/BXPlugin/cmake-build-release-release/bxen -exec_mode=onlySa -cc_json=<cdb 目录>/ -analysis_file=<那个文件> -checker=rb.enhance.core.OobSummary -extra_args="-analyzer-config ipa=none -analyzer-max-loop 3 -analyzer-config rb.enhance.core.OobSummary:WorkDir=/usr1/oobsum-work/one -analyzer-config rb.enhance.core.OobSummary:Dump=summary+apply -analyzer-config rb.enhance.core.OobSummary:DumpFilter=<函数名正则> -rbchecker-config=/usr1/clang_check/src/cfg/ini/config.ini -funcptr-config=/usr1/clang_check/src/cfg/ini/config_funcptr.ini"
-python3 /usr1/oobsum-llvm/oobsum/tools/oobsum_run.py explain --workdir /usr1/oobsum-work/one <函数名或指纹>
+OOB_SUMMARY_NAME='Top_A'
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_WD" --function "$OOB_SUMMARY_NAME" --view local
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" summary --workdir "$OOB_WD" --function "$OOB_SUMMARY_NAME" --view derived
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" explain --workdir "$OOB_WD" "$OOB_SUMMARY_NAME"
 ```
 
-`explain` 列出这条判定的调用链和链上每个函数的摘要（`Dump=summary` 跑的才有）。跨文件的判定：对 B 的 WorkDir 执行 `explain`。
+前两条直接看该函数的摘要；最后一条扫描判断日志，看相关判断和调用链，可能较慢，不是必须先做的一步。
+只要某条判断时，把对应日志记录的fp值给explain；fp不是函数名，不要把“指纹1”当真实参数。
+也可以直接用编辑器打开dump/solve/summary/index.json及其stem对应的两份JSON，打开decisions/TU.jsonl看fp/chain；脚本不生成摘要。
+未保存的函数只能在未来一次solve中选择保存，不能从solved免费恢复；全量保存/少量保存/不保存的完整命令与代价见§0第3步。
 
 ### 2.9 撤掉
 

@@ -3,9 +3,21 @@
 > 每次会话开始先读这里；每次提交一批改动后更新这里（"已完成"挪进 CHANGELOG 时可以删）。
 > 规则在 `../CLAUDE.md`，背景与决策在 `HANDOFF.md`，主规格 `06-spec.md`，增量规格 `specs/`。
 
-更新：2026-11-03 · 分支 `oobsum/dev` · 版本 v4.0
+更新：2026-11-04 · 分支 `oobsum/dev` · 版本 v4.0
 
 ## 已完成
+
+* SPEC-0130：新增Dump=summary-files，solve只保存local/derived/index/status、不逐函数打印JSON；保存期间有summary进度。
+  solve --summary-all跳过Python盘点，用匹配全部的筛选覆盖旧Filter，核对本次索引和保存计数；--skip-summary-precheck让已确认函数名的少量选择省去重复FIR解析（仍完整求解，错名在结束后发现）。
+  原summary协议保持兼容；盘点/预检开始即提示全量读取成本和手动看FIR的选择。COMPANY清单2026-11-04-1统一完整流程，名字需要时才填，解释单引号/占位符、各阶段、产物、local/derived/fp及直接打开文件。
+  两份已保存摘要不再要求重跑；全部保存是下次计划全量时的可选项，约26.8万函数会多约53.6万正文文件，磁盘/inode/写盘时间须实测。
+  构建通过（临时构建并发已还原）；lit116/116、core172、replay一致、csa回退0/TN零强告警、check-tree一致、冒烟7/7；约定31通过/1既有提示/0失败，engine_check维持14/16。
+  合成两TU验证无摘要/少量/全量的solved字节相同；移走FIR仍能只读查其它函数，两种视图均可读；部分写盘失败明确失败；新Python配旧checker的保存/跳过预检兼容。
+  下一步：等公司按统一清单阅读两份现有摘要和补齐report/尾数组/场景抽查计数；新全量保存的真实体积和耗时留到计划中的全量运行验证。
+
+* 公司2026-11-04确认SPEC-0129已恢复摘要：FIR函数268184、无法盘点0；两函数local/derived均已保存可读。
+  本次FIR/solved=10257，判断2231627（9884个TU非空），exit=0；solve命令25:07.76、峰值47346220 KiB≈45.2 GiB（含驱动预检/汇总）。
+  用户确认尖括号进入变量值导致预检失败，去掉后成功；不记录业务名字/摘要正文。已完成项进入COMPANY表，不再要求重跑空索引恢复。
 
 * SPEC-0129：修复 Dump=summary 零匹配静默空索引的可观测性；stderr 与 dump/solve/summary/status.json 提供 available / matched / saved / write_failures。
   两种视图都写成功才进入索引；写盘失败明确提示，求解标签与 solved 保持不变。

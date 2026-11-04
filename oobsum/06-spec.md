@@ -188,7 +188,7 @@ SPEC-0128 补充：warning 主行附 [scene=LVn+LVm] 的 observed_features，不
 
 * **F-40**：每个函数的摘要都有 `status`：`analyzed`、`partial:<原因>`、`skipped:<原因>`（`01-` §3.4 全函数性）。**"没分析"必须和"分析了没问题"可区分**。
 * **F-41**：记账条目带原因（§5.3 的枚举）、位置、函数、明细；`stats.json` 按原因汇总，W10 起作为补模型、补能力的依据。
-* **F-42**〔SPEC-0129 补充：summary --list 盘点 FIR；solve --summary-function 精确预检并保存；未保存的函数明确提示；由 SPEC-0123 修订：Dump=summary 在 solve 中按 DumpFilter 写 local / derived 两种摘要与函数键索引，explain 优先读真实 local 视图；是否发出告警以 report 判定日志为准〕：`oobsum.py explain <指纹 | 函数名>` 打印该告警 / 函数的逐层摘要与代换过程（用 `05-` §2.1 的记法），供误报研判。
+* **F-42**〔SPEC-0130 补充：可选择全部持久化后只读查看、已知名字可跳过预检；SPEC-0129 补充：summary --list 盘点 FIR；solve --summary-function 精确预检并保存；未保存的函数明确提示；由 SPEC-0123 修订：Dump=summary 在 solve 中按 DumpFilter 写 local / derived 两种摘要与函数键索引，explain 优先读真实 local 视图；是否发出告警以 report 判定日志为准〕：`oobsum.py explain <指纹 | 函数名>` 打印该告警 / 函数的逐层摘要与代换过程（用 `05-` §2.1 的记法），供误报研判。
 
 ---
 
@@ -221,8 +221,8 @@ SPEC-0128 补充：warning 主行附 [scene=LVn+LVm] 的 observed_features，不
 | I-18 | `MaxBlocks` | int | `5000` | 超过即 `skipped:cfg_too_large`（探针给出 P99 后再定） |
 | I-19 | `TimeLimitMs` | int | `5000` | 单函数求解时间上限，超时 `skipped:timeout` |
 | I-20 | `MaxConds` | int | `64` | 单函数 Req 上限，超出按严重度保留、其余记账 `cond_truncated` |
-| I-21 | `Dump` | string | `""` | 〔由 SPEC-0001 / SPEC-0123 / SPEC-0129 修订：summary 零匹配与写入失败明确计数、落 status.json〕调试输出以 `+` 组合：options、models、callgraph、keys、fir、state、summary、apply、decisions、stats、progress；打印到 stderr，相关产物写 WorkDir/dump |
-| I-22 | `DumpFilter` | string | `""` | 〔由 SPEC-0129 修订〕只对显示函数名匹配的函数打印调试输出（LLVM POSIX ERE）；solve --summary-function 从 FIR 精确预检、生成字面量过滤器，不改变求解范围 |
+| I-21 | `Dump` | string | `""` | 〔由 SPEC-0001 / SPEC-0123 / SPEC-0129 / SPEC-0130 修订：summary 零匹配与写入失败明确计数、落 status.json〕调试输出以 `+` 组合：options、models、callgraph、keys、fir、state、summary（stderr+落盘）、summary-files（solve只落盘）、apply、decisions、stats、progress；打印到 stderr，相关产物写 WorkDir/dump |
+| I-22 | `DumpFilter` | string | `""` | 〔由 SPEC-0129 / SPEC-0130 修订〕只对显示函数名匹配的函数打印调试输出（LLVM POSIX ERE）；solve --summary-function 从 FIR 精确预检、生成字面量过滤器，不改变求解范围；--summary-all用`.*`覆盖旧筛选并保存全部 |
 | I-23 | `Verbose` | int | `0` | `1`：每 TU 一行统计；`2`：每函数一行 |
 | I-24 | `CallTrace` | string | `full` | 摘要里 `calls[]` 调用点记录的详细程度：`full`（实参、局部区间、守卫、结局，调试用）/ `results`（只留结局）/ `none`。全量跑出来体积过大时降级 |
 | I-25 | `Emit` | string | `machine` | 摘要里写不写说明：`machine`（只写机器字段，D-30）/ `doc`（另生成 `doc`：形参名渲染的一句话、源码原文、宏值，调试与评审用；判定结果不变） |
@@ -689,7 +689,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | **N-06** | 确定性 | 同样的输入，`summaries/`、`reports.json`、告警输出逐字节相同（`stats.json` 里的耗时除外） |
 | **N-07** | 可移植 | C++14；只用 LLVM 14 的 Support / ADT / JSON / YAML 与 Clang 的 AST / Analysis / StaticAnalyzer Core；不开 RTTI、不用异常；同一份源码既能在 fork 里随 `Checkers.td` 编进 xir，也能在沙箱里编成插件（`-DOOBSUM_PLUGIN_BUILD`，探针已验证这种双构建【实测数据】）；驱动只用 Python 3.6+ 标准库 |
 | **N-08** | 编码规范 | `csa-checker-dev`：命名（checker 类内统一小驼峰、其余函数大驼峰、变量小驼峰）、`.clang-format`、单语句控制流带 `{}`、`BuiltinCheckerRegistration.h`、诊断与 td 全英文、include 不排序；每次交付跑 `check_checker_conventions.py` 无 FAIL |
-| **N-09** | 可观测 | 〔SPEC-0129 补充摘要 available / matched / saved / write_failures；SPEC-0123 补充 solve 阶段内进度快照和实时日志；计数不当作准确 ETA〕 `Verbose=1` 每 TU 一行（函数数、导出耗时）；`stats.json`：函数状态分布、Req / Eff 数分布、告警按级别与层数、账本按原因、各阶段耗时 |
+| **N-09** | 可观测 | 〔SPEC-0130 补充摘要保存阶段进度；SPEC-0129 补充摘要 available / matched / saved / write_failures；SPEC-0123 补充 solve 阶段内进度快照和实时日志；计数不当作准确 ETA〕 `Verbose=1` 每 TU 一行（函数数、导出耗时）；`stats.json`：函数状态分布、Req / Eff 数分布、告警按级别与层数、账本按原因、各阶段耗时 |
 | **N-10** | 产物内容 | 〔SPEC-0125：允许有界的规范化访问表达式、类型、步长与位置；不复制源码行或字符串字面量内容〕 FIR 与摘要只含名字、类型布局、位置与抽象值，**不含源码文本** |
 
 ---
