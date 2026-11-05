@@ -9,7 +9,7 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-04-1**（统一为一套完整流程，去掉“空索引优先恢复”；说明计算/保存/读取各自做什么，盘点可选，新增一次保存全部摘要与跳过预检。已完成的两函数solve无需重跑；全量保存留到下一次计划中的全量运行选择验证。）
+**清单版本：2026-11-05-1**（修复member-arg.test对两条日志先后顺序的依赖；第1步先单测-sv，再完整lit并保存失败详情。本次仅改测试与文档，已有业务export/solve/report和两份摘要无需因此重跑；此前未完成步骤照常保留。）
 
 开头只设置路径变量。函数名等第3步需要选择保存范围时再设置；看已保存摘要时也可在第4步再设置。
 OOB_WD是WorkDir根（含fir/、solved/、dump/），OOB_REPORT是报告JSON文件，不能是log目录；路径只在这里修改。
@@ -25,6 +25,7 @@ OOB_REPORT=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/a
 OOB_WD=/usr1/oobsum-work/full-b-20261103
 OOB_INI=/usr1/clang_check/src/cfg/ini/config.ini
 OOB_FUNCPTR=/usr1/clang_check/src/cfg/ini/config_funcptr.ini
+OOB_LIT_LOG=$OOB_REPO/cmake-build-release/oobsum-company-lit.log
 ```
 
 ### 已经做完、确认没问题的
@@ -50,11 +51,29 @@ OOB_FUNCPTR=/usr1/clang_check/src/cfg/ini/config_funcptr.ini
 
 ### 第 1 步：更新、同步、编译和改规则配置
 
+这次带回lit为115通过/1失败，失败member-arg.test。-s只给失败名称，尚不能确定公司失败的具体断言。
+本地复制同一自有源码到12个路径，6个路径复现DUP第二条匹配失败；再用VFS映射你提供的公司GitClone路径也复现了该断言失败：指纹随static文件键变化，两条JSON次序改变，但判定和dup_of关系均正确。
+本提交保留原告警/摘要断言，将两条日志改为按字段和引用关系核验，并增加反序通过、损坏引用/漏日志/多日志/错误标签或报出状态必须失败的对照。
+先在当前仓库更新测试并定向重跑；本次不改checker，不要求为了这个修复重新同步编译BXPlugin或重跑业务全量。
+
 ```bash
 cd "$OOB_REPO" && git pull
 ninja -C "$OOB_REPO/cmake-build-release" clang
-"$OOB_REPO/cmake-build-release/bin/llvm-lit" -s "$OOB_REPO/cmake-build-release/tools/clang/test/Analysis/oobsum"
+"$OOB_REPO/cmake-build-release/bin/llvm-lit" -sv "$OOB_REPO/cmake-build-release/tools/clang/test/Analysis/oobsum/member-arg.test"
+"$OOB_REPO/cmake-build-release/bin/llvm-lit" -sv "$OOB_REPO/cmake-build-release/tools/clang/test/Analysis/oobsum" > "$OOB_LIT_LOG" 2>&1
+OOB_LIT_EXIT=$?
+cat "$OOB_LIT_LOG"
+test "$OOB_LIT_EXIT" -eq 0
 python3 "$OOB_REPO/oobsum/cases/run.py" csa
+```
+
+预期：member-arg.test通过1项、全部lit通过116项、csa回退0。若仍有失败，停下，把OOB_LIT_LOG中的失败段原样贴回（含RUN、Python断言或FileCheck的expected/input）；都是仓库自有用例，可带回，不需要业务数据。
+member-arg.test执行到第二组RUN后会在其Output目录保留member-arg.test.tmp.decisions.log，即原始Dump=decisions，便于核对两条Entry_Msg日志。
+若实际失败在其它断言/编译错误，按该输出继续诊断，不能认定已被本次修复覆盖。已通过则只带回单测/全量通过数即可。
+
+下面同步/公司编译与规则配置是此前完整流程的余项；已经做过无需因本次测试改动重复。
+
+```bash
 python3 "$OOB_REPO/oobsum/devenv/land.py" --drop "$OOB_REPO/oobsum/landing/OobSummaryChecker.manifest" --into bxplugin --root "$OOB_ROOT" --apply
 make -C "$OOB_BUILD" -j16
 mkdir -p "$(dirname "$OOB_GBL")"
@@ -300,8 +319,9 @@ python3 "$OOB_REPO/oobsum/tools/scene_stats.py" --report "$OOB_WD.report.json"
 已经确认的盘点/两函数solve不再重复填；本次若只阅读现有摘要，填可读性与抽查即可，其它写“未重跑”。
 
 ```text
-清单版本：2026-11-04-1
-1. 本地 lit __；csa 回退 __；同步/公司编译 __（未重跑可注明）
+清单版本：2026-11-05-1
+1. git log -1提交号 __；member-arg单测 __；全部lit通过/失败 __；csa回退 __；同步/公司编译 __（本次测试修复未重跑可注明）
+   若失败：附OOB_LIT_LOG中的完整失败段（本自有用例，不贴业务数据）
 2. TestCase：InlineDepth=__ decisions=__ emitted=__，告警 __
 3. 本批cdb条目/唯一文件/C/C++ __；编译命令仍不同的文件 __；export成功/失败 __；FIR __；目标组数 __
 4. solve方式 A/B/C __；是否跳过Python预检 __；Elapsed __；Maximum resident set size __；solved __；判定 __

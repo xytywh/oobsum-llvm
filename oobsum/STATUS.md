@@ -3,9 +3,16 @@
 > 每次会话开始先读这里；每次提交一批改动后更新这里（"已完成"挪进 CHANGELOG 时可以删）。
 > 规则在 `../CLAUDE.md`，背景与决策在 `HANDOFF.md`，主规格 `06-spec.md`，增量规格 `specs/`。
 
-更新：2026-11-04 · 分支 `oobsum/dev` · 版本 v4.0
+更新：2026-11-05 · 分支 `oobsum/dev` · 版本 v4.0
 
 ## 已完成
+
+* SPEC-0131：公司2026-11-05带回lit115通过/1失败（member-arg.test），尚无-sv具体失败段。
+  本地原路径通过；同一自有源码复制到12个绝对路径，原DUP顺序断言在其中6个路径失败；VFS模拟用户提供的公司GitClone路径，也在DUP第二条复现。
+  static访问函数键含路径哈希，改变指纹及同位置日志排序；两条SUSPECT的报出状态与dup_of关联正确。改为解析JSON核验恰好两条、标签/原因/报出状态/同一访问及dup_of引用，不改checker、指纹或日志顺序。
+  原告警/摘要/数量断言保留；反序日志通过，损坏引用/丢失/重复/错误标签/报出状态均拒绝。12路径及VFS新核验全过，原始Dump保存供诊断。
+  构建通过；lit116/116、core172、replay一致、csa回退0/TN零强告警、check-tree一致；约定31通过/1既有提示/0失败，engine_check维持14/16。
+  COMPANY清单2026-11-05-1第1步提供定向-sv与全量lit落盘，保留此前待验证项；无需为本次测试修复重跑业务全量。下一步等公司重跑确认，若实际失败不在该断言，需-sv输出继续诊断。
 
 * SPEC-0130：新增Dump=summary-files，solve只保存local/derived/index/status、不逐函数打印JSON；保存期间有summary进度。
   solve --summary-all跳过Python盘点，用匹配全部的筛选覆盖旧Filter，核对本次索引和保存计数；--skip-summary-precheck让已确认函数名的少量选择省去重复FIR解析（仍完整求解，错名在结束后发现）。

@@ -33,6 +33,7 @@
 
 | 编号 | 标题 | 状态 |
 |---|---|---|
+| [SPEC-0131](SPEC-0131-member-log-order.md) | 成员实参日志按字段/引用核验，消除仓库路径引起的顺序假失败 | 已实现 |
 | [SPEC-0130](SPEC-0130-summary-retention.md) | 全部摘要只落盘、跳过重复盘点、统一计算/保存/读取流程 | 已实现 |
 | [SPEC-0129](SPEC-0129-summary-selection.md) | 摘要零匹配计数、FIR 函数盘点、精确选择与查看 | 已实现 |
 | [SPEC-0128](SPEC-0128-scenes-and-review-guide.md) | 场景证据标签、argparse 计数脚本与专家复核说明 | 已实现 |

@@ -20,12 +20,12 @@ CHECK: member_arg.c:55:1: warning: [OOB-SUSPECT:type_range_only] Cannot prove th
 CHECK-NOT: member_arg.c:55:1: warning: [OOB-
 
 # 判定日志里两条都在：外层那条 dup_of 指向报出的那条，不报的原因 duplicate_access；第一条被 SuspectReasons 滤掉时外层那条照常报
+# SPEC-0131：不同仓库路径会改变static函数键与指纹，日志次序不可假定已报出在前。按JSON关系核验，并留存原始dump。
 # RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:Dump=decisions \
-# RUN:   %S/Inputs/member/member_arg.c 2>&1 | grep 'Entry_Msg' | FileCheck %s --check-prefix=DUP
+# RUN:   %S/Inputs/member/member_arg.c > %t.decisions.log 2>&1
+# RUN: %python %S/Inputs/member/check_log.py %t.decisions.log --self-test
 # RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
 # RUN:   -analyzer-config rb.enhance.core.OobSummary:InlineDepth=0 -analyzer-config rb.enhance.core.OobSummary:SuspectReasons=entry_unproven \
 # RUN:   %S/Inputs/member/member_arg.c 2>&1 | FileCheck %s --check-prefix=PICKY
-DUP: [oobsum:decisions] {{.*}}"emitted":true,"end":{{.*}}"fp":"[[FP:[0-9a-f]+]]"{{.*}}"obj":"p0->aucBody"{{.*}}"reason":"type_range_only"
-DUP: [oobsum:decisions] {{.*}}"bound":{{.*}}"dup_of":"[[FP]]","eff_depth":0,"emitted":false,{{.*}}"not_emitted_because":"duplicate_access","obj":"*p0"{{.*}}"reason":"entry_unproven"
 PICKY: member_arg.c:55:1: warning: [OOB-SUSPECT:entry_unproven] Cannot prove the write through a 1-level call chain stays within '*pstMsg'
