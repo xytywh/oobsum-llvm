@@ -9,7 +9,7 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-10-2**
+**清单版本：2026-11-10-3**
 
 本节是一轮完整验证的执行流程。每步按“目的 → 命令 → 正确预期 → 异常时保留与反馈”执行；遇到异常停在该步，不继续后续分析。
 历史数据只作比较，本轮从第1步开始，用新的WorkDir保存本轮结果。重复运行核对时，每轮保留完整WorkDir与报告副本、提交号及选项概括，不能只留最终告警总数。第9步尾数组对照另有一次solve/report；第5步A/B/C只选一种，不要三种都跑。
@@ -29,12 +29,14 @@ OOB_GBL=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/gbl_conf
 OOB_REPORT=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/allfiles-buffer_overflow_report.json
 OOB_INI=/usr1/clang_check/src/cfg/ini/config.ini
 OOB_FUNCPTR=/usr1/clang_check/src/cfg/ini/config_funcptr.ini
-OOB_RUN_TAG=20261110-r2
+OOB_RUN_TAG=20261110-r3
 OOB_WD=/usr1/oobsum-work/full-b-$OOB_RUN_TAG
 OOB_LOG=$OOB_WD/validation
 OOB_TC_WD=$OOB_WD/testcase
 OOB_REPORT_COPY=$OOB_WD/report.json
 OOB_COMPARE=$OOB_WD.flex-on
+OOB_COMPARE_LEFT=/usr1/oobsum-work/full-b-run-a
+OOB_COMPARE_RIGHT=/usr1/oobsum-work/full-b-run-b
 set -o pipefail
 if [ -e "$OOB_WD" ] || [ -e "$OOB_COMPARE" ]; then
     printf 'WorkDir已存在，请更换OOB_RUN_TAG；保留旧目录。
@@ -55,7 +57,7 @@ fi
 
 | 项目 | 已确认结果（不替代本轮预期） |
 |---|---|
-| 公司完整lit | 2026-11-05公司确认更新后通过；当前套件预期118项 |
+| 公司完整lit | 2026-11-05公司确认更新后通过；当前套件预期119项 |
 | C++健壮性验证 | Release/Debug均exit=0，无断言；242条判定/222报出 |
 | IPA对照 | 自有TestCase加/不加ipa=none结果一致；本轮统一显式ipa=none |
 | 历史全板cdb | 10686条、10262个文件、261个文件多次出现；C6689、C++3573 |
@@ -82,7 +84,7 @@ OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
 printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/01-local-checks.exit"
 ```
 
-**正确预期：** 分支oobsum/dev；构建成功；lit通过118项；replay为0处不一致；csa回退0、TN强告警0；check-tree一致。
+**正确预期：** 分支oobsum/dev；构建成功；lit通过119项；replay为0处不一致；csa回退0、TN强告警0；check-tree一致。
 **异常时：** 保留01-local-checks.log/.exit及对应lit Output目录。反馈提交号、失败测试名和完整RUN/expected/input或Python断言段；这些是自有用例，可原样带回。分支不符、拉取冲突或构建错误也停在此步处理。
 
 ### 第2步：同步到BXPlugin、编译并核对规则配置
@@ -410,7 +412,28 @@ printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATU
 在公司核对候选确实符合末尾数组的分配约定；已知实际分配很小的真问题也可能被该约定过滤，不能据此宣布安全。
 **异常时：** 保留两套WorkDir、报告副本、09日志/.exit、两份stats --counts-only；反馈总数/标签/各过滤原因计数及抽象差异。原始标签改变、普通非候选访问意外消失或任务失败时停下，不覆盖基线重跑。
 
-### 第10步：保存本轮结果并反馈
+### 第10步：同配置多轮一致性对比
+
+**目的：** 复用公司已保留的两轮结果，查差异最早出现于FIR、solved、decisions还是最终报告。先比较已有数据，不为此立即重复跑两次全量；若旧数据被同目录覆盖，则无法反推旧轮，只能重新保留两轮独立快照。
+选取同一机器/源码绝对路径、同一版本/cdb/模型/选项的两轮；不要把第9步flex-on和默认值的有意差异当作不稳定。工具不能自动证明这些前提相同。
+在开头路径区填写两轮OOB_COMPARE_LEFT/RIGHT；默认报告为各目录report.json，旧报告保存在别处时加--report-left/--report-right的实际文件路径。只有一轮或旧数据被覆盖时，本步先记“缺对照未执行”，不要拿不存在的示例目录运行。
+
+```bash
+python3 "$OOB_REPO/oobsum/tools/compare_runs.py" "$OOB_COMPARE_LEFT" "$OOB_COMPARE_RIGHT" --json > "$OOB_LOG/10-comparison.json" 2> "$OOB_LOG/10-comparison.progress"
+OOB_COMPARISON_EXIT=$?
+printf 'compare_exit=%s\n' "$OOB_COMPARISON_EXIT" | tee "$OOB_LOG/10-comparison.exit"
+cat "$OOB_LOG/10-comparison.json"
+```
+
+**正确预期：** 完整同输入结果退出0，complete/equal均true，各目录added/removed/changed均0，report的same_warning_records=true。
+退出1表示发现变化，退出2表示缺阶段或未完成/冲突输入；两者都需保留证据并反馈，不是成功。进度只输出阶段名，默认结果只含计数，可带回。
+只完成export的两轮，可在同一命令加--through export；只到solve则用--through solve。这样不必为了定位FIR差异继续做25分钟求解。
+报告按本规则记录的多重集合比较，忽略数组排列、保留重复次数；only_md5_differs=true表示位置/正文等字段相同、只md5变化，不是主告警字段变化。without_md5保留其它所有字段，不能据此认定漏洞真伪。
+FIR等按字节摘要比较，不解析整个大FIR；差异也可能是格式/版本/编号变化，不能只凭哈希判定源码逻辑变化。FIR相同而solved变要核对模型/选项/版本，decisions变核对报告策略，仅report变再查收集器/文本。
+如需在公司定位具体记录，可加--details-json "$OOB_LOG/10-local-details.json"；其中含本地文件列表/报告记录索引与md5，留在公司，不带回。大报告仍需解析，会占用额外时间和内存。
+**异常时：** 保留两个原WorkDir/报告、10-comparison结果与进度；反馈退出码、first_change、各阶段计数、guard状态及是否only_md5_differs。缺少阶段不能把两个空集合说成一致；原告警正文及详细索引留在公司。
+
+### 第11步：保存本轮结果并反馈
 
 **正确预期：** OOB_LOG有各阶段.log/.exit、progress及摘要计数快照；基线/对照报告分别保留；能够把告警映射到判断和摘要。
 如选C且要比较存储成本，可在公司执行：
@@ -424,7 +447,7 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 任一步异常，不必等整轮完成：保留该步日志/.exit与关联产物，填下面模板已完成的部分，未执行处写“未执行”，立即反馈。只有自有测试的错误可原样贴；业务阶段日志/数据仅在公司留存，带回计数和脱敏概括。
 
 ```text
-清单版本：2026-11-10-2
+清单版本：2026-11-10-3
 停止/完成步骤 __；提交号 __；各步骤command_exit/log_exit __
 稳定性输入概括：每轮是否新WorkDir __；cdb重复文件/不同编译命令文件数 __；不同宏/ABI是否代表不同产品配置 __；源码/选项/模型是否固定 __
 重复差异：总数或仅顺序/附加note/主warning变化 __；各轮WorkDir与报告是否已在公司留存 __
@@ -441,7 +464,8 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
    附基线stats --counts-only与report统计（只有计数）
 8. 告警格式核对 __；场景默认/multi计数 __；各原因抽查 真问题/误报/看不出 __；抽象写法概括 __
 9. flex-on solve/report退出码 __；附对照stats --counts-only和report统计；与基线差异 __
-10. 摘要保存体积/文件数（若测量）__
+10. 一致性比较退出码 __；complete/equal/first_change __；附默认计数JSON（不附details）
+11. 摘要保存体积/文件数（若测量）__
 异常：步骤 __；错误类别 __；退出码 __；progress/摘要状态纯计数 __；仅本规则的非业务栈 __
 自有测试异常：附完整失败段；业务内容：不附源码/文件名/函数名/告警正文/原始JSON
 ```

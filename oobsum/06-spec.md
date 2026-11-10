@@ -687,7 +687,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | **N-03** | solve | 单函数中位数 ≤ 2 ms、P99 ≤ 100 ms；全量单线程 ≤ 1 小时；峰值内存 ≤ 64 GB（47 核 / 251 GB 机器）。实测超标先降级 X-07 / 并行 |
 | **N-04** | 全量总耗时 / 内存 | 数值由你定（`00-` §7 的空格，`07-` 输入 I10） |
 | **N-05** | 健壮性 | 在全量 cdb 上**不得让 bxen 崩溃**；单个函数 / TU 的失败只影响它自己（A-96） |
-| **N-06** | 确定性 | 同样的输入，`summaries/`、`reports.json`、告警输出逐字节相同（`stats.json` 里的耗时除外） |
+| **N-06** | 确定性 | 〔SPEC-0134提供分阶段产物比较；忽略报告数组顺序、保留记录重复次数，md5变化单列，不将缺失阶段当一致〕 同样的输入，`summaries/`、`reports.json`、告警输出逐字节相同（`stats.json` 里的耗时除外） |
 | **N-07** | 可移植 | C++14；只用 LLVM 14 的 Support / ADT / JSON / YAML 与 Clang 的 AST / Analysis / StaticAnalyzer Core；不开 RTTI、不用异常；同一份源码既能在 fork 里随 `Checkers.td` 编进 xir，也能在沙箱里编成插件（`-DOOBSUM_PLUGIN_BUILD`，探针已验证这种双构建【实测数据】）；驱动只用 Python 3.6+ 标准库 |
 | **N-08** | 编码规范 | `csa-checker-dev`：命名（checker 类内统一小驼峰、其余函数大驼峰、变量小驼峰）、`.clang-format`、单语句控制流带 `{}`、`BuiltinCheckerRegistration.h`、诊断与 td 全英文、include 不排序；每次交付跑 `check_checker_conventions.py` 无 FAIL |
 | **N-09** | 可观测 | 〔SPEC-0130 补充摘要保存阶段进度；SPEC-0129 补充摘要 available / matched / saved / write_failures；SPEC-0123 补充 solve 阶段内进度快照和实时日志；计数不当作准确 ETA〕 `Verbose=1` 每 TU 一行（函数数、导出耗时）；`stats.json`：函数状态分布、Req / Eff 数分布、告警按级别与层数、账本按原因、各阶段耗时 |

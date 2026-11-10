@@ -1,0 +1,3 @@
+# SPEC-0134：相同集合不同顺序、md5元数据、各阶段差异、重复次数、缺失/未完成输入。
+# RUN: rm -rf %t
+# RUN: %python %S/Inputs/compare-runs.py %S/../../../../oobsum/tools/compare_runs.py %t

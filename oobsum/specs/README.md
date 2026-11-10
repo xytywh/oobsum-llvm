@@ -33,6 +33,7 @@
 
 | 编号 | 标题 | 状态 |
 |---|---|---|
+| [SPEC-0134](SPEC-0134-compare-runs.md) | 分阶段内容比较、报告多重集合与md5差异，默认只计数 | 已实现 |
 | [SPEC-0133](SPEC-0133-fir-input-conflicts.md) | 不可覆盖发布FIR、冲突留证及solve/report阶段门禁 | 已实现 |
 | [SPEC-0132](SPEC-0132-report-note-stability.md) | 分配note唯一定位、消除指针哈希迭代造成的文本随机性 | 已实现 |
 | [SPEC-0131](SPEC-0131-member-log-order.md) | 成员实参日志按字段/引用核验，消除仓库路径引起的顺序假失败 | 已实现 |
