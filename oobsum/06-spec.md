@@ -331,7 +331,7 @@ WorkDir/
 | D-02 | 内部链接函数（`static`） | `F@<定义文件 id>:<名字>`；定义在头文件里的再加 `#<FIR 哈希前 8 位>`〔SPEC-0003：S2 先不加；由 SPEC-0059 补上：规范文本的哈希〕 | `F@3fa1…:Ue_Fill`、`F@9c02…:Pub_Min#a1b2c3d4` |
 | D-03 | 外部链接全局 | `G:<名字>` | `G:g_astCellCtx` |
 | D-04 | 内部链接全局 / 函数内 `static` | `G@<定义文件 id>:<名字>` / `S@<函数键>:<名字>` | |
-| D-05 | 文件 id、TU id | 规范化绝对路径（`make_absolute` + `remove_dots`）的 xxHash64，16 位小写十六进制 | 探针已按此实现【实测数据】 |
+| D-05 | 文件 id、TU id | 规范化绝对路径（`make_absolute` + `remove_dots`）的 xxHash64，16 位小写十六进制；SPEC-0133保持身份不变，FIR内容冲突需显式拒绝而非覆盖 | 探针已按此实现【实测数据】 |
 | D-06 | 位置 | `[文件, 行, 列]`，取宏展开位置；JSON 里文件写路径，FIR 内部用下标 | |
 
 * **D-07 同名外部函数有多个定义**（同一个 cdb 里有多个产品 / 二进制）：调用方解析时取**与调用方 TU 公共目录前缀最长**的那个定义；
@@ -664,9 +664,9 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 
 | 编号 | 阶段 | 规格 |
 |---|---|---|
-| **X-01** | export | 每个 TU 导出主文件与头文件里所有有函数体的函数、所有全局声明 / 定义（带类型与大小）、用到的记录类型、目标信息；写 `fir/<tu>.json`（紧凑 JSON，先写 `.tmp` 再改名〔由 SPEC-0114 / SPEC-0118 修订：缩进写；临时文件 `<路径>.<进程号>.tmp`〕）。重跑覆盖，幂等 |
+| **X-01** | export | 每个 TU 导出主文件与头文件里所有有函数体的函数、所有全局声明 / 定义（带类型与大小）、用到的记录类型、目标信息；写 `fir/<tu>.json`（紧凑 JSON，先写 `.tmp` 再改名〔由 SPEC-0114 / SPEC-0118 修订：缩进写；临时文件 `<路径>.<进程号>.tmp`〕）。〔SPEC-0133修订：同内容幂等，不同内容不可覆盖；唯一候选硬链接发布，冲突/未完成输入阻止solve/report〕 |
 | **X-02** | export | 不做任何求解，不发告警；只挂 `ASTDecl<TranslationUnitDecl>`（D11），因此**不触发 ExprEngine** |
-| **X-03** | solve | 〔SPEC-0124：先按目标三元组、ptr、long、端序分组，组间不共享定义和大小表〕 读 `fir/` 下全部文件（单进程）；按 §6.8 求解；写 `summaries/`、`decisions/`、`reports.json`、`ledger.jsonl`、`stats.json`。缺文件 / 坏文件跳过并记日志 〔由 SPEC-0029 修订：本步写 `solved/<tu>.json`，判定日志在 report 阶段写〕 |
+| **X-03** | solve | 〔SPEC-0133先校验FIR冲突/未完成候选；SPEC-0124：先按目标三元组、ptr、long、端序分组，组间不共享定义和大小表〕 读 `fir/` 下全部文件（单进程）；按 §6.8 求解；写 `summaries/`、`decisions/`、`reports.json`、`ledger.jsonl`、`stats.json`。缺文件 / 坏文件跳过并记日志 〔由 SPEC-0029 修订：本步写 `solved/<tu>.json`，判定日志在 report 阶段写〕 |
 | **X-04** | solve 的宿主 | **默认**：驱动生成一个桩 TU（`solve_stub/stub.c` 与只含它的 `compile_commands.json`），用 bxen 跑 `Phase=solve`，checker 在桩 TU 的回调里完成求解——**不需要在 BXPlugin 里新增可执行目标**。**可选**：独立命令 `oobsum-solve`（只链接 LLVM Support 与 `core/`），需要在 BXPlugin 的 CMake 里加一个可执行目标（`07-` 输入 I1） |
 | **X-05** | report | 驱动从原 cdb 里**原样复制**出 `decisions/` 里出现的 TU 的条目，组成 `report_cdb/compile_commands.json`，bxen 全量模式跑 `Phase=report`。原样复制保证两个阶段算出的 TU id 一致（同一 bxen、同样的 `directory` / `file`） |
 | **X-06** | inline | 默认模式：本 TU 内 export → solve → report 一次做完，不读写 `WorkDir`（设置了 `WorkDir` 时额外写一份 `fir/`，方便对照） |

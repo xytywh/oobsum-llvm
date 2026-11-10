@@ -14,6 +14,13 @@
 
 ## 已完成
 
+* T2 / SPEC-0133：FIR以唯一完整候选+不可覆盖硬链接发布；相同内容幂等，不同内容先持久化冲突目录，再保留两个快照，原canonical不被替换。
+  导出标记inputs-pending；solve扫描冲突/遗留候选，成功写全solved才清除pending；report常数次检查标记，拒绝旧solved。Dump=inputs与dump/inputs.json可诊断，异常原生返回非0。
+  正反顺序/真实并发CAP=8/32均保留同样证据并拒绝分析；各自合法域仍DEFINITE/SAFE，重复相同导出正常。合法symlink、错误/不完整候选、空冲突目录等core测试通过。
+  构建通过；lit118/118、core187、replay一致、csa回退0/TN强告警0、check-tree28源/29头；约定31通过/1既有提示/0失败。原指纹与正常TuId不变，不改金标准。
+  COMPANY清单2026-11-10-2要求新WorkDir/同版本/阶段串行。此保护不支持多个产品配置一起求解，也不能恢复旧版本已覆盖的变体；公司需核对cdb配置归属，不能挑一个winner或删证据后继续。
+  T3继续提供分阶段对比以确定公司实际差异出现在哪层；不同源文件的重复外部符号解析等边界仍待T4列明，不宣布全部差异已经解释。
+
 * T1 / SPEC-0132：Reporter分配note不再依赖FileEntry指针哈希首项；完整路径精确定位、basename只在唯一候选时定位，多候选不猜。
   原warning/判断保持；Dump=diagnostics按函数筛选，独立落allocation-notes.jsonl（状态/候选数/已解析位置），不改decision schema。
   固定FIR多次report、同名空头文件开关、完整/缺失路径、调试开关及过滤对照通过；各次原输出落盘。构建通过、lit117/117、replay一致、csa回退0/TN强告警0、check-tree一致；约定31通过/1既有提示/0失败。

@@ -4,9 +4,9 @@
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:WorkDir=%t \
 // RUN:   -analyzer-config rb.enhance.core.OobSummary:Dump=apply+stats %s 2>&1 | FileCheck %s
 // RUN: cat %t/decisions/*.jsonl | FileCheck %s --check-prefix=LOG
-// Phase=export 不跑引擎、不报（SPEC-0028；没设 WorkDir 时只提示一行）
-// RUN: %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
-// RUN:   -analyzer-config rb.enhance.core.OobSummary:Phase=export %s 2>&1 | FileCheck %s --check-prefix=EXPORT --allow-empty
+// Phase=export不跑引擎、不报OOB（SPEC-0028）；SPEC-0133：没设WorkDir须报错，不能把未导出当成功。
+// RUN: not %clang_analyze_cc1 -analyzer-config rb.enhance.core.OobSummary:DiagnosticStyle=legacy -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true -triple armebv7-linux-gnueabi -fno-signed-char -analyzer-checker=rb.enhance.core.OobSummary \
+// RUN:   -analyzer-config rb.enhance.core.OobSummary:Phase=export %s 2>&1 | FileCheck %s --check-prefix=EXPORT
 
 typedef unsigned char UINT8;
 typedef unsigned int UINT32;
@@ -68,5 +68,5 @@ void Entry(UINT8 *pucIn)
 // LOG-DAG: "emitted":false,{{.*}}"fn":"F:Top_TN",{{.*}}"label":"safe",{{.*}}"not_emitted_because":"safe",{{.*}}"reason":"within"
 // LOG-DAG: "emitted":true,{{.*}}"label":"suspect",{{.*}}"reason":"not_in_tu"
 
-// EXPORT: [oobsum] warning: Phase=export needs WorkDir; nothing written
+// EXPORT: error: OobSummary FIR export failed: FIR export needs WorkDir and a consistent TU identity
 // EXPORT-NOT: [OOB-

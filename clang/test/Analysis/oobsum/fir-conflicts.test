@@ -1,0 +1,3 @@
+# SPEC-0133 / X-01、N-06：相同FIR幂等；同Tu不同变体不得静默覆盖或读取旧solved。
+# RUN: rm -rf %t
+# RUN: %python %S/Inputs/fir-conflicts/check.py %clang %S/Inputs/fir-conflicts/variant.c %t

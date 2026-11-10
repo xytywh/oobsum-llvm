@@ -9,7 +9,7 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-10-1**
+**清单版本：2026-11-10-2**
 
 本节是一轮完整验证的执行流程。每步按“目的 → 命令 → 正确预期 → 异常时保留与反馈”执行；遇到异常停在该步，不继续后续分析。
 历史数据只作比较，本轮从第1步开始，用新的WorkDir保存本轮结果。重复运行核对时，每轮保留完整WorkDir与报告副本、提交号及选项概括，不能只留最终告警总数。第9步尾数组对照另有一次solve/report；第5步A/B/C只选一种，不要三种都跑。
@@ -29,7 +29,7 @@ OOB_GBL=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/gbl_conf
 OOB_REPORT=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/allfiles-buffer_overflow_report.json
 OOB_INI=/usr1/clang_check/src/cfg/ini/config.ini
 OOB_FUNCPTR=/usr1/clang_check/src/cfg/ini/config_funcptr.ini
-OOB_RUN_TAG=20261110-r1
+OOB_RUN_TAG=20261110-r2
 OOB_WD=/usr1/oobsum-work/full-b-$OOB_RUN_TAG
 OOB_LOG=$OOB_WD/validation
 OOB_TC_WD=$OOB_WD/testcase
@@ -55,7 +55,7 @@ fi
 
 | 项目 | 已确认结果（不替代本轮预期） |
 |---|---|
-| 公司完整lit | 2026-11-05公司确认更新后通过；当前套件预期117项 |
+| 公司完整lit | 2026-11-05公司确认更新后通过；当前套件预期118项 |
 | C++健壮性验证 | Release/Debug均exit=0，无断言；242条判定/222报出 |
 | IPA对照 | 自有TestCase加/不加ipa=none结果一致；本轮统一显式ipa=none |
 | 历史全板cdb | 10686条、10262个文件、261个文件多次出现；C6689、C++3573 |
@@ -82,7 +82,7 @@ OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
 printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/01-local-checks.exit"
 ```
 
-**正确预期：** 分支oobsum/dev；构建成功；lit通过117项；replay为0处不一致；csa回退0、TN强告警0；check-tree一致。
+**正确预期：** 分支oobsum/dev；构建成功；lit通过118项；replay为0处不一致；csa回退0、TN强告警0；check-tree一致。
 **异常时：** 保留01-local-checks.log/.exit及对应lit Output目录。反馈提交号、失败测试名和完整RUN/expected/input或Python断言段；这些是自有用例，可原样带回。分支不符、拉取冲突或构建错误也停在此步处理。
 
 ### 第2步：同步到BXPlugin、编译并核对规则配置
@@ -146,6 +146,10 @@ printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATU
 
 **export正确预期：** fir/逐渐增加，每个成功TU一个JSON，内含target、funcs、类型与指令。新目录下solved/decisions尚无业务结果。有效输入应全部成功，FIR数量应与有效唯一文件数相符；不能把success/failed条目数直接当唯一文件数。
 主业务目标应为预期的aarch64_be ILP32（ptr=4、long=4、大端）；已确认的其它目标可以存在，solve会分组。可直接打开一个FIR检查target；FIR不是函数摘要。
+**输入完整性预期：** 同一Tu重复产生相同FIR允许幂等；若内容不同，export报错误，原canonical不被覆盖，两个内容版本保存在fir-conflicts/Tu/，并阻止后续solve/report。inputs-pending表示FIR已重新导出，尚需成功solve；不表示已完成判断。
+该检查只覆盖同Tu冲突，不是多个产品/配置的自动解析。不同FIR也可能来自源码/选项或降级输出差异，不能只凭内容哈希就认定公司改了宏。
+若出现冲突，保留整个WorkDir及fir-conflicts，先在公司核对对应cdb条目属于哪个真实构建目标；不同程序/配置应分别使用匹配的cdb和新WorkDir。不能删除冲突目录或固定挑一个版本以求通过。
+所有导出进程必须统一版本，export全部成功且结束后再solve；不支持不同阶段重叠或新旧版本混写。补丁不能找回旧运行已被覆盖的版本，验证保护需从新WorkDir重新export。文件系统不支持同目录硬链接时明确失败，不退回覆盖写法。
 **异常时：** 保留04-cdb、04-export日志/.exit、clang_check原始任务日志及本轮fir/。若failed非0、缺TU、目标意外或异常退出，先停下；反馈条目/唯一文件/FIR/失败数、目标分布与错误类别概括。具体业务文件、命令和编译错误正文留在公司核查；不能把程序exit=0当成全部文件成功。
 
 ### 第5步：完整solve，并选择摘要保存范围
@@ -197,6 +201,7 @@ printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATU
 ```
 
 **正确预期：** command_exit/log_exit均0；最终progress为done；solved文件数等于本轮FIR数（含判断为空的TU），终端给出判断总数和非空TU数。
+正常solve还应清除inputs-pending；若检测到fir-conflicts或遗留*.tmp，会写failed并非0退出，不生成新的分析结果。Dump=inputs可输出输入状态，持久化在dump/inputs.json。report只做常数次标记检查，不为每个TU重扫全部FIR。
 B/C应确认摘要保存成功：write_failures=0、index_written=true，索引非空；B有预选函数的两种视图，C为available=matched=saved。A不产生新摘要索引是正常选择。
 
 ```bash
@@ -328,6 +333,7 @@ printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATU
 **正确预期：** report命令退出0、有效输入全部成功；生成本轮报告JSON与decisions日志，工具能读出标签/原因统计，没有缺solved或多warning粘连提示。
 solved是未应用报告策略的判断；decisions含报出/未报出及原因；统计中的“报出判断”可大于同sink行合并后的“物理告警”，report.json还可能有收集去重，不能将这些计数直接当成同一口径。
 **异常时：** 保留07-report/07-stats日志/.exit、clang_check任务日志、solved/decisions和本轮报告JSON。复制检查不通过时先核对OOB_REPORT/log_path，不能用cp -r复制整个log目录冒充JSON。
+inputs-pending或fir-conflicts存在时report会报错误，不读取旧solved；report阶段的inputs状态为快速检查，details_scanned=false、具体数量为-1表示未扫描，应读取solve阶段日志和本机冲突目录核对。
 任务失败、缺TU、缺solved或计数差异无法用覆盖/合并/去重解释时停下，反馈成功/失败条目数、各口径计数与差值、stats --counts-only及report统计。原始业务报告留在公司，不贴告警正文。
 
 ### 第8步：检查告警格式、抽查并统计场景
@@ -418,7 +424,7 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 任一步异常，不必等整轮完成：保留该步日志/.exit与关联产物，填下面模板已完成的部分，未执行处写“未执行”，立即反馈。只有自有测试的错误可原样贴；业务阶段日志/数据仅在公司留存，带回计数和脱敏概括。
 
 ```text
-清单版本：2026-11-10-1
+清单版本：2026-11-10-2
 停止/完成步骤 __；提交号 __；各步骤command_exit/log_exit __
 稳定性输入概括：每轮是否新WorkDir __；cdb重复文件/不同编译命令文件数 __；不同宏/ABI是否代表不同产品配置 __；源码/选项/模型是否固定 __
 重复差异：总数或仅顺序/附加note/主warning变化 __；各轮WorkDir与报告是否已在公司留存 __
@@ -427,6 +433,7 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 3. 自有TestCase：InlineDepth __；DiagnosticStyle __；decisions __ emitted __；warning __；sink/调用链 __
 4. cdb条目/唯一文件/重复文件/C/C++ __；不同编译命令文件数 __；差异类别概括 __
    export成功/失败 __；FIR __；缺TU数 __；目标组及数量 __
+   FIR冲突TU数 __；遗留候选数 __；inputs状态 __；是否统一版本/阶段串行 __；冲突分类概括 __
 5. solve方式 A/B/C __；Elapsed __；峰值RSS KiB __；solved __；判断 __；非空TU __；最终阶段 __
    摘要available/matched/saved/write_failures __；index_written __；保存阶段可见 __
 6. local/derived可读 __；C时任意另选函数可读 __（A写未保存）；抽象推理核对 __

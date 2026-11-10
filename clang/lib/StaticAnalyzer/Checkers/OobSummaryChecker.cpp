@@ -25,6 +25,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/CallGraph.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
@@ -51,6 +52,7 @@
 #include "OobSummary/core/Fingerprint.h"
 #include "OobSummary/core/Key.h"
 #include "OobSummary/core/FirJson.h"
+#include "OobSummary/core/FirStore.h"
 #include "OobSummary/core/Engine.h"
 #include "OobSummary/core/FirText.h"
 #include "OobSummary/core/Interp.h"
@@ -159,8 +161,9 @@ private:
     void dumpCallGraph(const TranslationUnitDecl *tu, oobsum::KeyMaker &keys) const;
     void dumpKeys(const TranslationUnitDecl *tu, const std::string &tuId, oobsum::KeyMaker &keys) const;
     void dumpFir(const oobsum::fir::Module &module, const std::string &tuId) const;
-    std::string writeFir(const oobsum::fir::Module &module, const std::string &tuId) const;
-    void solveAll() const;
+    std::string writeFir(const oobsum::fir::Module &module, const std::string &tuId, std::string &error) const;
+    bool validateInputs(bool forReport) const;
+    bool solveAll() const;
     void loadSolved(const std::string &tuId, std::vector<oobsum::Decision> &out) const;
     void dumpSummaries(const oobsum::fir::Module &module, const std::string &tuId,
                        const oobsum::engine::InlineResult &result) const;
@@ -211,11 +214,11 @@ void OobSummaryChecker::dumpKeys(const TranslationUnitDecl *tu, const std::strin
 
 // Phase=solve（SPEC-0029 §2.2）：读 WorkDir/fir/*.json（读不了的跳过）→ RunSolve → 判定按汇合点函数所在的 TU 分组，
 // 写 WorkDir/solved/<tu-id>.json（没有判定的 TU 也写空列表）
-void OobSummaryChecker::solveAll() const
+bool OobSummaryChecker::solveAll() const
 {
     if (workDir.empty()) {
         llvm::errs() << "[oobsum] warning: Phase=solve needs WorkDir; nothing solved\n";
-        return;
+        return true;
     }
     llvm::SmallString<256> firDir(workDir);
     llvm::sys::path::append(firDir, "fir");
@@ -254,6 +257,14 @@ void OobSummaryChecker::solveAll() const
                                       " total=" + std::to_string(total) + " elapsed_s=" + std::to_string(elapsed));
         }
     };
+    bool inputsValid = validateInputs(false);
+    if (ec || !inputsValid) {
+        if (ec) {
+            llvm::errs() << "[oobsum] error: cannot list FIR inputs: " << ec.message() << "\n";
+        }
+        progress("failed", 0, paths.size());
+        return false;
+    }
     progress("read", 0, paths.size());
     size_t completed = 0;
     std::vector<std::unique_ptr<oobsum::fir::Module>> modules;
@@ -444,7 +455,20 @@ void OobSummaryChecker::solveAll() const
                             "and solve --summary-function NAME\n";
         }
     }
+    if (allWritten && validateInputs(false)) {
+        std::string error;
+        if (!oobsum::MarkFirSolved(workDir, error)) {
+            llvm::errs() << "[oobsum] error: " << error << "\n";
+            allWritten = false;
+        }
+    } else {
+        allWritten = false;
+    }
+    if (allWritten) {
+        (void)validateInputs(false);  // SPEC-0133：落盘清除pending后的输入状态。
+    }
     progress(allWritten ? "done" : "failed", modules.size(), modules.size());
+    return allWritten;
 }
 
 // Phase=report（SPEC-0030）：读 WorkDir/solved/<tu-id>.json 的判定；没有就提示一行（没被求解，或 TU id 对不上）
@@ -478,25 +502,58 @@ void OobSummaryChecker::loadSolved(const std::string &tuId, std::vector<oobsum::
     }
 }
 
-// WorkDir/fir/<tu-id>.json（06- X-01，SPEC-0028）：缩进 JSON（SPEC-0114），先写 <路径>.<进程号>.tmp 再改名（SPEC-0118）；返回路径（没写成为空）
-std::string OobSummaryChecker::writeFir(const oobsum::fir::Module &module, const std::string &tuId) const
+// SPEC-0133 / X-01：路径身份不变，FIR以不可覆盖方式发布；不同内容保留冲突证据。
+std::string OobSummaryChecker::writeFir(const oobsum::fir::Module &module, const std::string &tuId,
+                                        std::string &error) const
+{
+    std::string path;
+    if (workDir.empty() || module.tu != tuId) {
+        error = "FIR export needs WorkDir and a consistent TU identity";
+        return "";
+    }
+    if (!oobsum::PublishFir(workDir, module, path, error)) {
+        (void)validateInputs(false);
+        return "";
+    }
+    if (dump.On("inputs")) {
+        (void)validateInputs(false);
+    }
+    return path;
+}
+
+// SPEC-0133 / N-06：输入错误不是SAFE，不允许以静默覆盖/旧solved继续报告。
+bool OobSummaryChecker::validateInputs(bool forReport) const
 {
     if (workDir.empty()) {
-        llvm::errs() << "[oobsum] warning: Phase=export needs WorkDir; nothing written\n";
-        return "";
+        return true;
     }
-    llvm::SmallString<256> dir(workDir);
-    llvm::sys::path::append(dir, "fir");
-    std::error_code ec = llvm::sys::fs::create_directories(dir);
-    llvm::SmallString<256> path(dir);
-    llvm::sys::path::append(path, tuId + ".json");
-    std::string error;
-    if (ec || !oobsum::fir::WriteModuleFile(path, module, error)) {
-        llvm::errs() << "[oobsum] warning: " << (ec ? "cannot create " + dir.str().str() + ": " + ec.message() : error)
-                     << "\n";
-        return "";
+    oobsum::FirInputState state = oobsum::InspectFirInputs(workDir, !forReport);
+    bool ready = forReport ? state.ReadyForReport() : state.ReadyForSolve();
+    std::string status = !state.error.empty()         ? "io_error"
+                         : state.conflict             ? "conflict"
+                         : state.incompleteFiles != 0 ? "incomplete_export"
+                         : forReport && state.pending ? "pending_solve"
+                                                      : "ready";
+    llvm::json::Value value(
+        llvm::json::Object{{"schema", "oobsum-inputs/1"},
+                           {"phase", phase},
+                           {"status", status},
+                           {"pending", state.pending},
+                           {"conflict", state.conflict},
+                           {"details_scanned", !forReport},
+                           {"conflicting_tus", forReport ? -1 : static_cast<int64_t>(state.conflictingTus)},
+                           {"incomplete_files", forReport ? -1 : static_cast<int64_t>(state.incompleteFiles)},
+                           {"error", state.error}});
+    std::string text;
+    llvm::raw_string_ostream os(text);
+    os << value;
+    if (dump.On("inputs") || !ready) {
+        dump.Line("inputs", os.str());
     }
-    return path.str().str();
+    if (!forReport || dump.On("inputs") || !ready) {
+        dump.File("inputs.json", os.str() + "\n");
+    }
+    return ready;
 }
 
 void OobSummaryChecker::dumpFir(const oobsum::fir::Module &module, const std::string &tuId) const
@@ -595,8 +652,21 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
         dumpCallGraph(tu, keys);
     }
     // Phase=inline：单个 TU 内 降级 → 函数内解释 → 摘要 → 推到底 → 判定（SPEC-0021）；降级只做一次，Dump=fir/summary/state 共用
+    auto failInput = [&](llvm::StringRef message) {
+        auto &diagnostics = mgr.getASTContext().getDiagnostics();
+        unsigned id = diagnostics.getCustomDiagID(DiagnosticsEngine::Error, "%0");
+        diagnostics.Report(id) << message;
+    };
     if (phase == "solve") {
-        solveAll();  // 桩 TU：读全部 FIR、跨 TU 求解（X-03 / X-04，SPEC-0029）；本 TU 不报
+        if (!solveAll()) {
+            failInput(
+                "OobSummary solve failed: conflicting or unfinished inputs, or result write failure; see WorkDir/dump");
+        }
+        return;
+    }
+    if (phase == "report" && !validateInputs(true)) {
+        failInput(
+            "OobSummary report refused: FIR inputs conflict or need a successful solve; see WorkDir/dump/inputs.json");
         return;
     }
     bool engine = phase == "inline";
@@ -609,7 +679,12 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
             dumpFir(module, tuId);
         }
         if (keepFir) {
-            std::string path = writeFir(module, tuId);
+            std::string error;
+            std::string path = writeFir(module, tuId, error);
+            if (path.empty()) {
+                failInput("OobSummary FIR export failed: " + error);
+                return;
+            }
             if (exporting) {
                 // export：不求解、不报、不写判定日志（X-02）
                 if (dump.On("stats")) {
@@ -807,7 +882,7 @@ void ento::registerOobSummaryChecker(CheckerManager &mgr)
         mgr.reportInvalidCheckerOptionValue(
             chk, "Dump",
             "kinds separated by '+' from options, models, callgraph, keys, fir, "
-            "state, summary, summary-files, apply, decisions, stats, all (and a valid DumpFilter "
+            "state, summary, summary-files, inputs, apply, decisions, stats, all (and a valid DumpFilter "
             "regex); "
             "got '" +
                 unknownKind + "'");

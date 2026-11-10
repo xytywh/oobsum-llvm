@@ -90,6 +90,8 @@ allocation_line = int(heap_rows[0]['obj'].rsplit(':', 1)[1])
 original_fir = {p.name: p.read_bytes() for p in (work / 'fir').glob('*.json')}
 run('export', 1)
 assert original_fir == {p.name: p.read_bytes() for p in (work / 'fir').glob('*.json')}
+run('solve')  # SPEC-0133：重新export后走完整阶段屏障，即使FIR内容相同。
+assert solved_path.read_bytes() == original_solved
 
 unique = [run('report') for _ in range(5)]
 assert len(set(unique)) == 1

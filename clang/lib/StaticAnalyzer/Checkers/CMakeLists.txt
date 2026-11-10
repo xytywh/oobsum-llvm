@@ -158,6 +158,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   OobSummary/core/AccessInfo.cpp
   OobSummary/lower/AccessInfo.cpp
   OobSummary/core/Diagnostics.cpp
+  OobSummary/core/FirStore.cpp
 
   LINK_LIBS
   clangAST

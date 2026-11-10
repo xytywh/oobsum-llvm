@@ -19,8 +19,8 @@ namespace oobsum {
 const std::set<std::string> &DumpSink::KnownKinds()
 {
     static const std::set<std::string> known = {
-        "diagnostics", "options", "callgraph", "keys",  "fir",    "state",        "progress",
-        "summary",     "apply",   "decisions", "stats", "models", "summary-files"};  // SPEC-0130 / I-21：只落盘，不逐函数打印。
+        "diagnostics", "options",   "callgraph", "keys",   "fir",           "state", "progress", "summary",
+        "apply",       "decisions", "stats",     "models", "summary-files", "inputs"};  // SPEC-0130 / I-21：summary-files只落盘；SPEC-0133增加输入级状态。
     return known;
 }
 
