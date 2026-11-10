@@ -176,6 +176,7 @@ compile_commands ─▶ rb.enhance.core.OobSummary ──▶ WorkDir/fir/<tu>.js
   访问的字节数和偏移式看访问点那条 note 指着的源码行）；
   ② 链上每一跳、访问点、大小来源（分配点）里**位于本 TU 可见文件**的，各一条 note 指向那一行；
   ③ 不在本 TU 的只出现在 ① 的文本里（D12）。
+  〔由SPEC-0132修订：分配点只有唯一可见文件映射时才附加定位note；同basename多候选不按指针表首项猜测，主warning保留，Dump=diagnostics记录定位状态。〕
 * **F-34 指纹**：`llvm::xxHash64("OobSummary|" + level + "|" + 汇合点函数键 + "|" + access.key + "|" + R/W + "|" + access.end + "|" + obj)`，
   十六进制 16 位，**不含行号**（`01-` §3.10）。访问用"访问函数键 + 访问点自身的末端式"标识（v3.14 起替代"访问序号"：
   序号要看整个 FIR 才能定，末端式就在摘要里；同一函数里同类、同末端式的两次访问本来就是同一个检查，合并正合适）。

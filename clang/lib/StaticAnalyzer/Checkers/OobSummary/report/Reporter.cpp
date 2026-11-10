@@ -6,6 +6,7 @@
 
 #include "OobSummary/report/Reporter.h"
 #include "OobSummary/core/Diagnostics.h"
+#include "OobSummary/core/Key.h"
 
 #include "clang/Analysis/PathDiagnostic.h"
 #include "clang/Basic/FileManager.h"
@@ -77,24 +78,42 @@ SourceLocation Reporter::Locate(const Site &site, SourceManager &sm, bool load) 
     return sm.translateFileLineCol(*file, site.line, site.col == 0 ? 1 : site.col);
 }
 
-// 只有文件名的位置（heap@<文件名>:<行>）：在本 TU 已打开的文件里按文件名找（SPEC-0078）
-SourceLocation Reporter::LocateBase(llvm::StringRef site, const SourceManager &sm) const
+// SPEC-0078；由SPEC-0132 / F-33修订：不能从FileEntry指针哈希遍历中随意选一个同名文件。
+SourceLocation Reporter::LocateBase(llvm::StringRef site, SourceManager &sm, size_t &candidates) const
 {
+    candidates = 0;
     std::pair<llvm::StringRef, llvm::StringRef> parts = site.rsplit(':');
     unsigned line = 0;
     if (parts.second.getAsInteger(10, line) || line == 0) {
         return SourceLocation();
     }
+    if (llvm::sys::path::has_parent_path(parts.first)) {
+        auto file = sm.getFileManager().getFile(parts.first);
+        if (!file) {
+            return SourceLocation();
+        }
+        candidates = 1;
+        sm.getOrCreateFileID(*file, SrcMgr::C_User);
+        return sm.translateFileLineCol(*file, line, 1);
+    }
+    std::map<std::string, SourceLocation> matches;
     for (auto it = sm.fileinfo_begin(); it != sm.fileinfo_end(); ++it) {
         const FileEntry *entry = it->getFirst();
         if (entry != nullptr && llvm::sys::path::filename(entry->getName()) == parts.first) {
-            return sm.translateFileLineCol(entry, line, 1);
+            SourceLocation loc = sm.translateFileLineCol(entry, line, 1);
+            auto result = matches.emplace(NormalizePath(entry->getName()), loc);
+            if (!result.second && loc.isValid() &&
+                (result.first->second.isInvalid() || loc.getRawEncoding() < result.first->second.getRawEncoding())) {
+                result.first->second = loc;  // 路径别名去重，代表位置亦不依赖指针顺序。
+            }
         }
     }
-    return SourceLocation();
+    candidates = matches.size();
+    return matches.size() == 1 ? matches.begin()->second : SourceLocation();
 }
 
-std::vector<std::pair<Decision, Disposition>> Reporter::Flush(BugReporter &br, SourceManager &sm)
+std::vector<std::pair<Decision, Disposition>> Reporter::Flush(BugReporter &br, SourceManager &sm,
+                                                              const AllocationNoteTrace &allocationTrace)
 {
     auto reportSite = [&](const Decision &decision) -> const Site & {
         return policy.sinkDiagnostics && !decision.sink.file.empty() ? decision.sink : decision.site;
@@ -182,7 +201,15 @@ std::vector<std::pair<Decision, Disposition>> Reporter::Flush(BugReporter &br, S
                 }
                 llvm::StringRef obj = decision.obj;
                 if (obj.consume_front("heap@")) {
-                    SourceLocation allocLoc = LocateBase(obj, sm);
+                    size_t candidates = 0;
+                    SourceLocation allocLoc = LocateBase(obj, sm, candidates);
+                    if (allocationTrace) {
+                        allocationTrace(decision,
+                                        allocLoc.isValid() ? "unique"
+                                        : candidates > 1   ? "ambiguous"
+                                                           : "missing",
+                                        candidates, allocLoc);
+                    }
                     if (allocLoc.isValid()) {
                         report->addNote("the object is allocated here", PathDiagnosticLocation(allocLoc, sm));
                     }

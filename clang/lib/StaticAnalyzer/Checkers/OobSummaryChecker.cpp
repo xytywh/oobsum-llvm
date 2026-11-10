@@ -645,11 +645,45 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
     visitor.astContext = &mgr.getASTContext();
     visitor.TraverseDecl(const_cast<TranslationUnitDecl *>(tu));
 
+    auto wantsDiagnostic = [&](const oobsum::Decision &decision) {
+        const auto &chain = decision.chain;
+        std::string access = chain.empty() ? oobsum::KeyName(decision.accessKey).str() : chain.back().fn;
+        std::string context = chain.empty() ? oobsum::KeyName(decision.fn).str() : chain.front().fn;
+        return dump.Wants("diagnostics", access) || dump.Wants("diagnostics", context);
+    };
+    // SPEC-0132 / F-33、N-06：附加note的定位结果独立落盘，正常判断JSON不增加字段。
+    std::string allocationDiagnostics;
+    oobsum::Reporter::AllocationNoteTrace allocationTrace;
+    if (dump.On("diagnostics")) {
+        allocationTrace = [&](const oobsum::Decision &decision, llvm::StringRef status, size_t candidates,
+                              SourceLocation loc) {
+            if (!wantsDiagnostic(decision)) {
+                return;
+            }
+            std::string resolved;
+            if (loc.isValid()) {
+                resolved = sm.getFilename(loc).str() + ":" + std::to_string(sm.getSpellingLineNumber(loc)) + ":" +
+                           std::to_string(sm.getSpellingColumnNumber(loc));
+            }
+            llvm::json::Value value(llvm::json::Object{{"schema", "oobsum-allocation-note/1"},
+                                                       {"fn", decision.fn},
+                                                       {"fp", decision.fp},
+                                                       {"source", llvm::StringRef(decision.obj).drop_front(5)},
+                                                       {"status", status},
+                                                       {"candidates", static_cast<int64_t>(candidates)},
+                                                       {"resolved", resolved}});
+            std::string text;
+            llvm::raw_string_ostream os(text);
+            os << value;
+            dump.Line("diagnostics", os.str());
+            allocationDiagnostics += os.str() + "\n";
+        };
+    }
     oobsum::Reporter reporter({&definiteType, &possibleType, &suspectType, &safeType}, policy);
     for (oobsum::Decision &decision : decisions) {
         reporter.Add(std::move(decision));
     }
-    std::vector<std::pair<oobsum::Decision, oobsum::Disposition>> logged = reporter.Flush(br, sm);
+    std::vector<std::pair<oobsum::Decision, oobsum::Disposition>> logged = reporter.Flush(br, sm, allocationTrace);
 
     if (dump.On("decisions")) {
         for (const auto &entry : logged) {
@@ -662,10 +696,7 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
     if (dump.On("diagnostics")) {
         std::string content;
         for (const auto &entry : logged) {
-            const auto &chain = entry.first.chain;
-            std::string access = chain.empty() ? oobsum::KeyName(entry.first.accessKey).str() : chain.back().fn;
-            std::string context = chain.empty() ? oobsum::KeyName(entry.first.fn).str() : chain.front().fn;
-            if (!dump.Wants("diagnostics", access) && !dump.Wants("diagnostics", context)) {
+            if (!wantsDiagnostic(entry.first)) {
                 continue;
             }
             std::string text;
@@ -675,6 +706,7 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
             content += os.str() + "\n";
         }
         dump.File(tuId + "/diagnostics.jsonl", content);
+        dump.File(tuId + "/allocation-notes.jsonl", allocationDiagnostics);
     }
     std::string error;
     std::string logPath = oobsum::WriteDecisionLog(workDir, tuId, mainFile, logged, error);

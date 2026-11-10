@@ -3,9 +3,21 @@
 > 每次会话开始先读这里；每次提交一批改动后更新这里（"已完成"挪进 CHANGELOG 时可以删）。
 > 规则在 `../CLAUDE.md`，背景与决策在 `HANDOFF.md`，主规格 `06-spec.md`，增量规格 `specs/`。
 
-更新：2026-11-05 · 分支 `oobsum/dev` · 版本 v4.0
+更新：2026-11-10 · 分支 `oobsum/dev` · 版本 v4.0
+
+## 当前任务（按任务单独提交）
+
+见TASKS.md：T1固定FIR的report分配note消歧稳定性 → T2编译变体覆盖保护 → T3分阶段稳定性比较 → T4调用层次与覆盖范围量化。
+用户2026-11-10反馈多次export/solve/report最终告警有数百条差异，暂未带回本轮cdb变体与WorkDir复用情况。
+只读合成实验已复现同Tu并行export不同CAP导致DEFINITE/SAFE随完成顺序变化；另复现同名头文件allocation note随机选址，但主warning/decisions不变。
+公司真正差异来自哪一层还需分阶段核对；不默认把这两个独立来源合并解释。任务清单和实现各步都保留证据及回归。
 
 ## 已完成
+
+* T1 / SPEC-0132：Reporter分配note不再依赖FileEntry指针哈希首项；完整路径精确定位、basename只在唯一候选时定位，多候选不猜。
+  原warning/判断保持；Dump=diagnostics按函数筛选，独立落allocation-notes.jsonl（状态/候选数/已解析位置），不改decision schema。
+  固定FIR多次report、同名空头文件开关、完整/缺失路径、调试开关及过滤对照通过；各次原输出落盘。构建通过、lit117/117、replay一致、csa回退0/TN强告警0、check-tree一致；约定31通过/1既有提示/0失败。
+  COMPANY清单2026-11-10-1记录稳定性输入概括与定位状态核对。仅修note层，不宣布已解释或解决公司全部主告警差异；T2继续处理已复现的export竞态。
 
 * 公司2026-11-05确认更新后完整llvm-lit已通过（未另贴具体计数），SPEC-0131公司验证完成。
   按用户要求把COMPANY清单重写为2026-11-05-2：常规完整执行流程、每步目的/命令/正确预期/异常保留与反馈；移除该次测试问题叙述及专项重跑项。

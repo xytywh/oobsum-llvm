@@ -1,0 +1,3 @@
+# SPEC-0132 / F-33、N-06：同名头文件的分配note不可按FileEntry指针哈希首个选择。
+# RUN: rm -rf %t
+# RUN: %python %S/Inputs/allocation-notes/check.py %clang %S/Inputs/allocation-notes %t

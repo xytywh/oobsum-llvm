@@ -19,6 +19,10 @@
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 
+#include "llvm/ADT/StringRef.h"
+
+#include <cstddef>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,19 +38,22 @@ struct BugTypes {
 
 class Reporter {
 public:
+    // SPEC-0132 / F-33：仅供调试，记录分配note定位状态，不回写原判断。
+    using AllocationNoteTrace = std::function<void(const Decision &, llvm::StringRef, size_t, clang::SourceLocation)>;
     Reporter(const BugTypes &bugTypes, const PolicyOptions &policy) : bugTypes(bugTypes), policy(policy)
     {
     }
     void Add(Decision decision);
     // 排序、按策略发出；返回（判定, 去向），供 DecisionLog 与 Dump=decisions 使用
-    std::vector<std::pair<Decision, Disposition>> Flush(clang::ento::BugReporter &br, clang::SourceManager &sm);
+    std::vector<std::pair<Decision, Disposition>> Flush(clang::ento::BugReporter &br, clang::SourceManager &sm,
+                                                        const AllocationNoteTrace &allocationTrace = {});
     static std::string FullMessage(const Decision &decision);
 
 private:
     const clang::ento::BugType *TypeOf(Label label) const;
     clang::SourceLocation Locate(const Site &site, clang::SourceManager &sm, bool load = false) const;
-    // 只有文件名的位置（heap@<文件名>:<行>）：在本 TU 已打开的文件里按文件名找（SPEC-0078）
-    clang::SourceLocation LocateBase(llvm::StringRef site, const clang::SourceManager &sm) const;
+    // SPEC-0132 / F-33：完整路径精确定位；只有文件名时按规范路径去重，歧义不猜位置。
+    clang::SourceLocation LocateBase(llvm::StringRef site, clang::SourceManager &sm, size_t &candidates) const;
 
     BugTypes bugTypes;
     PolicyOptions policy;

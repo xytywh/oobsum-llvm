@@ -9,10 +9,10 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-05-2**
+**清单版本：2026-11-10-1**
 
 本节是一轮完整验证的执行流程。每步按“目的 → 命令 → 正确预期 → 异常时保留与反馈”执行；遇到异常停在该步，不继续后续分析。
-历史数据只作比较，本轮从第1步开始，用新的WorkDir保存本轮结果。第9步尾数组对照另有一次solve/report；第5步A/B/C只选一种，不要三种都跑。
+历史数据只作比较，本轮从第1步开始，用新的WorkDir保存本轮结果。重复运行核对时，每轮保留完整WorkDir与报告副本、提交号及选项概括，不能只留最终告警总数。第9步尾数组对照另有一次solve/report；第5步A/B/C只选一种，不要三种都跑。
 
 ### 路径与日志：开始前设置一次
 
@@ -29,7 +29,7 @@ OOB_GBL=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/gbl_conf
 OOB_REPORT=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/allfiles-buffer_overflow_report.json
 OOB_INI=/usr1/clang_check/src/cfg/ini/config.ini
 OOB_FUNCPTR=/usr1/clang_check/src/cfg/ini/config_funcptr.ini
-OOB_RUN_TAG=20261105-r1
+OOB_RUN_TAG=20261110-r1
 OOB_WD=/usr1/oobsum-work/full-b-$OOB_RUN_TAG
 OOB_LOG=$OOB_WD/validation
 OOB_TC_WD=$OOB_WD/testcase
@@ -55,7 +55,7 @@ fi
 
 | 项目 | 已确认结果（不替代本轮预期） |
 |---|---|
-| 公司完整lit | 2026-11-05公司确认更新后通过；当前套件预期116项 |
+| 公司完整lit | 2026-11-05公司确认更新后通过；当前套件预期117项 |
 | C++健壮性验证 | Release/Debug均exit=0，无断言；242条判定/222报出 |
 | IPA对照 | 自有TestCase加/不加ipa=none结果一致；本轮统一显式ipa=none |
 | 历史全板cdb | 10686条、10262个文件、261个文件多次出现；C6689、C++3573 |
@@ -82,7 +82,7 @@ OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
 printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/01-local-checks.exit"
 ```
 
-**正确预期：** 分支oobsum/dev；构建成功；lit通过116项；replay为0处不一致；csa回退0、TN强告警0；check-tree一致。
+**正确预期：** 分支oobsum/dev；构建成功；lit通过117项；replay为0处不一致；csa回退0、TN强告警0；check-tree一致。
 **异常时：** 保留01-local-checks.log/.exit及对应lit Output目录。反馈提交号、失败测试名和完整RUN/expected/input或Python断言段；这些是自有用例，可原样带回。分支不符、拉取冲突或构建错误也停在此步处理。
 
 ### 第2步：同步到BXPlugin、编译并核对规则配置
@@ -336,6 +336,7 @@ solved是未应用报告策略的判断；decisions含报出/未报出及原因�
 
 **正确预期：** warning定位实际下标/成员/解引用/内存访问的sink行；主行有Access、元素类型/大小、容量、范围或exclusive end、Reason、Context、完整Call chain。
 同一sink行合并成一个warning，不同上下文/理由由Also展开；原判断通过report_group仍能找全。已知布局能换算元素容量；例如20字节结构体数组3项容量60，索引3处4字节字段的exclusive end=64，即越4字节。
+分配位置的附加note只在来源文件唯一可定位时出现；同basename存在多个候选时保留主warning和来源文本，不猜某个文件。Dump=diagnostics可在dump/TU/allocation-notes.jsonl查看unique/ambiguous/missing等定位状态，文件可能含业务名字，仅留在公司。
 SUSPECT只表示未证明安全，不能当成已证实越界；type_range_only的人类含义是缺少可用的代码约束。核对具体R/W对象、索引/长度来源、守卫及调用实参，别只按函数名或取地址写法判断真伪。
 
 **可选：从某条判断查询调用链。** 本段依赖第7步已生成的decisions日志，不是查看摘要或统计场景的前置步骤。
@@ -417,8 +418,10 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 任一步异常，不必等整轮完成：保留该步日志/.exit与关联产物，填下面模板已完成的部分，未执行处写“未执行”，立即反馈。只有自有测试的错误可原样贴；业务阶段日志/数据仅在公司留存，带回计数和脱敏概括。
 
 ```text
-清单版本：2026-11-05-2
+清单版本：2026-11-10-1
 停止/完成步骤 __；提交号 __；各步骤command_exit/log_exit __
+稳定性输入概括：每轮是否新WorkDir __；cdb重复文件/不同编译命令文件数 __；不同宏/ABI是否代表不同产品配置 __；源码/选项/模型是否固定 __
+重复差异：总数或仅顺序/附加note/主warning变化 __；各轮WorkDir与报告是否已在公司留存 __
 1. 构建 __；lit通过/失败 __；replay不一致 __；csa回退 __ / TN强告警 __；check-tree __
 2. land/公司编译 __；规则名/目标报告路径核对 __
 3. 自有TestCase：InlineDepth __；DiagnosticStyle __；decisions __ emitted __；warning __；sink/调用链 __
