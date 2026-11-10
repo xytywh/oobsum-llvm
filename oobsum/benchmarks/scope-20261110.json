@@ -1,0 +1,538 @@
+{
+ "schema": "oobsum-scope-observation/1",
+ "date": "2026-11-10",
+ "source_review_head": "0cfee35ed",
+ "note": "Single observations; includes parse/analysis/IO/statistics; not a universal complexity or coverage claim.",
+ "standard": {
+  "schema": "oobsum-scope-bench/1",
+  "mode": "inline",
+  "all_passed": true,
+  "cases": [
+   {
+    "case": "chain-1",
+    "max_blocks": 3,
+    "requested_call_edges": 1,
+    "elapsed_s": 0.0173,
+    "exit": 0,
+    "passed": true,
+    "stats": {
+     "schema": "oobsum-scope/1",
+     "audit_complete": true,
+     "fir_files": 1,
+     "read_errors": 0,
+     "raw_function_definitions": 2,
+     "unique_function_keys": 2,
+     "duplicate_definitions": 0,
+     "duplicate_external_keys": 0,
+     "flags_raw": {},
+     "flags_unique": {},
+     "max_lowered_cfg_blocks": 3,
+     "total_lowered_cfg_blocks_raw": 6,
+     "cfg_blocks_histogram_raw_upper_bound": {
+      "16": 2
+     },
+     "graph": {
+      "resolved_direct_edges": 1,
+      "scc_count": 2,
+      "recursive_sccs": 0,
+      "recursive_functions": 0,
+      "condensed_longest_edges": 1,
+      "direct_dag_longest_edges": 1,
+      "direct_call_sites": 1,
+      "indirect_call_sites": 0,
+      "calls_missing_fir_body": 0
+     },
+     "decision_log_files": 1,
+     "decision_logs_requested": true,
+     "labels": {
+      "definite": 1
+     },
+     "emitted_labels": {
+      "definite": 1
+     },
+     "suspect_reasons": {},
+     "filtered": {},
+     "observed_depth_max": 1,
+     "observed_eff_depth_max": 0,
+     "judgments_by_effective_depth": {
+      "1": 1
+     },
+     "input_guard": {
+      "conflict": false,
+      "temporary": 0,
+      "pending": true
+     }
+    }
+   },
+   {
+    "case": "chain-16",
+    "max_blocks": 3,
+    "requested_call_edges": 16,
+    "elapsed_s": 0.0176,
+    "exit": 0,
+    "passed": true,
+    "stats": {
+     "schema": "oobsum-scope/1",
+     "audit_complete": true,
+     "fir_files": 1,
+     "read_errors": 0,
+     "raw_function_definitions": 17,
+     "unique_function_keys": 17,
+     "duplicate_definitions": 0,
+     "duplicate_external_keys": 0,
+     "flags_raw": {},
+     "flags_unique": {},
+     "max_lowered_cfg_blocks": 3,
+     "total_lowered_cfg_blocks_raw": 51,
+     "cfg_blocks_histogram_raw_upper_bound": {
+      "16": 17
+     },
+     "graph": {
+      "resolved_direct_edges": 16,
+      "scc_count": 17,
+      "recursive_sccs": 0,
+      "recursive_functions": 0,
+      "condensed_longest_edges": 16,
+      "direct_dag_longest_edges": 16,
+      "direct_call_sites": 16,
+      "indirect_call_sites": 0,
+      "calls_missing_fir_body": 0
+     },
+     "decision_log_files": 1,
+     "decision_logs_requested": true,
+     "labels": {
+      "definite": 1
+     },
+     "emitted_labels": {
+      "definite": 1
+     },
+     "suspect_reasons": {},
+     "filtered": {},
+     "observed_depth_max": 16,
+     "observed_eff_depth_max": 0,
+     "judgments_by_effective_depth": {
+      "16": 1
+     },
+     "input_guard": {
+      "conflict": false,
+      "temporary": 0,
+      "pending": true
+     }
+    }
+   },
+   {
+    "case": "chain-64",
+    "max_blocks": 3,
+    "requested_call_edges": 64,
+    "elapsed_s": 0.0344,
+    "exit": 0,
+    "passed": true,
+    "stats": {
+     "schema": "oobsum-scope/1",
+     "audit_complete": true,
+     "fir_files": 1,
+     "read_errors": 0,
+     "raw_function_definitions": 65,
+     "unique_function_keys": 65,
+     "duplicate_definitions": 0,
+     "duplicate_external_keys": 0,
+     "flags_raw": {},
+     "flags_unique": {},
+     "max_lowered_cfg_blocks": 3,
+     "total_lowered_cfg_blocks_raw": 195,
+     "cfg_blocks_histogram_raw_upper_bound": {
+      "16": 65
+     },
+     "graph": {
+      "resolved_direct_edges": 64,
+      "scc_count": 65,
+      "recursive_sccs": 0,
+      "recursive_functions": 0,
+      "condensed_longest_edges": 64,
+      "direct_dag_longest_edges": 64,
+      "direct_call_sites": 64,
+      "indirect_call_sites": 0,
+      "calls_missing_fir_body": 0
+     },
+     "decision_log_files": 1,
+     "decision_logs_requested": true,
+     "labels": {
+      "definite": 1
+     },
+     "emitted_labels": {
+      "definite": 1
+     },
+     "suspect_reasons": {},
+     "filtered": {},
+     "observed_depth_max": 64,
+     "observed_eff_depth_max": 0,
+     "judgments_by_effective_depth": {
+      "64": 1
+     },
+     "input_guard": {
+      "conflict": false,
+      "temporary": 0,
+      "pending": true
+     }
+    }
+   },
+   {
+    "case": "chain-256",
+    "max_blocks": 3,
+    "requested_call_edges": 256,
+    "elapsed_s": 0.0693,
+    "exit": 0,
+    "passed": true,
+    "stats": {
+     "schema": "oobsum-scope/1",
+     "audit_complete": true,
+     "fir_files": 1,
+     "read_errors": 0,
+     "raw_function_definitions": 257,
+     "unique_function_keys": 257,
+     "duplicate_definitions": 0,
+     "duplicate_external_keys": 0,
+     "flags_raw": {},
+     "flags_unique": {},
+     "max_lowered_cfg_blocks": 3,
+     "total_lowered_cfg_blocks_raw": 771,
+     "cfg_blocks_histogram_raw_upper_bound": {
+      "16": 257
+     },
+     "graph": {
+      "resolved_direct_edges": 256,
+      "scc_count": 257,
+      "recursive_sccs": 0,
+      "recursive_functions": 0,
+      "condensed_longest_edges": 256,
+      "direct_dag_longest_edges": 256,
+      "direct_call_sites": 256,
+      "indirect_call_sites": 0,
+      "calls_missing_fir_body": 0
+     },
+     "decision_log_files": 1,
+     "decision_logs_requested": true,
+     "labels": {
+      "definite": 1
+     },
+     "emitted_labels": {
+      "definite": 1
+     },
+     "suspect_reasons": {},
+     "filtered": {},
+     "observed_depth_max": 256,
+     "observed_eff_depth_max": 0,
+     "judgments_by_effective_depth": {
+      "256": 1
+     },
+     "input_guard": {
+      "conflict": false,
+      "temporary": 0,
+      "pending": true
+     }
+    }
+   },
+   {
+    "case": "wide-low",
+    "max_blocks": 16,
+    "requested_call_edges": 1,
+    "elapsed_s": 0.0168,
+    "exit": 0,
+    "passed": true,
+    "stats": {
+     "schema": "oobsum-scope/1",
+     "audit_complete": true,
+     "fir_files": 1,
+     "read_errors": 0,
+     "raw_function_definitions": 2,
+     "unique_function_keys": 2,
+     "duplicate_definitions": 0,
+     "duplicate_external_keys": 0,
+     "flags_raw": {
+      "cfg_too_large": 1
+     },
+     "flags_unique": {
+      "cfg_too_large": 1
+     },
+     "max_lowered_cfg_blocks": 3,
+     "total_lowered_cfg_blocks_raw": 3,
+     "cfg_blocks_histogram_raw_upper_bound": {
+      "16": 1
+     },
+     "graph": {
+      "resolved_direct_edges": 1,
+      "scc_count": 2,
+      "recursive_sccs": 0,
+      "recursive_functions": 0,
+      "condensed_longest_edges": 1,
+      "direct_dag_longest_edges": 1,
+      "direct_call_sites": 1,
+      "indirect_call_sites": 0,
+      "calls_missing_fir_body": 0
+     },
+     "decision_log_files": 1,
+     "decision_logs_requested": true,
+     "labels": {
+      "suspect": 1
+     },
+     "emitted_labels": {
+      "suspect": 1
+     },
+     "suspect_reasons": {
+      "unanalyzed:cfg_too_large": 1
+     },
+     "filtered": {},
+     "observed_depth_max": 0,
+     "observed_eff_depth_max": 0,
+     "judgments_by_effective_depth": {
+      "0": 1
+     },
+     "input_guard": {
+      "conflict": false,
+      "temporary": 0,
+      "pending": true
+     }
+    }
+   },
+   {
+    "case": "wide-high",
+    "max_blocks": 512,
+    "requested_call_edges": 1,
+    "elapsed_s": 0.0168,
+    "exit": 0,
+    "passed": true,
+    "stats": {
+     "schema": "oobsum-scope/1",
+     "audit_complete": true,
+     "fir_files": 1,
+     "read_errors": 0,
+     "raw_function_definitions": 2,
+     "unique_function_keys": 2,
+     "duplicate_definitions": 0,
+     "duplicate_external_keys": 0,
+     "flags_raw": {},
+     "flags_unique": {},
+     "max_lowered_cfg_blocks": 67,
+     "total_lowered_cfg_blocks_raw": 70,
+     "cfg_blocks_histogram_raw_upper_bound": {
+      "256": 1,
+      "16": 1
+     },
+     "graph": {
+      "resolved_direct_edges": 1,
+      "scc_count": 2,
+      "recursive_sccs": 0,
+      "recursive_functions": 0,
+      "condensed_longest_edges": 1,
+      "direct_dag_longest_edges": 1,
+      "direct_call_sites": 1,
+      "indirect_call_sites": 0,
+      "calls_missing_fir_body": 0
+     },
+     "decision_log_files": 1,
+     "decision_logs_requested": true,
+     "labels": {
+      "definite": 1
+     },
+     "emitted_labels": {
+      "definite": 1
+     },
+     "suspect_reasons": {},
+     "filtered": {},
+     "observed_depth_max": 1,
+     "observed_eff_depth_max": 0,
+     "judgments_by_effective_depth": {
+      "1": 1
+     },
+     "input_guard": {
+      "conflict": false,
+      "temporary": 0,
+      "pending": true
+     }
+    }
+   }
+  ]
+ },
+ "threshold5000": {
+  "schema": "oobsum-scope-bench/1",
+  "mode": "inline",
+  "all_passed": true,
+  "cases": [
+   {
+    "case": "chain-1",
+    "max_blocks": 3,
+    "requested_call_edges": 1,
+    "elapsed_s": 0.0178,
+    "exit": 0,
+    "passed": true,
+    "stats": {
+     "schema": "oobsum-scope/1",
+     "audit_complete": true,
+     "fir_files": 1,
+     "read_errors": 0,
+     "raw_function_definitions": 2,
+     "unique_function_keys": 2,
+     "duplicate_definitions": 0,
+     "duplicate_external_keys": 0,
+     "flags_raw": {},
+     "flags_unique": {},
+     "max_lowered_cfg_blocks": 3,
+     "total_lowered_cfg_blocks_raw": 6,
+     "cfg_blocks_histogram_raw_upper_bound": {
+      "16": 2
+     },
+     "graph": {
+      "resolved_direct_edges": 1,
+      "scc_count": 2,
+      "recursive_sccs": 0,
+      "recursive_functions": 0,
+      "condensed_longest_edges": 1,
+      "direct_dag_longest_edges": 1,
+      "direct_call_sites": 1,
+      "indirect_call_sites": 0,
+      "calls_missing_fir_body": 0
+     },
+     "decision_log_files": 1,
+     "decision_logs_requested": true,
+     "labels": {
+      "definite": 1
+     },
+     "emitted_labels": {
+      "definite": 1
+     },
+     "suspect_reasons": {},
+     "filtered": {},
+     "observed_depth_max": 1,
+     "observed_eff_depth_max": 0,
+     "judgments_by_effective_depth": {
+      "1": 1
+     },
+     "input_guard": {
+      "conflict": false,
+      "temporary": 0,
+      "pending": true
+     }
+    }
+   },
+   {
+    "case": "wide-low",
+    "max_blocks": 5000,
+    "requested_call_edges": 1,
+    "elapsed_s": 0.0668,
+    "exit": 0,
+    "passed": true,
+    "stats": {
+     "schema": "oobsum-scope/1",
+     "audit_complete": true,
+     "fir_files": 1,
+     "read_errors": 0,
+     "raw_function_definitions": 2,
+     "unique_function_keys": 2,
+     "duplicate_definitions": 0,
+     "duplicate_external_keys": 0,
+     "flags_raw": {
+      "cfg_too_large": 1
+     },
+     "flags_unique": {
+      "cfg_too_large": 1
+     },
+     "max_lowered_cfg_blocks": 3,
+     "total_lowered_cfg_blocks_raw": 3,
+     "cfg_blocks_histogram_raw_upper_bound": {
+      "16": 1
+     },
+     "graph": {
+      "resolved_direct_edges": 1,
+      "scc_count": 2,
+      "recursive_sccs": 0,
+      "recursive_functions": 0,
+      "condensed_longest_edges": 1,
+      "direct_dag_longest_edges": 1,
+      "direct_call_sites": 1,
+      "indirect_call_sites": 0,
+      "calls_missing_fir_body": 0
+     },
+     "decision_log_files": 1,
+     "decision_logs_requested": true,
+     "labels": {
+      "suspect": 1
+     },
+     "emitted_labels": {
+      "suspect": 1
+     },
+     "suspect_reasons": {
+      "unanalyzed:cfg_too_large": 1
+     },
+     "filtered": {},
+     "observed_depth_max": 0,
+     "observed_eff_depth_max": 0,
+     "judgments_by_effective_depth": {
+      "0": 1
+     },
+     "input_guard": {
+      "conflict": false,
+      "temporary": 0,
+      "pending": true
+     }
+    }
+   },
+   {
+    "case": "wide-high",
+    "max_blocks": 6000,
+    "requested_call_edges": 1,
+    "elapsed_s": 0.3325,
+    "exit": 0,
+    "passed": true,
+    "stats": {
+     "schema": "oobsum-scope/1",
+     "audit_complete": true,
+     "fir_files": 1,
+     "read_errors": 0,
+     "raw_function_definitions": 2,
+     "unique_function_keys": 2,
+     "duplicate_definitions": 0,
+     "duplicate_external_keys": 0,
+     "flags_raw": {},
+     "flags_unique": {},
+     "max_lowered_cfg_blocks": 5203,
+     "total_lowered_cfg_blocks_raw": 5206,
+     "cfg_blocks_histogram_raw_upper_bound": {
+      "above5000": 1,
+      "16": 1
+     },
+     "graph": {
+      "resolved_direct_edges": 1,
+      "scc_count": 2,
+      "recursive_sccs": 0,
+      "recursive_functions": 0,
+      "condensed_longest_edges": 1,
+      "direct_dag_longest_edges": 1,
+      "direct_call_sites": 1,
+      "indirect_call_sites": 0,
+      "calls_missing_fir_body": 0
+     },
+     "decision_log_files": 1,
+     "decision_logs_requested": true,
+     "labels": {
+      "definite": 1
+     },
+     "emitted_labels": {
+      "definite": 1
+     },
+     "suspect_reasons": {},
+     "filtered": {},
+     "observed_depth_max": 1,
+     "observed_eff_depth_max": 0,
+     "judgments_by_effective_depth": {
+      "1": 1
+     },
+     "input_guard": {
+      "conflict": false,
+      "temporary": 0,
+      "pending": true
+     }
+    }
+   }
+  ]
+ }
+}

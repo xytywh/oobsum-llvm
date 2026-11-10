@@ -9,7 +9,7 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-10-3**
+**清单版本：2026-11-10-4**
 
 本节是一轮完整验证的执行流程。每步按“目的 → 命令 → 正确预期 → 异常时保留与反馈”执行；遇到异常停在该步，不继续后续分析。
 历史数据只作比较，本轮从第1步开始，用新的WorkDir保存本轮结果。重复运行核对时，每轮保留完整WorkDir与报告副本、提交号及选项概括，不能只留最终告警总数。第9步尾数组对照另有一次solve/report；第5步A/B/C只选一种，不要三种都跑。
@@ -29,7 +29,7 @@ OOB_GBL=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/gbl_conf
 OOB_REPORT=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/allfiles-buffer_overflow_report.json
 OOB_INI=/usr1/clang_check/src/cfg/ini/config.ini
 OOB_FUNCPTR=/usr1/clang_check/src/cfg/ini/config_funcptr.ini
-OOB_RUN_TAG=20261110-r3
+OOB_RUN_TAG=20261110-r4
 OOB_WD=/usr1/oobsum-work/full-b-$OOB_RUN_TAG
 OOB_LOG=$OOB_WD/validation
 OOB_TC_WD=$OOB_WD/testcase
@@ -57,7 +57,7 @@ fi
 
 | 项目 | 已确认结果（不替代本轮预期） |
 |---|---|
-| 公司完整lit | 2026-11-05公司确认更新后通过；当前套件预期119项 |
+| 公司完整lit | 2026-11-05公司确认更新后通过；当前套件预期120项 |
 | C++健壮性验证 | Release/Debug均exit=0，无断言；242条判定/222报出 |
 | IPA对照 | 自有TestCase加/不加ipa=none结果一致；本轮统一显式ipa=none |
 | 历史全板cdb | 10686条、10262个文件、261个文件多次出现；C6689、C++3573 |
@@ -84,7 +84,7 @@ OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
 printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/01-local-checks.exit"
 ```
 
-**正确预期：** 分支oobsum/dev；构建成功；lit通过119项；replay为0处不一致；csa回退0、TN强告警0；check-tree一致。
+**正确预期：** 分支oobsum/dev；构建成功；lit通过120项；replay为0处不一致；csa回退0、TN强告警0；check-tree一致。
 **异常时：** 保留01-local-checks.log/.exit及对应lit Output目录。反馈提交号、失败测试名和完整RUN/expected/input或Python断言段；这些是自有用例，可原样带回。分支不符、拉取冲突或构建错误也停在此步处理。
 
 ### 第2步：同步到BXPlugin、编译并核对规则配置
@@ -150,7 +150,7 @@ printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATU
 主业务目标应为预期的aarch64_be ILP32（ptr=4、long=4、大端）；已确认的其它目标可以存在，solve会分组。可直接打开一个FIR检查target；FIR不是函数摘要。
 **输入完整性预期：** 同一Tu重复产生相同FIR允许幂等；若内容不同，export报错误，原canonical不被覆盖，两个内容版本保存在fir-conflicts/Tu/，并阻止后续solve/report。inputs-pending表示FIR已重新导出，尚需成功solve；不表示已完成判断。
 该检查只覆盖同Tu冲突，不是多个产品/配置的自动解析。不同FIR也可能来自源码/选项或降级输出差异，不能只凭内容哈希就认定公司改了宏。
-若出现冲突，保留整个WorkDir及fir-conflicts，先在公司核对对应cdb条目属于哪个真实构建目标；不同程序/配置应分别使用匹配的cdb和新WorkDir。不能删除冲突目录或固定挑一个版本以求通过。
+若出现冲突，保留整个WorkDir及fir-conflicts，先在公司核对对应cdb条目属于哪个真实构建目标；确属不同程序的配置应分别使用匹配的cdb和新WorkDir；若同一程序确实链接同源多变体，请反馈这一构建类型，当前不支持，不能任意拆断跨变体调用后宣称完整覆盖。冲突不等于业务代码错误，不能删除冲突目录或固定挑一个版本以求通过。
 所有导出进程必须统一版本，export全部成功且结束后再solve；不支持不同阶段重叠或新旧版本混写。补丁不能找回旧运行已被覆盖的版本，验证保护需从新WorkDir重新export。文件系统不支持同目录硬链接时明确失败，不退回覆盖写法。
 **异常时：** 保留04-cdb、04-export日志/.exit、clang_check原始任务日志及本轮fir/。若failed非0、缺TU、目标意外或异常退出，先停下；反馈条目/唯一文件/FIR/失败数、目标分布与错误类别概括。具体业务文件、命令和编译错误正文留在公司核查；不能把程序exit=0当成全部文件成功。
 
@@ -342,7 +342,8 @@ inputs-pending或fir-conflicts存在时report会报错误，不读取旧solved�
 
 **目的：** 验证告警可读性、分类及证据；在公司打开至少两条DEFINITE/POSSIBLE及主要SUSPECT原因的样本。
 
-**正确预期：** warning定位实际下标/成员/解引用/内存访问的sink行；主行有Access、元素类型/大小、容量、范围或exclusive end、Reason、Context、完整Call chain。
+**正确预期：** 有实际访问证据的warning定位下标/成员/解引用/内存访问的sink行；主行有Access、元素类型/大小、容量、范围或exclusive end、Reason、Context、完整Call chain。
+unknown_callee/fptr等交出指针的账本定位对应调用点，不能冒充已找到被调者内部sink。
 同一sink行合并成一个warning，不同上下文/理由由Also展开；原判断通过report_group仍能找全。已知布局能换算元素容量；例如20字节结构体数组3项容量60，索引3处4字节字段的exclusive end=64，即越4字节。
 分配位置的附加note只在来源文件唯一可定位时出现；同basename存在多个候选时保留主warning和来源文本，不猜某个文件。Dump=diagnostics可在dump/TU/allocation-notes.jsonl查看unique/ambiguous/missing等定位状态，文件可能含业务名字，仅留在公司。
 SUSPECT只表示未证明安全，不能当成已证实越界；type_range_only的人类含义是缺少可用的代码约束。核对具体R/W对象、索引/长度来源、守卫及调用实参，别只按函数名或取地址写法判断真伪。
@@ -433,7 +434,47 @@ FIR等按字节摘要比较，不解析整个大FIR；差异也可能是格式/�
 如需在公司定位具体记录，可加--details-json "$OOB_LOG/10-local-details.json"；其中含本地文件列表/报告记录索引与md5，留在公司，不带回。大报告仍需解析，会占用额外时间和内存。
 **异常时：** 保留两个原WorkDir/报告、10-comparison结果与进度；反馈退出码、first_change、各阶段计数、guard状态及是否only_md5_differs。缺少阶段不能把两个空集合说成一致；原告警正文及详细索引留在公司。
 
-### 第11步：保存本轮结果并反馈
+### 第11步：量化本批分析范围与参数影响
+
+**目的：** 先用已导出FIR核对函数/CFG/直接调用图的规模和跳过标记，再用已有decisions看标签、原因、报出过滤与实际depth。只输出计数，不打印业务名字或正文。
+MaxBlocks是单函数getNumBlockIDs限制（默认5000，0不限），不是整条链累计块数；InlineDepth是报告过滤，不是最大分析层数。
+MaxBlocks在export/inline降级时生效；已跳过的FIR仅改solve参数不会恢复，需重新export到新WorkDir。
+当前选项/不可调预算/模型与资源边界的完整说明见11-scope-and-limits.md；主规格中TimeLimitMs/MaxConds等规划项当前并未实现，不能当现有开关。
+
+```bash
+python3 "$OOB_REPO/oobsum/tools/scope_audit.py" stats --workdir "$OOB_WD" --fir-only --out "$OOB_LOG/11-fir-scope.json" > "$OOB_LOG/11-fir-scope.stdout" 2> "$OOB_LOG/11-fir-scope.progress"
+OOB_SCOPE_EXIT=$?
+printf 'scope_exit=%s\n' "$OOB_SCOPE_EXIT" | tee "$OOB_LOG/11-fir-scope.exit"
+cat "$OOB_LOG/11-fir-scope.json"
+```
+
+第7步完整生成decisions后，如需标签/原因/depth分布，再执行下面一次；这是统计，不重新求解。大数据逐TU读入仍需时间，进度写在对应.progress。
+
+```bash
+python3 "$OOB_REPO/oobsum/tools/scope_audit.py" stats --workdir "$OOB_WD" --out "$OOB_LOG/11-result-scope.json" > "$OOB_LOG/11-result-scope.stdout" 2> "$OOB_LOG/11-result-scope.progress"
+OOB_SCOPE_EXIT=$?
+printf 'scope_exit=%s\n' "$OOB_SCOPE_EXIT" | tee "$OOB_LOG/11-result-scope.exit"
+cat "$OOB_LOG/11-result-scope.json"
+```
+
+**正确预期：** 退出0、audit_complete=true、read_errors=0；FIR数与本轮一致。flags_raw/flags_unique中的cfg_too_large/no_cfg单列；max/hist只算已降级CFG，不把被跳过函数的占位块当真实1块。
+命中0仅说明这批已读函数未因该阈值跳过，不能推断其它精度/建模边界不存在。duplicate_external_keys只提示需核对定义归属，相同头文件/ODR重复可能正常，当前实现不自动完整解析混合程序。
+调用图仅显式直接边，SCC缩图最长边数不是递归运行时栈上限；缺FIR体可能已有模型，间接调用可能已被引擎解析，不能据这些计数声称漏报。判断depth最大值不是整个程序最大栈。
+当前三阶段完成后pending应false；audit_complete只代表统计读入成功，不代替输入覆盖、成功求解或漏洞召回率。
+
+可选自有实验：用新输出目录，默认1/16/64/256条调用边和小CFG阈值对照，源码/命令/FIR/判断/stderr/结果全部保留，不含业务代码，可带回results.json。
+
+```bash
+python3 "$OOB_REPO/oobsum/tools/scope_audit.py" bench --clang "$OOB_REPO/cmake-build-release/bin/clang" --out "$OOB_LOG/11-self-bench" > "$OOB_LOG/11-self-bench.stdout" 2> "$OOB_LOG/11-self-bench.progress"
+OOB_SCOPE_EXIT=$?
+printf 'bench_exit=%s\n' "$OOB_SCOPE_EXIT" | tee "$OOB_LOG/11-self-bench.exit"
+```
+
+预期all_passed=true：深链即使总块数超过3，只要每函数不超3仍可判定；宽函数低阈值SUSPECT、高阈值DEFINITE。可另用新目录加--depths 1 --wide-branches 2600 --wide-low 5000 --wide-high 6000验证实际5000阈值附近，不能覆盖同一个实验目录。
+这些是简单合成形态的已测值，不是引擎最大支持256层，也不代表所有256层复杂业务均精确。--timeout是测试子进程限时，不是checker参数。
+**异常时：** 保留计数JSON/stdout/progress；反馈audit_complete/read_errors/输入guard、关键计数及退出码。原始业务FIR/判断不带回。自有bench失败可贴case结果与stderr；进程失败/超时不是SAFE，不以缺结果推断安全。
+
+### 第12步：保存本轮结果并反馈
 
 **正确预期：** OOB_LOG有各阶段.log/.exit、progress及摘要计数快照；基线/对照报告分别保留；能够把告警映射到判断和摘要。
 如选C且要比较存储成本，可在公司执行：
@@ -447,7 +488,7 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 任一步异常，不必等整轮完成：保留该步日志/.exit与关联产物，填下面模板已完成的部分，未执行处写“未执行”，立即反馈。只有自有测试的错误可原样贴；业务阶段日志/数据仅在公司留存，带回计数和脱敏概括。
 
 ```text
-清单版本：2026-11-10-3
+清单版本：2026-11-10-4
 停止/完成步骤 __；提交号 __；各步骤command_exit/log_exit __
 稳定性输入概括：每轮是否新WorkDir __；cdb重复文件/不同编译命令文件数 __；不同宏/ABI是否代表不同产品配置 __；源码/选项/模型是否固定 __
 重复差异：总数或仅顺序/附加note/主warning变化 __；各轮WorkDir与报告是否已在公司留存 __
@@ -465,7 +506,8 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 8. 告警格式核对 __；场景默认/multi计数 __；各原因抽查 真问题/误报/看不出 __；抽象写法概括 __
 9. flex-on solve/report退出码 __；附对照stats --counts-only和report统计；与基线差异 __
 10. 一致性比较退出码 __；complete/equal/first_change __；附默认计数JSON（不附details）
-11. 摘要保存体积/文件数（若测量）__
+11. scope退出码 __；audit_complete/read_errors __；附11-fir-scope/11-result-scope计数JSON；自有实验all_passed __
+12. 摘要保存体积/文件数（若测量）__
 异常：步骤 __；错误类别 __；退出码 __；progress/摘要状态纯计数 __；仅本规则的非业务栈 __
 自有测试异常：附完整失败段；业务内容：不附源码/文件名/函数名/告警正文/原始JSON
 ```

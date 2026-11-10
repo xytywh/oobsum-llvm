@@ -214,19 +214,19 @@ SPEC-0128 补充：warning 主行附 [scene=LVn+LVm] 的 observed_features，不
 | I-10 | `Phase` | string | `inline` | `inline` / `export` / `solve` / `report`（§7） |
 | I-11 | `WorkDir` | string | `""` | 工作目录（§4.5）。`export` / `solve` / `report` 必填 |
 | I-12 | `InlineDepth` | int | `0` | F-20 的阈值，0 全报（SPEC-0122） |
-| I-13 | `EvalMode` | bool | `false` | F-22 |
-| I-14 | `ReportL2` | bool | `true` | F-16 |
+| I-13 | `EvalMode` | bool | `false` | 〔SPEC-0135：当前未注册/接入，以下为规划〕F-22 |
+| I-14 | `ReportL2` | bool | `true` | 〔SPEC-0135：当前未注册/接入，以下为规划〕F-16 |
 | I-15 | `ModelFile` | string | `""` | 模型表（§4.4）；空则用内置的最小模型（安全函数族 + libc） |
-| I-16 | `AllocConfig` | string | `""` | 现有 `config.ini` 的路径（读 `MEM_ALLOC` / `MEM_FREE`）。显式传入，不依赖 fork 内部读 `-rbchecker-config` 的接口 |
-| I-17 | `AllocIdentity` | string | `""` | `alloc_free_identity` 结果 JSON 的路径（数组或逐行 JSON 均可） |
-| I-18 | `MaxBlocks` | int | `5000` | 超过即 `skipped:cfg_too_large`（探针给出 P99 后再定） |
-| I-19 | `TimeLimitMs` | int | `5000` | 单函数求解时间上限，超时 `skipped:timeout` |
-| I-20 | `MaxConds` | int | `64` | 单函数 Req 上限，超出按严重度保留、其余记账 `cond_truncated` |
-| I-21 | `Dump` | string | `""` | 〔由 SPEC-0001 / SPEC-0123 / SPEC-0129 / SPEC-0130 修订：summary 零匹配与写入失败明确计数、落 status.json〕调试输出以 `+` 组合：options、models、callgraph、keys、fir、state、summary（stderr+落盘）、summary-files（solve只落盘）、apply、decisions、stats、progress；打印到 stderr，相关产物写 WorkDir/dump |
+| I-16 | `AllocConfig` | string | `""` | 〔SPEC-0135核对：当前未注册/接入，以下为规划〕现有 `config.ini` 的路径（读 `MEM_ALLOC` / `MEM_FREE`）。显式传入，不依赖 fork 内部读 `-rbchecker-config` 的接口 |
+| I-17 | `AllocIdentity` | string | `""` | 〔SPEC-0135核对：当前未注册/接入，以下为规划〕`alloc_free_identity` 结果 JSON 的路径（数组或逐行 JSON 均可） |
+| I-18 | `MaxBlocks` | int | `5000` | 〔SPEC-0135〕单函数getNumBlockIDs严格大于此值才skipped/SUSPECT；0不限；不是调用链累计块数或深度 |
+| I-19 | `TimeLimitMs` | int | `5000` | 〔SPEC-0135：当前未注册/未实现，此值仍为规划〕单函数求解时间上限，超时 `skipped:timeout` |
+| I-20 | `MaxConds` | int | `64` | 〔SPEC-0135：当前未注册/未实现，此值仍为规划〕单函数 Req 上限，超出按严重度保留、其余记账 `cond_truncated` |
+| I-21 | `Dump` | string | `""` | 〔由 SPEC-0001 / SPEC-0123 / SPEC-0129 / SPEC-0130 / SPEC-0133 修订：summary 零匹配与写入失败明确计数、落 status.json〕调试输出以 `+` 组合：options、models、callgraph、keys、fir、state、summary（stderr+落盘）、summary-files（solve只落盘）、apply、decisions、stats、progress、diagnostics、inputs；打印到 stderr，相关产物写 WorkDir/dump |
 | I-22 | `DumpFilter` | string | `""` | 〔由 SPEC-0129 / SPEC-0130 修订〕只对显示函数名匹配的函数打印调试输出（LLVM POSIX ERE）；solve --summary-function 从 FIR 精确预检、生成字面量过滤器，不改变求解范围；--summary-all用`.*`覆盖旧筛选并保存全部 |
-| I-23 | `Verbose` | int | `0` | `1`：每 TU 一行统计；`2`：每函数一行 |
-| I-24 | `CallTrace` | string | `full` | 摘要里 `calls[]` 调用点记录的详细程度：`full`（实参、局部区间、守卫、结局，调试用）/ `results`（只留结局）/ `none`。全量跑出来体积过大时降级 |
-| I-25 | `Emit` | string | `machine` | 摘要里写不写说明：`machine`（只写机器字段，D-30）/ `doc`（另生成 `doc`：形参名渲染的一句话、源码原文、宏值，调试与评审用；判定结果不变） |
+| I-23 | `Verbose` | int | `0` | 〔SPEC-0135：当前未注册/接入，以下为规划〕`1`：每 TU 一行统计；`2`：每函数一行 |
+| I-24 | `CallTrace` | string | `full` | 〔SPEC-0135：当前未注册/接入，以下为规划〕摘要里 `calls[]` 调用点记录的详细程度：`full`（实参、局部区间、守卫、结局，调试用）/ `results`（只留结局）/ `none`。全量跑出来体积过大时降级 |
+| I-25 | `Emit` | string | `machine` | 〔SPEC-0135：当前未注册/接入，以下为规划〕摘要里写不写说明：`machine`（只写机器字段，D-30）/ `doc`（另生成 `doc`：形参名渲染的一句话、源码原文、宏值，调试与评审用；判定结果不变） |
 | I-26 | `CharAlias` | string | `false` | 〔SPEC-0103；SPEC-0106 改成字符串、加 `verify`：照 `false` 推，记不别名假设，调用点核对〕`char *` / `void *` 的写当成可能改了任何外部内存（结构体形参、全局）；默认值等公司实测后定（D20） |
 | I-27 | `Subobject` | string | `suspect` | 〔SPEC-0105〕只越出成员数组 / 多维数组的一行、没越出整个对象的访问：`suspect`（SUSPECT `subobject_overflow`）/ `label`（按常规判 DEFINITE / POSSIBLE）/ `off`（只查整个对象）（D24、D25） |
 | I-28 | `AssumeNoWrap` | bool | `false` | 〔SPEC-0108〕检查与地址计算里的整数运算按数学整数（不回绕），记局部线性关系；打开后可能漏掉"检查被回绕绕过"的缺陷 |
@@ -655,7 +655,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 ### 6.10 全函数性与上限
 
 **A-95** 任何函数都必须产出合法摘要：不支持的构造降为未知、迭代超限置 `±∞`、超时 / CFG 过大产出空摘要并标 `skipped`。
-**A-96** 不得因单个函数 / TU 失败而中断整体：export 失败的 TU 记入 `logs/`，其中的函数在调用方看来是 `not_exported`；引擎对异常输入（读进来的 FIR 不一致、超出上限）一律返回错误码、
+**A-96**〔SPEC-0133补充：同Tu多种有效FIR/未完成发布不属于可忽略的单函数跳过，当前实现无法安全表示，须非0停止而非选一个；单函数建模不足/CFG超限仍按原方式降级〕 不得因单个函数 / TU 失败而中断整体：export 失败的 TU 记入 `logs/`，其中的函数在调用方看来是 `not_exported`；引擎对异常输入（读进来的 FIR 不一致、超出上限）一律返回错误码、
 把该函数降级为 `skipped`，**不靠 `assert`**（release 构建里 `assert` 不生效，而 LLVM 不开异常）。
 
 ---
@@ -682,7 +682,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 
 | 编号 | 项 | 要求 |
 |---|---|---|
-| **N-01** | 深度 | 合成直线链 3 / 5 / 10 / 17 / 20 层全部报出；20 层在 `inline` 模式下求解 < 1 秒（不含 bxen 启动与解析） |
+| **N-01** | 深度 | 〔SPEC-0135补充：无显式调用深度截断；自有简单链实测256，不代表无限资源或所有形状完备；scope_audit提供独立CFG/深度配对实验〕 合成直线链 3 / 5 / 10 / 17 / 20 层全部报出；20 层在 `inline` 模式下求解 < 1 秒（不含 bxen 启动与解析） |
 | **N-02** | export 耗时 | ≤ 探针全量墙钟时间（R3）× 1.5【推断：在探针的"解析 + 建 CFG"之上多一层降级与写文件】 |
 | **N-03** | solve | 单函数中位数 ≤ 2 ms、P99 ≤ 100 ms；全量单线程 ≤ 1 小时；峰值内存 ≤ 64 GB（47 核 / 251 GB 机器）。实测超标先降级 X-07 / 并行 |
 | **N-04** | 全量总耗时 / 内存 | 数值由你定（`00-` §7 的空格，`07-` 输入 I10） |
@@ -690,7 +690,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | **N-06** | 确定性 | 〔SPEC-0134提供分阶段产物比较；忽略报告数组顺序、保留记录重复次数，md5变化单列，不将缺失阶段当一致〕 同样的输入，`summaries/`、`reports.json`、告警输出逐字节相同（`stats.json` 里的耗时除外） |
 | **N-07** | 可移植 | C++14；只用 LLVM 14 的 Support / ADT / JSON / YAML 与 Clang 的 AST / Analysis / StaticAnalyzer Core；不开 RTTI、不用异常；同一份源码既能在 fork 里随 `Checkers.td` 编进 xir，也能在沙箱里编成插件（`-DOOBSUM_PLUGIN_BUILD`，探针已验证这种双构建【实测数据】）；驱动只用 Python 3.6+ 标准库 |
 | **N-08** | 编码规范 | `csa-checker-dev`：命名（checker 类内统一小驼峰、其余函数大驼峰、变量小驼峰）、`.clang-format`、单语句控制流带 `{}`、`BuiltinCheckerRegistration.h`、诊断与 td 全英文、include 不排序；每次交付跑 `check_checker_conventions.py` 无 FAIL |
-| **N-09** | 可观测 | 〔SPEC-0130 补充摘要保存阶段进度；SPEC-0129 补充摘要 available / matched / saved / write_failures；SPEC-0123 补充 solve 阶段内进度快照和实时日志；计数不当作准确 ETA〕 `Verbose=1` 每 TU 一行（函数数、导出耗时）；`stats.json`：函数状态分布、Req / Eff 数分布、告警按级别与层数、账本按原因、各阶段耗时 |
+| **N-09** | 可观测 | 〔SPEC-0135增加只计数的FIR/调用图/判断审计及可落盘自有量化实验；观测图或SUSPECT比例不等于漏洞覆盖率〕 〔SPEC-0130 补充摘要保存阶段进度；SPEC-0129 补充摘要 available / matched / saved / write_failures；SPEC-0123 补充 solve 阶段内进度快照和实时日志；计数不当作准确 ETA〕 `Verbose=1` 每 TU 一行（函数数、导出耗时）；`stats.json`：函数状态分布、Req / Eff 数分布、告警按级别与层数、账本按原因、各阶段耗时 |
 | **N-10** | 产物内容 | 〔SPEC-0125：允许有界的规范化访问表达式、类型、步长与位置；不复制源码行或字符串字面量内容〕 FIR 与摘要只含名字、类型布局、位置与抽象值，**不含源码文本** |
 
 ---

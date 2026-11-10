@@ -1,0 +1,3 @@
+# SPEC-0135：观察范围的计数口径、跳过占位块、SCC/目标隔离与深链/CFG配对机制。
+# RUN: rm -rf %t
+# RUN: %python %S/Inputs/scope-audit.py %S/../../../../oobsum/tools/scope_audit.py %clang %t

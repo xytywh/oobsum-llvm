@@ -33,6 +33,7 @@
 
 | 编号 | 标题 | 状态 |
 |---|---|---|
+| [SPEC-0135](SPEC-0135-scope-audit.md) | 实际限制审计、业务范围计数及深链/单函数CFG配对实验 | 已实现 |
 | [SPEC-0134](SPEC-0134-compare-runs.md) | 分阶段内容比较、报告多重集合与md5差异，默认只计数 | 已实现 |
 | [SPEC-0133](SPEC-0133-fir-input-conflicts.md) | 不可覆盖发布FIR、冲突留证及solve/report阶段门禁 | 已实现 |
 | [SPEC-0132](SPEC-0132-report-note-stability.md) | 分配note唯一定位、消除指针哈希迭代造成的文本随机性 | 已实现 |
