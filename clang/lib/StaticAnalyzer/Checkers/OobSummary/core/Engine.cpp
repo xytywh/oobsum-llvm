@@ -25,52 +25,6 @@ namespace engine {
 
 namespace {
 
-// 摘要里的位置是 文件名:行（D-23）；判定要完整路径（Reporter 按它找 FileEntry），按本 TU 的文件表换回
-class SiteMap {
-public:
-    explicit SiteMap(const std::vector<const fir::Module *> &mods)
-    {
-        for (const fir::Module *m : mods) {
-            for (const std::string &file : m->files) {
-                std::string base = llvm::sys::path::filename(file, llvm::sys::path::Style::posix).str();
-                paths.emplace(base, file);  // 同名取第一个
-            }
-        }
-    }
-    Site Of(const std::string &site) const
-    {
-        Site out;
-        size_t colon = site.rfind(':');
-        std::string base = colon == std::string::npos ? site : site.substr(0, colon);
-        if (colon != std::string::npos) {
-            out.line = static_cast<unsigned>(std::strtoul(site.c_str() + colon + 1, nullptr, 10));
-        }
-        auto it = paths.find(base);
-        out.file = it != paths.end() ? it->second : base;
-        return out;
-    }
-    // 函数@文件名:行 → Hop
-    Hop HopOf(const std::string &hop) const
-    {
-        Hop h;
-        size_t at = hop.find('@');
-        h.fn = at == std::string::npos ? hop : hop.substr(0, at);
-        h.site = Of(at == std::string::npos ? "" : hop.substr(at + 1));
-        return h;
-    }
-    std::vector<Hop> Chain(const std::vector<std::string> &path) const
-    {
-        std::vector<Hop> out;
-        for (const std::string &p : path) {
-            out.push_back(HopOf(p));
-        }
-        return out;
-    }
-
-private:
-    std::map<std::string, std::string> paths;
-};
-
 std::string Word(const std::string &kind)
 {
     return kind == "W" ? "write" : "read";
@@ -330,20 +284,21 @@ static void RecursionLedger(InlineResult &out)
 }
 
 InlineResult RunInline(const fir::Module &m, const models::ModelTable &models,
-                       const std::function<bool(const std::string &)> &traceFilter, const interp::Options &options)
+                       const std::function<bool(const std::string &)> &traceFilter, const interp::Options &options,
+                       const LocationTrace &locationTrace)
 {
-    return RunProgram({&m}, models, traceFilter, false, options);
+    return RunProgram({&m}, models, traceFilter, false, options, nullptr, locationTrace);
 }
 
 InlineResult RunSolve(const std::vector<const fir::Module *> &mods, const models::ModelTable &models,
-                      const interp::Options &options, const Progress &progress)
+                      const interp::Options &options, const Progress &progress, const LocationTrace &locationTrace)
 {
-    return RunProgram(mods, models, nullptr, true, options, progress);
+    return RunProgram(mods, models, nullptr, true, options, progress, locationTrace);
 }
 
 InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const models::ModelTable &models,
                         const std::function<bool(const std::string &)> &traceFilter, bool linked,
-                        const interp::Options &options, const Progress &progress)
+                        const interp::Options &options, const Progress &progress, const LocationTrace &locationTrace)
 {
     InlineResult out;
     // 全局大小表（D-34，SPEC-0032）：类型完整的全局按键记大小，定义优先
@@ -390,13 +345,58 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
                 progress("propagate", done, total);
             }
         });  // SPEC-0105
-    std::vector<SiteMap> siteMaps;
-    for (const fir::Module *mod : mods) {
-        siteMaps.emplace_back(std::vector<const fir::Module *>{mod});
-    }
-    SiteMap allSites(mods);  // 调用链上的各跳可能在别的模块里
-    // 位置的文件名按函数所在模块的文件表换回完整路径（SPEC-0029 §2.1）
-    auto sitesOf = [&](const std::string &fn) -> const SiteMap & { return siteMaps[out.moduleOf.at(fn)]; };
+    // SPEC-0136 / D-06：短位置仅用于推理兼容，诊断按函数/FIR位置证据回译。
+    SourceMap sources(mods);
+    auto locate = [&](const std::vector<std::string> &keys, const std::string &source, const std::string &context,
+                      const std::string &function, const std::string &role) {
+        SourceResolution resolved = sources.Resolve(keys, source);
+        if (locationTrace) {
+            locationTrace(
+                {sources.Name(context), function, keys.size() == 1 ? keys.front() : "", role, source, resolved});
+        }
+        return resolved.site;
+    };
+    auto siteOf = [&](const std::string &key, const std::string &source) {
+        return locate({key}, source, key, sources.Name(key), "site");
+    };
+    auto chainOf = [&](const std::vector<std::string> &path, const std::string &context, const std::string &access) {
+        std::vector<Hop> chain;
+        std::vector<std::string> keys{context};
+        for (size_t i = 0; i < path.size(); ++i) {
+            size_t at = path[i].find('@');
+            std::string name = at == std::string::npos ? path[i] : path[i].substr(0, at);
+            std::string source = at == std::string::npos ? "" : path[i].substr(at + 1);
+            keys.erase(std::remove_if(keys.begin(), keys.end(),
+                                      [&](const std::string &key) { return sources.Name(key) != name; }),
+                       keys.end());
+            if (i + 1 == path.size() && sources.Name(access) == name) {
+                keys = {access};  // 已有accessKey是最终访问函数的权威身份。
+            } else if (keys.empty()) {
+                keys = sources.KeysForName(name);  // 旧数据/断链仅在位置证据唯一时才确定。
+            }
+            chain.push_back({name, locate(keys, source, context, name, "chain")});
+            if (i + 1 == path.size()) {
+                break;
+            }
+            size_t nextAt = path[i + 1].find('@');
+            std::string nextName = path[i + 1].substr(0, nextAt);
+            std::set<std::string> nextKeys;
+            for (const auto &key : keys) {
+                auto summary = out.summaries.find(key);
+                if (summary == out.summaries.end()) {
+                    continue;
+                }
+                for (const auto &call : summary->second.calls) {
+                    const std::string &target = apply::CalleeOf(call, out.summaries);
+                    if (call.site == source && sources.Name(target) == nextName) {
+                        nextKeys.insert(target);
+                    }
+                }
+            }
+            keys.assign(nextKeys.begin(), nextKeys.end());
+        }
+        return chain;
+    };
     auto base = [&](Label label, const std::string &reason, const std::string &fn) {
         Decision d;
         d.label = label;
@@ -427,7 +427,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
         for (size_t ri = 0; ri < result.reps.size(); ++ri) {
             const summary::Rep &rep = result.reps[ri];
             Decision d = base(rep.level == "L1" ? Label::Definite : Label::Possible, "", fn);
-            d.site = sitesOf(fn).Of(rep.site);
+            d.site = siteOf(fn, rep.site);
             d.accessKey = rep.access.key;
             d.accessIds = {rep.access.diag};
             d.flex = rep.flex;
@@ -440,7 +440,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.dir = rep.dir;
             d.depth = static_cast<unsigned>(rep.depth);
             d.effDepth = static_cast<unsigned>(rep.effDepth);
-            d.chain = allSites.Chain(rep.chain);
+            d.chain = chainOf(rep.chain, fn, d.accessKey);
             d.warnMsg = alert::AlertMessage(rep, s.params);
             // 对象代换不过来（成员的 Req 落到调用方的局部上）：用被调者的形参名写成员（同 SUSPECT / SAFE，SPEC-0109）
             if (rep.obj == "?" && ri < result.repCallee.size() &&
@@ -486,7 +486,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             }
             bool safe = mine.outcome == "safe";
             Decision d = base(safe ? Label::Safe : Label::Suspect, mine.reason, fn);
-            d.site = sitesOf(fn).Of(so.site);
+            d.site = siteOf(fn, so.site);
             d.accessKey = so.req.access.key;
             d.accessIds = {so.req.access.diag};
             d.flex = mine.flex;
@@ -501,7 +501,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.effDepth = static_cast<unsigned>(mine.hasBase ? mine.effDepth : so.req.effDepth);
             std::vector<std::string> path{s.fn + "@" + so.site};  // 函数名（fn 是函数键，SPEC-0027）
             path.insert(path.end(), so.req.path.begin(), so.req.path.end());
-            d.chain = allSites.Chain(path);
+            d.chain = chainOf(path, fn, d.accessKey);
             // 对象代换不过来（成员的 Req 落到调用方的局部数组上）：用被调者的形参名写成员
             std::string object = d.obj == "?" && out.summaries.count(so.callee) != 0
                                      ? alert::ObjName(so.req.obj, out.summaries.at(so.callee).params)
@@ -523,7 +523,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
                 const solver::DerivedReq &r = result.reqs[i];
                 Decision d =
                     base(Label::Suspect, i < result.entryOpens.size() ? result.entryOpens[i] : "entry_unproven", fn);
-                d.site = sitesOf(fn).Of(r.depth == 0 ? r.access.at : s.loc);
+                d.site = siteOf(fn, r.depth == 0 ? r.access.at : s.loc);
                 d.accessKey = r.access.key;
                 d.accessIds = {r.access.diag};
                 d.flex = r.flex;
@@ -536,7 +536,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
                 d.dir = r.dir;
                 d.depth = static_cast<unsigned>(r.depth);
                 d.effDepth = static_cast<unsigned>(r.effDepth);
-                d.chain = allSites.Chain(r.path);
+                d.chain = chainOf(r.path, fn, d.accessKey);
                 d.warnMsg = SuspectMessage(d.kind, d.depth, alert::ObjName(d.obj, s.params), d.have, d.endHi, d.dir);
                 d.fp = DecisionFingerprint(LabelName(d.label), s.key, r.access.key, d.kind, r.access.end,
                                            apply::FingerprintObj(d.obj, d.dir));
@@ -585,8 +585,8 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             std::string more = group.size() > 1 ? " (and " + std::to_string(group.size() - 1) + " more pairs)" : "";
             std::string at = c.site.empty() ? s.loc : c.site;
             Decision d = base(Label::Suspect, "alias_unverified", fn);
-            d.site = sitesOf(fn).Of(at);
-            d.chain = {allSites.HopOf(s.fn + "@" + at)};
+            d.site = siteOf(fn, at);
+            d.chain = chainOf({s.fn + "@" + at}, fn, fn);
             if (c.verdict == "entry") {
                 d.warnMsg = "Cannot prove the accesses stay within bounds: " + pair +
                             ", which cannot be checked at an entry function" + more;
@@ -608,7 +608,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
         // 本函数当场证明安全的访问
         for (const summary::Req &r : facts.safe) {
             Decision d = base(Label::Safe, "local_entailed", fn);
-            d.site = sitesOf(fn).Of(r.access.at);
+            d.site = siteOf(fn, r.access.at);
             d.accessKey = r.access.key;
             d.accessIds = {r.access.diag};
             d.flex = r.flex;
@@ -619,7 +619,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             d.endHi = r.endHi;
             d.bound = r.bound;
             d.dir = r.dir;
-            d.chain = allSites.Chain(r.path);
+            d.chain = chainOf(r.path, fn, d.accessKey);
             d.warnMsg = SafeMessage(alert::ObjName(d.obj, s.params), d.have, d.endHi, d.dir);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, r.access.key, d.kind, r.access.end,
                                        apply::FingerprintObj(d.obj, d.dir));
@@ -628,11 +628,11 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
         // 本函数的账本
         for (const summary::Open &o : facts.opens) {
             Decision d = base(Label::Suspect, o.reason, fn);
-            d.site = sitesOf(fn).Of(o.at);
+            d.site = siteOf(fn, o.at);
             d.accessKey = fn;
             d.accessIds = o.diags;
             d.flex = o.flex;
-            d.chain = {allSites.HopOf(s.fn + "@" + o.at)};
+            d.chain = chainOf({s.fn + "@" + o.at}, fn, fn);
             d.warnMsg = LedgerMessage(o.reason);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, o.at, "", "", o.reason);
             out.decisions.push_back(std::move(d));
@@ -642,7 +642,7 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
         if (status.startswith("partial:") || status.startswith("skipped:")) {
             std::string reason = "unanalyzed:" + status.split(':').second.str();
             Decision d = base(Label::Suspect, reason, fn);
-            d.site = sitesOf(fn).Of(s.loc);
+            d.site = siteOf(fn, s.loc);
             d.warnMsg = LedgerMessage(reason);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, s.loc, "", "", reason);
             out.decisions.push_back(std::move(d));
@@ -663,10 +663,10 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             // 所有模块都没有它的函数体：linked（solve）时是 unknown_callee，inline 时判不了是不是跨 TU（SPEC-0029 §2.1）
             std::string reason = linked ? "unknown_callee" : "not_in_tu";
             Decision d = base(Label::Suspect, reason, fn);
-            d.site = sitesOf(fn).Of(c.site);
+            d.site = siteOf(fn, c.site);
             d.accessKey = fn;
             d.accessIds = {c.diag};
-            d.chain = {allSites.HopOf(s.fn + "@" + c.site)};
+            d.chain = chainOf({s.fn + "@" + c.site}, fn, fn);
             d.warnMsg = LedgerMessage(reason, c.callee);
             d.fp = DecisionFingerprint(LabelName(d.label), s.key, c.site, "", "", reason + ":" + c.callee);
             out.decisions.push_back(std::move(d));
@@ -775,7 +775,14 @@ InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const mode
             std::string key = llvm::sys::path::filename(site.file).str() + ":" + std::to_string(site.line);
             auto hit = siteIndex[decision.accessKey].find(key);
             if (hit != siteIndex[decision.accessKey].end()) {
-                matches = hit->second;  // 老 FIR 或未分析声明的兜底；报告层可列出多个候选
+                // SPEC-0136：老FIR的短位置兜底不能从同basename的多个文件中取首个sink。
+                std::set<std::string> files;
+                for (const auto *inst : hit->second) {
+                    files.insert(NormalizePath(module.files[inst->loc.file]));
+                }
+                if (files.size() == 1) {
+                    matches = hit->second;  // 同一文件同一行可列出多个表达式候选。
+                }
             }
         }
         for (const fir::Inst *inst : matches) {

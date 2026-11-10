@@ -7,6 +7,7 @@
 #include "OobSummary/report/Reporter.h"
 #include "OobSummary/core/Diagnostics.h"
 #include "OobSummary/core/Key.h"
+#include "OobSummary/core/SourceMap.h"
 
 #include "clang/Analysis/PathDiagnostic.h"
 #include "clang/Basic/FileManager.h"
@@ -65,7 +66,7 @@ const BugType *Reporter::TypeOf(Label label) const
 // 文件:行:列 → SourceLocation（06- A-91）；文件不在本 TU 时返回无效位置，由调用方退回
 SourceLocation Reporter::Locate(const Site &site, SourceManager &sm, bool load) const
 {
-    if (site.file.empty() || site.line == 0) {
+    if (site.file.empty() || site.line == 0 || llvm::StringRef(site.file).startswith(kUnresolvedSourcePrefix)) {
         return SourceLocation();
     }
     auto file = sm.getFileManager().getFile(site.file);
@@ -155,6 +156,13 @@ std::vector<std::pair<Decision, Disposition>> Reporter::Flush(BugReporter &br, S
                 decision.diagnosticPrimary = index == first;
             }
             std::string text = FullMessage(decision);
+            bool unresolved = llvm::StringRef(decision.site.file).startswith(kUnresolvedSourcePrefix);
+            for (const auto &hop : decision.chain) {
+                unresolved |= llvm::StringRef(hop.site.file).startswith(kUnresolvedSourcePrefix);
+            }
+            if (unresolved) {
+                text += "; some context or call-chain source locations are unresolved";
+            }
             if (seen.insert(text).second) {
                 messages[first] += (messages[first].empty() ? "" : " | Also: ") + text;
             }

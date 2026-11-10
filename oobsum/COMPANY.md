@@ -9,10 +9,11 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-10-4**
+**清单版本：2026-11-10-5**
 
 本节是一轮完整验证的执行流程。每步按“目的 → 命令 → 正确预期 → 异常时保留与反馈”执行；遇到异常停在该步，不继续后续分析。
 历史数据只作比较，本轮从第1步开始，用新的WorkDir保存本轮结果。重复运行核对时，每轮保留完整WorkDir与报告副本、提交号及选项概括，不能只留最终告警总数。第9步尾数组对照另有一次solve/report；第5步A/B/C只选一种，不要三种都跑。
+本版增加同名文件来源回归及第3步来源调试落盘核对；不要求为这项定位修复单独重跑一次业务全板。业务稳定性仍按第10步分阶段比较；输入构建域未确认前，不宣布数百条差异已全部解释。
 
 ### 路径与日志：开始前设置一次
 
@@ -29,7 +30,7 @@ OOB_GBL=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/gbl_conf
 OOB_REPORT=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/allfiles-buffer_overflow_report.json
 OOB_INI=/usr1/clang_check/src/cfg/ini/config.ini
 OOB_FUNCPTR=/usr1/clang_check/src/cfg/ini/config_funcptr.ini
-OOB_RUN_TAG=20261110-r4
+OOB_RUN_TAG=20261110-r5
 OOB_WD=/usr1/oobsum-work/full-b-$OOB_RUN_TAG
 OOB_LOG=$OOB_WD/validation
 OOB_TC_WD=$OOB_WD/testcase
@@ -57,7 +58,7 @@ fi
 
 | 项目 | 已确认结果（不替代本轮预期） |
 |---|---|
-| 公司完整lit | 2026-11-05公司确认更新后通过；当前套件预期120项 |
+| 公司完整lit | 2026-11-05公司确认更新后通过；当前套件预期121项 |
 | C++健壮性验证 | Release/Debug均exit=0，无断言；242条判定/222报出 |
 | IPA对照 | 自有TestCase加/不加ipa=none结果一致；本轮统一显式ipa=none |
 | 历史全板cdb | 10686条、10262个文件、261个文件多次出现；C6689、C++3573 |
@@ -84,7 +85,7 @@ OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
 printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/01-local-checks.exit"
 ```
 
-**正确预期：** 分支oobsum/dev；构建成功；lit通过120项；replay为0处不一致；csa回退0、TN强告警0；check-tree一致。
+**正确预期：** 分支oobsum/dev；构建成功；lit通过121项（含source-paths.test）；replay为0处不一致；csa回退0、TN强告警0；check-tree一致（29个源文件、30个头文件）。source-paths.test用自有源码验证同名头文件、跨TU同名静态函数、旧FIR与无法消歧的来源，不依赖业务文件。
 **异常时：** 保留01-local-checks.log/.exit及对应lit Output目录。反馈提交号、失败测试名和完整RUN/expected/input或Python断言段；这些是自有用例，可原样带回。分支不符、拉取冲突或构建错误也停在此步处理。
 
 ### 第2步：同步到BXPlugin、编译并核对规则配置
@@ -112,14 +113,16 @@ printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATU
 
 ```bash
 {
-OOBSUM_CONFIG="WorkDir=$OOB_TC_WD Dump=options+stats" "$OOB_BUILD/bxen" -exec_mode=onlySa -cc_json=$OOB_BUILD -analysis_file=$OOB_ROOT/xir/llvm_ast/TestCase/OobSummaryChecker/TC_OobSummaryChecker.c -checker=rb.enhance.core.OobSummary -extra_args="-analyzer-config ipa=none -analyzer-max-loop 3 -rbchecker-config=$OOB_INI -funcptr-config=$OOB_FUNCPTR" &&
-python3 "$OOB_REPO/oobsum/tools/decisions.py" "$OOB_TC_WD"
+OOBSUM_CONFIG="WorkDir=$OOB_TC_WD Dump=options+stats+diagnostics" "$OOB_BUILD/bxen" -exec_mode=onlySa -cc_json=$OOB_BUILD -analysis_file=$OOB_ROOT/xir/llvm_ast/TestCase/OobSummaryChecker/TC_OobSummaryChecker.c -checker=rb.enhance.core.OobSummary -extra_args="-analyzer-config ipa=none -analyzer-max-loop 3 -rbchecker-config=$OOB_INI -funcptr-config=$OOB_FUNCPTR" &&
+python3 "$OOB_REPO/oobsum/tools/decisions.py" "$OOB_TC_WD" &&
+python3 -c 'import collections,json,sys; from pathlib import Path; files=list((Path(sys.argv[1])/"dump").glob("*/source-locations.jsonl")); assert len(files)==1, "expected one source trace"; rows=[json.loads(line) for line in files[0].read_text().splitlines()]; assert rows and all(r["schema"]=="oobsum-source-location/1" for r in rows), "expected source location records"; print("source trace:", len(rows), dict(collections.Counter(r["status"] for r in rows)))' "$OOB_TC_WD"
 } 2>&1 | tee "$OOB_LOG/03-testcase.log"
 OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
 printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/03-testcase.exit"
 ```
 
 **正确预期：** InlineDepth=0、DiagnosticStyle=sink、FlexibleArrayMax=4、ReportFlexibleArray=false；5条warning，decisions=7 emitted=5。引擎告警在Tc_Leaf的实际下标访问行，主行有[access=array-index]、元素大小和完整Call chain；decisions日志存在。
+source trace计数非空，本自有TestCase应均为unique；dump/TU/source-locations.jsonl是本轮inline引擎写下的定位证据，可直接打开看context、fn、source、resolved。查询命令只读文件、不重算。
 **异常时：** 保留03-testcase.log/.exit、testcase/decisions和dump。带回这整个自有TestCase的输出及本规则栈；选项、数量或位置不符时停下，先不要跑全板。
 
 ### 第4步：核对cdb并export业务FIR
@@ -346,6 +349,10 @@ inputs-pending或fir-conflicts存在时report会报错误，不读取旧solved�
 unknown_callee/fptr等交出指针的账本定位对应调用点，不能冒充已找到被调者内部sink。
 同一sink行合并成一个warning，不同上下文/理由由Also展开；原判断通过report_group仍能找全。已知布局能换算元素容量；例如20字节结构体数组3项容量60，索引3处4字节字段的exclusive end=64，即越4字节。
 分配位置的附加note只在来源文件唯一可定位时出现；同basename存在多个候选时保留主warning和来源文本，不猜某个文件。Dump=diagnostics可在dump/TU/allocation-notes.jsonl查看unique/ambiguous/missing等定位状态，文件可能含业务名字，仅留在公司。
+调用链的位置则按当前函数键、已知调用目标及FIR指令文件核验，不再按全程序第一个同basename文件回译。实际sink的diag编号映射仍优先；无编号的短位置兜底也不能跨文件取首。
+短位置已丢失身份、同一函数内两个同名片段相同行等仍可能无法确定；这时chain保留<oobsum-unresolved>/文件名，warning说明some context or call-chain source locations are unresolved，不产生猜测的note，原判断及指纹保留。
+来源回译轨迹只在inline/solve开启Dump=diagnostics时生成，分别在dump/TU/source-locations.jsonl或dump/solve/source-locations.jsonl；每条含unique/missing/ambiguous与候选数，DumpFilter可按上下文或当前函数名筛选。report只读solved，此时才开启diagnostics不能补出求解期轨迹。
+本轮只要求第3步短用例验证该调试功能，不默认保存全板逐位置轨迹。业务错位时保留FIR、solved、decisions及原始报告，反馈位置不可用/错位数量；先停下来，不为取轨迹盲目重复耗时solve。完整路径/函数名及原始轨迹留在公司。
 SUSPECT只表示未证明安全，不能当成已证实越界；type_range_only的人类含义是缺少可用的代码约束。核对具体R/W对象、索引/长度来源、守卫及调用实参，别只按函数名或取地址写法判断真伪。
 
 **可选：从某条判断查询调用链。** 本段依赖第7步已生成的decisions日志，不是查看摘要或统计场景的前置步骤。
@@ -488,13 +495,13 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 任一步异常，不必等整轮完成：保留该步日志/.exit与关联产物，填下面模板已完成的部分，未执行处写“未执行”，立即反馈。只有自有测试的错误可原样贴；业务阶段日志/数据仅在公司留存，带回计数和脱敏概括。
 
 ```text
-清单版本：2026-11-10-4
+清单版本：2026-11-10-5
 停止/完成步骤 __；提交号 __；各步骤command_exit/log_exit __
 稳定性输入概括：每轮是否新WorkDir __；cdb重复文件/不同编译命令文件数 __；不同宏/ABI是否代表不同产品配置 __；源码/选项/模型是否固定 __
 重复差异：总数或仅顺序/附加note/主warning变化 __；各轮WorkDir与报告是否已在公司留存 __
 1. 构建 __；lit通过/失败 __；replay不一致 __；csa回退 __ / TN强告警 __；check-tree __
 2. land/公司编译 __；规则名/目标报告路径核对 __
-3. 自有TestCase：InlineDepth __；DiagnosticStyle __；decisions __ emitted __；warning __；sink/调用链 __
+3. 自有TestCase：InlineDepth __；DiagnosticStyle __；decisions __ emitted __；warning __；sink/调用链 __；source trace条数/各状态计数 __
 4. cdb条目/唯一文件/重复文件/C/C++ __；不同编译命令文件数 __；差异类别概括 __
    export成功/失败 __；FIR __；缺TU数 __；目标组及数量 __
    FIR冲突TU数 __；遗留候选数 __；inputs状态 __；是否统一版本/阶段串行 __；冲突分类概括 __
@@ -503,7 +510,7 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 6. local/derived可读 __；C时任意另选函数可读 __（A写未保存）；抽象推理核对 __
 7. report成功/失败 __；日志判断数/报出判断数/物理warning数/report条数 __；无法解释差值 __
    附基线stats --counts-only与report统计（只有计数）
-8. 告警格式核对 __；场景默认/multi计数 __；各原因抽查 真问题/误报/看不出 __；抽象写法概括 __
+8. 告警格式核对 __；来源不可用/错位数量 __；场景默认/multi计数 __；各原因抽查 真问题/误报/看不出 __；抽象写法概括 __
 9. flex-on solve/report退出码 __；附对照stats --counts-only和report统计；与基线差异 __
 10. 一致性比较退出码 __；complete/equal/first_change __；附默认计数JSON（不附details）
 11. scope退出码 __；audit_complete/read_errors __；附11-fir-scope/11-result-scope计数JSON；自有实验all_passed __

@@ -163,6 +163,7 @@ private:
     void dumpFir(const oobsum::fir::Module &module, const std::string &tuId) const;
     std::string writeFir(const oobsum::fir::Module &module, const std::string &tuId, std::string &error) const;
     bool validateInputs(bool forReport) const;
+    oobsum::engine::LocationTrace locationTrace(std::string &content) const;
     bool solveAll() const;
     void loadSolved(const std::string &tuId, std::vector<oobsum::Decision> &out) const;
     void dumpSummaries(const oobsum::fir::Module &module, const std::string &tuId,
@@ -288,6 +289,7 @@ bool OobSummaryChecker::solveAll() const
                           (target.bigEndian ? " big-endian" : " little-endian");
         groups[key].push_back(module.get());
     }
+    std::string sourceDiagnostics;
     llvm::json::Array summaryIndex;
     // SPEC-0129 / I-21：零匹配与写盘失败必须可见；计数只观察，不参与求解。
     size_t summaryAvailable = 0, summaryMatched = 0, summarySaved = 0, summaryFailures = 0;
@@ -302,7 +304,8 @@ bool OobSummaryChecker::solveAll() const
                          : "group" + std::to_string(groupNumber) + "/" + std::to_string(groups.size()) + "/" + stage,
                      done, total);
         };
-        oobsum::engine::InlineResult result = oobsum::engine::RunSolve(mods, models, interpOptions, groupProgress);
+        oobsum::engine::InlineResult result =
+            oobsum::engine::RunSolve(mods, models, interpOptions, groupProgress, locationTrace(sourceDiagnostics));
         summaryAvailable += result.summaries.size();
         bool saveSummaries = dump.On("summary") || dump.On("summary-files");  // SPEC-0130 / F-42
         size_t summaryCompleted = 0;
@@ -455,6 +458,9 @@ bool OobSummaryChecker::solveAll() const
                             "and solve --summary-function NAME\n";
         }
     }
+    if (dump.On("diagnostics")) {
+        dump.File("solve/source-locations.jsonl", sourceDiagnostics);
+    }
     if (allWritten && validateInputs(false)) {
         std::string error;
         if (!oobsum::MarkFirSolved(workDir, error)) {
@@ -519,6 +525,34 @@ std::string OobSummaryChecker::writeFir(const oobsum::fir::Module &module, const
         (void)validateInputs(false);
     }
     return path;
+}
+
+// SPEC-0136：只读来源诊断；不开Dump时不保存逐位置轨迹。
+oobsum::engine::LocationTrace OobSummaryChecker::locationTrace(std::string &content) const
+{
+    if (!dump.On("diagnostics")) {
+        return nullptr;
+    }
+    return [this, &content](const oobsum::engine::LocationEvent &event) {
+        if (!dump.Wants("diagnostics", event.context) && !dump.Wants("diagnostics", event.function)) {
+            return;
+        }
+        const auto &where = event.resolution.site;
+        llvm::json::Value value(llvm::json::Object{{"schema", "oobsum-source-location/1"},
+                                                   {"context", event.context},
+                                                   {"fn", event.function},
+                                                   {"key", event.key},
+                                                   {"role", event.role},
+                                                   {"source", event.source},
+                                                   {"status", event.resolution.status},
+                                                   {"candidates", static_cast<int64_t>(event.resolution.candidates)},
+                                                   {"resolved", where.file + ":" + std::to_string(where.line)}});
+        std::string text;
+        llvm::raw_string_ostream os(text);
+        os << value;
+        dump.Line("diagnostics", os.str());
+        content += os.str() + "\n";
+    };
 }
 
 // SPEC-0133 / N-06：输入错误不是SAFE，不允许以静默覆盖/旧solved继续报告。
@@ -695,8 +729,13 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
             }
         }
         bool wantState = dump.On("state");
+        std::string sourceDiagnostics;
         oobsum::engine::InlineResult result = oobsum::engine::RunInline(
-            module, models, [&](const std::string &fn) { return wantState && dump.Wants("state", fn); }, interpOptions);
+            module, models, [&](const std::string &fn) { return wantState && dump.Wants("state", fn); }, interpOptions,
+            locationTrace(sourceDiagnostics));
+        if (dump.On("diagnostics")) {
+            dump.File(tuId + "/source-locations.jsonl", sourceDiagnostics);
+        }
         if (dump.On("summary") || dump.On("state")) {
             dumpSummaries(module, tuId, result);
         }

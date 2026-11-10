@@ -1,0 +1,3 @@
+# SPEC-0136：同名文件的函数/调用目标位置证据、旧元数据和不可消歧对照。
+# RUN: rm -rf %t
+# RUN: %python %S/Inputs/source-paths/check.py %clang %t

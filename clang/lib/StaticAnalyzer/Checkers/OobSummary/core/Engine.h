@@ -14,6 +14,7 @@
 #include "OobSummary/core/Models.h"
 #include "OobSummary/core/Solver.h"
 #include "OobSummary/core/Summary.h"
+#include "OobSummary/core/SourceMap.h"
 
 #include <cstddef>
 #include <functional>
@@ -26,6 +27,17 @@ namespace engine {
 
 // SPEC-0123：只观察，不参与分析；阶段内 completed/total。
 using Progress = std::function<void(const std::string &, size_t, size_t)>;
+
+// SPEC-0136：仅当请求回调时构造定位轨迹，默认不积累逐判定调试记录。
+struct LocationEvent {
+    std::string context;
+    std::string function;
+    std::string key;
+    std::string role;
+    std::string source;
+    SourceResolution resolution;
+};
+using LocationTrace = std::function<void(const LocationEvent &)>;
 
 struct InlineResult {
     std::map<std::string, summary::Summary> summaries;  // 函数键 → 摘要（只有局部事实；SPEC-0027）
@@ -41,15 +53,18 @@ struct InlineResult {
 // traceFilter：哪些函数记 Dump=state 的轨迹（空 = 都不记）
 InlineResult RunInline(const fir::Module &m, const models::ModelTable &models = models::ModelTable::Default(),
                        const std::function<bool(const std::string &)> &traceFilter = nullptr,
-                       const interp::Options &options = interp::Options());
+                       const interp::Options &options = interp::Options(),
+                       const LocationTrace &locationTrace = nullptr);
 // Phase=solve（SPEC-0029）：同一目标的 TU 的 FIR 放在一起；checker 按目标分组（SPEC-0124）
 InlineResult RunSolve(const std::vector<const fir::Module *> &mods,
                       const models::ModelTable &models = models::ModelTable::Default(),
-                      const interp::Options &options = interp::Options(), const Progress &progress = nullptr);
+                      const interp::Options &options = interp::Options(), const Progress &progress = nullptr,
+                      const LocationTrace &locationTrace = nullptr);
 // 两者共用：linked = 模块齐了（solve）
 InlineResult RunProgram(const std::vector<const fir::Module *> &mods, const models::ModelTable &models,
                         const std::function<bool(const std::string &)> &traceFilter, bool linked,
-                        const interp::Options &options = interp::Options(), const Progress &progress = nullptr);
+                        const interp::Options &options = interp::Options(), const Progress &progress = nullptr,
+                        const LocationTrace &locationTrace = nullptr);
 
 // 文本（SPEC-0021 §2.3）
 std::string SuspectMessage(const std::string &kind, int64_t depth, const std::string &object, const std::string &have,

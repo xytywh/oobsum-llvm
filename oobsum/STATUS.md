@@ -7,12 +7,20 @@
 
 ## 当前任务（按任务单独提交）
 
-见TASKS.md：T1固定FIR的report分配note消歧稳定性 → T2编译变体覆盖保护 → T3分阶段稳定性比较 → T4调用层次与覆盖范围量化。
+见TASKS.md：T1固定FIR的report分配note消歧稳定性 → T2编译变体覆盖保护 → T3分阶段稳定性比较 → T4调用层次与覆盖范围量化 → T5同名文件来源归属。
 用户2026-11-10反馈多次export/solve/report最终告警有数百条差异，暂未带回本轮cdb变体与WorkDir复用情况。
 只读合成实验已复现同Tu并行export不同CAP导致DEFINITE/SAFE随完成顺序变化；另复现同名头文件allocation note随机选址，但主warning/decisions不变。
 公司真正差异来自哪一层还需分阶段核对；不默认把这两个独立来源合并解释。任务清单和实现各步都保留证据及回归。
 
 ## 已完成
+
+* T5 / SPEC-0136：自有root→b/common.h的Mid→a/common.h的Leaf复现Mid调用note/chain误指a；替换Engine全局basename首项映射。
+  新纯core SourceMap按选中函数键/模块与FIR位置核验，链沿既有调用site/callee_key约束，末端accessKey优先；同名static函数跨TU不会仅按显示名首选。
+  缺失/歧义以诊断占位路径标记，reporter不载入、不发错误note，warning保留并说明来源不可用；旧FIR按短位置补sink元数据时也不跨文件取首。
+  FIR/摘要语义、推理公式、标签、原始指纹不改；普通唯一位置回归保持；这是来源归属修复，不实现多产品符号解析或全来源字符串完整路径化。
+  Dump=diagnostics在inline/solve落source-locations.jsonl，按上下文或当前函数过滤；默认无逐位置轨迹积累，开关/筛选不改结果已回归。
+  构建通过、lit121/121、core191、replay一致、csa回退0/TN强告警0、check-tree29源/30头一致；模拟公司落地幂等，conventions31PASS/1既有WARN/0FAIL。
+  COMPANY清单2026-11-10-5增加来源回归预期及自有TestCase轨迹核对，不要求为此单独重跑业务全板。公司实际不稳定来源与输入构建域仍待带回，不能把此修复解释为全部数百条差异的根因。
 
 * T4 / SPEC-0135：11-scope-and-limits.md按实际注册选项/硬编码预算/模型/输入域/资源分类审计，纠正主规格中TimeLimitMs、MaxConds及其它未注册规划项的当前状态；无显式调用深度截断不等于无限资源或全语言精确。
   scope_audit.py stats逐TU只计数：raw/unique函数、CFG分布（跳过占位块不混入）、SCC/显式图、缺体/间接调用、标签/原因/实际depth；不输出业务名，缺数据/错误不当成功统计。
@@ -21,7 +29,7 @@
   构建通过、lit120/120、core187、replay一致、csa回退0/TN强告警0、check-tree一致；engine_check仍14/16（LV3-07/LV8-01既有关系域缺口）。不改算法或默认限制，不改金标准。
   COMPANY最终清单2026-11-10-4增加业务只计数审计及自有配对实验；MaxBlocks改值需在新参数下重export，不能只调solve恢复已跳过函数。
   四任务本地实现完成；公司仍需确认实际差异层、每轮WorkDir/版本/选项是否一致及cdb变体的真实程序归属。合法同程序多变体当前也会被保护拒绝，不能任意拆域后宣称完整覆盖；需根据公司输入继续设计。
-  已知后续来源精度风险：Engine SiteMap basename首项映射固定但可能误定位；T1只消除分配note随机选址，不宣称已做全FIR来源完整路径化。
+  当时记录的Engine SiteMap同名首项误定位风险已在T5修复；剩余短位置信息不足时明确标记，不猜文件。
 
 * T3 / SPEC-0134：compare_runs.py按阶段比较两轮FIR/solved/decisions字节摘要，报告按本规则多重集合比较，忽略排列但保留重复次数；md5变化单列，默认不输出业务路径/名字/正文。
   支持只比较到export/solve、显式报告路径、仅公司本地详细索引；缺失/冲突/未完成输入不能当一致。工具只定位差异层，不证明源码/版本/模型/选项一致或漏洞召回率。
