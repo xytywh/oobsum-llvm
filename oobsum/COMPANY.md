@@ -9,12 +9,17 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-11-1**
+**清单版本：2026-11-11-2**
 
-本节是一轮完整验证的执行流程。每步按“目的 → 命令 → 正确预期 → 异常时保留与反馈”执行；遇到异常停在该步，不继续后续分析。
-本次先做第1–3步同步并验证并发export观察补丁，再做第4A步只读检查已报冲突的WorkDir；存在冲突时停在4A，暂不运行后续业务export/solve/report。它不是一个可删掉后继续的缓存错误，补丁也不会自动合并不同FIR。
-下面保留完整正常流程，确认输入域后才从4B使用新WorkDir继续。重复核对时，每轮保留完整WorkDir与报告副本、提交号及选项概括。第9步尾数组对照另有一次solve/report；第5步A/B/C只选一种，不要三种都跑。
-本版修正export期间把活跃候选计为遗留或扫描到已删除候选的诊断；真实内容冲突继续报错。业务稳定性仍按第10步分阶段比较，输入构建域未确认前不宣布数百条差异已全部解释。
+从一个新的空业务WorkDir开始，按第1步顺序执行。初始化只先建立validation日志目录；fir/solved/decisions由本轮各阶段生成，不要求你已有结果、冲突目录或第二轮对照数据。
+每一步都给出目的、命令、执行中观察、完成预期与异常反馈。正常时继续下一步；出错或出现冲突时先停止进入后续阶段，再按该步的异常段检查本轮证据。冲突比较读取同一轮留下的多份FIR快照，不需要再跑一轮。
+第5步A/B/C只选择一种摘要保存方式；第9步是本轮完成后的尾数组策略对照；第10步为可选的跨轮稳定性比较，首次只有一轮时直接跳过。未执行的可选项在模板中写明，不当作失败。
+
+| 阶段 | 执行中能观察什么 | 正常完成后应有什么 |
+|---|---|---|
+| 第4步export | 04-export.log的任务成功/失败、fir/*.json数量增加、有无fir-conflicts标记 | 有效TU导出成功、FIR齐全、无冲突/残留；尚无业务solved/decisions |
+| 第5步solve | progress的阶段与completed/total、日志、进程CPU/RSS；前半程可没有solved | progress=done、solved数等于FIR数、清除inputs-pending；所选摘要保存成功 |
+| 第7步report | 07-report.log的任务成功/失败、decisions/*.jsonl数量增加 | 本轮新报告文件、判断日志与只计数统计 |
 
 ### 路径与日志：开始前设置一次
 
@@ -31,15 +36,12 @@ OOB_GBL=$OOB_ROOT/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/gbl_config.js
 OOB_REPORT=$OOB_ROOT/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/allfiles-buffer_overflow_report.json
 OOB_INI=$OOB_ROOT/config/config.ini
 OOB_FUNCPTR=$OOB_ROOT/config/config_funcptr.ini
-OOB_RUN_TAG=20261111-r1
+OOB_RUN_TAG=20261111-r2
 OOB_WD=/usr1/oobsum-work/full-b-$OOB_RUN_TAG
 OOB_LOG=$OOB_WD/validation
 OOB_TC_WD=$OOB_WD/testcase
 OOB_REPORT_COPY=$OOB_WD/report.json
 OOB_COMPARE=$OOB_WD.flex-on
-OOB_COMPARE_LEFT=/usr1/oobsum-work/full-b-run-a
-OOB_COMPARE_RIGHT=/usr1/oobsum-work/full-b-run-b
-OOB_CONFLICT_WD=/usr1/oobsum-work/full-b-20261110-r5
 set -o pipefail
 if [ -e "$OOB_WD" ] || [ -e "$OOB_COMPARE" ]; then
     printf 'WorkDir已存在，请更换OOB_RUN_TAG；保留旧目录。
@@ -51,7 +53,7 @@ fi
 ```
 
 **正确预期：** 创建一个新目录及validation/；此前业务结果保留。目录已存在或无写权限时，先修正路径/轮次，不执行下一步。
-OOB_ROOT/INI/FUNCPTR按本次带回的BXPlugin-oobsum环境填写，若实际不同只改这里。OOB_CONFLICT_WD只是示例：必须替换为本次报错时OOBSUM_CONFIG中WorkDir的真实值，保留旧目录，不能填报告log目录或新建的OOB_WD。
+OOB_ROOT/INI/FUNCPTR按BXPlugin-oobsum环境填写，实际不同只改这里。OOB_WD始终表示当前这一轮，观察和异常排查都读取它；出现问题时保留本轮目录，不换路径掩盖现场。
 构建、分析和统计命令块用tee实时显示并保存输出，最后写同名.exit：command_exit是该块命令退出码，log_exit是tee退出码，**两者都应为0**。
 块内用`&&`串联，前一个命令失败就不继续该块。任一退出码非0，或下面的内容预期不满足，都应停下；不要只看进程exit=0就认为覆盖完整。
 报告和汇总也可能较大；所有原始日志、FIR、solved、摘要、decisions和报告JSON保留在公司，不直接打包带回。
@@ -67,8 +69,6 @@ OOB_ROOT/INI/FUNCPTR按本次带回的BXPlugin-oobsum环境填写，若实际不
 | 历史全板cdb | 10686条、10262个文件、261个文件多次出现；C6689、C++3573 |
 | 历史export/solve/report | 10245个FIR；solve19m49.53s/29.4 GiB；报告629741条；各数值随输入与版本变化 |
 | 最近一次solve与摘要 | FIR/solved10257；2231627条判定、9884个TU非空；25m07.76s/45.2 GiB；两函数local/derived可读 |
-
-**本次待处理输入（尚未确认通过）：** 公司export观察到11个冲突目录；当时扫描到4–8个候选，可能包含活跃写者，不能当成最终残留。完整扫描可因候选正常消失而报ENOENT，观察代码已单独修复；本次发布不同内容的错误仍需4A核对，新/旧WorkDir和构建域暂未确认。
 
 ### 第1步：更新仓库、构建并验证自有用例
 
@@ -130,15 +130,72 @@ printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATU
 source trace计数非空，本自有TestCase应均为unique；dump/TU/source-locations.jsonl是本轮inline引擎写下的定位证据，可直接打开看context、fn、source、resolved。查询命令只读文件、不重算。
 **异常时：** 保留03-testcase.log/.exit、testcase/decisions和dump。带回这整个自有TestCase的输出及本规则栈；选项、数量或位置不符时停下，先不要跑全板。
 
-### 第4步：先核对已有冲突，再决定是否export业务FIR
+### 第4步：核对cdb并export业务FIR
 
-#### 4A：本次报错先执行，只读核对原WorkDir
-
-**目的：** 解释真实内容冲突，避免仅修掉观察日志后继续用一个不完整配置求解。先等待clang_check的全部export进程结束，保留它的完整日志/成功失败统计与原WorkDir；不能在写者仍运行时把临时候选叫作遗留。不要启动solve来当盘点命令。
-确认上方OOB_CONFLICT_WD指向报错时的WorkDir，而不是本版新建的OOB_WD。下面只读fir-conflicts中的少量快照与目录项，不读全板FIR，不启动bxen或求解；仅输出固定字段的计数，可带回。
+**目的：** 确定输入范围，再将每个成功TU降级成中间表示。export只写fir/，不进行跨文件求解、不生成业务告警或decisions。
 
 ```bash
-python3 - "$OOB_CONFLICT_WD" <<'PY' | tee "$OOB_LOG/04a-conflicts.json"
+{
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" cdb --cc-json "$OOB_CDB"
+} 2>&1 | tee "$OOB_LOG/04-cdb.log"
+OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
+printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/04-cdb.exit"
+```
+
+**cdb正确预期：** 条目数/唯一文件数/语言分布符合本轮范围。重复条目不等于重复文件；同一主文件目前只保留一个FIR。
+“去掉输出选项后编译命令仍不同”非0是核查信号，不等于有效FIR必然不同。记录计数，按下面命令导出；有效FIR相同允许幂等，不同时会留下冲突快照并报错。若已知cdb混入不同真实程序，先核对输入范围；不能据此宣称当前实现完整支持混合域。
+
+```bash
+{
+/usr/bin/time -v env OOBSUM_CONFIG="WorkDir=$OOB_WD Phase=export" /usr/local/bin/python3 /usr1/clang_check/src/main.py -e "$OOB_BUILD/" -j "$OOB_CDB/compile_commands.json" -r rb.enhance.core.OobSummary -c "$OOB_GBL" &&
+test ! -e "$OOB_WD/fir-conflicts" &&
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" status --workdir "$OOB_WD"
+} 2>&1 | tee "$OOB_LOG/04-export.log"
+OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
+printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/04-export.exit"
+```
+
+**执行中观察（另开终端）：** 只复制开头相同的变量赋值，不重复创建目录的初始化块，也不启动第二个export。每隔30–60秒看一次即可；这些命令不解析FIR正文，也不启动分析。
+
+```bash
+tail -20 "$OOB_LOG/04-export.log"
+if [ -d "$OOB_WD/fir" ]; then
+    find "$OOB_WD/fir" -maxdepth 1 -type f -name '*.json' | wc -l
+else
+    printf 'FIR文件数: 0（尚未开始落盘）\n'
+fi
+if [ -e "$OOB_WD/fir-conflicts" ]; then
+    printf '发现冲突标记：停止进入下一阶段，按下方异常段保留和排查本轮数据。\n'
+else
+    printf '当前无冲突标记；仍需等待全部export结束。\n'
+fi
+```
+
+FIR数反映已落盘的唯一TU数，重复cdb条目不增加同一Tu文件数；数量未增长也可能正处理一个大文件，结合任务日志判断，不能当作准确百分比/剩余时间。
+运行中正常会短暂出现*.tmp，不在此时统计“遗留”。出现conflicting FIR variants、publication=failed、I/O错误、失败任务或异常退出时，不进入solve；不要为继续流程删除冲突或候选。
+
+**export正确预期：** fir/逐渐增加，每个成功TU一个JSON，内含target、funcs、类型与指令。新目录下solved/decisions尚无业务结果。有效输入应全部成功，FIR数量应与有效唯一文件数相符；不能把success/failed条目数直接当唯一文件数。
+主业务目标应为预期的aarch64_be ILP32（ptr=4、long=4、大端）；已确认的其它目标可以存在，solve会分组。可直接打开一个FIR检查target；FIR不是函数摘要。
+**输入完整性预期：** 同一Tu重复产生相同FIR允许幂等；若内容不同，export报错误，原canonical不被覆盖，两个内容版本保存在fir-conflicts/Tu/，并阻止后续solve/report。inputs-pending表示FIR已重新导出，尚需成功solve；不表示已完成判断。
+新版export/inline发布观察只检查标记，details_scanned=false且两个数量为-1是“未统计”，不表示负数量或新错误；status=pending_solve是正常待求解状态。
+publication=published/failed及publication_error说明本次TU发布结果；conflict则是共享WorkDir标记，可能由其它TU留下。失败始终记录；正常成功只有Dump=inputs时记录，落dump/TU/inputs-PID.json，不再由多个发布者争写根dump/inputs.json。
+只有全部export结束后的solve完整统计冲突TU/遗留候选；export期间不应再因枚举其它活跃候选出现cannot inspect FIR candidate的错误。真正创建/读取/保存失败仍须报错，不能据此一概忽略I/O错误。
+该检查只覆盖同Tu冲突，不是多个产品/配置的自动解析。不同FIR也可能来自源码/选项或降级输出差异，不能只凭内容哈希就认定公司改了宏。
+所有导出进程必须统一版本，export全部成功且结束后再solve；不支持不同阶段重叠或新旧版本混写。补丁不能找回旧运行已被覆盖的版本，验证保护需从新WorkDir重新export。文件系统不支持同目录硬链接时明确失败，不退回覆盖写法。
+**完成后检查：** 主export命令已返回、全部本轮导出写者已退出，再看临时候选数量，正确预期为0；非0按异常处理。export命令块会检查fir-conflicts并在存在时返回非0；仍须核对clang_check的failed数和FIR是否齐全，status打印的“下一步”只是目录统计提示。
+
+```bash
+find "$OOB_WD/fir" -maxdepth 1 -name '*.tmp' | wc -l
+```
+
+**仅本轮export失败或出现冲突时执行下面的排查；正常完成直接第5步。**
+
+先停止进入后续阶段，保留04-cdb/04-export日志及.exit、clang_check原始任务日志、本轮fir/与dump/；让本轮export全部退出后再盘点。若主动中止过，留下的候选也一并保留。不能把程序exit=0当成全部任务成功。
+只有出现fir-conflicts时才执行下面快照统计；若只是编译/运行/I/O失败而没有冲突目录，保存失败计数、错误类别和现有产物直接反馈，不比较不存在的快照。
+下面读取当前OOB_WD内同一TU的多份快照：它们在这一次export中就会产生，不依赖旧WorkDir、另一轮结果或第二次export。脚本只读冲突快照及目录项，不启动bxen/solve，输出固定字段计数可带回。
+
+```bash
+python3 - "$OOB_WD" <<'PY' | tee "$OOB_LOG/04-conflicts.json"
 import collections, json, sys
 from pathlib import Path
 root = Path(sys.argv[1])
@@ -180,52 +237,14 @@ print(json.dumps(counts, ensure_ascii=False, sort_keys=True))
 raise SystemExit(2 if counts['read_errors'] else 0)
 PY
 OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
-printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/04a-conflicts.exit"
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" cdb --cc-json "$OOB_CDB" 2>&1 | tee "$OOB_LOG/04a-cdb.log"
-OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
-printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/04a-cdb.exit"
+printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/04-conflicts.exit"
 ```
 
-**正确预期：** 只读脚本退出0表示计数读取成功，不表示输入已可求解；它只核对JSON对象的顶层字段，不校验完整FIR契约。此次应能看到已持久化的冲突目录及两份或更多可读JSON快照；最终数量可能大于运行中观察到的11。temporary_after_writers_stop才是写者结束后的残留数，不能对照运行中的4–8要求一致。
-有冲突/残留/读取错误时停在4A，不执行4B及第5步以后。冲突根目录为空、少于两份有效快照同样不能清理后绕过，需反馈计数。
-在公司编辑器中打开某个fir-conflicts/TU目录下的JSON，顶层file可找到对应源文件，target可核对ABI；对照该文件在cdb中的全部条目，确认宏、头文件目录、目标或其它选项差异及真实链接域。同目录快照比较files/types/globals/funcs即可先定位差异字段；编号变化也可能让多个字段一起变，字段差异计数不是根因证明。
-只反馈“新/复用WorkDir”、冲突/快照/残留数、差异字段计数，以及编译参数差异类别、属于同一程序还是不同产品/配置；文件名、函数名、命令、宏名和FIR正文留在公司。
-确定是不同程序的构建域后，分别用匹配cdb及新WorkDir运行；若同一程序合法链接同源多变体，或参数相同而FIR仍变化，先反馈，当前保护不能代替多变体建模。不能固定挑首个/最后一个快照、删冲突目录或忽略报错后继续，也不要求现在反复全量export。
-
-#### 4B：输入域已经确认时，核对cdb并在新WorkDir导出
-
-**目的：** 确定输入范围，再将每个成功TU降级成中间表示。export只写fir/，不进行跨文件求解、不生成业务告警或decisions。
-
-```bash
-{
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" cdb --cc-json "$OOB_CDB"
-} 2>&1 | tee "$OOB_LOG/04-cdb.log"
-OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
-printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/04-cdb.exit"
-```
-
-**cdb正确预期：** 条目数/唯一文件数/语言分布符合本轮范围。重复条目不等于重复文件；同一主文件目前只保留一个FIR。
-若“去掉输出选项后编译命令仍不同”非0，先在公司确认：仅无关选项差异可记录概括；若宏/ABI确实不同，先反馈变体计数与抽象差异，确定如何分批后再继续，不能把多变体当作全部已覆盖。
-
-```bash
-{
-/usr/bin/time -v env OOBSUM_CONFIG="WorkDir=$OOB_WD Phase=export" /usr/local/bin/python3 /usr1/clang_check/src/main.py -e "$OOB_BUILD/" -j "$OOB_CDB/compile_commands.json" -r rb.enhance.core.OobSummary -c "$OOB_GBL" &&
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" status --workdir "$OOB_WD"
-} 2>&1 | tee "$OOB_LOG/04-export.log"
-OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
-printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/04-export.exit"
-```
-
-**export正确预期：** fir/逐渐增加，每个成功TU一个JSON，内含target、funcs、类型与指令。新目录下solved/decisions尚无业务结果。有效输入应全部成功，FIR数量应与有效唯一文件数相符；不能把success/failed条目数直接当唯一文件数。
-主业务目标应为预期的aarch64_be ILP32（ptr=4、long=4、大端）；已确认的其它目标可以存在，solve会分组。可直接打开一个FIR检查target；FIR不是函数摘要。
-**输入完整性预期：** 同一Tu重复产生相同FIR允许幂等；若内容不同，export报错误，原canonical不被覆盖，两个内容版本保存在fir-conflicts/Tu/，并阻止后续solve/report。inputs-pending表示FIR已重新导出，尚需成功solve；不表示已完成判断。
-新版export/inline发布观察只检查标记，details_scanned=false且两个数量为-1是“未统计”，不表示负数量或新错误；status=pending_solve是正常待求解状态。
-publication=published/failed及publication_error说明本次TU发布结果；conflict则是共享WorkDir标记，可能由其它TU留下。失败始终记录；正常成功只有Dump=inputs时记录，落dump/TU/inputs-PID.json，不再由多个发布者争写根dump/inputs.json。
-只有全部export结束后的solve完整统计冲突TU/遗留候选；export期间不应再因枚举其它活跃候选出现cannot inspect FIR candidate的错误。真正创建/读取/保存失败仍须报错，不能据此一概忽略I/O错误。
-该检查只覆盖同Tu冲突，不是多个产品/配置的自动解析。不同FIR也可能来自源码/选项或降级输出差异，不能只凭内容哈希就认定公司改了宏。
-若出现冲突，保留整个WorkDir及fir-conflicts，先在公司核对对应cdb条目属于哪个真实构建目标；确属不同程序的配置应分别使用匹配的cdb和新WorkDir；若同一程序确实链接同源多变体，请反馈这一构建类型，当前不支持，不能任意拆断跨变体调用后宣称完整覆盖。冲突不等于业务代码错误，不能删除冲突目录或固定挑一个版本以求通过。
-所有导出进程必须统一版本，export全部成功且结束后再solve；不支持不同阶段重叠或新旧版本混写。补丁不能找回旧运行已被覆盖的版本，验证保护需从新WorkDir重新export。文件系统不支持同目录硬链接时明确失败，不退回覆盖写法。
-**异常时：** 保留04-cdb、04-export日志/.exit、clang_check原始任务日志及本轮fir/。若failed非0、缺TU、目标意外或异常退出，先停下；反馈条目/唯一文件/FIR/失败数、目标分布与错误类别概括。具体业务文件、命令和编译错误正文留在公司核查；不能把程序exit=0当成全部文件成功。
+**排查预期：** 退出0只表示计数读取成功，不表示输入已可求解；脚本只核对JSON顶层字段。conflicting_tus统计本轮冲突TU目录，snapshots统计已留存版本，temporary_after_writers_stop才表示写者结束后的残留。空冲突目录、少于两份可读快照或read_errors非0同样须反馈，不能删掉标记绕过。
+在公司编辑器中打开本轮fir-conflicts/TU下的JSON，顶层file找到对应源文件，target核对ABI；对照该文件在本轮cdb中的全部条目，检查宏、头文件目录、目标和其它选项。比较同目录快照的files/types/globals/funcs可定位差异字段；编号变化也可能让多个字段一起变，字段计数本身不能证明根因。
+空目录开始也可能在本轮内冲突：同一路径的重复cdb条目产生不同有效FIR即可触发，无需先有旧结果。参数看似相同而FIR不同，也要保留两份证据反馈，不能直接归咎于宏。
+若确属不同程序的构建配置，后续按确认的真实构建域分别使用匹配cdb和新WorkDir；若同一程序合法链接同源多变体，当前仍需设计支持，先反馈，不能任意拆断跨变体调用后宣称完整覆盖。冲突只说明输入有不同内容，不能当成业务越界结论。
+只带回计数、参数差异类别和真实构建域概括；业务文件名、函数名、命令、宏名和FIR正文留在公司。输入原因未解决前停在此步，不进入第5步；本轮目录保留，不固定挑一个版本继续。确认后再决定下一轮使用的输入与新WorkDir，不能由脚本返回0自动恢复执行。
 
 ### 第5步：完整solve，并选择摘要保存范围
 
@@ -304,12 +323,11 @@ fi
 多目标依次运行各自的analyze/propagate/decisions/summary/write，前缀如group1/2；read只在开头，index/status在最后汇总。
 保存是bxen checker在solve进程中做的，实际在各组求解完后；不是summary查询脚本做的，也不要求人一直盯着终端。进程退出后JSON仍在，可以随时打开。
 
-另开终端时只复制相同的路径变量赋值，不重复新目录检查，也不更改本轮OOB_RUN_TAG；再观察：
+**执行中观察：** 另开终端只复制相同的路径变量赋值，不重复新目录检查，不更改OOB_RUN_TAG，不再启动solve。刚启动尚未生成progress时，先看05-solve.log中的命令与输出；progress生成后再执行下面命令。主命令已异常退出时按.exit排查，不把刚启动的空目录当作已有结果丢失。
 
 ```bash
 cat "$OOB_WD/dump/solve/progress.json"
 tail -20 "$OOB_WD/logs/solve.log"
-python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" status --workdir "$OOB_WD"
 OOB_SOLVE_PID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["pid"])' "$OOB_WD/dump/solve/progress.json")
 ps -p "$OOB_SOLVE_PID" -o pid,etime,pcpu,rss,stat
 ```
@@ -395,6 +413,19 @@ cp "$OOB_REPORT" "$OOB_REPORT_COPY"
 OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
 printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/07-report.exit"
 ```
+
+**执行中观察（另开终端）：** 使用相同变量，每隔30–60秒查看任务日志与已落盘的判断日志数。这是本轮处理进展，尚未生成最终全板JSON时不用提前运行report统计工具。
+
+```bash
+tail -20 "$OOB_LOG/07-report.log"
+if [ -d "$OOB_WD/decisions" ]; then
+    find "$OOB_WD/decisions" -maxdepth 1 -type f -name '*.jsonl' | wc -l
+else
+    printf '判断日志数: 0（尚未开始落盘）\n'
+fi
+```
+
+重复cdb条目可能写同一个TU日志，日志文件数不是已完成命令数，也不是告警数；任务成功/失败仍看clang_check输出。主命令结束后先确认command_exit/log_exit均0、有效任务无失败、本轮报告复制成功，再执行下面的汇总；异常先停在本步。
 
 ```bash
 {
@@ -490,11 +521,16 @@ printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATU
 在公司核对候选确实符合末尾数组的分配约定；已知实际分配很小的真问题也可能被该约定过滤，不能据此宣布安全。
 **异常时：** 保留两套WorkDir、报告副本、09日志/.exit、两份stats --counts-only；反馈总数/标签/各过滤原因计数及抽象差异。原始标签改变、普通非候选访问意外消失或任务失败时停下，不覆盖基线重跑。
 
-### 第10步：同配置多轮一致性对比
+### 第10步（可选）：确有两轮同配置结果时再比较
 
-**目的：** 复用公司已保留的两轮结果，查差异最早出现于FIR、solved、decisions还是最终报告。先比较已有数据，不为此立即重复跑两次全量；若旧数据被同目录覆盖，则无法反推旧轮，只能重新保留两轮独立快照。
-选取同一机器/源码绝对路径、同一版本/cdb/模型/选项的两轮；不要把第9步flex-on和默认值的有意差异当作不稳定。工具不能自动证明这些前提相同。
-在开头路径区填写两轮OOB_COMPARE_LEFT/RIGHT；默认报告为各目录report.json，旧报告保存在别处时加--report-left/--report-right的实际文件路径。只有一轮或旧数据被覆盖时，本步先记“缺对照未执行”，不要拿不存在的示例目录运行。
+**首次从空目录跑完只有当前一轮，本步记“仅一轮，未比较”，跳过全部命令，继续第11步。** 不为走完本指南而再跑一次全量；第4步冲突排查完全不依赖本步。
+只有你实际已有两轮独立保存的同配置数据、需要核对重复性时，才执行本步。比较可以定位差异最早出现在FIR、solved、decisions还是报告；两轮必须使用同一机器/源码绝对路径、同一提交/cdb/模型/选项。第9步flex-on是有意策略差异，不能当作相同配置；工具不能自动证明这些前提相同。
+到这里才设置两轮路径。下面左边是当前轮，右边只是赋值示例，必须换成另一轮已实际完成并保存的根目录，不能拿不存在的目录运行。默认报告为各目录report.json；报告另存时加--report-left/--report-right的真实文件路径。旧目录被覆盖则无法反推旧轮，只能记录缺对照，不能声称结果一致。
+
+```bash
+OOB_COMPARE_LEFT=$OOB_WD
+OOB_COMPARE_RIGHT=/usr1/oobsum-work/full-b-20261111-r3
+```
 
 ```bash
 python3 "$OOB_REPO/oobsum/tools/compare_runs.py" "$OOB_COMPARE_LEFT" "$OOB_COMPARE_RIGHT" --json > "$OOB_LOG/10-comparison.json" 2> "$OOB_LOG/10-comparison.progress"
@@ -565,18 +601,19 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 任一步异常，不必等整轮完成：保留该步日志/.exit与关联产物，填下面模板已完成的部分，未执行处写“未执行”，立即反馈。只有自有测试的错误可原样贴；业务阶段日志/数据仅在公司留存，带回计数和脱敏概括。
 
 ```text
-清单版本：2026-11-11-1
+清单版本：2026-11-11-2
 停止/完成步骤 __；提交号 __；各步骤command_exit/log_exit __
 稳定性输入概括：每轮是否新WorkDir __；cdb重复文件/不同编译命令文件数 __；不同宏/ABI是否代表不同产品配置 __；源码/选项/模型是否固定 __
-重复差异：总数或仅顺序/附加note/主warning变化 __；各轮WorkDir与报告是否已在公司留存 __
+本轮从空业务目录开始 __；是否发生异常及停止阶段 __；原WorkDir/日志是否完整保留 __
+重复差异（确有第二轮才填，否则写仅一轮未比较）：总数或仅顺序/附加note/主warning变化 __；各轮数据是否已留存 __
 1. 构建 __；lit通过/失败 __；replay不一致 __；csa回退 __ / TN强告警 __；check-tree __
 2. land/公司编译 __；规则名/目标报告路径核对 __
 3. 自有TestCase：InlineDepth __；DiagnosticStyle __；decisions __ emitted __；warning __；sink/调用链 __；source trace条数/各状态计数 __
-4A. 原WorkDir新建/复用 __；全部export已结束 __；附04a-conflicts计数JSON；快照差异字段 __
-    cdb同文件不同参数类别 __；同一程序/不同构建域/仍未确认 __；参数相同却FIR不同 __
-4B. cdb条目/唯一文件/重复文件/C/C++ __；不同编译命令文件数 __；差异类别概括 __（4A未解决则写未执行）
+4. cdb条目/唯一文件/重复文件/C/C++ __；不同编译命令文件数 __；差异类别概括 __
    export成功/失败 __；FIR __；缺TU数 __；目标组及数量 __
-   FIR冲突TU数 __；遗留候选数 __；inputs状态 __；是否统一版本/阶段串行 __；冲突分类概括 __
+   FIR冲突TU数 __；写者退出后遗留候选数 __；inputs状态 __；是否统一版本/阶段串行 __；冲突分类概括 __
+   仅本轮冲突时附04-conflicts计数JSON：全部export已退出 __；快照差异字段 __
+   同文件参数差异类别 __；同一程序/不同构建域/仍未确认 __；参数相同却FIR不同 __（无冲突写未触发）
 5. solve方式 A/B/C __；Elapsed __；峰值RSS KiB __；solved __；判断 __；非空TU __；最终阶段 __
    摘要available/matched/saved/write_failures __；index_written __；保存阶段可见 __
 6. local/derived可读 __；C时任意另选函数可读 __（A写未保存）；抽象推理核对 __
@@ -584,7 +621,7 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
    附基线stats --counts-only与report统计（只有计数）
 8. 告警格式核对 __；来源不可用/错位数量 __；场景默认/multi计数 __；各原因抽查 真问题/误报/看不出 __；抽象写法概括 __
 9. flex-on solve/report退出码 __；附对照stats --counts-only和report统计；与基线差异 __
-10. 一致性比较退出码 __；complete/equal/first_change __；附默认计数JSON（不附details）
+10. 仅一轮未比较/已具备两轮 __；执行时退出码 __；complete/equal/first_change __；附默认计数JSON（不附details）
 11. scope退出码 __；audit_complete/read_errors __；附11-fir-scope/11-result-scope计数JSON；自有实验all_passed __
 12. 摘要保存体积/文件数（若测量）__
 异常：步骤 __；错误类别 __；退出码 __；progress/摘要状态纯计数 __；仅本规则的非业务栈 __

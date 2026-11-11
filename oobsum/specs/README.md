@@ -33,6 +33,7 @@
 
 | 编号 | 标题 | 状态 |
 |---|---|---|
+| [SPEC-0138](SPEC-0138-company-fresh-run-guide.md) | 空WorkDir单轮顺序执行、阶段观察、出错后才查本轮快照 | 已实现 |
 | [SPEC-0137](SPEC-0137-export-input-observation.md) | 并发发布只观察标记，本次错误单列、按TU/PID留证，solve仍严格扫描 | 已实现 |
 | [SPEC-0136](SPEC-0136-function-source-map.md) | 按函数与调用键回译诊断来源，同名缺失/歧义不猜，落来源轨迹 | 已实现 |
 | [SPEC-0135](SPEC-0135-scope-audit.md) | 实际限制审计、业务范围计数及深链/单函数CFG配对实验 | 已实现 |
