@@ -1,0 +1,3 @@
+# SPEC-0137 / X-01、X-03：并发发布不扫描活跃候选；solve仍检查真正遗留与冲突。
+# RUN: rm -rf %t
+# RUN: %python %S/Inputs/export-inputs/check.py %clang %S/Inputs/fir-conflicts/variant.c %t

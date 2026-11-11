@@ -3,16 +3,24 @@
 > 每次会话开始先读这里；每次提交一批改动后更新这里（"已完成"挪进 CHANGELOG 时可以删）。
 > 规则在 `../CLAUDE.md`，背景与决策在 `HANDOFF.md`，主规格 `06-spec.md`，增量规格 `specs/`。
 
-更新：2026-11-10 · 分支 `oobsum/dev` · 版本 v4.0
+更新：2026-11-11 · 分支 `oobsum/dev` · 版本 v4.0
 
 ## 当前任务（按任务单独提交）
 
-见TASKS.md：T1固定FIR的report分配note消歧稳定性 → T2编译变体覆盖保护 → T3分阶段稳定性比较 → T4调用层次与覆盖范围量化 → T5同名文件来源归属。
+见TASKS.md：T1固定FIR的report分配note消歧稳定性 → T2编译变体覆盖保护 → T3分阶段稳定性比较 → T4调用层次与覆盖范围量化 → T5同名文件来源归属 → T6并发export的输入观察。
 用户2026-11-10反馈多次export/solve/report最终告警有数百条差异，暂未带回本轮cdb变体与WorkDir复用情况。
 只读合成实验已复现同Tu并行export不同CAP导致DEFINITE/SAFE随完成顺序变化；另复现同名头文件allocation note随机选址，但主warning/decisions不变。
 公司真正差异来自哪一层还需分阶段核对；不默认把这两个独立来源合并解释。任务清单和实现各步都保留证据及回归。
 
 ## 已完成
+
+* T6 / SPEC-0137：公司2026-11-11反馈export当时有11个冲突目录，候选计数4–8，并有扫描候选ENOENT；未带回新/复用WorkDir、参数差异与真实构建域，不能判定全部由宏造成。
+  确认主错误来自PublishFir比较后的不同内容；其后的发布诊断误调用solve式完整扫描，可能把活跃候选当遗留，并在正常unlink后stat失败。自有持有候选复现成功export仍被观察为incomplete_export。
+  改为仅solve完整扫描，export/inline发布及report浅查根标记，数量-1/details_scanned=false明确未统计；发布结果与错误单列，按TU/PID落dump/TU/inputs-PID.json，串行solve/report仍用根inputs.json。
+  本次修正不合并/丢弃变体，真实内容冲突仍保留快照、非0退出，solve仍拒绝残留/错误类型/冲突；不改判断标签、指纹或金标准。
+  实际8写者同内容并发及候选增删、发布I/O失败、Dump不影响FIR、严格solve保护均通过。构建成功、lit122/122、core192、replay一致、csa回退0/TN强告警0、check-tree29源/30头一致。
+  模拟落地幂等；conventions31PASS/1既有WARN/0FAIL。COMPANY清单2026-11-11-1对齐本轮工具根路径，新增既有WorkDir只读盘点（自有冲突/空目录验证、Bash语法通过），不要求盲重跑全板。
+  公司先同步自有验证，再只读核对原冲突WorkDir；有冲突停在4A。仍待确认新/复用目录、快照差异字段、同文件编译参数及构建域；业务快照/名字留公司，只带回计数与抽象类型。
 
 * T5 / SPEC-0136：自有root→b/common.h的Mid→a/common.h的Leaf复现Mid调用note/chain误指a；替换Engine全局basename首项映射。
   新纯core SourceMap按选中函数键/模块与FIR位置核验，链沿既有调用site/callee_key约束，末端accessKey优先；同名static函数跨TU不会仅按显示名首选。

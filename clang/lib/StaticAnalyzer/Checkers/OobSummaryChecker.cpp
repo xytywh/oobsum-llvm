@@ -162,7 +162,7 @@ private:
     void dumpKeys(const TranslationUnitDecl *tu, const std::string &tuId, oobsum::KeyMaker &keys) const;
     void dumpFir(const oobsum::fir::Module &module, const std::string &tuId) const;
     std::string writeFir(const oobsum::fir::Module &module, const std::string &tuId, std::string &error) const;
-    bool validateInputs(bool forReport) const;
+    bool validateInputs(bool forReport, const std::string &tuId = "", const std::string &publicationError = "") const;
     oobsum::engine::LocationTrace locationTrace(std::string &content) const;
     bool solveAll() const;
     void loadSolved(const std::string &tuId, std::vector<oobsum::Decision> &out) const;
@@ -518,11 +518,11 @@ std::string OobSummaryChecker::writeFir(const oobsum::fir::Module &module, const
         return "";
     }
     if (!oobsum::PublishFir(workDir, module, path, error)) {
-        (void)validateInputs(false);
+        (void)validateInputs(false, tuId, error);
         return "";
     }
     if (dump.On("inputs")) {
-        (void)validateInputs(false);
+        (void)validateInputs(false, tuId);
     }
     return path;
 }
@@ -556,27 +556,37 @@ oobsum::engine::LocationTrace OobSummaryChecker::locationTrace(std::string &cont
 }
 
 // SPEC-0133 / N-06：输入错误不是SAFE，不允许以静默覆盖/旧solved继续报告。
-bool OobSummaryChecker::validateInputs(bool forReport) const
+bool OobSummaryChecker::validateInputs(bool forReport, const std::string &tuId,
+                                       const std::string &publicationError) const
 {
     if (workDir.empty()) {
         return true;
     }
-    oobsum::FirInputState state = oobsum::InspectFirInputs(workDir, !forReport);
-    bool ready = forReport ? state.ReadyForReport() : state.ReadyForSolve();
-    std::string status = !state.error.empty()         ? "io_error"
-                         : state.conflict             ? "conflict"
-                         : state.incompleteFiles != 0 ? "incomplete_export"
-                         : forReport && state.pending ? "pending_solve"
-                                                      : "ready";
+    // SPEC-0137 / X-01、X-03：export/inline仍可有其它写者；不能枚举会正常消失的候选。
+    // 只有export全部结束后的solve检查完整性，report沿用根标记快速保护。
+    bool scanDetails = phase == "solve";
+    oobsum::FirInputState state = oobsum::InspectFirInputs(workDir, scanDetails);
+    bool ready = (forReport ? state.ReadyForReport() : state.ReadyForSolve()) && publicationError.empty();
+    std::string status = !state.error.empty()            ? "io_error"
+                         : state.conflict                ? "conflict"
+                         : state.incompleteFiles != 0    ? "incomplete_export"
+                         : !publicationError.empty()     ? "publication_failed"
+                         : !scanDetails && state.pending ? "pending_solve"
+                                                         : "ready";
     llvm::json::Value value(
         llvm::json::Object{{"schema", "oobsum-inputs/1"},
                            {"phase", phase},
                            {"status", status},
                            {"pending", state.pending},
                            {"conflict", state.conflict},
-                           {"details_scanned", !forReport},
-                           {"conflicting_tus", forReport ? -1 : static_cast<int64_t>(state.conflictingTus)},
-                           {"incomplete_files", forReport ? -1 : static_cast<int64_t>(state.incompleteFiles)},
+                           {"details_scanned", scanDetails},
+                           {"conflicting_tus", scanDetails ? static_cast<int64_t>(state.conflictingTus) : -1},
+                           {"incomplete_files", scanDetails ? static_cast<int64_t>(state.incompleteFiles) : -1},
+                           {"tu", tuId},
+                           {"publication", tuId.empty()               ? "not_applicable"
+                                           : publicationError.empty() ? "published"
+                                                                      : "failed"},
+                           {"publication_error", publicationError},
                            {"error", state.error}});
     std::string text;
     llvm::raw_string_ostream os(text);
@@ -585,7 +595,12 @@ bool OobSummaryChecker::validateInputs(bool forReport) const
         dump.Line("inputs", os.str());
     }
     if (!forReport || dump.On("inputs") || !ready) {
-        dump.File("inputs.json", os.str() + "\n");
+        // 每个写者自己的记录；根快照留给串行solve/report，不以最后一个export覆盖充当全批统计。
+        std::string path =
+            tuId.empty() ? "inputs.json"
+                         : tuId + "/inputs-" +
+                               std::to_string(static_cast<long long>(llvm::sys::Process::getProcessId())) + ".json";
+        dump.File(path, os.str() + "\n");
     }
     return ready;
 }

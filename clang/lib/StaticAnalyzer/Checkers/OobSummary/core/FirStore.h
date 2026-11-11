@@ -31,7 +31,8 @@ struct FirInputState {
 // 写inputs-pending目录，完整候选以exclusive方式发布；冲突先建fir-conflicts/Tu目录，再存两版本。
 // 正常TuId/文件名不变；失败保留完整候选/冲突证据，error说明原因。
 bool PublishFir(llvm::StringRef workDir, const fir::Module &module, std::string &path, std::string &error);
-// solve扫描*.tmp和冲突子目录；report只做O(1)的pending/冲突根目录检查。
+// SPEC-0137：仅所有export结束后的solve扫描*.tmp和冲突子目录；并发发布观察与report只检查根标记。
+// scanTemporary=false时两个数量不代表实际0，调用方须显示为未扫描，不能由此宣称输入完整。
 FirInputState InspectFirInputs(llvm::StringRef workDir, bool scanTemporary);
 // 仅在全部solved成功后移除inputs-pending；不清理任何冲突或输入文件。
 bool MarkFirSolved(llvm::StringRef workDir, std::string &error);

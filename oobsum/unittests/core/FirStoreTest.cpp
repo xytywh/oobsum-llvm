@@ -68,6 +68,43 @@ bool Write(llvm::StringRef path, llvm::StringRef text)
 
 }  // namespace
 
+// SPEC-0137：写者仍打开真实候选时，浅观察不可误充完整性检查；solve的深检查仍拒绝候选。
+TEST(FirStore, ObservesMarkersWhileAnotherCandidateIsOpen)
+{
+    llvm::SmallString<128> dir;
+    ASSERT_TRUE(!llvm::sys::fs::createUniqueDirectory("oobsum-fir-observe-test", dir));
+    auto module = Module();
+    std::string path, error;
+    ASSERT_TRUE(oobsum::PublishFir(dir, module, path, error));
+    module.tu = "active-tu";
+    std::string candidate;
+    bool observed = false;
+    auto result = oobsum::WriteFileExclusive(
+        At(At(dir, "fir"), module.tu + ".json"),
+        [&](llvm::raw_ostream &os) {
+            os << oobsum::fir::ModuleToJson(module);
+            auto fast = oobsum::InspectFirInputs(dir, false);
+            EXPECT_TRUE(fast.pending);
+            EXPECT_FALSE(fast.conflict);
+            EXPECT_TRUE(fast.error.empty());
+            EXPECT_EQ(fast.incompleteFiles, size_t(0));  // 未扫描，不是实际0。
+            EXPECT_FALSE(fast.ReadyForReport());
+            auto detailed = oobsum::InspectFirInputs(dir, true);
+            EXPECT_EQ(detailed.incompleteFiles, size_t(1));
+            EXPECT_FALSE(detailed.ReadyForSolve());
+            EXPECT_TRUE(detailed.error.empty());
+            observed = true;
+        },
+        candidate, error);
+    EXPECT_TRUE(observed);
+    EXPECT_TRUE(result == oobsum::ExclusiveInstallResult::Installed);
+    EXPECT_TRUE(error.empty());
+    auto detailed = oobsum::InspectFirInputs(dir, true);
+    EXPECT_TRUE(detailed.ReadyForSolve());
+    EXPECT_EQ(detailed.incompleteFiles, size_t(0));
+    llvm::sys::fs::remove_directories(dir);
+}
+
 TEST(FirStore, PublishesAndNormalizesDuplicates)
 {
     llvm::SmallString<128> dir;

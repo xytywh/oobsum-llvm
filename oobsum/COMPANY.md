@@ -9,11 +9,12 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-10-5**
+**清单版本：2026-11-11-1**
 
 本节是一轮完整验证的执行流程。每步按“目的 → 命令 → 正确预期 → 异常时保留与反馈”执行；遇到异常停在该步，不继续后续分析。
-历史数据只作比较，本轮从第1步开始，用新的WorkDir保存本轮结果。重复运行核对时，每轮保留完整WorkDir与报告副本、提交号及选项概括，不能只留最终告警总数。第9步尾数组对照另有一次solve/report；第5步A/B/C只选一种，不要三种都跑。
-本版增加同名文件来源回归及第3步来源调试落盘核对；不要求为这项定位修复单独重跑一次业务全板。业务稳定性仍按第10步分阶段比较；输入构建域未确认前，不宣布数百条差异已全部解释。
+本次先做第1–3步同步并验证并发export观察补丁，再做第4A步只读检查已报冲突的WorkDir；存在冲突时停在4A，暂不运行后续业务export/solve/report。它不是一个可删掉后继续的缓存错误，补丁也不会自动合并不同FIR。
+下面保留完整正常流程，确认输入域后才从4B使用新WorkDir继续。重复核对时，每轮保留完整WorkDir与报告副本、提交号及选项概括。第9步尾数组对照另有一次solve/report；第5步A/B/C只选一种，不要三种都跑。
+本版修正export期间把活跃候选计为遗留或扫描到已删除候选的诊断；真实内容冲突继续报错。业务稳定性仍按第10步分阶段比较，输入构建域未确认前不宣布数百条差异已全部解释。
 
 ### 路径与日志：开始前设置一次
 
@@ -22,15 +23,15 @@
 
 ```bash
 OOB_REPO=/usr1/oobsum-llvm
-OOB_ROOT=/usr1/BXPlugin
-OOB_BUILD=/usr1/BXPlugin/cmake-build-release-release
+OOB_ROOT=/usr1/BXPlugin-oobsum
+OOB_BUILD=$OOB_ROOT/cmake-build-release-release
 OOB_CDB=/usr1/518C10/HERT_BBU/project/makesoter/compdb/1383/all
-OOB_GBL_OLD=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.ipa.OobSummary/gbl_config.json
-OOB_GBL=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/gbl_config.json
-OOB_REPORT=/usr1/BXPlugin/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/allfiles-buffer_overflow_report.json
-OOB_INI=/usr1/clang_check/src/cfg/ini/config.ini
-OOB_FUNCPTR=/usr1/clang_check/src/cfg/ini/config_funcptr.ini
-OOB_RUN_TAG=20261110-r5
+OOB_GBL_OLD=$OOB_ROOT/xir/llvm_ast/sa_check/rb.enhance.ipa.OobSummary/gbl_config.json
+OOB_GBL=$OOB_ROOT/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/gbl_config.json
+OOB_REPORT=$OOB_ROOT/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/allfiles-buffer_overflow_report.json
+OOB_INI=$OOB_ROOT/config/config.ini
+OOB_FUNCPTR=$OOB_ROOT/config/config_funcptr.ini
+OOB_RUN_TAG=20261111-r1
 OOB_WD=/usr1/oobsum-work/full-b-$OOB_RUN_TAG
 OOB_LOG=$OOB_WD/validation
 OOB_TC_WD=$OOB_WD/testcase
@@ -38,6 +39,7 @@ OOB_REPORT_COPY=$OOB_WD/report.json
 OOB_COMPARE=$OOB_WD.flex-on
 OOB_COMPARE_LEFT=/usr1/oobsum-work/full-b-run-a
 OOB_COMPARE_RIGHT=/usr1/oobsum-work/full-b-run-b
+OOB_CONFLICT_WD=/usr1/oobsum-work/full-b-20261110-r5
 set -o pipefail
 if [ -e "$OOB_WD" ] || [ -e "$OOB_COMPARE" ]; then
     printf 'WorkDir已存在，请更换OOB_RUN_TAG；保留旧目录。
@@ -49,6 +51,7 @@ fi
 ```
 
 **正确预期：** 创建一个新目录及validation/；此前业务结果保留。目录已存在或无写权限时，先修正路径/轮次，不执行下一步。
+OOB_ROOT/INI/FUNCPTR按本次带回的BXPlugin-oobsum环境填写，若实际不同只改这里。OOB_CONFLICT_WD只是示例：必须替换为本次报错时OOBSUM_CONFIG中WorkDir的真实值，保留旧目录，不能填报告log目录或新建的OOB_WD。
 构建、分析和统计命令块用tee实时显示并保存输出，最后写同名.exit：command_exit是该块命令退出码，log_exit是tee退出码，**两者都应为0**。
 块内用`&&`串联，前一个命令失败就不继续该块。任一退出码非0，或下面的内容预期不满足，都应停下；不要只看进程exit=0就认为覆盖完整。
 报告和汇总也可能较大；所有原始日志、FIR、solved、摘要、decisions和报告JSON保留在公司，不直接打包带回。
@@ -58,12 +61,14 @@ fi
 
 | 项目 | 已确认结果（不替代本轮预期） |
 |---|---|
-| 公司完整lit | 2026-11-05公司确认更新后通过；当前套件预期121项 |
+| 公司完整lit | 2026-11-05公司确认更新后通过；当前套件预期122项 |
 | C++健壮性验证 | Release/Debug均exit=0，无断言；242条判定/222报出 |
 | IPA对照 | 自有TestCase加/不加ipa=none结果一致；本轮统一显式ipa=none |
 | 历史全板cdb | 10686条、10262个文件、261个文件多次出现；C6689、C++3573 |
 | 历史export/solve/report | 10245个FIR；solve19m49.53s/29.4 GiB；报告629741条；各数值随输入与版本变化 |
 | 最近一次solve与摘要 | FIR/solved10257；2231627条判定、9884个TU非空；25m07.76s/45.2 GiB；两函数local/derived可读 |
+
+**本次待处理输入（尚未确认通过）：** 公司export观察到11个冲突目录；当时扫描到4–8个候选，可能包含活跃写者，不能当成最终残留。完整扫描可因候选正常消失而报ENOENT，观察代码已单独修复；本次发布不同内容的错误仍需4A核对，新/旧WorkDir和构建域暂未确认。
 
 ### 第1步：更新仓库、构建并验证自有用例
 
@@ -85,7 +90,7 @@ OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
 printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/01-local-checks.exit"
 ```
 
-**正确预期：** 分支oobsum/dev；构建成功；lit通过121项（含source-paths.test）；replay为0处不一致；csa回退0、TN强告警0；check-tree一致（29个源文件、30个头文件）。source-paths.test用自有源码验证同名头文件、跨TU同名静态函数、旧FIR与无法消歧的来源，不依赖业务文件。
+**正确预期：** 分支oobsum/dev；构建成功；lit通过122项（含export-inputs.test/source-paths.test）；replay为0处不一致；csa回退0、TN强告警0；check-tree一致（29个源文件、30个头文件）。export-inputs.test覆盖真实并发发布及临时候选增删，solve仍拒绝真实冲突/遗留；source-paths.test覆盖同名来源，均不依赖业务文件。
 **异常时：** 保留01-local-checks.log/.exit及对应lit Output目录。反馈提交号、失败测试名和完整RUN/expected/input或Python断言段；这些是自有用例，可原样带回。分支不符、拉取冲突或构建错误也停在此步处理。
 
 ### 第2步：同步到BXPlugin、编译并核对规则配置
@@ -125,7 +130,69 @@ printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATU
 source trace计数非空，本自有TestCase应均为unique；dump/TU/source-locations.jsonl是本轮inline引擎写下的定位证据，可直接打开看context、fn、source、resolved。查询命令只读文件、不重算。
 **异常时：** 保留03-testcase.log/.exit、testcase/decisions和dump。带回这整个自有TestCase的输出及本规则栈；选项、数量或位置不符时停下，先不要跑全板。
 
-### 第4步：核对cdb并export业务FIR
+### 第4步：先核对已有冲突，再决定是否export业务FIR
+
+#### 4A：本次报错先执行，只读核对原WorkDir
+
+**目的：** 解释真实内容冲突，避免仅修掉观察日志后继续用一个不完整配置求解。先等待clang_check的全部export进程结束，保留它的完整日志/成功失败统计与原WorkDir；不能在写者仍运行时把临时候选叫作遗留。不要启动solve来当盘点命令。
+确认上方OOB_CONFLICT_WD指向报错时的WorkDir，而不是本版新建的OOB_WD。下面只读fir-conflicts中的少量快照与目录项，不读全板FIR，不启动bxen或求解；仅输出固定字段的计数，可带回。
+
+```bash
+python3 - "$OOB_CONFLICT_WD" <<'PY' | tee "$OOB_LOG/04a-conflicts.json"
+import collections, json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+if not root.is_dir():
+    print(json.dumps({'read_errors': 1, 'workdir_exists': False}))
+    raise SystemExit(2)
+counts = {'workdir_exists': True, 'read_errors': 0, 'conflict_root': (root/'fir-conflicts').exists(),
+          'pending': (root/'inputs-pending').exists(), 'fir': 0, 'temporary_after_writers_stop': 0,
+          'conflicting_tus': 0, 'snapshots': 0, 'fewer_than_two_snapshots': 0}
+diffs = collections.Counter()
+try:
+    counts['fir'] = len(list((root/'fir').glob('*.json')))
+    if not (root/'fir').is_dir() or counts['fir'] == 0:
+        counts['read_errors'] += 1
+    counts['temporary_after_writers_stop'] = len(list((root/'fir').glob('*.tmp')))
+    for folder in (root/'fir-conflicts').iterdir() if counts['conflict_root'] else []:
+        if not folder.is_dir():
+            counts['read_errors'] += 1
+            continue
+        counts['conflicting_tus'] += 1
+        docs = []
+        for file in folder.glob('*.json'):
+            counts['snapshots'] += 1
+            try:
+                doc = json.loads(file.read_text(encoding='utf-8'))
+                if not isinstance(doc, dict):
+                    raise ValueError()
+                docs.append(doc)
+            except (OSError, ValueError):
+                counts['read_errors'] += 1
+        counts['fewer_than_two_snapshots'] += len(docs) < 2
+        for key in ('schema', 'tu', 'file', 'target', 'files', 'types', 'globals', 'funcs'):
+            if len(docs) >= 2 and any(doc.get(key) != docs[0].get(key) for doc in docs[1:]):
+                diffs[key] += 1
+except OSError:
+    counts['read_errors'] += 1
+counts['tus_with_top_level_difference'] = dict(diffs)
+print(json.dumps(counts, ensure_ascii=False, sort_keys=True))
+raise SystemExit(2 if counts['read_errors'] else 0)
+PY
+OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
+printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/04a-conflicts.exit"
+python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" cdb --cc-json "$OOB_CDB" 2>&1 | tee "$OOB_LOG/04a-cdb.log"
+OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
+printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/04a-cdb.exit"
+```
+
+**正确预期：** 只读脚本退出0表示计数读取成功，不表示输入已可求解；它只核对JSON对象的顶层字段，不校验完整FIR契约。此次应能看到已持久化的冲突目录及两份或更多可读JSON快照；最终数量可能大于运行中观察到的11。temporary_after_writers_stop才是写者结束后的残留数，不能对照运行中的4–8要求一致。
+有冲突/残留/读取错误时停在4A，不执行4B及第5步以后。冲突根目录为空、少于两份有效快照同样不能清理后绕过，需反馈计数。
+在公司编辑器中打开某个fir-conflicts/TU目录下的JSON，顶层file可找到对应源文件，target可核对ABI；对照该文件在cdb中的全部条目，确认宏、头文件目录、目标或其它选项差异及真实链接域。同目录快照比较files/types/globals/funcs即可先定位差异字段；编号变化也可能让多个字段一起变，字段差异计数不是根因证明。
+只反馈“新/复用WorkDir”、冲突/快照/残留数、差异字段计数，以及编译参数差异类别、属于同一程序还是不同产品/配置；文件名、函数名、命令、宏名和FIR正文留在公司。
+确定是不同程序的构建域后，分别用匹配cdb及新WorkDir运行；若同一程序合法链接同源多变体，或参数相同而FIR仍变化，先反馈，当前保护不能代替多变体建模。不能固定挑首个/最后一个快照、删冲突目录或忽略报错后继续，也不要求现在反复全量export。
+
+#### 4B：输入域已经确认时，核对cdb并在新WorkDir导出
 
 **目的：** 确定输入范围，再将每个成功TU降级成中间表示。export只写fir/，不进行跨文件求解、不生成业务告警或decisions。
 
@@ -152,6 +219,9 @@ printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATU
 **export正确预期：** fir/逐渐增加，每个成功TU一个JSON，内含target、funcs、类型与指令。新目录下solved/decisions尚无业务结果。有效输入应全部成功，FIR数量应与有效唯一文件数相符；不能把success/failed条目数直接当唯一文件数。
 主业务目标应为预期的aarch64_be ILP32（ptr=4、long=4、大端）；已确认的其它目标可以存在，solve会分组。可直接打开一个FIR检查target；FIR不是函数摘要。
 **输入完整性预期：** 同一Tu重复产生相同FIR允许幂等；若内容不同，export报错误，原canonical不被覆盖，两个内容版本保存在fir-conflicts/Tu/，并阻止后续solve/report。inputs-pending表示FIR已重新导出，尚需成功solve；不表示已完成判断。
+新版export/inline发布观察只检查标记，details_scanned=false且两个数量为-1是“未统计”，不表示负数量或新错误；status=pending_solve是正常待求解状态。
+publication=published/failed及publication_error说明本次TU发布结果；conflict则是共享WorkDir标记，可能由其它TU留下。失败始终记录；正常成功只有Dump=inputs时记录，落dump/TU/inputs-PID.json，不再由多个发布者争写根dump/inputs.json。
+只有全部export结束后的solve完整统计冲突TU/遗留候选；export期间不应再因枚举其它活跃候选出现cannot inspect FIR candidate的错误。真正创建/读取/保存失败仍须报错，不能据此一概忽略I/O错误。
 该检查只覆盖同Tu冲突，不是多个产品/配置的自动解析。不同FIR也可能来自源码/选项或降级输出差异，不能只凭内容哈希就认定公司改了宏。
 若出现冲突，保留整个WorkDir及fir-conflicts，先在公司核对对应cdb条目属于哪个真实构建目标；确属不同程序的配置应分别使用匹配的cdb和新WorkDir；若同一程序确实链接同源多变体，请反馈这一构建类型，当前不支持，不能任意拆断跨变体调用后宣称完整覆盖。冲突不等于业务代码错误，不能删除冲突目录或固定挑一个版本以求通过。
 所有导出进程必须统一版本，export全部成功且结束后再solve；不支持不同阶段重叠或新旧版本混写。补丁不能找回旧运行已被覆盖的版本，验证保护需从新WorkDir重新export。文件系统不支持同目录硬链接时明确失败，不退回覆盖写法。
@@ -495,14 +565,16 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 任一步异常，不必等整轮完成：保留该步日志/.exit与关联产物，填下面模板已完成的部分，未执行处写“未执行”，立即反馈。只有自有测试的错误可原样贴；业务阶段日志/数据仅在公司留存，带回计数和脱敏概括。
 
 ```text
-清单版本：2026-11-10-5
+清单版本：2026-11-11-1
 停止/完成步骤 __；提交号 __；各步骤command_exit/log_exit __
 稳定性输入概括：每轮是否新WorkDir __；cdb重复文件/不同编译命令文件数 __；不同宏/ABI是否代表不同产品配置 __；源码/选项/模型是否固定 __
 重复差异：总数或仅顺序/附加note/主warning变化 __；各轮WorkDir与报告是否已在公司留存 __
 1. 构建 __；lit通过/失败 __；replay不一致 __；csa回退 __ / TN强告警 __；check-tree __
 2. land/公司编译 __；规则名/目标报告路径核对 __
 3. 自有TestCase：InlineDepth __；DiagnosticStyle __；decisions __ emitted __；warning __；sink/调用链 __；source trace条数/各状态计数 __
-4. cdb条目/唯一文件/重复文件/C/C++ __；不同编译命令文件数 __；差异类别概括 __
+4A. 原WorkDir新建/复用 __；全部export已结束 __；附04a-conflicts计数JSON；快照差异字段 __
+    cdb同文件不同参数类别 __；同一程序/不同构建域/仍未确认 __；参数相同却FIR不同 __
+4B. cdb条目/唯一文件/重复文件/C/C++ __；不同编译命令文件数 __；差异类别概括 __（4A未解决则写未执行）
    export成功/失败 __；FIR __；缺TU数 __；目标组及数量 __
    FIR冲突TU数 __；遗留候选数 __；inputs状态 __；是否统一版本/阶段串行 __；冲突分类概括 __
 5. solve方式 A/B/C __；Elapsed __；峰值RSS KiB __；solved __；判断 __；非空TU __；最终阶段 __

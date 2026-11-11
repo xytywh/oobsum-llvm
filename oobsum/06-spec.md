@@ -223,7 +223,7 @@ SPEC-0128 补充：warning 主行附 [scene=LVn+LVm] 的 observed_features，不
 | I-18 | `MaxBlocks` | int | `5000` | 〔SPEC-0135〕单函数getNumBlockIDs严格大于此值才skipped/SUSPECT；0不限；不是调用链累计块数或深度 |
 | I-19 | `TimeLimitMs` | int | `5000` | 〔SPEC-0135：当前未注册/未实现，此值仍为规划〕单函数求解时间上限，超时 `skipped:timeout` |
 | I-20 | `MaxConds` | int | `64` | 〔SPEC-0135：当前未注册/未实现，此值仍为规划〕单函数 Req 上限，超出按严重度保留、其余记账 `cond_truncated` |
-| I-21 | `Dump` | string | `""` | 〔由 SPEC-0001 / SPEC-0123 / SPEC-0129 / SPEC-0130 / SPEC-0133 / SPEC-0136 修订：summary保存状态可见；diagnostics在inline/solve另存source-locations.jsonl，按上下文或当前函数过滤〕调试输出以 `+` 组合：options、models、callgraph、keys、fir、state、summary（stderr+落盘）、summary-files（solve只落盘）、apply、decisions、stats、progress、diagnostics、inputs；打印到 stderr，相关产物写 WorkDir/dump |
+| I-21 | `Dump` | string | `""` | 〔由 SPEC-0001 / SPEC-0123 / SPEC-0129 / SPEC-0130 / SPEC-0133 / SPEC-0136 / SPEC-0137 修订：summary保存状态可见；diagnostics另存来源轨迹；inputs发布观察按TU/PID保存，未统计数量为-1，仅solve完整扫描〕调试输出以 `+` 组合：options、models、callgraph、keys、fir、state、summary（stderr+落盘）、summary-files（solve只落盘）、apply、decisions、stats、progress、diagnostics、inputs；打印到 stderr，相关产物写 WorkDir/dump |
 | I-22 | `DumpFilter` | string | `""` | 〔由 SPEC-0129 / SPEC-0130 修订〕只对显示函数名匹配的函数打印调试输出（LLVM POSIX ERE）；solve --summary-function 从 FIR 精确预检、生成字面量过滤器，不改变求解范围；--summary-all用`.*`覆盖旧筛选并保存全部 |
 | I-23 | `Verbose` | int | `0` | 〔SPEC-0135：当前未注册/接入，以下为规划〕`1`：每 TU 一行统计；`2`：每函数一行 |
 | I-24 | `CallTrace` | string | `full` | 〔SPEC-0135：当前未注册/接入，以下为规划〕摘要里 `calls[]` 调用点记录的详细程度：`full`（实参、局部区间、守卫、结局，调试用）/ `results`（只留结局）/ `none`。全量跑出来体积过大时降级 |
@@ -665,9 +665,9 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 
 | 编号 | 阶段 | 规格 |
 |---|---|---|
-| **X-01** | export | 每个 TU 导出主文件与头文件里所有有函数体的函数、所有全局声明 / 定义（带类型与大小）、用到的记录类型、目标信息；写 `fir/<tu>.json`（紧凑 JSON，先写 `.tmp` 再改名〔由 SPEC-0114 / SPEC-0118 修订：缩进写；临时文件 `<路径>.<进程号>.tmp`〕）。〔SPEC-0133修订：同内容幂等，不同内容不可覆盖；唯一候选硬链接发布，冲突/未完成输入阻止solve/report〕 |
+| **X-01** | export | 每个 TU 导出主文件与头文件里所有有函数体的函数、所有全局声明 / 定义（带类型与大小）、用到的记录类型、目标信息；写 `fir/<tu>.json`（紧凑 JSON，先写 `.tmp` 再改名〔由 SPEC-0114 / SPEC-0118 修订：缩进写；临时文件 `<路径>.<进程号>.tmp`〕）。〔SPEC-0133修订：同内容幂等，不同内容不可覆盖；唯一候选硬链接发布，冲突/未完成输入阻止solve/report；SPEC-0137：并发发布只观察根标记，不扫描活跃候选，本次publication/error与全局状态分开〕 |
 | **X-02** | export | 不做任何求解，不发告警；只挂 `ASTDecl<TranslationUnitDecl>`（D11），因此**不触发 ExprEngine** |
-| **X-03** | solve | 〔SPEC-0133先校验FIR冲突/未完成候选；SPEC-0124：先按目标三元组、ptr、long、端序分组，组间不共享定义和大小表〕 读 `fir/` 下全部文件（单进程）；按 §6.8 求解；写 `summaries/`、`decisions/`、`reports.json`、`ledger.jsonl`、`stats.json`。缺文件 / 坏文件跳过并记日志 〔由 SPEC-0029 修订：本步写 `solved/<tu>.json`，判定日志在 report 阶段写〕 |
+| **X-03** | solve | 〔SPEC-0137明确仅在全部export结束后完整扫描，不将并发活动候选当遗留；SPEC-0133先校验FIR冲突/未完成候选；SPEC-0124：先按目标三元组、ptr、long、端序分组，组间不共享定义和大小表〕 读 `fir/` 下全部文件（单进程）；按 §6.8 求解；写 `summaries/`、`decisions/`、`reports.json`、`ledger.jsonl`、`stats.json`。缺文件 / 坏文件跳过并记日志 〔由 SPEC-0029 修订：本步写 `solved/<tu>.json`，判定日志在 report 阶段写〕 |
 | **X-04** | solve 的宿主 | **默认**：驱动生成一个桩 TU（`solve_stub/stub.c` 与只含它的 `compile_commands.json`），用 bxen 跑 `Phase=solve`，checker 在桩 TU 的回调里完成求解——**不需要在 BXPlugin 里新增可执行目标**。**可选**：独立命令 `oobsum-solve`（只链接 LLVM Support 与 `core/`），需要在 BXPlugin 的 CMake 里加一个可执行目标（`07-` 输入 I1） |
 | **X-05** | report | 驱动从原 cdb 里**原样复制**出 `decisions/` 里出现的 TU 的条目，组成 `report_cdb/compile_commands.json`，bxen 全量模式跑 `Phase=report`。原样复制保证两个阶段算出的 TU id 一致（同一 bxen、同样的 `directory` / `file`） |
 | **X-06** | inline | 默认模式：本 TU 内 export → solve → report 一次做完，不读写 `WorkDir`（设置了 `WorkDir` 时额外写一份 `fir/`，方便对照） |
@@ -688,7 +688,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | **N-03** | solve | 单函数中位数 ≤ 2 ms、P99 ≤ 100 ms；全量单线程 ≤ 1 小时；峰值内存 ≤ 64 GB（47 核 / 251 GB 机器）。实测超标先降级 X-07 / 并行 |
 | **N-04** | 全量总耗时 / 内存 | 数值由你定（`00-` §7 的空格，`07-` 输入 I10） |
 | **N-05** | 健壮性 | 在全量 cdb 上**不得让 bxen 崩溃**；单个函数 / TU 的失败只影响它自己（A-96） |
-| **N-06** | 确定性 | 〔SPEC-0136补充：定位确定性不能通过固定首项掩盖同名文件误归属；SPEC-0134提供分阶段产物比较，忽略报告数组顺序、保留记录重复次数，md5变化单列，不将缺失阶段当一致〕 同样的输入，`summaries/`、`reports.json`、告警输出逐字节相同（`stats.json` 里的耗时除外） |
+| **N-06** | 确定性 | 〔SPEC-0137：发布观察按TU/PID留证，PID不参与分析；SPEC-0136：定位确定性不能通过固定首项掩盖同名文件误归属；SPEC-0134提供分阶段产物比较，忽略报告数组顺序、保留记录重复次数，md5变化单列，不将缺失阶段当一致〕 同样的输入，`summaries/`、`reports.json`、告警输出逐字节相同（`stats.json` 里的耗时除外） |
 | **N-07** | 可移植 | C++14；只用 LLVM 14 的 Support / ADT / JSON / YAML 与 Clang 的 AST / Analysis / StaticAnalyzer Core；不开 RTTI、不用异常；同一份源码既能在 fork 里随 `Checkers.td` 编进 xir，也能在沙箱里编成插件（`-DOOBSUM_PLUGIN_BUILD`，探针已验证这种双构建【实测数据】）；驱动只用 Python 3.6+ 标准库 |
 | **N-08** | 编码规范 | `csa-checker-dev`：命名（checker 类内统一小驼峰、其余函数大驼峰、变量小驼峰）、`.clang-format`、单语句控制流带 `{}`、`BuiltinCheckerRegistration.h`、诊断与 td 全英文、include 不排序；每次交付跑 `check_checker_conventions.py` 无 FAIL |
 | **N-09** | 可观测 | 〔SPEC-0135增加只计数的FIR/调用图/判断审计及可落盘自有量化实验；观测图或SUSPECT比例不等于漏洞覆盖率〕 〔SPEC-0130 补充摘要保存阶段进度；SPEC-0129 补充摘要 available / matched / saved / write_failures；SPEC-0123 补充 solve 阶段内进度快照和实时日志；计数不当作准确 ETA〕 `Verbose=1` 每 TU 一行（函数数、导出耗时）；`stats.json`：函数状态分布、Req / Eff 数分布、告警按级别与层数、账本按原因、各阶段耗时 |
