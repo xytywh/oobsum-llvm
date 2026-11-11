@@ -23,6 +23,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -40,9 +41,9 @@ class Reporter {
 public:
     // SPEC-0132 / F-33：仅供调试，记录分配note定位状态，不回写原判断。
     using AllocationNoteTrace = std::function<void(const Decision &, llvm::StringRef, size_t, clang::SourceLocation)>;
-    Reporter(const BugTypes &bugTypes, const PolicyOptions &policy) : bugTypes(bugTypes), policy(policy)
-    {
-    }
+    // SPEC-0139 / F-33：新solved按所选FIR文件表定位note；nullptr保持inline/legacy行为。
+    Reporter(const BugTypes &bugTypes, const PolicyOptions &policy,
+             const std::vector<std::string> *sourceFiles = nullptr);
     void Add(Decision decision);
     // 排序、按策略发出；返回（判定, 去向），供 DecisionLog 与 Dump=decisions 使用
     std::vector<std::pair<Decision, Disposition>> Flush(clang::ento::BugReporter &br, clang::SourceManager &sm,
@@ -57,6 +58,8 @@ private:
 
     BugTypes bugTypes;
     PolicyOptions policy;
+    bool fixedSourceFiles;
+    std::set<std::string> sourceFiles;
     std::vector<Decision> pending;
 };
 

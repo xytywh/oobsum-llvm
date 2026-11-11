@@ -9,15 +9,16 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-11-2**
+**清单版本：2026-11-11-3**
 
 从一个新的空业务WorkDir开始，按第1步顺序执行。初始化只先建立validation日志目录；fir/solved/decisions由本轮各阶段生成，不要求你已有结果、冲突目录或第二轮对照数据。
 每一步都给出目的、命令、执行中观察、完成预期与异常反馈。正常时继续下一步；出错或出现冲突时先停止进入后续阶段，再按该步的异常段检查本轮证据。冲突比较读取同一轮留下的多份FIR快照，不需要再跑一轮。
+本版按你确认的取舍：三阶段同文件不同FIR正常留存，固定选择内容哈希最小的一份求解，接受未选版本真实问题漏报；不再因正常编译变体生成fir-conflicts。fir-variants是留存目录，不是失败标记；真正I/O/残留/老fir-conflicts仍须停下。
 第5步A/B/C只选择一种摘要保存方式；第9步是本轮完成后的尾数组策略对照；第10步为可选的跨轮稳定性比较，首次只有一轮时直接跳过。未执行的可选项在模板中写明，不当作失败。
 
 | 阶段 | 执行中能观察什么 | 正常完成后应有什么 |
 |---|---|---|
-| 第4步export | 04-export.log的任务成功/失败、fir/*.json数量增加、有无fir-conflicts标记 | 有效TU导出成功、FIR齐全、无冲突/残留；尚无业务solved/decisions |
+| 第4步export | 任务成功/失败、fir/*.json数量、fir-variants留存、有无老fir-conflicts错误标记 | 每TU一个固定代表；有效导出成功、无错误/残留；尚无业务solved/decisions |
 | 第5步solve | progress的阶段与completed/total、日志、进程CPU/RSS；前半程可没有solved | progress=done、solved数等于FIR数、清除inputs-pending；所选摘要保存成功 |
 | 第7步report | 07-report.log的任务成功/失败、decisions/*.jsonl数量增加 | 本轮新报告文件、判断日志与只计数统计 |
 
@@ -36,7 +37,7 @@ OOB_GBL=$OOB_ROOT/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/gbl_config.js
 OOB_REPORT=$OOB_ROOT/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/allfiles-buffer_overflow_report.json
 OOB_INI=$OOB_ROOT/config/config.ini
 OOB_FUNCPTR=$OOB_ROOT/config/config_funcptr.ini
-OOB_RUN_TAG=20261111-r2
+OOB_RUN_TAG=20261111-r3
 OOB_WD=/usr1/oobsum-work/full-b-$OOB_RUN_TAG
 OOB_LOG=$OOB_WD/validation
 OOB_TC_WD=$OOB_WD/testcase
@@ -63,10 +64,11 @@ OOB_ROOT/INI/FUNCPTR按BXPlugin-oobsum环境填写，实际不同只改这里。
 
 | 项目 | 已确认结果（不替代本轮预期） |
 |---|---|
-| 公司完整lit | 2026-11-05公司确认更新后通过；当前套件预期122项 |
+| 公司完整lit | 2026-11-05公司确认更新后通过；当前套件预期123项 |
 | C++健壮性验证 | Release/Debug均exit=0，无断言；242条判定/222报出 |
 | IPA对照 | 自有TestCase加/不加ipa=none结果一致；本轮统一显式ipa=none |
 | 历史全板cdb | 10686条、10262个文件、261个文件多次出现；C6689、C++3573 |
+| 本轮带回的cdb计数 | 原始10707条/10277文件/262重复/108个文件命令不同；另一份10128条/文件、无重复，export未报冲突；文件范围少149，不能仅按去重解释覆盖变化 |
 | 历史export/solve/report | 10245个FIR；solve19m49.53s/29.4 GiB；报告629741条；各数值随输入与版本变化 |
 | 最近一次solve与摘要 | FIR/solved10257；2231627条判定、9884个TU非空；25m07.76s/45.2 GiB；两函数local/derived可读 |
 
@@ -90,7 +92,7 @@ OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
 printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/01-local-checks.exit"
 ```
 
-**正确预期：** 分支oobsum/dev；构建成功；lit通过122项（含export-inputs.test/source-paths.test）；replay为0处不一致；csa回退0、TN强告警0；check-tree一致（29个源文件、30个头文件）。export-inputs.test覆盖真实并发发布及临时候选增删，solve仍拒绝真实冲突/遗留；source-paths.test覆盖同名来源，均不依赖业务文件。
+**正确预期：** 分支oobsum/dev；构建成功；lit通过123项（含fir-conflicts.test/selected-report.test/export-inputs.test）；replay为0处不一致；csa回退0、TN强告警0；check-tree一致（29源/30头）。自有CAP8/32正反/并发选择同一代表，未选report不清空日志；真正失败/残留保护保持。
 **异常时：** 保留01-local-checks.log/.exit及对应lit Output目录。反馈提交号、失败测试名和完整RUN/expected/input或Python断言段；这些是自有用例，可原样带回。分支不符、拉取冲突或构建错误也停在此步处理。
 
 ### 第2步：同步到BXPlugin、编译并核对规则配置
@@ -142,8 +144,8 @@ OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
 printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/04-cdb.exit"
 ```
 
-**cdb正确预期：** 条目数/唯一文件数/语言分布符合本轮范围。重复条目不等于重复文件；同一主文件目前只保留一个FIR。
-“去掉输出选项后编译命令仍不同”非0是核查信号，不等于有效FIR必然不同。记录计数，按下面命令导出；有效FIR相同允许幂等，不同时会留下冲突快照并报错。若已知cdb混入不同真实程序，先核对输入范围；不能据此宣称当前实现完整支持混合域。
+**cdb正确预期：** 条目数/唯一文件数/语言分布符合本轮范围。此轮可使用包含重复条目的原始cdb；同内容FIR去重，不同内容留存，每个主文件后续只读取一个固定代表，不自行删除其它编译条目。
+“去掉输出选项后编译命令仍不同”非0不等于有效FIR必然不同；只改-o通常相同，-D也只有影响FIR才生成不同版本。新输出会说明“不同有效FIR留存，固定选择一份”。代表集合不保证恢复真实链接配置，仍可能误报/漏报；这是本次明确接受的范围取舍。
 
 ```bash
 {
@@ -169,6 +171,9 @@ if [ -e "$OOB_WD/fir-conflicts" ]; then
 else
     printf '当前无冲突标记；仍需等待全部export结束。\n'
 fi
+if [ -d "$OOB_WD/fir-variants" ]; then
+    printf '存在FIR变体留存：正常现象，完成solve后查看固定选择计数。\n'
+fi
 ```
 
 FIR数反映已落盘的唯一TU数，重复cdb条目不增加同一Tu文件数；数量未增长也可能正处理一个大文件，结合任务日志判断，不能当作准确百分比/剩余时间。
@@ -176,11 +181,14 @@ FIR数反映已落盘的唯一TU数，重复cdb条目不增加同一Tu文件数�
 
 **export正确预期：** fir/逐渐增加，每个成功TU一个JSON，内含target、funcs、类型与指令。新目录下solved/decisions尚无业务结果。有效输入应全部成功，FIR数量应与有效唯一文件数相符；不能把success/failed条目数直接当唯一文件数。
 主业务目标应为预期的aarch64_be ILP32（ptr=4、long=4、大端）；已确认的其它目标可以存在，solve会分组。可直接打开一个FIR检查target；FIR不是函数摘要。
-**输入完整性预期：** 同一Tu重复产生相同FIR允许幂等；若内容不同，export报错误，原canonical不被覆盖，两个内容版本保存在fir-conflicts/Tu/，并阻止后续solve/report。inputs-pending表示FIR已重新导出，尚需成功solve；不表示已完成判断。
-新版export/inline发布观察只检查标记，details_scanned=false且两个数量为-1是“未统计”，不表示负数量或新错误；status=pending_solve是正常待求解状态。
+**输入完整性预期：** 同一Tu同内容幂等；不同内容保存到fir-variants/Tu/hash.json，同时维护fir/Tu.json为最小内容哈希的固定代表，与完成顺序无关。原TuId、代表文件名与现有求解器保持不变，solve只读fir/*.json。
+fir-locks/Tu.lock是重复发布时使用的稳定锁路径，空锁文件留在目录中是正常状态。fir-variants只保存不同内容，两个变体首次出现时目录有两份JSON；fir/仍只有一份代表。后续输入增加或代码版本改变时代表可能变化，固定性针对同一组输入与同版本。
+为兼容原入口，两种内容对应“fir/代表1份＋fir-variants留存2份”，其中代表内容与一份快照相同；这是磁盘留存，不是求解三次。只有一种内容时仍只有原入口一份。
+inputs-pending表示导出后仍需成功solve；不表示已完成判断。旧fir-conflicts仍是错误标记，本版不自动将旧失败目录迁移为正常变体；按开头使用新WorkDir，旧证据保留。
+新版export/inline发布观察只检查标记，details_scanned=false且相关数量为-1是“未统计”，不表示负数量或新错误；status=pending_solve是正常待求解状态。
 publication=published/failed及publication_error说明本次TU发布结果；conflict则是共享WorkDir标记，可能由其它TU留下。失败始终记录；正常成功只有Dump=inputs时记录，落dump/TU/inputs-PID.json，不再由多个发布者争写根dump/inputs.json。
-只有全部export结束后的solve完整统计冲突TU/遗留候选；export期间不应再因枚举其它活跃候选出现cannot inspect FIR candidate的错误。真正创建/读取/保存失败仍须报错，不能据此一概忽略I/O错误。
-该检查只覆盖同Tu冲突，不是多个产品/配置的自动解析。不同FIR也可能来自源码/选项或降级输出差异，不能只凭内容哈希就认定公司改了宏。
+只有全部export结束后的solve完整统计版本TU/快照/遗留候选；正常变体不属于错误。真正创建/读取/保存/锁失败仍须报错，不能一概忽略I/O错误。
+固定哈希排序无严重程度含义，可能选中SAFE而忽略另一份真实DEFINITE；未选版本不求解、不标SAFE，只记选择账本。不是完整多变体求解，也不按函数/调用组合做笛卡尔展开。
 所有导出进程必须统一版本，export全部成功且结束后再solve；不支持不同阶段重叠或新旧版本混写。补丁不能找回旧运行已被覆盖的版本，验证保护需从新WorkDir重新export。文件系统不支持同目录硬链接时明确失败，不退回覆盖写法。
 **完成后检查：** 主export命令已返回、全部本轮导出写者已退出，再看临时候选数量，正确预期为0；非0按异常处理。export命令块会检查fir-conflicts并在存在时返回非0；仍须核对clang_check的failed数和FIR是否齐全，status打印的“下一步”只是目录统计提示。
 
@@ -191,8 +199,8 @@ find "$OOB_WD/fir" -maxdepth 1 -name '*.tmp' | wc -l
 **仅本轮export失败或出现冲突时执行下面的排查；正常完成直接第5步。**
 
 先停止进入后续阶段，保留04-cdb/04-export日志及.exit、clang_check原始任务日志、本轮fir/与dump/；让本轮export全部退出后再盘点。若主动中止过，留下的候选也一并保留。不能把程序exit=0当成全部任务成功。
-只有出现fir-conflicts时才执行下面快照统计；若只是编译/运行/I/O失败而没有冲突目录，保存失败计数、错误类别和现有产物直接反馈，不比较不存在的快照。
-下面读取当前OOB_WD内同一TU的多份快照：它们在这一次export中就会产生，不依赖旧WorkDir、另一轮结果或第二次export。脚本只读冲突快照及目录项，不启动bxen/solve，输出固定字段计数可带回。
+仅本轮失败需要排查已保存版本时执行下面统计；fir-variants存在本身不是失败。没有任何快照目录的编译/运行/I/O失败，保存日志和计数直接反馈，不比较不存在的文件。
+下面只读当前OOB_WD的正常变体/老冲突快照及目录项，不启动bxen/solve，不要求另一轮结果；正常成功时无需运行此异常统计。
 
 ```bash
 python3 - "$OOB_WD" <<'PY' | tee "$OOB_LOG/04-conflicts.json"
@@ -202,37 +210,42 @@ root = Path(sys.argv[1])
 if not root.is_dir():
     print(json.dumps({'read_errors': 1, 'workdir_exists': False}))
     raise SystemExit(2)
-counts = {'workdir_exists': True, 'read_errors': 0, 'conflict_root': (root/'fir-conflicts').exists(),
-          'pending': (root/'inputs-pending').exists(), 'fir': 0, 'temporary_after_writers_stop': 0,
-          'conflicting_tus': 0, 'snapshots': 0, 'fewer_than_two_snapshots': 0}
-diffs = collections.Counter()
+counts = {'workdir_exists': True, 'read_errors': 0, 'pending': (root/'inputs-pending').exists(),
+          'fir': 0, 'temporary_after_writers_stop': 0}
+diffs = {}
 try:
     counts['fir'] = len(list((root/'fir').glob('*.json')))
     if not (root/'fir').is_dir() or counts['fir'] == 0:
         counts['read_errors'] += 1
     counts['temporary_after_writers_stop'] = len(list((root/'fir').glob('*.tmp')))
-    for folder in (root/'fir-conflicts').iterdir() if counts['conflict_root'] else []:
-        if not folder.is_dir():
-            counts['read_errors'] += 1
-            continue
-        counts['conflicting_tus'] += 1
-        docs = []
-        for file in folder.glob('*.json'):
-            counts['snapshots'] += 1
-            try:
-                doc = json.loads(file.read_text(encoding='utf-8'))
-                if not isinstance(doc, dict):
-                    raise ValueError()
-                docs.append(doc)
-            except (OSError, ValueError):
+    for kind, directory in (('variant', root/'fir-variants'), ('legacy_conflict', root/'fir-conflicts')):
+        counts[kind+'_root'] = directory.exists()
+        counts[kind+'_tus'] = counts[kind+'_snapshots'] = counts[kind+'_fewer_than_two'] = 0
+        changed = collections.Counter()
+        for folder in directory.iterdir() if directory.exists() else []:
+            if not folder.is_dir():
                 counts['read_errors'] += 1
-        counts['fewer_than_two_snapshots'] += len(docs) < 2
-        for key in ('schema', 'tu', 'file', 'target', 'files', 'types', 'globals', 'funcs'):
-            if len(docs) >= 2 and any(doc.get(key) != docs[0].get(key) for doc in docs[1:]):
-                diffs[key] += 1
+                continue
+            counts[kind+'_tus'] += 1
+            counts['temporary_after_writers_stop'] += len(list(folder.glob('*.tmp')))
+            docs = []
+            for file in folder.glob('*.json'):
+                counts[kind+'_snapshots'] += 1
+                try:
+                    doc = json.loads(file.read_text(encoding='utf-8'))
+                    if not isinstance(doc, dict):
+                        raise ValueError()
+                    docs.append(doc)
+                except (OSError, ValueError):
+                    counts['read_errors'] += 1
+            counts[kind+'_fewer_than_two'] += len(docs) < 2
+            for key in ('schema', 'tu', 'file', 'target', 'files', 'types', 'globals', 'funcs'):
+                if len(docs) >= 2 and any(doc.get(key) != docs[0].get(key) for doc in docs[1:]):
+                    changed[key] += 1
+        diffs[kind] = dict(changed)
 except OSError:
     counts['read_errors'] += 1
-counts['tus_with_top_level_difference'] = dict(diffs)
+counts['tus_with_top_level_difference'] = diffs
 print(json.dumps(counts, ensure_ascii=False, sort_keys=True))
 raise SystemExit(2 if counts['read_errors'] else 0)
 PY
@@ -240,15 +253,13 @@ OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
 printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/04-conflicts.exit"
 ```
 
-**排查预期：** 退出0只表示计数读取成功，不表示输入已可求解；脚本只核对JSON顶层字段。conflicting_tus统计本轮冲突TU目录，snapshots统计已留存版本，temporary_after_writers_stop才表示写者结束后的残留。空冲突目录、少于两份可读快照或read_errors非0同样须反馈，不能删掉标记绕过。
-在公司编辑器中打开本轮fir-conflicts/TU下的JSON，顶层file找到对应源文件，target核对ABI；对照该文件在本轮cdb中的全部条目，检查宏、头文件目录、目标和其它选项。比较同目录快照的files/types/globals/funcs可定位差异字段；编号变化也可能让多个字段一起变，字段计数本身不能证明根因。
-空目录开始也可能在本轮内冲突：同一路径的重复cdb条目产生不同有效FIR即可触发，无需先有旧结果。参数看似相同而FIR不同，也要保留两份证据反馈，不能直接归咎于宏。
-若确属不同程序的构建配置，后续按确认的真实构建域分别使用匹配cdb和新WorkDir；若同一程序合法链接同源多变体，当前仍需设计支持，先反馈，不能任意拆断跨变体调用后宣称完整覆盖。冲突只说明输入有不同内容，不能当成业务越界结论。
-只带回计数、参数差异类别和真实构建域概括；业务文件名、函数名、命令、宏名和FIR正文留在公司。输入原因未解决前停在此步，不进入第5步；本轮目录保留，不固定挑一个版本继续。确认后再决定下一轮使用的输入与新WorkDir，不能由脚本返回0自动恢复执行。
+**排查预期：** 退出0只表示计数读取成功，不代表输入完整。variant_tus/snapshots是正常留存；legacy_conflict_root=true仍是旧失败状态。写者退出后temporary、少于两份版本、read_errors等异常要保留反馈，不能删标记绕过。
+在公司编辑器中打开fir-variants/TU/hash.json可查看不同版本，fir/TU.json是固定代表；顶层file/target帮助在公司核对对应cdb与ABI。字节哈希无严重程度含义，不保证选中最危险的版本。
+正常版本差异不需要再决定分批才能继续，本次政策已明确接受只分析代表。真正输入失败未解决前停在本步；只带回计数/错误类别，业务名、编译命令与FIR正文留在公司。
 
 ### 第5步：完整solve，并选择摘要保存范围
 
-**目的：** 读全部FIR，按调用图算函数摘要和跨调用判断，生成solved/。stub.c只触发一次checker回调，不是业务分析对象。
+**目的：** 只读fir/内每TU的一份固定代表，按原调用图算摘要和跨调用判断，生成solved/；不遍历求解fir-variants中的其它正文。stub.c只触发一次checker回调，不是业务分析对象。
 摘要保存选择不缩小分析范围；A/B/C都完整求解。只执行下面case的一种分支。
 
 | 方式 | 保存什么 | 后续查看 |
@@ -295,7 +306,7 @@ printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATU
 ```
 
 **正确预期：** command_exit/log_exit均0；最终progress为done；solved文件数等于本轮FIR数（含判断为空的TU），终端给出判断总数和非空TU数。
-正常solve还应清除inputs-pending；若检测到fir-conflicts或遗留*.tmp，会写failed并非0退出，不生成新的分析结果。Dump=inputs可输出输入状态，持久化在dump/inputs.json。report只做常数次标记检查，不为每个TU重扫全部FIR。
+正常solve应清除inputs-pending；fir-variants正常存在不阻止求解，代表必须匹配最小已存哈希。老fir-conflicts、根/版本目录内的遗留*.tmp、错误目录或代表不一致仍failed并非0退出。Dump=inputs可输出输入状态，持久化在dump/inputs.json。report只做常数次标记检查，不为每个TU重扫全部FIR。
 B/C应确认摘要保存成功：write_failures=0、index_written=true，索引非空；B有预选函数的两种视图，C为available=matched=saved。A不产生新摘要索引是正常选择。
 
 ```bash
@@ -308,11 +319,21 @@ if [ "$OOB_SUMMARY_MODE" != A ]; then
 fi
 ```
 
+**固定选择计数：** solve成功后总会保存dump/solve/fir-selection.json。下面只读其计数字段，可带回；正文entries可在公司打开查看每个TU的selected/ignored哈希。
+
+```bash
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps({k:d[k] for k in ("schema","policy","selected_tus","variant_tus","ignored_variants")}, ensure_ascii=False, sort_keys=True))' "$OOB_WD/dump/solve/fir-selection.json" | tee "$OOB_LOG/05-fir-selection-counts.json"
+OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
+printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/05-fir-selection-counts.exit"
+```
+
+预期policy=min-fir-hash/1，selected_tus与本轮FIR代表数相等；variant_tus/ignored_variants可以非0。两版本TU只读取一份、忽略一份，忽略数不会计入SAFE或逐访问判定；这部分真实问题可能漏报。变体影响的report TU需重新降级做哈希校验，普通单版本TU不增加这遍降级。
+
 状态统计会读solved，结束后执行一次即可；过程中用下面的轻量观察，不要反复解析全量结果。
 
 | 阶段 | 正在做什么 | 主要内存/磁盘产物 |
 |---|---|---|
-| read | 解析全部FIR，按目标ABI分组，准备函数/类型/全局输入 | 主要读fir/，尚无新solved |
+| read | 解析每TU固定代表、校验选择，按ABI分组，准备函数/类型/全局输入 | 主要读fir/，尚无新solved |
 | analyze | 依调用图先被调者后调用者，解释函数CFG；调用处利用已知被调效果，构造local事实 | 内存中的函数摘要、Req/Eff/calls/opens |
 | propagate | 把被调者Req按调用实参代换，向上传递未解决要求，生成各上下文的结果 | 内存中的derived Req/reps/opens和证据链 |
 | decisions | 将传播结果与未证明项目转换为DEFINITE/POSSIBLE/SUSPECT/SAFE及原因、位置、链 | 内存中的完整判断记录，report再决定报出策略 |
@@ -400,7 +421,7 @@ local并非只扫描本函数语法：analyze时已经应用已知被调者的�
 
 ### 第7步：report并核对汇总
 
-**目的：** clang_check重新解析对应源码，将solved判断定位并报告，写decisions/*.jsonl；不重新执行全程序solve。
+**目的：** 用同一份原始cdb重新解析源码、定位并报告solved判断，写decisions/*.jsonl。多变体TU只让与selected_fir匹配的编译实例报告；已导出未选实例退出0但不写空判断日志、不重新solve。不要在export与report之间另换去重cdb，以免去掉选中实例。
 先记录开始时间，保证复制的全板JSON是本轮新报告。报告源由OOB_GBL的log_path决定，OOB_REPORT应为该文件。
 
 ```bash
@@ -437,6 +458,7 @@ printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATU
 ```
 
 **正确预期：** report命令退出0、有效输入全部成功；生成本轮报告JSON与decisions日志，工具能读出标签/原因统计，没有缺solved或多warning粘连提示。
+未选实例的观察记录在dump/TU/report-selection-哈希-PID.json，status=not_selected是本次允许的跳过；input_drift/was not exported表示源码、MaxBlocks或编译输入与export不一致，非0报错，需保留现场。新solved的note可见集合固定为source_files，避免当前未使用头文件改变报告文本。
 solved是未应用报告策略的判断；decisions含报出/未报出及原因；统计中的“报出判断”可大于同sink行合并后的“物理告警”，report.json还可能有收集去重，不能将这些计数直接当成同一口径。
 **异常时：** 保留07-report/07-stats日志/.exit、clang_check任务日志、solved/decisions和本轮报告JSON。复制检查不通过时先核对OOB_REPORT/log_path，不能用cp -r复制整个log目录冒充JSON。
 inputs-pending或fir-conflicts存在时report会报错误，不读取旧solved；report阶段的inputs状态为快速检查，details_scanned=false、具体数量为-1表示未扫描，应读取solve阶段日志和本机冲突目录核对。
@@ -543,7 +565,7 @@ cat "$OOB_LOG/10-comparison.json"
 退出1表示发现变化，退出2表示缺阶段或未完成/冲突输入；两者都需保留证据并反馈，不是成功。进度只输出阶段名，默认结果只含计数，可带回。
 只完成export的两轮，可在同一命令加--through export；只到solve则用--through solve。这样不必为了定位FIR差异继续做25分钟求解。
 报告按本规则记录的多重集合比较，忽略数组排列、保留重复次数；only_md5_differs=true表示位置/正文等字段相同、只md5变化，不是主告警字段变化。without_md5保留其它所有字段，不能据此认定漏洞真伪。
-FIR等按字节摘要比较，不解析整个大FIR；差异也可能是格式/版本/编号变化，不能只凭哈希判定源码逻辑变化。FIR相同而solved变要核对模型/选项/版本，decisions变核对报告策略，仅report变再查收集器/文本。
+FIR比较包含fir代表及fir-variants留存版本；file计数包含快照，不等于TU数。它按字节摘要比较，不解析整个大FIR；差异也可能是格式/版本/编号变化，不能只凭哈希判定源码逻辑变化。FIR相同而solved变要核对模型/选项/版本，decisions变核对报告策略，仅report变再查收集器/文本。
 如需在公司定位具体记录，可加--details-json "$OOB_LOG/10-local-details.json"；其中含本地文件列表/报告记录索引与md5，留在公司，不带回。大报告仍需解析，会占用额外时间和内存。
 **异常时：** 保留两个原WorkDir/报告、10-comparison结果与进度；反馈退出码、first_change、各阶段计数、guard状态及是否only_md5_differs。缺少阶段不能把两个空集合说成一致；原告警正文及详细索引留在公司。
 
@@ -573,7 +595,7 @@ cat "$OOB_LOG/11-result-scope.json"
 **正确预期：** 退出0、audit_complete=true、read_errors=0；FIR数与本轮一致。flags_raw/flags_unique中的cfg_too_large/no_cfg单列；max/hist只算已降级CFG，不把被跳过函数的占位块当真实1块。
 命中0仅说明这批已读函数未因该阈值跳过，不能推断其它精度/建模边界不存在。duplicate_external_keys只提示需核对定义归属，相同头文件/ODR重复可能正常，当前实现不自动完整解析混合程序。
 调用图仅显式直接边，SCC缩图最长边数不是递归运行时栈上限；缺FIR体可能已有模型，间接调用可能已被引擎解析，不能据这些计数声称漏报。判断depth最大值不是整个程序最大栈。
-当前三阶段完成后pending应false；audit_complete只代表统计读入成功，不代替输入覆盖、成功求解或漏洞召回率。
+当前三阶段完成后pending应false；audit_complete只代表统计读入成功。FIR/函数/图统计只针对已选代表，不包含未选变体；结合05-fir-selection-counts说明实际范围，不代替原始配置全覆盖或召回率。
 
 可选自有实验：用新输出目录，默认1/16/64/256条调用边和小CFG阈值对照，源码/命令/FIR/判断/stderr/结果全部保留，不含业务代码，可带回results.json。
 
@@ -594,6 +616,9 @@ printf 'bench_exit=%s\n' "$OOB_SCOPE_EXIT" | tee "$OOB_LOG/11-self-bench.exit"
 
 ```bash
 du -sh "$OOB_WD/fir" "$OOB_WD/solved" "$OOB_WD/decisions" "$OOB_WD/dump"
+if [ -d "$OOB_WD/fir-variants" ]; then
+    du -sh "$OOB_WD/fir-variants"
+fi
 find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 ```
 
@@ -601,7 +626,7 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 任一步异常，不必等整轮完成：保留该步日志/.exit与关联产物，填下面模板已完成的部分，未执行处写“未执行”，立即反馈。只有自有测试的错误可原样贴；业务阶段日志/数据仅在公司留存，带回计数和脱敏概括。
 
 ```text
-清单版本：2026-11-11-2
+清单版本：2026-11-11-3
 停止/完成步骤 __；提交号 __；各步骤command_exit/log_exit __
 稳定性输入概括：每轮是否新WorkDir __；cdb重复文件/不同编译命令文件数 __；不同宏/ABI是否代表不同产品配置 __；源码/选项/模型是否固定 __
 本轮从空业务目录开始 __；是否发生异常及停止阶段 __；原WorkDir/日志是否完整保留 __
@@ -611,14 +636,15 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 3. 自有TestCase：InlineDepth __；DiagnosticStyle __；decisions __ emitted __；warning __；sink/调用链 __；source trace条数/各状态计数 __
 4. cdb条目/唯一文件/重复文件/C/C++ __；不同编译命令文件数 __；差异类别概括 __
    export成功/失败 __；FIR __；缺TU数 __；目标组及数量 __
-   FIR冲突TU数 __；写者退出后遗留候选数 __；inputs状态 __；是否统一版本/阶段串行 __；冲突分类概括 __
-   仅本轮冲突时附04-conflicts计数JSON：全部export已退出 __；快照差异字段 __
+   留存变体TU/快照数 __；老冲突目录 __；写者退出后遗留候选数 __；inputs状态 __；是否统一版本/阶段串行 __
+   仅本轮失败排查时附04-conflicts计数JSON：全部export已退出 __；异常类别 __
    同文件参数差异类别 __；同一程序/不同构建域/仍未确认 __；参数相同却FIR不同 __（无冲突写未触发）
 5. solve方式 A/B/C __；Elapsed __；峰值RSS KiB __；solved __；判断 __；非空TU __；最终阶段 __
    摘要available/matched/saved/write_failures __；index_written __；保存阶段可见 __
+   附05-fir-selection-counts：policy/selected_tus/variant_tus/ignored_variants __
 6. local/derived可读 __；C时任意另选函数可读 __（A写未保存）；抽象推理核对 __
 7. report成功/失败 __；日志判断数/报出判断数/物理warning数/report条数 __；无法解释差值 __
-   附基线stats --counts-only与report统计（只有计数）
+   附基线stats --counts-only与report统计（只有计数）；未选实例跳过/输入漂移错误 __
 8. 告警格式核对 __；来源不可用/错位数量 __；场景默认/multi计数 __；各原因抽查 真问题/误报/看不出 __；抽象写法概括 __
 9. flex-on solve/report退出码 __；附对照stats --counts-only和report统计；与基线差异 __
 10. 仅一轮未比较/已具备两轮 __；执行时退出码 __；complete/equal/first_change __；附默认计数JSON（不附details）

@@ -40,6 +40,12 @@ def files(root, folder, suffix):
     found = {p.name: digest(p) for p in directory.glob('*' + suffix) if p.is_file()}
     if not found:
         raise ValueError('required stage has no files')
+    if folder == 'fir':
+        # SPEC-0139：代表虽不变，未选输入集合也可能变化；比较时不能隐去这些版本。
+        variants = root / 'fir-variants'
+        for p in variants.glob('*/*.json'):
+            if p.is_file():
+                found['fir-variants/' + p.relative_to(variants).as_posix()] = digest(p)
     return found
 
 
@@ -57,6 +63,7 @@ def guard(root, through):
     conflict = (root / 'fir-conflicts').exists() or (root / 'fir-conflicts').is_symlink()
     pending = (root / 'inputs-pending').exists() or (root / 'inputs-pending').is_symlink()
     temporary = sum(1 for _ in (root / 'fir').glob('*.tmp'))
+    temporary += sum(1 for _ in (root / 'fir-variants').glob('*/*.tmp'))
     return {'conflict': conflict, 'pending': pending, 'temporary': temporary,
             'invalid': conflict or temporary > 0 or (pending and through != 'export')}
 

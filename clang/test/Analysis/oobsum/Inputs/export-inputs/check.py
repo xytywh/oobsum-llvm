@@ -89,19 +89,21 @@ run(wd, 'solve')
 text = run(wd, 'report')
 assert '[OOB-DEFINITE]' in text
 
-# 真实不同内容继续报错，发布结果与工作目录标记可各自复查；候选扫描不会掩盖原错误。
+# SPEC-0139：不同内容留存并确定选择；活跃候选仍不能通过solve完整性检查。
 conflicted = root / 'conflicted'
 live = hold(conflicted)
 run(conflicted, 'export')
-state = observation(run(conflicted, 'export', cap=32, ok=False), 'failed')
-assert state['status'] == 'conflict' and state['conflict']
-assert 'conflicting FIR variants' in state['publication_error']
-assert len(list((conflicted / 'fir-conflicts' / state['tu']).glob('*.json'))) == 2
-live.unlink()
+state = observation(run(conflicted, 'export', cap=32), 'published')
+assert state['status'] == 'pending_solve' and state['variants'] and not state['conflict']
+assert state['publication_error'] == ''
+assert len(list((conflicted / 'fir-variants' / state['tu']).glob('*.json'))) == 2
 run(conflicted, 'solve', ok=False)
-state = json.loads((conflicted / 'dump/inputs.json').read_text())
-assert state['details_scanned'] and state['conflicting_tus'] == 1 and state['incomplete_files'] == 0
 assert not list((conflicted / 'solved').glob('*.json'))
+live.unlink()
+run(conflicted, 'solve')
+state = json.loads((conflicted / 'dump/inputs.json').read_text())
+assert state['details_scanned'] and state['variant_tus'] == 1 and state['variant_files'] == 2
+assert state['incomplete_files'] == 0 and not state['pending']
 
 # 真实发布I/O失败不能被全局的pending状态掩盖成本次成功；活跃候选类型也不在发布时扫描。
 broken = root / 'broken'

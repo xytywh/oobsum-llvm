@@ -27,7 +27,7 @@
 |---|---|---|
 | **D5′** | 跨 TU 改为**方案 B**：一遍导出 → 离线求解 → 一遍出告警（替代 v3.7 建议的多轮扫描） | 有了 D9，B 的额外工作只剩序列化；B 的遍数固定为 2，与调用链跨多少文件无关；多轮的代价要看探针统计，B 没有这个不确定性 |
 | **D9** | 引擎跑在自己的轻量中间表示 **FIR** 上，不直接跑 `clang::CFG` | 引擎与 Clang 解耦：可单测、可离线求解、可直接喂给 AI；Clang 相关的复杂度集中在一处（降级） |
-| **D10** | 落盘用 **JSON**（`llvm::json`），查询库（SQLite）由 Python 驱动生成；**C++ 侧不引入任何第三方库** | 不动 xir 的依赖；跨语言可读（`01-` R5）；多进程写不同文件、无锁 |
+| **D10** | 落盘用 **JSON**（`llvm::json`），查询库（SQLite）由 Python 驱动生成；**C++ 侧不引入任何第三方库** | 不动 xir 的依赖；跨语言可读（`01-` R5）；〔SPEC-0139：同TU更新固定代表时使用LLVM文件锁，其它文件仍独立发布〕 |
 | **D11** | checker 只挂 **`check::ASTDecl<TranslationUnitDecl>`**，不挂任何路径敏感回调 | 沙箱实测：多挂一个空的 `EndOfTranslationUnit`，每个函数都会跑一遍 ExprEngine【实测数据】 |
 | **D12** | 告警报在**汇合点的调用表达式**上；跨文件的 trace 写进 note 文本 | CSA 的 note 只能指向本 TU 可见的文件，被调者在别的 `.c` 里时无法定位 |
 | **D13** | 函数 / 全局用**自定义键**（外部链接用名字，内部链接带定义文件），不用 USR | C 没有重载，名字即可；不依赖 `clangIndex`；头文件 static inline 可跨 TU 去重 |
@@ -178,6 +178,7 @@ compile_commands ─▶ rb.enhance.core.OobSummary ──▶ WorkDir/fir/<tu>.js
   ③ 不在本 TU 的只出现在 ① 的文本里（D12）。
   〔由SPEC-0132修订：分配点只有唯一可见文件映射时才附加定位note；同basename多候选不按指针表首项猜测，主warning保留，Dump=diagnostics记录定位状态。〕
   〔由SPEC-0136修订：链上短位置按函数键、调用目标及FIR位置回译；同名文件不全局取首。缺失/歧义保留warning并说明来源不可用，不发错误定位note。〕
+  〔SPEC-0139：新solved的note可见范围固定为所选FIR的source_files；旧手工solved/inline仍用当前TU范围，避免同FIR的无语义include改变report文本。〕
 * **F-34 指纹**：`llvm::xxHash64("OobSummary|" + level + "|" + 汇合点函数键 + "|" + access.key + "|" + R/W + "|" + access.end + "|" + obj)`，
   十六进制 16 位，**不含行号**（`01-` §3.10）。访问用"访问函数键 + 访问点自身的末端式"标识（v3.14 起替代"访问序号"：
   序号要看整个 FIR 才能定，末端式就在摘要里；同一函数里同类、同末端式的两次访问本来就是同一个检查，合并正合适）。
@@ -223,7 +224,7 @@ SPEC-0128 补充：warning 主行附 [scene=LVn+LVm] 的 observed_features，不
 | I-18 | `MaxBlocks` | int | `5000` | 〔SPEC-0135〕单函数getNumBlockIDs严格大于此值才skipped/SUSPECT；0不限；不是调用链累计块数或深度 |
 | I-19 | `TimeLimitMs` | int | `5000` | 〔SPEC-0135：当前未注册/未实现，此值仍为规划〕单函数求解时间上限，超时 `skipped:timeout` |
 | I-20 | `MaxConds` | int | `64` | 〔SPEC-0135：当前未注册/未实现，此值仍为规划〕单函数 Req 上限，超出按严重度保留、其余记账 `cond_truncated` |
-| I-21 | `Dump` | string | `""` | 〔由 SPEC-0001 / SPEC-0123 / SPEC-0129 / SPEC-0130 / SPEC-0133 / SPEC-0136 / SPEC-0137 修订：summary保存状态可见；diagnostics另存来源轨迹；inputs发布观察按TU/PID保存，未统计数量为-1，仅solve完整扫描〕调试输出以 `+` 组合：options、models、callgraph、keys、fir、state、summary（stderr+落盘）、summary-files（solve只落盘）、apply、decisions、stats、progress、diagnostics、inputs；打印到 stderr，相关产物写 WorkDir/dump |
+| I-21 | `Dump` | string | `""` | 〔由 SPEC-0001 / SPEC-0123 / SPEC-0129 / SPEC-0130 / SPEC-0133 / SPEC-0136 / SPEC-0137 / SPEC-0139 修订：summary保存状态可见；diagnostics另存来源轨迹；inputs发布观察按TU/PID保存，未统计数量为-1，仅solve完整扫描并存固定选择账本〕调试输出以 `+` 组合：options、models、callgraph、keys、fir、state、summary（stderr+落盘）、summary-files（solve只落盘）、apply、decisions、stats、progress、diagnostics、inputs；打印到 stderr，相关产物写 WorkDir/dump |
 | I-22 | `DumpFilter` | string | `""` | 〔由 SPEC-0129 / SPEC-0130 修订〕只对显示函数名匹配的函数打印调试输出（LLVM POSIX ERE）；solve --summary-function 从 FIR 精确预检、生成字面量过滤器，不改变求解范围；--summary-all用`.*`覆盖旧筛选并保存全部 |
 | I-23 | `Verbose` | int | `0` | 〔SPEC-0135：当前未注册/接入，以下为规划〕`1`：每 TU 一行统计；`2`：每函数一行 |
 | I-24 | `CallTrace` | string | `full` | 〔SPEC-0135：当前未注册/接入，以下为规划〕摘要里 `calls[]` 调用点记录的详细程度：`full`（实参、局部区间、守卫、结局，调试用）/ `results`（只留结局）/ `none`。全量跑出来体积过大时降级 |
@@ -332,7 +333,7 @@ WorkDir/
 | D-02 | 内部链接函数（`static`） | `F@<定义文件 id>:<名字>`；定义在头文件里的再加 `#<FIR 哈希前 8 位>`〔SPEC-0003：S2 先不加；由 SPEC-0059 补上：规范文本的哈希〕 | `F@3fa1…:Ue_Fill`、`F@9c02…:Pub_Min#a1b2c3d4` |
 | D-03 | 外部链接全局 | `G:<名字>` | `G:g_astCellCtx` |
 | D-04 | 内部链接全局 / 函数内 `static` | `G@<定义文件 id>:<名字>` / `S@<函数键>:<名字>` | |
-| D-05 | 文件 id、TU id | 规范化绝对路径（`make_absolute` + `remove_dots`）的 xxHash64，16 位小写十六进制；SPEC-0133保持身份不变，FIR内容冲突需显式拒绝而非覆盖 | 探针已按此实现【实测数据】 |
+| D-05 | 文件 id、TU id | 规范化绝对路径的xxHash64，16位小写十六进制；〔SPEC-0139覆盖三阶段冲突拒绝：TuId不变，不同FIR留存，固定最小内容哈希代表；用户接受未选变体漏报〕 | 探针已按此实现【实测数据】 |
 | D-06 | 位置 | 〔由SPEC-0136修订：摘要短位置回译诊断须基于函数键/实际调用目标和FIR来源；缺失/歧义显式标记，不能同名首选〕`[文件, 行, 列]`，取宏展开位置；JSON 里文件写路径，FIR 内部用下标 | |
 
 * **D-07 同名外部函数有多个定义**（同一个 cdb 里有多个产品 / 二进制）：调用方解析时取**与调用方 TU 公共目录前缀最长**的那个定义；
@@ -650,13 +651,14 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 * **A-90**：`solve` 给每条未被过滤的判定定一个汇合点 TU（汇合点函数的 FIR 所在 TU），写进 `decisions/<tu>.json`。
 * **A-91**〔SPEC-0136：引擎回译短位置遵守D-06；reporter拒绝载入保留占位路径，不能将未消歧的文件当真实来源；旧FIR按短位置找sink元数据时也不能跨文件取首〕：`report` / `inline` 阶段把 `[文件, 行, 列]` 经 `FileManager` + `SourceManager::translateFileLineCol` 换成 `SourceLocation`；
   换不出来（文件不在本 TU）→ 退回汇合点函数的声明位置，并把原位置写进消息。按 F-33 组 note，按 F-35 排序后发出；同一进程内按指纹去重。
+  〔SPEC-0139：有selected_fir的report只允许选中编译实例写判断日志；已导出未选实例记选择记录后返回，未知实例是输入漂移错误。新solved不追加当前AST的调试内建判断。〕
 * **A-92**（v3.14）：告警成品（位置、BugType、消息、note、指纹）**只由判定记录的机器字段生成**，不读任何 `doc`；
   参考实现是 `replay.py` 的 `alert_msg`、`make_alert`、`fingerprint`，C++ 的 `Report.cpp` 在 T-06 用例上的输出须与 `replay.py --alerts` 逐条相同。
 
 ### 6.10 全函数性与上限
 
 **A-95** 任何函数都必须产出合法摘要：不支持的构造降为未知、迭代超限置 `±∞`、超时 / CFG 过大产出空摘要并标 `skipped`。
-**A-96**〔SPEC-0133补充：同Tu多种有效FIR/未完成发布不属于可忽略的单函数跳过，当前实现无法安全表示，须非0停止而非选一个；单函数建模不足/CFG超限仍按原方式降级〕 不得因单个函数 / TU 失败而中断整体：export 失败的 TU 记入 `logs/`，其中的函数在调用方看来是 `not_exported`；引擎对异常输入（读进来的 FIR 不一致、超出上限）一律返回错误码、
+**A-96**〔SPEC-0139修订：三阶段同Tu不同FIR按固定代表政策留存，忽略范围可查；真正I/O/候选/老冲突错误仍须非0停止。单函数建模不足/CFG超限按原方式降级〕 不得因单个函数 / TU 失败而中断整体：export 失败的 TU 记入 `logs/`，其中的函数在调用方看来是 `not_exported`；引擎对异常输入（读进来的 FIR 不一致、超出上限）一律返回错误码、
 把该函数降级为 `skipped`，**不靠 `assert`**（release 构建里 `assert` 不生效，而 LLVM 不开异常）。
 
 ---
@@ -665,9 +667,9 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 
 | 编号 | 阶段 | 规格 |
 |---|---|---|
-| **X-01** | export | 每个 TU 导出主文件与头文件里所有有函数体的函数、所有全局声明 / 定义（带类型与大小）、用到的记录类型、目标信息；写 `fir/<tu>.json`（紧凑 JSON，先写 `.tmp` 再改名〔由 SPEC-0114 / SPEC-0118 修订：缩进写；临时文件 `<路径>.<进程号>.tmp`〕）。〔SPEC-0133修订：同内容幂等，不同内容不可覆盖；唯一候选硬链接发布，冲突/未完成输入阻止solve/report；SPEC-0137：并发发布只观察根标记，不扫描活跃候选，本次publication/error与全局状态分开〕 |
+| **X-01** | export | 〔SPEC-0139覆盖不同FIR拒绝：版本存fir-variants/Tu/hash.json，持LLVM锁原子更新fir/Tu.json为固定最小内容哈希；同内容幂等，inline仍拒绝不同内容。SPEC-0137发布时浅观察；真正I/O/候选/老冲突仍错误〕每TU导出函数、全局、类型、目标；原TuId/代表路径不变，所有写者结束后再solve |
 | **X-02** | export | 不做任何求解，不发告警；只挂 `ASTDecl<TranslationUnitDecl>`（D11），因此**不触发 ExprEngine** |
-| **X-03** | solve | 〔SPEC-0137明确仅在全部export结束后完整扫描，不将并发活动候选当遗留；SPEC-0133先校验FIR冲突/未完成候选；SPEC-0124：先按目标三元组、ptr、long、端序分组，组间不共享定义和大小表〕 读 `fir/` 下全部文件（单进程）；按 §6.8 求解；写 `summaries/`、`decisions/`、`reports.json`、`ledger.jsonl`、`stats.json`。缺文件 / 坏文件跳过并记日志 〔由 SPEC-0029 修订：本步写 `solved/<tu>.json`，判定日志在 report 阶段写〕 |
+| **X-03** | solve | 〔SPEC-0139只读取每TU代表，写dump/solve/fir-selection.json；忽略范围是用户接受的召回例外；SPEC-0137明确仅在全部export结束后完整扫描，不将并发活动候选当遗留；SPEC-0133先校验FIR冲突/未完成候选；SPEC-0124：先按目标三元组、ptr、long、端序分组，组间不共享定义和大小表〕 读 `fir/` 下全部文件（单进程）；按 §6.8 求解；写 `summaries/`、`decisions/`、`reports.json`、`ledger.jsonl`、`stats.json`。缺文件 / 坏文件跳过并记日志 〔由 SPEC-0029 修订：本步写 `solved/<tu>.json`，判定日志在 report 阶段写〕 |
 | **X-04** | solve 的宿主 | **默认**：驱动生成一个桩 TU（`solve_stub/stub.c` 与只含它的 `compile_commands.json`），用 bxen 跑 `Phase=solve`，checker 在桩 TU 的回调里完成求解——**不需要在 BXPlugin 里新增可执行目标**。**可选**：独立命令 `oobsum-solve`（只链接 LLVM Support 与 `core/`），需要在 BXPlugin 的 CMake 里加一个可执行目标（`07-` 输入 I1） |
 | **X-05** | report | 驱动从原 cdb 里**原样复制**出 `decisions/` 里出现的 TU 的条目，组成 `report_cdb/compile_commands.json`，bxen 全量模式跑 `Phase=report`。原样复制保证两个阶段算出的 TU id 一致（同一 bxen、同样的 `directory` / `file`） |
 | **X-06** | inline | 默认模式：本 TU 内 export → solve → report 一次做完，不读写 `WorkDir`（设置了 `WorkDir` 时额外写一份 `fir/`，方便对照） |
@@ -689,7 +691,7 @@ cond   := expr ('<=' | '<' | '>=' | '>' | '==') expr
 | **N-03** | solve | 单函数中位数 ≤ 2 ms、P99 ≤ 100 ms；全量单线程 ≤ 1 小时；峰值内存 ≤ 64 GB（47 核 / 251 GB 机器）。实测超标先降级 X-07 / 并行 |
 | **N-04** | 全量总耗时 / 内存 | 数值由你定（`00-` §7 的空格，`07-` 输入 I10） |
 | **N-05** | 健壮性 | 在全量 cdb 上**不得让 bxen 崩溃**；单个函数 / TU 的失败只影响它自己（A-96） |
-| **N-06** | 确定性 | 〔SPEC-0137：发布观察按TU/PID留证，PID不参与分析；SPEC-0136：定位确定性不能通过固定首项掩盖同名文件误归属；SPEC-0134提供分阶段产物比较，忽略报告数组顺序、保留记录重复次数，md5变化单列，不将缺失阶段当一致〕 同样的输入，`summaries/`、`reports.json`、告警输出逐字节相同（`stats.json` 里的耗时除外） |
+| **N-06** | 确定性 | 〔SPEC-0139：多变体固定取最小内容哈希，选择账本可查，未选report不覆盖判断；SPEC-0137：发布观察按TU/PID留证，PID不参与分析；SPEC-0136：定位确定性不能通过固定首项掩盖同名文件误归属；SPEC-0134提供分阶段产物比较，忽略报告数组顺序、保留记录重复次数，md5变化单列，不将缺失阶段当一致〕 同样的输入，`summaries/`、`reports.json`、告警输出逐字节相同（`stats.json` 里的耗时除外） |
 | **N-07** | 可移植 | C++14；只用 LLVM 14 的 Support / ADT / JSON / YAML 与 Clang 的 AST / Analysis / StaticAnalyzer Core；不开 RTTI、不用异常；同一份源码既能在 fork 里随 `Checkers.td` 编进 xir，也能在沙箱里编成插件（`-DOOBSUM_PLUGIN_BUILD`，探针已验证这种双构建【实测数据】）；驱动只用 Python 3.6+ 标准库 |
 | **N-08** | 编码规范 | `csa-checker-dev`：命名（checker 类内统一小驼峰、其余函数大驼峰、变量小驼峰）、`.clang-format`、单语句控制流带 `{}`、`BuiltinCheckerRegistration.h`、诊断与 td 全英文、include 不排序；每次交付跑 `check_checker_conventions.py` 无 FAIL |
 | **N-09** | 可观测 | 〔SPEC-0135增加只计数的FIR/调用图/判断审计及可落盘自有量化实验；观测图或SUSPECT比例不等于漏洞覆盖率〕 〔SPEC-0130 补充摘要保存阶段进度；SPEC-0129 补充摘要 available / matched / saved / write_failures；SPEC-0123 补充 solve 阶段内进度快照和实时日志；计数不当作准确 ETA〕 `Verbose=1` 每 TU 一行（函数数、导出耗时）；`stats.json`：函数状态分布、Req / Eff 数分布、告警按级别与层数、账本按原因、各阶段耗时 |

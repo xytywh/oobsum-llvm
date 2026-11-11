@@ -68,6 +68,21 @@ shutil.copyfile(b / 'report.json', alternate)
 (b / 'report.json').unlink()
 assert run(2)['errors'][0]['stage'] == 'report'
 assert run(0, '--report-right', str(alternate))['equal'] is True
+# SPEC-0139：代表不变时，也必须看见未选版本集合的变化和嵌套候选遗留。
+for wd in (a, b):
+    variants = wd / 'fir-variants/tu'
+    variants.mkdir(parents=True)
+    (variants / '0000000000000001.json').write_text('{"variant":1}')
+    (variants / '0000000000000002.json').write_text('{"variant":2}')
+assert run(0, '--through', 'export')['stages']['fir']['left_files'] == 3
+unselected = b / 'fir-variants/tu/0000000000000002.json'
+unselected.write_text('{"variant":3}')
+assert run(1, '--through', 'export')['first_change'] == 'fir'
+unselected.write_text('{"variant":2}')
+temporary = a / 'fir-variants/tu/live.tmp'
+temporary.write_text('partial')
+assert run(2, '--through', 'export')['guards']['left']['temporary'] == 1
+temporary.unlink()
 shutil.rmtree(b / 'fir')
 assert any(e['stage'] == 'fir' for e in run(2)['errors'])
 print('compare-runs: stages / order / md5 / duplicates / privacy / incomplete: OK')

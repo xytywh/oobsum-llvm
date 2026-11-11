@@ -7,12 +7,21 @@
 
 ## 当前任务（按任务单独提交）
 
-见TASKS.md：T1固定FIR的report分配note消歧稳定性 → T2编译变体覆盖保护 → T3分阶段稳定性比较 → T4调用层次与覆盖范围量化 → T5同名文件来源归属 → T6并发export的输入观察 → T7空目录正常流程与异常排查指导。
-用户2026-11-10反馈多次export/solve/report最终告警有数百条差异，暂未带回本轮cdb变体与WorkDir复用情况。
+见TASKS.md：T1–T7已完成本地修复/观测/文档；当前T8按用户明确取舍实现多FIR留存、每TU固定只选一个，优先稳定与改动范围。
+用户已带回原始cdb10707条/10277文件/262重复/108个文件命令不同，存在不同-o/-D；另一份10128文件无重复且export未报冲突。不能把少149个文件当作仅去重后的完整覆盖证明。
 只读合成实验已复现同Tu并行export不同CAP导致DEFINITE/SAFE随完成顺序变化；另复现同名头文件allocation note随机选址，但主warning/decisions不变。
 公司真正差异来自哪一层还需分阶段核对；不默认把这两个独立来源合并解释。任务清单和实现各步都保留证据及回归。
 
 ## 已完成
+
+* T8 / SPEC-0139、HANDOFF D26：用户认为完整多变体求解风险/改动过大，明确接受未选FIR中的真实问题漏报，只要求后续固定读一个；这是召回例外，不标SAFE、不虚构逐访问判断，选择范围另记账。
+  export保持原TuId与fir/TU.json入口，不同内容在fir-variants/TU/hash.json留存；LLVM稳定文件锁串行更新最小内容哈希代表，不依赖顺序/PID/mtime。正常单版本仍一份，两个版本有代表1份加留存2份。
+  solve只读代表，不修改Engine/Interp/Solver/函数键/模型或指纹；检查代表确实为最小已存ID，always保存dump/solve/fir-selection.json，记录忽略计数与哈希。
+  多变体report重算当前FIR身份，选中才写告警/decisions，已知未选实例留选择记录后退出0，不覆盖空日志；未知ID为输入漂移错误。新solved文件表固定note范围，避免same-FIR无语义include改变文本；真实solved不从当前AST再追加debug内建标签，inline/legacy钩子保留。
+  真正I/O/锁/快照碰撞/候选/老fir-conflicts保护保持；inline仍单变体保护，各TU代表未必对应真实链接配置，仍可能误报/漏报。不同组输入或版本可改变代表，不承诺跨版本选中同一个。
+  构建成功、lit123/123、core194/194、replay一致、csa回退0/TN强告警0、check-tree29源/30头一致；自有TestCase仍7判断/5报出/5warning。正反/实际并发发布和report、两/三版本、-o重复、忽略不覆盖、漂移、Dump不改判断、same-FIR note及调试标签回归均过。
+  compare_runs把未选快照计入输入比较、检查嵌套临时候选；cdb提示更新。COMPANY清单2026-11-11-3保留空目录正常流程，正常变体可继续、原始cdb不强制去重；明确选择账本、report同cdb、计数口径和失败停点。32个Bash块语法及自有版本计数/选择计数命令验证通过；模拟落地幂等，conventions31PASS/1既有WARN/0FAIL。
+  公司全板尚未验证，需带回模板计数；此前T2/T6要求不同FIR先停并确认完整构建域的流程已由用户此次明确取舍覆盖。
 
 * T7 / SPEC-0138：用户要求指南默认从新空WorkDir完整顺序执行；原4A/4B将异常排查置前、预设已有结果，已纠正。此要求不等于公司已确认上轮实际使用空目录，输入域事实仍待核对。
   COMPANY清单2026-11-11-2移除旧冲突/跨轮路径初始化，按单轮export→solve→report顺序；列出执行中可观察的日志、FIR/decisions文件数、progress与CPU/RSS，及完成预期。

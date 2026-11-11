@@ -66,6 +66,7 @@ CSA 现有规则靠路径敏感的 inline，只覆盖 1–2 层；本规则用 *
 | FN | 经 `char *` / `void *` 写改到别的类型的对象（`F((UINT8 *)&st, &st)`） | 默认可能判 SAFE | 取舍见 `CharAlias`：`true` 不漏但界丢得多，`verify` 在调用点核对（D20 / D25） |
 | FN | `AssumeNoWrap=true` 时检查本身被整数回绕绕过 | 可能不报 | 默认关；只在确认不会回绕时打开（SPEC-0108） |
 | FN | `Subobject=off` 时只越出内层的访问 | 不报 | 默认 `suspect` 报；`off` 只给"业务代码就是这样写"时用（D24） |
+| FN | 三阶段同源不同编译FIR（SPEC-0139，用户明确接受） | 留存不同版本，每TU固定只分析最小内容哈希代表；未选版本可能含真实问题 | 选择范围记录在 `dump/solve/fir-selection.json`，不把未选标SAFE；控制改动与成本，保留稳定性 |
 
 不支持场景：
 

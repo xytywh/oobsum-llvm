@@ -11,7 +11,9 @@
 #include "OobSummary/core/FirJson.h"
 
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -19,6 +21,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <string>
+#include <algorithm>
+#include <memory>
 #include <system_error>
 
 namespace oobsum {
@@ -110,9 +114,51 @@ bool DirectoryMarker(llvm::StringRef path, bool &present, std::string &error)
     return true;
 }
 
+// SPEC-0139：只枚举不可变快照的ID，不重新解析未选正文；未知/不完整目录不能当成单版本。
+bool VariantIds(llvm::StringRef dir, std::vector<std::string> &ids, size_t &temporary, std::string &error)
+{
+    std::error_code ec;
+    for (llvm::sys::fs::directory_iterator it(dir, ec), end; it != end && !ec; it.increment(ec)) {
+        if (llvm::sys::path::extension(it->path()) == ".tmp") {
+            ++temporary;
+            continue;
+        }
+        llvm::sys::fs::file_status status;
+        if (std::error_code se = llvm::sys::fs::status(it->path(), status, false)) {
+            error = "cannot inspect FIR variant: " + se.message();
+            return false;
+        }
+        llvm::StringRef name = llvm::sys::path::filename(it->path());
+        llvm::StringRef id = name.endswith(".json") ? name.drop_back(5) : llvm::StringRef();
+        if (!llvm::sys::fs::is_regular_file(status) || !name.endswith(".json") || id.size() != 16 ||
+            !std::all_of(id.begin(), id.end(),
+                         [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); })) {
+            error = "invalid FIR variant snapshot entry";
+            return false;
+        }
+        ids.push_back(id.str());
+    }
+    if (ec) {
+        error = "cannot scan FIR variants: " + ec.message();
+        return false;
+    }
+    std::sort(ids.begin(), ids.end());
+    if (ids.size() < 2) {
+        error = "FIR variant directory needs at least two complete snapshots";
+        return false;
+    }
+    return true;
+}
+
 }  // namespace
 
-bool PublishFir(llvm::StringRef workDir, const fir::Module &module, std::string &path, std::string &error)
+std::string FirContentId(const fir::Module &module)
+{
+    return HashHex(Serialize(fir::ModuleToJson(module)));
+}
+
+bool PublishFir(llvm::StringRef workDir, const fir::Module &module, std::string &path, std::string &error,
+                bool selectVariant)
 {
     path.clear();
     error.clear();
@@ -140,6 +186,28 @@ bool PublishFir(llvm::StringRef workDir, const fir::Module &module, std::string 
         path = canonical;
         return true;
     }
+    // SPEC-0139：稳定锁文件与代表inode分开；代表会原子替换，不能锁代表本身。
+    // 首次安装不替换已有入口，后续更新者均持锁；进程退出由内核释放锁，锁路径不能删除。
+    std::unique_ptr<llvm::raw_fd_ostream> lockStream;
+    llvm::Optional<llvm::sys::fs::FileLocker> held;
+    if (selectVariant) {
+        if (!MakeDirectory(In(workDir, "fir-locks"), error)) {
+            return false;
+        }
+        std::error_code ec;
+        lockStream = std::make_unique<llvm::raw_fd_ostream>(In(In(workDir, "fir-locks"), module.tu + ".lock"), ec,
+                                                            llvm::sys::fs::OF_Append);
+        if (ec) {
+            error = "cannot open FIR selection lock: " + ec.message();
+            return false;
+        }
+        auto locked = lockStream->lock();
+        if (!locked) {
+            error = "cannot lock FIR selection: " + llvm::toString(locked.takeError());
+            return false;
+        }
+        held.emplace(std::move(*locked));
+    }
     fir::Module previous;
     if (!fir::ReadModuleFile(canonical, previous, error)) {
         return false;
@@ -153,16 +221,82 @@ bool PublishFir(llvm::StringRef workDir, const fir::Module &module, std::string 
         return true;
     }
     // 先建立不可忽略的冲突标记。即使随后保存快照时出错或进程被杀，空目录也会阻止求解。
-    std::string conflictDir = In(In(workDir, "fir-conflicts"), module.tu);
+    std::string conflictDir = In(In(workDir, selectVariant ? "fir-variants" : "fir-conflicts"), module.tu);
     if (!MakeDirectory(conflictDir, error) || !SaveSnapshot(conflictDir, Serialize(normalized), error) ||
         !SaveSnapshot(conflictDir, Serialize(current), error)) {
         return false;
     }
+    if (selectVariant && FirContentId(module) < FirContentId(previous)) {
+        if (!WriteFileAtomic(
+                canonical, [&](llvm::raw_ostream &os) { os << Serialize(current); }, error)) {
+            return false;
+        }
+    }
     if (!RemoveCandidate(candidate, error)) {
         return false;
     }
+    if (selectVariant) {
+        path = canonical;
+        return true;
+    }
     error = "conflicting FIR variants; input snapshots retained in fir-conflicts";
     return false;
+}
+
+bool DescribeFirSelection(llvm::StringRef workDir, const fir::Module &module, FirSelection &selection,
+                          std::string &error)
+{
+    selection = {};
+    error.clear();
+    std::string dir = In(In(workDir, "fir-variants"), module.tu);
+    bool present = false;
+    if (!DirectoryMarker(dir, present, error)) {
+        return false;
+    }
+    if (!present) {
+        return true;
+    }
+    selection.selected = FirContentId(module);
+    std::vector<std::string> ids;
+    size_t temporary = 0;
+    if (!VariantIds(dir, ids, temporary, error)) {
+        return false;
+    }
+    if (temporary != 0 || selection.selected != ids.front()) {
+        error = "FIR representative is not the complete minimum-hash selection";
+        return false;
+    }
+    selection.ignored.assign(ids.begin() + 1, ids.end());
+    return true;
+}
+
+bool IsStoredFirVariant(llvm::StringRef workDir, llvm::StringRef tu, llvm::StringRef id, std::string &error,
+                        bool requireMinimum)
+{
+    if (requireMinimum) {
+        std::vector<std::string> ids;
+        size_t temporary = 0;
+        error.clear();
+        if (!VariantIds(In(In(workDir, "fir-variants"), tu), ids, temporary, error)) {
+            return false;
+        }
+        if (temporary != 0 || id != ids.front()) {
+            error = "solved selected_fir is not the complete minimum-hash selection";
+            return false;
+        }
+    }
+    llvm::sys::fs::file_status status;
+    std::error_code ec =
+        llvm::sys::fs::status(In(In(In(workDir, "fir-variants"), tu), id.str() + ".json"), status, false);
+    error.clear();
+    if (ec == std::errc::no_such_file_or_directory) {
+        return false;
+    }
+    if (ec || !llvm::sys::fs::is_regular_file(status)) {
+        error = ec ? "cannot inspect report FIR variant: " + ec.message() : "report FIR variant is not a regular file";
+        return false;
+    }
+    return true;
 }
 
 FirInputState InspectFirInputs(llvm::StringRef workDir, bool scanTemporary)
@@ -181,7 +315,8 @@ FirInputState InspectFirInputs(llvm::StringRef workDir, bool scanTemporary)
         return state;
     }
     if (!DirectoryMarker(In(workDir, "inputs-pending"), state.pending, state.error) ||
-        !DirectoryMarker(In(workDir, "fir-conflicts"), state.conflict, state.error) || !scanTemporary) {
+        !DirectoryMarker(In(workDir, "fir-conflicts"), state.conflict, state.error) ||
+        !DirectoryMarker(In(workDir, "fir-variants"), state.variants, state.error) || !scanTemporary) {
         return state;
     }
     if (state.conflict) {
@@ -224,6 +359,32 @@ FirInputState InspectFirInputs(llvm::StringRef workDir, bool scanTemporary)
     }
     if (ec) {
         state.error = "cannot scan FIR candidates: " + ec.message();
+    }
+    if (!state.error.empty() || !state.variants) {
+        return state;
+    }
+    for (llvm::sys::fs::directory_iterator it(In(workDir, "fir-variants"), ec), end; it != end && !ec;
+         it.increment(ec)) {
+        bool present = false;
+        if (!DirectoryMarker(it->path(), present, state.error) || !present) {
+            if (state.error.empty()) {
+                state.error = "missing FIR variant directory";
+            }
+            return state;
+        }
+        std::vector<std::string> ids;
+        if (!VariantIds(it->path(), ids, state.incompleteFiles, state.error)) {
+            return state;
+        }
+        if (!llvm::sys::fs::is_regular_file(In(firDir, llvm::sys::path::filename(it->path()).str() + ".json"))) {
+            state.error = "FIR variant directory has no representative";
+            return state;
+        }
+        ++state.variantTus;
+        state.variantFiles += ids.size();
+    }
+    if (ec || state.variantTus == 0) {
+        state.error = ec ? "cannot scan FIR variant directories: " + ec.message() : "empty FIR variants root";
     }
     return state;
 }

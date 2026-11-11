@@ -470,7 +470,7 @@ def cmd_cdb(a):
             norm.append(args[i])
             i += 1
         variants.setdefault(path_of(e), set()).add((e.get('directory', ''), tuple(norm)))
-    print('  去掉输出文件选项后编译命令仍不同的文件：%d 个（可能有不同预处理 / ABI 配置；未按变体保存 FIR）' %
+    print('  去掉输出文件选项后编译命令仍不同的文件：%d 个（可能有不同预处理 / ABI 配置；不同有效FIR留存，固定选择一份，SPEC-0139）' %
           sum(1 for choices in variants.values() if len(choices) > 1))
     if a.out:
         os.makedirs(a.out, exist_ok=True)

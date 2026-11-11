@@ -24,6 +24,16 @@ using namespace clang::ento;
 
 namespace oobsum {
 
+Reporter::Reporter(const BugTypes &bugTypes, const PolicyOptions &policy, const std::vector<std::string> *files)
+    : bugTypes(bugTypes), policy(policy), fixedSourceFiles(files != nullptr)
+{
+    if (files != nullptr) {
+        for (const std::string &file : *files) {
+            sourceFiles.insert(NormalizePath(file));
+        }
+    }
+}
+
 void Reporter::Add(Decision decision)
 {
     pending.push_back(std::move(decision));
@@ -89,6 +99,9 @@ SourceLocation Reporter::LocateBase(llvm::StringRef site, SourceManager &sm, siz
         return SourceLocation();
     }
     if (llvm::sys::path::has_parent_path(parts.first)) {
+        if (fixedSourceFiles && sourceFiles.count(NormalizePath(parts.first)) == 0) {
+            return SourceLocation();
+        }
         auto file = sm.getFileManager().getFile(parts.first);
         if (!file) {
             return SourceLocation();
@@ -96,6 +109,17 @@ SourceLocation Reporter::LocateBase(llvm::StringRef site, SourceManager &sm, siz
         candidates = 1;
         sm.getOrCreateFileID(*file, SrcMgr::C_User);
         return sm.translateFileLineCol(*file, line, 1);
+    }
+    // SPEC-0139 / F-33：相同FIR可能来自不同无语义include，不能取当前SM的可见文件集合。
+    if (fixedSourceFiles) {
+        std::string selected;
+        for (const std::string &file : sourceFiles) {
+            if (llvm::sys::path::filename(file) == parts.first) {
+                selected = file;
+                ++candidates;
+            }
+        }
+        return candidates == 1 ? Locate({selected, line, 1}, sm, true) : SourceLocation();
     }
     std::map<std::string, SourceLocation> matches;
     for (auto it = sm.fileinfo_begin(); it != sm.fileinfo_end(); ++it) {
@@ -196,10 +220,14 @@ std::vector<std::pair<Decision, Disposition>> Reporter::Flush(BugReporter &br, S
                 report->addNote(text, PathDiagnosticLocation(loc, sm));
                 for (size_t i = 0; i < chain.size(); ++i) {
                     Site hopSite = chain[i].site;
+                    // SPEC-0139 / F-33：note可见性由所选FIR固定，不能受当前AST额外include影响。
+                    if (fixedSourceFiles && sourceFiles.count(NormalizePath(hopSite.file)) == 0) {
+                        continue;
+                    }
                     if (!policy.sinkDiagnostics) {
                         hopSite.col = 0;
                     }
-                    SourceLocation hopLoc = Locate(hopSite, sm);
+                    SourceLocation hopLoc = Locate(hopSite, sm, fixedSourceFiles);
                     if (hopLoc.isInvalid()) {
                         continue;
                     }

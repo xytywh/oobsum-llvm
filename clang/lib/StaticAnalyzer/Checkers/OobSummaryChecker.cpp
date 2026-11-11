@@ -134,6 +134,14 @@ private:
     std::string currentFunction;
 };
 
+// SPEC-0139：只携带报告上下文，不改变判断字段/指纹。
+struct SolvedSource {
+    std::vector<std::string> files;
+    std::string selected;
+    std::string error;
+    bool fixed = false;
+};
+
 class OobSummaryChecker : public Checker<check::ASTDecl<TranslationUnitDecl>> {
 public:
     // 选项（06- §4.2，SPEC-0001 §8）
@@ -165,7 +173,7 @@ private:
     bool validateInputs(bool forReport, const std::string &tuId = "", const std::string &publicationError = "") const;
     oobsum::engine::LocationTrace locationTrace(std::string &content) const;
     bool solveAll() const;
-    void loadSolved(const std::string &tuId, std::vector<oobsum::Decision> &out) const;
+    SolvedSource loadSolved(const std::string &tuId, std::vector<oobsum::Decision> &out) const;
     void dumpSummaries(const oobsum::fir::Module &module, const std::string &tuId,
                        const oobsum::engine::InlineResult &result) const;
 };
@@ -269,15 +277,63 @@ bool OobSummaryChecker::solveAll() const
     progress("read", 0, paths.size());
     size_t completed = 0;
     std::vector<std::unique_ptr<oobsum::fir::Module>> modules;
+    std::map<std::string, oobsum::FirSelection> selections;
+    llvm::json::Array selectionRows;
+    size_t ignoredVariants = 0;
     for (const std::string &path : paths) {
         progress("read", completed++, paths.size());
         auto m = std::make_unique<oobsum::fir::Module>();
         std::string error;
         if (!oobsum::fir::ReadModuleFile(path, *m, error)) {
+            llvm::SmallString<256> variants(workDir);
+            llvm::sys::path::append(variants, "fir-variants", llvm::sys::path::stem(path));
+            if (llvm::sys::fs::exists(variants)) {
+                llvm::errs() << "[oobsum] error: cannot read selected FIR: " << error << "\n";
+                progress("failed", completed, paths.size());
+                return false;
+            }
             llvm::errs() << "[oobsum] warning: skip " << path << ": " << error << "\n";  // X-03：坏文件跳过并记日志
             continue;
         }
+        oobsum::FirSelection selection;
+        if (!oobsum::DescribeFirSelection(workDir, *m, selection, error)) {
+            llvm::errs() << "[oobsum] error: " << error << "\n";
+            progress("failed", completed, paths.size());
+            return false;
+        }
+        if (!selection.ignored.empty()) {
+            llvm::json::Array ignored;
+            for (const auto &id : selection.ignored) {
+                ignored.push_back(id);
+            }
+            llvm::json::Value row(llvm::json::Object{{"schema", "oobsum-fir-selection-entry/1"},
+                                                     {"tu", m->tu},
+                                                     {"selected", selection.selected},
+                                                     {"ignored", std::move(ignored)}});
+            if (dump.On("inputs")) {
+                std::string text;
+                llvm::raw_string_ostream os(text);
+                os << row;
+                dump.Line("inputs", os.str());
+            }
+            selectionRows.push_back(std::move(row));
+            ignoredVariants += selection.ignored.size();
+            selections.emplace(m->tu, std::move(selection));
+        }
         modules.push_back(std::move(m));
+    }
+    llvm::json::Value selectionLog(llvm::json::Object{{"schema", "oobsum-fir-selection/1"},
+                                                      {"policy", "min-fir-hash/1"},
+                                                      {"selected_tus", static_cast<int64_t>(modules.size())},
+                                                      {"variant_tus", static_cast<int64_t>(selectionRows.size())},
+                                                      {"ignored_variants", static_cast<int64_t>(ignoredVariants)},
+                                                      {"entries", std::move(selectionRows)}});
+    std::string selectionText;
+    llvm::raw_string_ostream selectionStream(selectionText);
+    selectionStream << llvm::formatv("{0:1}", selectionLog) << "\n";
+    if (dump.File("solve/fir-selection.json", selectionStream.str()).empty()) {
+        progress("failed", completed, paths.size());
+        return false;
     }
     progress("read", paths.size(), paths.size());
     // SPEC-0124 / X-03：不同目标不能共用函数去重或全局大小表。
@@ -406,10 +462,20 @@ bool OobSummaryChecker::solveAll() const
             groupProgress("write", i, mods.size());
             llvm::SmallString<256> path(outDir);
             llvm::sys::path::append(path, mods[i]->tu + ".json");
-            llvm::json::Value value(llvm::json::Object{{"schema", "oobsum-solved/1"},
-                                                       {"tu", mods[i]->tu},
-                                                       {"file", mods[i]->file},
-                                                       {"decisions", std::move(byModule[i])}});
+            llvm::json::Array sourceFiles;
+            for (const auto &file : mods[i]->files) {
+                sourceFiles.push_back(file);
+            }
+            llvm::json::Object solved{{"schema", "oobsum-solved/1"},
+                                      {"tu", mods[i]->tu},
+                                      {"file", mods[i]->file},
+                                      {"source_files", std::move(sourceFiles)},
+                                      {"decisions", std::move(byModule[i])}};
+            auto selection = selections.find(mods[i]->tu);
+            if (selection != selections.end()) {
+                solved["selected_fir"] = selection->second.selected;
+            }
+            llvm::json::Value value(std::move(solved));
             std::string error;
             // 缩进写（SPEC-0114）；临时文件带进程号、写完改名（SPEC-0118）
             if (!oobsum::WriteFileAtomic(
@@ -478,14 +544,15 @@ bool OobSummaryChecker::solveAll() const
 }
 
 // Phase=report（SPEC-0030）：读 WorkDir/solved/<tu-id>.json 的判定；没有就提示一行（没被求解，或 TU id 对不上）
-void OobSummaryChecker::loadSolved(const std::string &tuId, std::vector<oobsum::Decision> &out) const
+SolvedSource OobSummaryChecker::loadSolved(const std::string &tuId, std::vector<oobsum::Decision> &out) const
 {
+    SolvedSource source;
     llvm::SmallString<256> path(workDir);
     llvm::sys::path::append(path, "solved", tuId + ".json");
     auto buffer = llvm::MemoryBuffer::getFile(path);
     if (workDir.empty() || !buffer) {
         llvm::errs() << "[oobsum] warning: no solved decisions for this TU (" << path << ")\n";
-        return;
+        return source;
     }
     llvm::Expected<llvm::json::Value> value = llvm::json::parse((*buffer)->getBuffer());
     const llvm::json::Object *o = value ? value->getAsObject() : nullptr;
@@ -495,7 +562,31 @@ void OobSummaryChecker::loadSolved(const std::string &tuId, std::vector<oobsum::
             llvm::consumeError(value.takeError());
         }
         llvm::errs() << "[oobsum] warning: cannot read " << path << "\n";
-        return;
+        return source;
+    }
+    if (const auto *files = o->get("source_files")) {
+        const auto *list = files->getAsArray();
+        if (list == nullptr) {
+            source.error = "invalid solved source_files";
+            return source;
+        }
+        for (const auto &value : *list) {
+            auto file = value.getAsString();
+            if (!file) {
+                source.error = "invalid solved source file";
+                return source;
+            }
+            source.files.push_back(file->str());
+        }
+        source.fixed = true;
+    }
+    if (const auto *selected = o->get("selected_fir")) {
+        auto id = selected->getAsString();
+        if (!id || id->size() != 16 || !source.fixed) {
+            source.error = "invalid solved selected_fir";
+            return source;
+        }
+        source.selected = id->str();
     }
     for (const llvm::json::Value &v : *list) {
         oobsum::Decision d;
@@ -506,6 +597,7 @@ void OobSummaryChecker::loadSolved(const std::string &tuId, std::vector<oobsum::
             llvm::errs() << "[oobsum] warning: " << path << ": " << error << "\n";
         }
     }
+    return source;
 }
 
 // SPEC-0133 / X-01：路径身份不变，FIR以不可覆盖方式发布；不同内容保留冲突证据。
@@ -517,7 +609,7 @@ std::string OobSummaryChecker::writeFir(const oobsum::fir::Module &module, const
         error = "FIR export needs WorkDir and a consistent TU identity";
         return "";
     }
-    if (!oobsum::PublishFir(workDir, module, path, error)) {
+    if (!oobsum::PublishFir(workDir, module, path, error, phase == "export")) {
         (void)validateInputs(false, tuId, error);
         return "";
     }
@@ -579,9 +671,12 @@ bool OobSummaryChecker::validateInputs(bool forReport, const std::string &tuId,
                            {"status", status},
                            {"pending", state.pending},
                            {"conflict", state.conflict},
+                           {"variants", state.variants},
                            {"details_scanned", scanDetails},
                            {"conflicting_tus", scanDetails ? static_cast<int64_t>(state.conflictingTus) : -1},
                            {"incomplete_files", scanDetails ? static_cast<int64_t>(state.incompleteFiles) : -1},
+                           {"variant_tus", scanDetails ? static_cast<int64_t>(state.variantTus) : -1},
+                           {"variant_files", scanDetails ? static_cast<int64_t>(state.variantFiles) : -1},
                            {"tu", tuId},
                            {"publication", tuId.empty()               ? "not_applicable"
                                            : publicationError.empty() ? "published"
@@ -684,6 +779,69 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
     oobsum::KeyMaker keys(sm);
     keys.SetContext(mgr.getASTContext());  // C++ 的 TU：C++ 链接的函数 / 全局用 mangle 名做键（SPEC-0121）
 
+    auto failInput = [&](llvm::StringRef message) {
+        auto &diagnostics = mgr.getASTContext().getDiagnostics();
+        unsigned id = diagnostics.getCustomDiagID(DiagnosticsEngine::Error, "%0");
+        diagnostics.Report(id) << message;
+    };
+    std::vector<oobsum::Decision> decisions;
+    SolvedSource source;
+    std::unique_ptr<oobsum::fir::Module> reportModule;
+    if (phase == "report") {
+        if (!validateInputs(true)) {
+            failInput(
+                "OobSummary report refused: FIR inputs conflict or need a successful solve; see "
+                "WorkDir/dump/inputs.json");
+            return;
+        }
+        source = loadSolved(tuId, decisions);
+        if (!source.error.empty()) {
+            failInput(source.error);
+            return;
+        }
+        if (!source.selected.empty()) {
+            std::string error;
+            if (!oobsum::IsStoredFirVariant(workDir, tuId, source.selected, error, true)) {
+                failInput(error.empty() ? "invalid solved selected_fir snapshot" : error);
+                return;
+            }
+            // SPEC-0139：只对多变体TU降级核对；未选进程在所有TU级Dump/判断日志前返回。
+            reportModule =
+                std::make_unique<oobsum::fir::Module>(oobsum::LowerTranslationUnit(tu, mgr, keys, mainFile, maxBlocks));
+            std::string current = oobsum::FirContentId(*reportModule);
+            bool matches = current == source.selected;
+            bool known = matches || oobsum::IsStoredFirVariant(workDir, tuId, current, error);
+            llvm::json::Value event(llvm::json::Object{{"schema", "oobsum-fir-report/1"},
+                                                       {"tu", tuId},
+                                                       {"selected", source.selected},
+                                                       {"current", current},
+                                                       {"status", !known    ? "input_drift"
+                                                                  : matches ? "selected"
+                                                                            : "not_selected"}});
+            std::string text;
+            llvm::raw_string_ostream os(text);
+            os << event;
+            std::string record = tuId + "/report-selection-" + current + "-" +
+                                 std::to_string(static_cast<long long>(llvm::sys::Process::getProcessId())) + ".json";
+            if (dump.File(record, os.str() + "\n").empty()) {
+                failInput("OobSummary cannot save report selection record");
+                return;
+            }
+            if (dump.On("inputs") || !known) {
+                dump.Line("inputs", os.str());
+            }
+            if (!known) {
+                failInput(error.empty()
+                              ? "OobSummary report FIR was not exported; keep lowering options and source unchanged"
+                              : error);
+                return;
+            }
+            if (!matches) {
+                return;
+            }
+        }
+    }
+
     if (dump.On("options")) {
         dump.Line("options", optionsText);
         dump.File(tuId + "/options.txt", optionsText + "\n");  // SPEC-0122：配置也落盘，便于核查默认值
@@ -701,11 +859,6 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
         dumpCallGraph(tu, keys);
     }
     // Phase=inline：单个 TU 内 降级 → 函数内解释 → 摘要 → 推到底 → 判定（SPEC-0021）；降级只做一次，Dump=fir/summary/state 共用
-    auto failInput = [&](llvm::StringRef message) {
-        auto &diagnostics = mgr.getASTContext().getDiagnostics();
-        unsigned id = diagnostics.getCustomDiagID(DiagnosticsEngine::Error, "%0");
-        diagnostics.Report(id) << message;
-    };
     if (phase == "solve") {
         if (!solveAll()) {
             failInput(
@@ -713,17 +866,12 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
         }
         return;
     }
-    if (phase == "report" && !validateInputs(true)) {
-        failInput(
-            "OobSummary report refused: FIR inputs conflict or need a successful solve; see WorkDir/dump/inputs.json");
-        return;
-    }
     bool engine = phase == "inline";
     bool exporting = phase == "export";
     bool keepFir = exporting || (engine && !workDir.empty());  // X-01 / X-06（SPEC-0028）
-    std::vector<oobsum::Decision> decisions;
     if (engine || exporting || dump.On("fir") || dump.On("summary") || dump.On("state")) {
-        oobsum::fir::Module module = oobsum::LowerTranslationUnit(tu, mgr, keys, mainFile, maxBlocks);
+        oobsum::fir::Module module =
+            reportModule ? std::move(*reportModule) : oobsum::LowerTranslationUnit(tu, mgr, keys, mainFile, maxBlocks);
         if (dump.On("fir")) {
             dumpFir(module, tuId);
         }
@@ -764,15 +912,13 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
         }
     }
 
-    // Phase=report：判定来自 solve 的结果（SPEC-0030）
-    if (phase == "report") {
-        loadSolved(tuId, decisions);
-    }
-
     // 另一个判定来源：调试内建函数（SPEC-0001 §6.2）
-    DebugIntrinsicVisitor visitor(sm, keys, decisions);
-    visitor.astContext = &mgr.getASTContext();
-    visitor.TraverseDecl(const_cast<TranslationUnitDecl *>(tu));
+    // SPEC-0139：真实solved的report只使用预计算判断；legacy调试/inline保留此测试钩子。
+    if (!source.fixed) {
+        DebugIntrinsicVisitor visitor(sm, keys, decisions);
+        visitor.astContext = &mgr.getASTContext();
+        visitor.TraverseDecl(const_cast<TranslationUnitDecl *>(tu));
+    }
 
     auto wantsDiagnostic = [&](const oobsum::Decision &decision) {
         const auto &chain = decision.chain;
@@ -808,7 +954,8 @@ void OobSummaryChecker::checkASTDecl(const TranslationUnitDecl *tu, AnalysisMana
             allocationDiagnostics += os.str() + "\n";
         };
     }
-    oobsum::Reporter reporter({&definiteType, &possibleType, &suspectType, &safeType}, policy);
+    oobsum::Reporter reporter({&definiteType, &possibleType, &suspectType, &safeType}, policy,
+                              source.fixed ? &source.files : nullptr);
     for (oobsum::Decision &decision : decisions) {
         reporter.Add(std::move(decision));
     }

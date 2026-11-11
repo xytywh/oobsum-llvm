@@ -1,0 +1,3 @@
+# SPEC-0139：真实solved只用选中判断，gate先于Dump/日志；legacy调试钩子保留。
+# RUN: rm -rf %t
+# RUN: %python %S/Inputs/selected-report/check.py %clang %S/Inputs/fir-conflicts/variant.c %t

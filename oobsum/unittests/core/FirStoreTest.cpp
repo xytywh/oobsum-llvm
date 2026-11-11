@@ -20,6 +20,7 @@
 #include <string>
 #include <cstddef>
 #include <system_error>
+#include <algorithm>
 
 namespace {
 
@@ -133,6 +134,79 @@ TEST(FirStore, PublishesAndNormalizesDuplicates)
     EXPECT_FALSE(state.pending);
     EXPECT_TRUE(state.ReadyForReport());
     EXPECT_TRUE(oobsum::MarkFirSolved(dir, error));  // 旧干净WorkDir/重复清除标记。
+    llvm::sys::fs::remove_directories(dir);
+}
+
+TEST(FirStore, MinimumHashRepresentativeIsOrderIndependent)
+{
+    auto a = Module(4), b = Module(8);
+    const std::string chosen = std::min(oobsum::FirContentId(a), oobsum::FirContentId(b));
+    for (bool reverse : {false, true}) {
+        llvm::SmallString<128> dir;
+        ASSERT_TRUE(!llvm::sys::fs::createUniqueDirectory("oobsum-fir-select-test", dir));
+        std::string path, error;
+        ASSERT_TRUE(oobsum::PublishFir(dir, reverse ? b : a, path, error, true));
+        ASSERT_TRUE(oobsum::PublishFir(dir, reverse ? a : b, path, error, true));
+        EXPECT_TRUE(error.empty());
+        oobsum::fir::Module representative;
+        ASSERT_TRUE(oobsum::fir::ReadModuleFile(path, representative, error));
+        EXPECT_EQ(oobsum::FirContentId(representative), chosen);
+        auto state = oobsum::InspectFirInputs(dir, true);
+        EXPECT_TRUE(state.ReadyForSolve());
+        EXPECT_TRUE(state.variants);
+        EXPECT_FALSE(state.conflict);
+        EXPECT_EQ(state.variantTus, size_t(1));
+        EXPECT_EQ(state.variantFiles, size_t(2));
+        EXPECT_EQ(CountFiles(At(dir, "fir")), 1);
+        oobsum::FirSelection selection;
+        ASSERT_TRUE(oobsum::DescribeFirSelection(dir, representative, selection, error));
+        EXPECT_EQ(selection.selected, chosen);
+        EXPECT_EQ(selection.ignored.size(), size_t(1));
+        EXPECT_TRUE(oobsum::IsStoredFirVariant(dir, a.tu, selection.selected, error));
+        ASSERT_TRUE(oobsum::PublishFir(dir, a, path, error, true));
+        ASSERT_TRUE(oobsum::PublishFir(dir, b, path, error, true));
+        EXPECT_EQ(CountFiles(At(At(dir, "fir-variants"), a.tu)), 2);
+        auto larger = oobsum::FirContentId(a) == chosen ? b : a;
+        EXPECT_FALSE(oobsum::DescribeFirSelection(dir, larger, selection, error));
+        EXPECT_TRUE(llvm::StringRef(error).contains("minimum-hash"));
+        auto third = a;
+        third.target.longSize = 8;
+        ASSERT_TRUE(oobsum::PublishFir(dir, third, path, error, true));
+        ASSERT_TRUE(oobsum::fir::ReadModuleFile(path, representative, error));
+        ASSERT_TRUE(oobsum::DescribeFirSelection(dir, representative, selection, error));
+        EXPECT_EQ(selection.selected, std::min(chosen, oobsum::FirContentId(third)));
+        EXPECT_EQ(selection.ignored.size(), size_t(2));
+        EXPECT_EQ(CountFiles(At(dir, "fir")), 1);
+        EXPECT_EQ(CountFiles(At(At(dir, "fir-variants"), a.tu)), 3);
+        llvm::sys::fs::remove_directories(dir);
+    }
+}
+
+TEST(FirStore, VariantEvidenceAndLockErrorsStayVisible)
+{
+    llvm::SmallString<128> dir;
+    ASSERT_TRUE(!llvm::sys::fs::createUniqueDirectory("oobsum-fir-select-test", dir));
+    std::string path, error;
+    ASSERT_TRUE(oobsum::PublishFir(dir, Module(4), path, error, true));
+    const std::string canonical = path, original = ReadAll(path);
+    ASSERT_TRUE(Write(At(dir, "fir-locks"), "wrong type"));
+    EXPECT_FALSE(oobsum::PublishFir(dir, Module(8), path, error, true));
+    EXPECT_FALSE(error.empty());
+    EXPECT_EQ(ReadAll(canonical), original);
+    EXPECT_FALSE(oobsum::InspectFirInputs(dir, true).ReadyForSolve());
+    llvm::sys::fs::remove_directories(dir);
+
+    ASSERT_TRUE(!llvm::sys::fs::createUniqueDirectory("oobsum-fir-select-test", dir));
+    ASSERT_TRUE(oobsum::PublishFir(dir, Module(4), path, error, true));
+    ASSERT_TRUE(oobsum::PublishFir(dir, Module(8), path, error, true));
+    std::string variants = At(At(dir, "fir-variants"), "test-tu");
+    ASSERT_TRUE(Write(At(variants, "x"), "bad name"));
+    EXPECT_FALSE(oobsum::InspectFirInputs(dir, true).ReadyForSolve());
+    ASSERT_TRUE(!llvm::sys::fs::remove(At(variants, "x")));
+    ASSERT_TRUE(Write(At(variants, "unfinished.tmp"), "partial"));
+    auto state = oobsum::InspectFirInputs(dir, true);
+    EXPECT_FALSE(state.ReadyForSolve());
+    EXPECT_EQ(state.incompleteFiles, size_t(1));
     llvm::sys::fs::remove_directories(dir);
 }
 
