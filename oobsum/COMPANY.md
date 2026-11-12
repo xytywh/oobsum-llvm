@@ -9,7 +9,16 @@
 
 ## 0. 下一次在公司按顺序做
 
-**清单版本：2026-11-11-3**
+**清单版本：2026-11-12-1**
+
+**已有report、只想让公司本地模型分析误报时：** 直接打开下面的完整提示词，补本轮实际report/WorkDir/cdb/config.ini和仓库外复核目录，交给本地模型；不必为此先运行后面的更新构建或全量分析步骤。它只授权优先复核D/P并提出Pxx方案，S暂不批量处理；你明确批准前不能改实际模型/INI、代码、参数或原结果。
+
+```bash
+OOB_REPO=/usr1/oobsum-llvm
+cat "$OOB_REPO/oobsum/prompts/company-dp-review.md"
+```
+
+OOB_REPO换成公司实际克隆位置。这里cat只读取提示词，不启动分析；业务明细只留在公司仓库外，带回模板只填计数和抽象原因。参数名只作线索，已有申请/释放配置不等于已知大小或已被OobSummary使用。
 
 从一个新的空业务WorkDir开始，按第1步顺序执行。初始化只先建立validation日志目录；fir/solved/decisions由本轮各阶段生成，不要求你已有结果、冲突目录或第二轮对照数据。
 每一步都给出目的、命令、执行中观察、完成预期与异常反馈。正常时继续下一步；出错或出现冲突时先停止进入后续阶段，再按该步的异常段检查本轮证据。冲突比较读取同一轮留下的多份FIR快照，不需要再跑一轮。
@@ -37,7 +46,7 @@ OOB_GBL=$OOB_ROOT/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/gbl_config.js
 OOB_REPORT=$OOB_ROOT/xir/llvm_ast/sa_check/rb.enhance.core.OobSummary/log/allfiles-buffer_overflow_report.json
 OOB_INI=$OOB_ROOT/config/config.ini
 OOB_FUNCPTR=$OOB_ROOT/config/config_funcptr.ini
-OOB_RUN_TAG=20261111-r3
+OOB_RUN_TAG=20261112-r1
 OOB_WD=/usr1/oobsum-work/full-b-$OOB_RUN_TAG
 OOB_LOG=$OOB_WD/validation
 OOB_TC_WD=$OOB_WD/testcase
@@ -506,6 +515,7 @@ printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATU
 ```
 
 **场景统计正确预期：** 默认按物理告警统计；主类合计等于该口径总数，--multi多标签合计可以更大，缺证据列UNCLASSIFIED。它统计已观察特征，不仅按调用层数分类，也不代表某等级所有能力均已支持；Lv10业务契约需人工判断。
+**可选本地模型复核：** 使用§0开头的提示词入口。首轮给出D/P索引、样本证据、申请契约表、通用Pxx提案与审批清单即可；不用先实施优化或重新跑全板。实际计数须区分合并报告条目与原判断，不能把原D/P标签直接当作已确认真问题/误报。
 **异常时：** 在公司保留相关判断fp/group、local/derived、source/sink与报告映射，必要时对照FIR；反馈只用抽象写法和数字：访问类别、读/写、元素大小、容量、范围、标签、保护条件类别及误报/真问题/看不出计数。位置、元素换算、分类或引用关系明显不符就停下反馈，不把业务函数/文件/源码/正文带回。
 
 ### 第9步：尾数组报告开关对照
@@ -517,12 +527,16 @@ printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATU
 {
 test ! -e "$OOB_COMPARE" &&
 mkdir -p "$OOB_COMPARE" &&
+mkdir "$OOB_COMPARE/inputs-pending" &&
 cp -a "$OOB_WD/fir" "$OOB_COMPARE/" &&
+{ if [ -d "$OOB_WD/fir-variants" ]; then cp -a "$OOB_WD/fir-variants" "$OOB_COMPARE/"; fi; } &&
 /usr/bin/time -v python3 "$OOB_REPO/oobsum/tools/oobsum_run.py" solve --workdir "$OOB_COMPARE" --bxen "$OOB_BUILD/bxen" --extra "-rbchecker-config=$OOB_INI -funcptr-config=$OOB_FUNCPTR -analyzer-config rb.enhance.core.OobSummary:Dump=progress -analyzer-config rb.enhance.core.OobSummary:ReportFlexibleArray=true" --run
 } 2>&1 | tee "$OOB_LOG/09-flex-solve.log"
 OOB_PIPE_STATUS=("${PIPESTATUS[@]}")
 printf 'command_exit=%s log_exit=%s\n' "${OOB_PIPE_STATUS[0]}" "${OOB_PIPE_STATUS[1]}" | tee "$OOB_LOG/09-flex-solve.exit"
 ```
+
+复用的是完整输入来源：存在fir-variants时必须一起保留，避免丢失选择账本与report校验依据；fir-locks无需复制。新目录先标inputs-pending，成功solve才清除，失败时仍不能report。此规则也适用于以后获批的模型对照；原WorkDir和报告不覆盖。
 
 确认本步solve完成、solved数与FIR数相符，再执行对照report。基线报告已在OOB_REPORT_COPY保存；公司共享log路径将产生对照报告。
 
@@ -626,7 +640,7 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 任一步异常，不必等整轮完成：保留该步日志/.exit与关联产物，填下面模板已完成的部分，未执行处写“未执行”，立即反馈。只有自有测试的错误可原样贴；业务阶段日志/数据仅在公司留存，带回计数和脱敏概括。
 
 ```text
-清单版本：2026-11-11-3
+清单版本：2026-11-12-1
 停止/完成步骤 __；提交号 __；各步骤command_exit/log_exit __
 稳定性输入概括：每轮是否新WorkDir __；cdb重复文件/不同编译命令文件数 __；不同宏/ABI是否代表不同产品配置 __；源码/选项/模型是否固定 __
 本轮从空业务目录开始 __；是否发生异常及停止阶段 __；原WorkDir/日志是否完整保留 __
@@ -646,6 +660,8 @@ find "$OOB_WD/dump/solve/summary" -maxdepth 1 -type f | wc -l
 7. report成功/失败 __；日志判断数/报出判断数/物理warning数/report条数 __；无法解释差值 __
    附基线stats --counts-only与report统计（只有计数）；未选实例跳过/输入漂移错误 __
 8. 告警格式核对 __；来源不可用/错位数量 __；场景默认/multi计数 __；各原因抽查 真问题/误报/看不出 __；抽象写法概括 __
+   可选本地模型只读复核：D/P实际口径与数量 __；首轮已核/未核 __；误报/真问题/待证/分级或输入问题计数 __
+   申请契约 已确认/待确认/现模型不支持 __；拟配置/引擎/输入或报告方案数 __；尚未实施/已批准Pxx __（不附业务名字、源码、配置正文）
 9. flex-on solve/report退出码 __；附对照stats --counts-only和report统计；与基线差异 __
 10. 仅一轮未比较/已具备两轮 __；执行时退出码 __；complete/equal/first_change __；附默认计数JSON（不附details）
 11. scope退出码 __；audit_complete/read_errors __；附11-fir-scope/11-result-scope计数JSON；自有实验all_passed __

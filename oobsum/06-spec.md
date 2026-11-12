@@ -300,6 +300,8 @@ pure:                           # 不改任何被跟踪内存、返回值无约�
 * **I-43** `AllocIdentity`：读 `func_name`、`func_type`、`para`、`offset`、`inner_wrapped_func`。函数体在分析范围内时**以摘要推导为准**，JSON 只做交叉校验（不一致写一条日志）；函数体不在范围内时当作分配器、大小记为未知（`01-` §3.7.2）。
 * **I-44** 同名冲突：模型表 > `AllocConfig` > `AllocIdentity` > 摘要推导；函数体可见且模型表没配的，一律用摘要。
 
+〔SPEC-0140核对说明：当前实际接入为ModelFile/YAML，allocator仅返回指针的result:ret；AllocConfig/AllocIdentity是未注册的规划项，不能由-rbchecker-config推断生效。INI对象位置或参数命名不能证明大小，需实现/契约依据并核对Dump=models；示例中的待确认条目不是业务事实。公司误报优化先只读提案，配置改动也须用户批准。〕
+
 ### 4.5 工作目录
 
 ```

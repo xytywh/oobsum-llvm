@@ -33,6 +33,7 @@
 
 | 编号 | 标题 | 状态 |
 |---|---|---|
+| [SPEC-0140](SPEC-0140-company-dp-review-prompt.md) | 公司本地模型只读复核D/P、申请契约核查与先审批的通用优化提案 | 已实现（仅文档） |
 | [SPEC-0139](SPEC-0139-deterministic-single-fir.md) | 用户授权固定选择一个FIR，版本留存、选择账本及report一致性 | 已实现 |
 | [SPEC-0138](SPEC-0138-company-fresh-run-guide.md) | 空WorkDir单轮顺序执行、阶段观察、出错后才查本轮快照 | 已实现 |
 | [SPEC-0137](SPEC-0137-export-input-observation.md) | 并发发布只观察标记，本次错误单列、按TU/PID留证，solve仍严格扫描 | 已实现 |

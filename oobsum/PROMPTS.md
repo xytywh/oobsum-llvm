@@ -1,7 +1,7 @@
-# 给 Claude Code 的提示词
+# 给编程代理的提示词
 
 在 WSL 里 `cd` 到仓库根（有 `CLAUDE.md` 的那一层），运行 `claude`，把对应的一段整段粘进去。
-`CLAUDE.md` 每次会自动加载，所以提示词只说"这次要做什么"；规则以 `CLAUDE.md` 为准。
+支持自动加载`CLAUDE.md`的工具按其规则运行；其它本地代理应主动读取。A–D是既有开发流程，E是公司告警只读复核，未批准前不能套用自主实施流程。
 
 ---
 
@@ -78,3 +78,15 @@
 在 oobsum/testcase/OobSummaryChecker/ 里更新公司 TestCase 与文件头里的预期；在对应 SPEC 的"公司侧验证"写清 bxen 命令与预期结果；
 最后给我一段可以直接照做的公司侧步骤（git pull → land.py → make -j16 → bxen → decisions.py）。
 ```
+
+---
+
+## E. 公司本地模型：D/P误报诊断，先提案再审批
+
+完整提示词在 [prompts/company-dp-review.md](prompts/company-dp-review.md)。在公司打开文件，复制全文交给本地模型，补齐本轮report/WorkDir/cdb/config.ini及仓库外复核目录的真实路径。
+
+已有report即可进入只读复核，不要求先重跑全板。首轮索引全部D/P、分层核查约30–50条，按通用根因提出Pxx方案；SUSPECT不做批量降噪。业务明细与契约草案全部放公司本地仓库外。
+
+模板要求核查实际ModelFile/INI接入链路：申请/释放对象的位置不是大小参数，参数名不能作为容量证明。配置变更也需批准，不以纯函数/正则/标签过滤代替修复；现有ret-only模型表达不了的内容必须明确提扩展方案。
+
+第一阶段只输出证据、契约表、通用提案和审批清单。它没有授权修改规则、实际模型/INI、业务源码、原始结果或基线，也不授权提交/push；批准具体Pxx后才恢复相应实施循环。
